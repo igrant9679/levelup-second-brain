@@ -16,7 +16,7 @@
 interface FinAccount { id?: string | number; name?: string; type?: string; balance?: number; apr?: number | null }
 interface FinBill { id?: string | number; name?: string; amount?: number; dueDay?: number; autopay?: boolean; active?: boolean; lastPaidYM?: string }
 interface FinCat { id?: string; name?: string; icon?: string; kind?: string }
-interface FinTx { date?: string; amount?: number; catId?: string }
+interface FinTx { date?: string; amount?: number; catId?: string; accountId?: string | number | null; payee?: string; notes?: string; xfer?: boolean }
 interface FinStream { name?: string; active?: boolean; expected?: number; perMonth?: Record<string, number> }
 interface Finance {
   accounts: FinAccount[];
@@ -71,6 +71,76 @@ function catKind(f: Finance, id: string | undefined): string {
   return c && c.kind ? String(c.kind) : (String(id || '').startsWith('inc-') ? 'income' : 'expense');
 }
 
+// ── What each transaction IS (build -229) ──────────────────────────────────
+// The SAME rules as the client's _finClassify (app-part2.js) — the emails, the
+// coach and the Money page must agree, and server/phase4.money.test.ts runs
+// both on one fixture month. Change both together.
+//  xfer  Transfer-kind category; a payment credited to a card/loan ("PAYMENT -
+//        THANK YOU", "AUTOPAY"); the non-debt outflow of the same amount
+//        within 5 days that paid it.
+//  inc   income-kind category on a non-debt account.
+//  spend everything else, signed: refunds reduce their category; a card
+//        credit in an income category nets against Miscellaneous; a
+//        category netting below zero counts as 0.
+// tx.xfer true/false overrides the automatic transfer detection.
+const PAY_RE = /\b(payment|pmt|pymt|autopay|thank you)\b/i;
+type TxClass = { cls: 'xfer' | 'inc' | 'spend' | null; amt: number; cat?: string };
+export function classifyFinanceTx(f: Finance): Map<FinTx, TxClass> {
+  const acct = new Map(f.accounts.map(a => [String(a.id), a]));
+  const isDebtTx = (t: FinTx) => { const a = acct.get(String(t.accountId)); return !!a && isDebt(a); };
+  const dayMs = (t: FinTx) => Date.parse(String(t.date || '').slice(0, 10) + 'T12:00:00Z');
+  const out = new Map<FinTx, TxClass>();
+  const payIns: FinTx[] = [], outflows: FinTx[] = [];
+  for (const t of f.transactions) {
+    const amt = Number(t.amount) || 0;
+    let cls: TxClass['cls'] = null;
+    if (t.xfer === true || catKind(f, t.catId) === 'transfer') cls = 'xfer';
+    else if (t.xfer !== false && amt > 0 && isDebtTx(t) && PAY_RE.test(String(t.payee || '') + ' ' + String(t.notes || ''))) cls = 'xfer';
+    out.set(t, { cls, amt, cat: t.catId });
+    if (cls === 'xfer' && amt > 0 && isDebtTx(t)) payIns.push(t);
+    else if (!cls && amt < 0 && !isDebtTx(t) && t.xfer !== false) outflows.push(t);
+  }
+  const used = new Set<FinTx>();
+  for (const p of payIns) {
+    const cents = Math.round(Math.abs(Number(p.amount) || 0) * 100), pd = dayMs(p);
+    let best: FinTx | null = null, gap = Infinity;
+    for (const o of outflows) {
+      if (used.has(o) || Math.round(Math.abs(Number(o.amount) || 0) * 100) !== cents) continue;
+      const g = Math.abs(dayMs(o) - pd) / 864e5;
+      if (g < gap) { gap = g; best = o; }
+    }
+    if (best && gap <= 5) { used.add(best); out.get(best)!.cls = 'xfer'; }
+  }
+  out.forEach((v, t) => {
+    if (v.cls) return;
+    const k = catKind(f, t.catId);
+    if (k === 'income' && !isDebtTx(t)) v.cls = 'inc';
+    else { v.cls = 'spend'; if (k === 'income') v.cat = 'misc-other'; }
+  });
+  return out;
+}
+export function financeTotals(f: Finance, keep: (t: FinTx) => boolean, classes = classifyFinanceTx(f)): { income: number; spent: number; byCat: Record<string, number> } {
+  let income = 0; const byCat: Record<string, number> = {};
+  for (const t of f.transactions) {
+    if (!keep(t)) continue;
+    const c = classes.get(t); if (!c) continue;
+    if (c.cls === 'inc') income += c.amt;
+    else if (c.cls === 'spend') byCat[String(c.cat)] = (byCat[String(c.cat)] || 0) - c.amt;
+  }
+  Object.keys(byCat).forEach(k => { if (!(byCat[k] > 0.004)) delete byCat[k]; });
+  return { income, spent: Object.values(byCat).reduce((s, v) => s + v, 0), byCat };
+}
+const inMonth = (ym: string) => (t: FinTx) => String(t.date || '').slice(0, 7) === ym;
+/** Expected income — same rule as the client's _finStreamExpected: a stream
+ *  with a per-month schedule expects nothing in a month it leaves out. */
+export function streamExpected(st: FinStream, ym: string): number {
+  if (st.active === false) return 0;
+  const pm = st.perMonth && typeof st.perMonth === 'object' ? st.perMonth : null;
+  if (pm && pm[ym] != null) return Number(pm[ym]) || 0;
+  if (pm && Object.keys(pm).length) return 0;
+  return Number(st.expected) || 0;
+}
+
 function budgetFor(f: Finance, catId: string, ym: string): number {
   const ov = f.budgetOverrides[ym];
   if (ov && ov[catId] != null) return Number(ov[catId]) || 0;
@@ -102,18 +172,12 @@ interface MoneyStats {
 
 export function computeMoneyStats(f: Finance, now = new Date()): MoneyStats {
   const ym = ymOf(now);
-  // Transfers (category kind 'transfer') move money between the user's own
-  // accounts — never spending or income (mirrors client _finIsXfer).
-  const isXfer = (t: { catId?: string }) => catKind(f, t.catId) === 'transfer';
-  const monthTx = f.transactions.filter(t => String(t.date || '').slice(0, 7) === ym && !isXfer(t));
-  const spent = -monthTx.filter(t => (t.amount || 0) < 0).reduce((s, t) => s + (t.amount || 0), 0);
-  const income = monthTx.filter(t => (t.amount || 0) > 0).reduce((s, t) => s + (t.amount || 0), 0);
+  const tot = financeTotals(f, inMonth(ym));
+  const spent = tot.spent;
+  const income = tot.income;
   const budgetTotal = budgetIds(f, ym).filter(id => catKind(f, id) !== 'income').reduce((s, id) => s + budgetFor(f, id, ym), 0);
-  const incomeExpected = f.incomeStreams.filter(s => s.active !== false)
-    .reduce((s, st) => s + (st.perMonth && st.perMonth[ym] != null ? Number(st.perMonth[ym]) || 0 : Number(st.expected) || 0), 0);
-
-  const spentByCat: Record<string, number> = {};
-  monthTx.forEach(t => { if ((t.amount || 0) < 0) spentByCat[String(t.catId)] = (spentByCat[String(t.catId)] || 0) - (t.amount || 0); });
+  const incomeExpected = f.incomeStreams.reduce((s, st) => s + streamExpected(st, ym), 0);
+  const spentByCat = tot.byCat;
   const overCats = Object.entries(spentByCat)
     .map(([id, sp]) => ({ id, spent: sp, budget: budgetFor(f, id, ym) }))
     .filter(x => x.budget > 0 && x.spent > x.budget)
@@ -280,12 +344,7 @@ export async function buildMoneySectionHtml(rawFinance: string | null | undefine
 // figures — never account numbers, payees or individual transactions.
 
 function spendByCat(f: Finance, ym: string): Record<string, number> {
-  const out: Record<string, number> = {};
-  f.transactions.forEach(t => {
-    if (String(t.date || '').slice(0, 7) !== ym || catKind(f, t.catId) === 'transfer') return;
-    if ((t.amount || 0) < 0) out[String(t.catId)] = (out[String(t.catId)] || 0) - (t.amount || 0);
-  });
-  return out;
+  return financeTotals(f, inMonth(ym)).byCat;
 }
 const ymdOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const plain = (s: string) => s.replace(/^[^\w$]+\s*/, '');

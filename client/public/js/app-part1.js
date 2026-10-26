@@ -937,7 +937,9 @@ const _PIPELINE_STAGES=[
 //   "Closed/Won"  → matches "Closed Won"
 //   "On Hold"     → matches "On-Hold"
 //   "closed lost" → matches "Closed Lost"
-function _normStage(s){return String(s||'').replace(/[\/_]/g,' ').replace(/\s+/g,' ').trim().toLowerCase();}
+// Hyphens too: "On-Hold" used to fall back to Lead at 10% (the server's
+// canonicalise already handled them).
+function _normStage(s){return String(s||'').replace(/[\/_-]/g,' ').replace(/\s+/g,' ').trim().toLowerCase();}
 function _stageDef(key){
   if(!key)return _PIPELINE_STAGES[0];
   const norm=_normStage(key);
@@ -1121,7 +1123,7 @@ async function _niftyPushSubmit(){
 async function refreshExternalTasksNow(){
   _topbarSyncSpin(true);
   try{
-    toast({type:'info',title:'Syncing Smartsheet + NiftyPM…',duration:2000});
+    toast({type:'info',title:'Syncing NiftyPM…',duration:2000});
     const stats=await _trpc('externalSources.refreshNow',undefined,'mutation');
     await loadExternalTasks();
     // Hierarchical Smartsheet sync may have auto-created LevelUp projects on
@@ -1206,12 +1208,12 @@ function _topbarSyncTooltipUpdate(){
   if(last){
     const ago=(Date.now()-_pd(last).getTime())/60000;
     const label=ago<2?'just now':ago<60?`${Math.floor(ago)}m ago`:ago<1440?`${Math.floor(ago/60)}h ago`:`${Math.floor(ago/1440)}d ago`;
-    btn.title=`Sync Smartsheet + NiftyPM · last pulled ${label} · ${cfN} CF + ${lsiN} LSI rows`;
+    btn.title=`Sync NiftyPM · last pulled ${label} · ${cfN} CF + ${lsiN} LSI rows`;
     // Compact label visible beside the button on desktop.
     const lbl=document.getElementById('topbar-sync-label');
     if(lbl){lbl.style.display='';lbl.textContent=`synced ${label}${sources?' · '+sources+' src':''}`;}
   }else{
-    btn.title='Sync external sources (Smartsheet + NiftyPM) — click to pull now';
+    btn.title='Sync NiftyPM — click to pull now';
     const lbl=document.getElementById('topbar-sync-label');
     if(lbl)lbl.style.display='none';
   }
@@ -11544,7 +11546,7 @@ function _renderExternalTasksRailWidget(){
         <button class="btn btn-s" style="font-size:10px;padding:0 6px;height:20px" onclick="_extBulkMyDay(true)" title="Add visible items to My Day">+☀ All</button>
         <button class="btn btn-s" style="font-size:10px;padding:0 6px;height:20px" onclick="_extBulkMyDay(false)" title="Clear My Day flag on visible items">✕☀</button>
         <button class="btn btn-s" style="font-size:10px;padding:0 6px;height:20px" onclick="_extBulkStatusMenu(event)" title="Set status on visible items">⚙</button>
-        <button class="btn btn-s" style="font-size:10px;padding:0 6px;height:20px" onclick="refreshExternalTasksNow()" title="Refresh from Smartsheet + NiftyPM">↻</button>
+        <button class="btn btn-s" style="font-size:10px;padding:0 6px;height:20px" onclick="refreshExternalTasksNow()" title="Refresh from NiftyPM">↻</button>
       </div>
     </div>
     <div style="font-size:11px;color:var(--t3);margin-bottom:6px">${summary}${relevant.length>12?` · showing 12 of ${relevant.length}`:''}</div>
@@ -11706,7 +11708,7 @@ function _renderDailyCommandCenterCard(){
       ${cell('CF',(noExternal?'var(--t3)':'#1f6feb'),ss)}
       ${cell('LSI',(noExternal?'var(--t3)':'#9333ea'),nf)}
     </div>
-    ${noExternal?`<div style="font-size:11px;color:var(--t3);margin-top:8px;text-align:center">Connect Smartsheet + NiftyPM in Settings → Integrations to pull CF/LSI tasks.</div>`:''}
+    ${noExternal?`<div style="font-size:11px;color:var(--t3);margin-top:8px;text-align:center">Connect NiftyPM in Settings → Integrations to pull CF/LSI tasks.</div>`:''}
     ${_renderDailyFocusAISection()}
   </div>`;
 }
@@ -11748,14 +11750,14 @@ function _topbarPushBtnUpdate(){
     btn.style.display='';
     const lbl=btn.querySelector('[data-pcount]');
     if(lbl)lbl.textContent=String(n);
-    btn.title=`Push ${n} pending status change${n===1?'':'s'} to Smartsheet + NiftyPM`;
+    btn.title=`Push ${n} pending status change${n===1?'':'s'} to NiftyPM`;
   }else{
     btn.style.display='none';
   }
 }
 async function _pushPendingNow(){
   if(!(window._extPendingCount>0)){toast({type:'info',title:'No pending changes to push'});return;}
-  if(!confirm(`Push ${window._extPendingCount} queued status change${window._extPendingCount===1?'':'s'} to Smartsheet + NiftyPM?`))return;
+  if(!confirm(`Push ${window._extPendingCount} queued status change${window._extPendingCount===1?'':'s'} to NiftyPM?`))return;
   _topbarSyncSpin(true);
   try{
     toast({type:'info',title:'Pushing queued changes…',duration:2000});
@@ -15402,10 +15404,15 @@ function renderPipeline(){
     const visibleStages=_PIPELINE_STAGES.filter(s=>!s.terminal||!_pipelineHideClosed);
     const byStage={};
     visibleStages.forEach(s=>byStage[s.key]=[]);
+    // Bucket by the NORMALISED stage ("On-Hold", "closed/won", synced
+    // spellings). A stage that matches no column lands in the first one —
+    // it used to be counted in the KPIs but shown in no column at all.
     for(const o of opps){
       if(o.status==='lost'&&_pipelineHideClosed)continue;
-      if(byStage[o.stage])byStage[o.stage].push(o);
-      else if(!_pipelineHideClosed&&byStage['Lead'])byStage['Lead'].push(o);
+      const def=_stageDef(o.stage);
+      if(byStage[def.key])byStage[def.key].push(o);
+      else if(def.terminal&&_pipelineHideClosed)continue;
+      else if(visibleStages[0])byStage[visibleStages[0].key].push(o);
     }
     body=`<div style="display:flex;gap:6px;margin-bottom:6px;font-size:11px"><label style="display:flex;align-items:center;gap:6px;color:var(--t2);cursor:pointer"><input type="checkbox" ${_pipelineHideClosed?'checked':''} onchange="_pipelineHideClosed=this.checked;renderPipeline()"> Hide Closed Won/Lost</label></div>
     <div style="display:grid;grid-template-columns:repeat(${visibleStages.length},minmax(220px,1fr));gap:10px;align-items:flex-start;overflow-x:auto">
@@ -15598,8 +15605,13 @@ function _reportStageAging(open){
   const stageBuckets={};
   for(const s of _PIPELINE_STAGES){if(!s.terminal)stageBuckets[s.key]={count:0,daysSum:0,oldest:null};}
   for(const o of open){
-    const b=stageBuckets[o.stage];if(!b)continue;
-    const d=daysSince(o.updatedAt);if(d==null)continue;
+    const b=stageBuckets[_stageDef(o.stage).key];if(!b)continue;
+    // Days since the deal ENTERED its stage (o.stageAt, set from -229 on).
+    // Older manual deals fall back to updatedAt; deals from the retired
+    // Smartsheet sync have no reliable date (updatedAt froze at -223), so
+    // they are left out rather than all turning "stalled" in December.
+    const entered=o.stageAt||(o.source==='smartsheet'?null:o.updatedAt);
+    const d=daysSince(entered);if(d==null)continue;
     b.count++;b.daysSum+=d;
     if(!b.oldest||d>b.oldest.days)b.oldest={days:d,opp:o};
   }
@@ -15682,12 +15694,31 @@ function _reportQuarterlyBooking(open){
     ${bars}
   </div>`;
 }
-function _reportCoverage(open){
+// The quota's period as local days: this year / half / quarter / month.
+function _quotaWindow(label){
+  const n=new Date(),y=n.getFullYear(),m=n.getMonth();
+  let s,e;
+  if(label==='Monthly'){s=new Date(y,m,1);e=new Date(y,m+1,0);}
+  else if(label==='Quarterly'){const q0=Math.floor(m/3)*3;s=new Date(y,q0,1);e=new Date(y,q0+3,0);}
+  else if(label==='Half-Year'){const h0=m<6?0:6;s=new Date(y,h0,1);e=new Date(y,h0+6,0);}
+  else{s=new Date(y,0,1);e=new Date(y,11,31);}
+  return {start:_ymd(s),end:_ymd(e)};
+}
+// Coverage = open pipeline CLOSING IN THE QUOTA PERIOD ÷ what is still left
+// to win in it. It used to divide all open pipeline (far-future and On-Hold
+// deals included) by a quarterly or monthly quota.
+function _reportCoverage(openAll){
   const q=_pipelineQuota();
+  const win=_quotaWindow(q.periodLabel);
+  const inWin=d=>!!d&&d>=win.start&&d<=win.end;
+  const open=openAll.filter(o=>inWin(o.closeDate)&&_stageDef(o.stage).key!=='On-Hold');
+  const wonValue=_opps().filter(o=>o.status==='won'&&inWin(_dayOf(o.wonAt||o.closeDate))).reduce((s,o)=>s+(Number(o.value)||0),0);
+  const remaining=Math.max(0,q.amount-wonValue);
   const totalOpen=open.reduce((s,o)=>s+(Number(o.value)||0),0);
   const totalWeighted=open.reduce((s,o)=>s+_weightedValue(o),0);
-  const coverage=q.amount>0?(totalOpen/q.amount):null;
-  const weightedCoverage=q.amount>0?(totalWeighted/q.amount):null;
+  const coverage=q.amount>0?(remaining>0?totalOpen/remaining:Infinity):null;
+  const weightedCoverage=q.amount>0?(remaining>0?totalWeighted/remaining:Infinity):null;
+  const outside=openAll.length-open.length;
   const target=q.coverageTarget||3;
   const status=coverage==null?'unset':coverage>=target?'healthy':coverage>=target*0.6?'caution':'gap';
   const statusColor={unset:'#64748b',healthy:'#10b981',caution:'#f59e0b',gap:'#ef4444'}[status];
@@ -15699,7 +15730,7 @@ function _reportCoverage(open){
       <button class="btn btn-p" style="font-size:11px" onclick="_openPipelineQuotaSettings()">⚙ Configure quota</button>
     </div>`
     :`<div style="text-align:center;margin-bottom:12px">
-      <div style="font-size:28px;font-weight:800;color:${statusColor};line-height:1">${coverage.toFixed(1)}x</div>
+      <div style="font-size:28px;font-weight:800;color:${statusColor};line-height:1">${isFinite(coverage)?coverage.toFixed(1)+'x':'✓ met'}</div>
       <div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:3px">coverage · target ${target}x · ${esc(statusLabel)}</div>
     </div>
     <div style="height:10px;background:var(--s3);border-radius:5px;overflow:hidden;margin-bottom:10px"><div style="height:100%;width:${gaugePct}%;background:${statusColor};border-radius:5px"></div></div>
@@ -15707,9 +15738,9 @@ function _reportCoverage(open){
       <div style="padding:8px;background:var(--s3);border-radius:5px"><div style="color:var(--t3);font-size:11px;text-transform:uppercase;letter-spacing:.04em">${esc(q.periodLabel)} Target</div><div style="font-size:14px;font-weight:700;color:var(--t1);margin-top:2px">${_fmtMoney(q.amount)}</div></div>
       <div style="padding:8px;background:var(--s3);border-radius:5px"><div style="color:var(--t3);font-size:11px;text-transform:uppercase;letter-spacing:.04em">Pipeline</div><div style="font-size:14px;font-weight:700;color:var(--t1);margin-top:2px">${_fmtMoney(totalOpen)}</div></div>
       <div style="padding:8px;background:var(--s3);border-radius:5px"><div style="color:var(--t3);font-size:11px;text-transform:uppercase;letter-spacing:.04em">Weighted</div><div style="font-size:14px;font-weight:700;color:var(--ok);margin-top:2px">${_fmtMoney(totalWeighted)}</div></div>
-      <div style="padding:8px;background:var(--s3);border-radius:5px"><div style="color:var(--t3);font-size:11px;text-transform:uppercase;letter-spacing:.04em">Weighted Cov.</div><div style="font-size:14px;font-weight:700;color:var(--t1);margin-top:2px">${weightedCoverage!=null?weightedCoverage.toFixed(1)+'x':'—'}</div></div>
+      <div style="padding:8px;background:var(--s3);border-radius:5px"><div style="color:var(--t3);font-size:11px;text-transform:uppercase;letter-spacing:.04em">Weighted Cov.</div><div style="font-size:14px;font-weight:700;color:var(--t1);margin-top:2px">${weightedCoverage==null?'—':isFinite(weightedCoverage)?weightedCoverage.toFixed(1)+'x':'met'}</div></div>
     </div>
-    <div style="font-size:11px;color:var(--t3);margin-top:10px;text-align:center">${target}x is the industry rule of thumb for healthy B2B sales pipeline.</div>
+    <div style="font-size:11px;color:var(--t3);margin-top:10px;text-align:center">Deals closing ${esc(win.start)} → ${esc(win.end)}${wonValue?` · ${_fmtMoney(wonValue)} already won counts toward the target`:''}${outside?` · ${outside} open deal${outside===1?'':'s'} outside the period or on hold not counted`:''}. ${target}x is the usual rule of thumb.</div>
     <div style="margin-top:8px;text-align:center"><button class="btn btn-s" style="font-size:11px" onclick="_openPipelineQuotaSettings()">⚙ Adjust quota</button></div>`;
   return `<div class="cd" style="padding:13px 15px;border-left:3px solid ${statusColor}">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:13px;font-weight:600">🎯 Pipeline Coverage</div><div style="font-size:11px;color:${statusColor};font-weight:600">${esc(statusLabel)}</div></div>
@@ -15836,6 +15867,19 @@ function openOpportunityDetail(oppId,opts){
     </div>`;
   ov.classList.add('show');
 }
+function _readOpportunityForm(o){
+  if(!document.getElementById('opp-name'))return false;
+  const g=id=>(document.getElementById(id)||{}).value||'';
+  o.name=g('opp-name').trim()||'(unnamed)';
+  o.accountName=g('opp-account').trim();
+  o.value=Number(g('opp-value'))||0;
+  const prob=g('opp-prob');o.probability=prob===''?null:Math.max(0,Math.min(100,Number(prob)||0));
+  o.closeDate=g('opp-close')||'';
+  o.owner=g('opp-owner').trim();
+  o.contact=g('opp-contact').trim();
+  o.notes=g('opp-notes')||'';
+  return true;
+}
 function _saveOpportunityFields(oppId){
   const o=_opps().find(x=>String(x.id)===String(oppId));if(!o)return;
   const g=id=>(document.getElementById(id)||{}).value;
@@ -15855,6 +15899,15 @@ function _saveOpportunityFields(oppId){
 }
 function _setOpportunityStage(oppId,stage){
   const o=_opps().find(x=>String(x.id)===String(oppId));if(!o)return;
+  // Keep what was typed in the drawer: the re-render below used to throw
+  // unsaved field edits away.
+  _readOpportunityForm(o);
+  if(_stageDef(o.stage).key!==_stageDef(stage).key){
+    const at=new Date().toISOString();
+    o.stageAt=at;
+    o.stageHistory=Array.isArray(o.stageHistory)?o.stageHistory.slice(-49):[];
+    o.stageHistory.push({stage,at});
+  }
   o.stage=stage;
   const def=_stageDef(stage);
   if(def.outcome==='won'){o.status='won';o.wonAt=new Date().toISOString();}
@@ -16922,7 +16975,7 @@ function openProjectDetail(pid){
     <button class="btn btn-p" onclick="closeDrawer();openDrawer('project',D.projects.find(x=>x.id===${pid}))">✏ Edit Project</button>
     <button class="btn btn-s" onclick="closeDrawer();openFA('task')">+ Add task</button>
     <button class="btn btn-s" onclick="_openExternalTaskPicker(${pid})" title="Pick CF/LSI tasks to include in this project">🔗 Link external task</button>
-    ${p.autoCreatedBy?`<button class="btn btn-s" style="color:#1f6feb;border-color:#1f6feb" onclick="_resyncProjectSource(${pid})" title="Pull fresh data from the originating Smartsheet/Nifty source">↻ Resync source</button>`:''}
+    ${p.autoCreatedBy&&p.autoCreatedBy!=='smartsheet-sync'?`<button class="btn btn-s" style="color:#1f6feb;border-color:#1f6feb" onclick="_resyncProjectSource(${pid})" title="Pull fresh data from the originating Smartsheet/Nifty source">↻ Resync source</button>`:''}
     <button class="btn btn-s" style="color:var(--purp)" onclick="_aiProjectCoach(${pid})" title="AI health summary + blockers + suggested next milestone for this project">🩺 AI Coach</button>
     <button class="btn btn-s" style="color:var(--purp)" onclick="_aiProjectStatusUpdate(${pid})" title="AI-generated stakeholder summary you can paste into an email">✨ Status update</button>
     <button class="btn btn-s" onclick="closeDrawer()">Close</button>
@@ -20184,6 +20237,24 @@ function _widgetMetric(rows,metric){
 }
 
 // Build {labels[], values[], rows{}} for a widget.
+// The rows a widget counts: its filter, then its date range. The range used
+// to apply only to day/week/month groupings, so a "Time this week" KPI summed
+// 90 days and 30-day donuts were all-time. Now the range filters on the
+// grouping's date field, else the source's dateField; a row with no date there
+// (an open task has no completedAt) is kept — the range can't place it.
+function _widgetRows(w){
+  const src=WIDGET_SOURCES[w.source]||WIDGET_SOURCES.tasks;
+  const effRange=w.range||_reportRange;
+  let rows=src.arr().filter(r=>_widgetFilterRow(r,w.filter||{}));
+  if(effRange==='all')return rows;
+  const days={'7d':7,'30d':30,'90d':90,'365d':365}[effRange]||30;
+  const st=new Date();st.setDate(st.getDate()-days);
+  const startKey=_ymd(st),todayKey=_ymd(new Date());
+  const dm=String(w.groupBy||'').match(/^(day|week|month)\((\w+)\)$/);
+  const field=dm?dm[2]:src.dateField;
+  if(!field)return rows;
+  return rows.filter(r=>{const v=r[field];if(!v)return !dm;const d=_dayOf(v);return d>=startKey&&d<=todayKey;});
+}
 function _widgetData(w){
   const src=WIDGET_SOURCES[w.source]||WIDGET_SOURCES.tasks;
   // Resolve effective date range: per-widget override beats report-level.
@@ -20191,17 +20262,12 @@ function _widgetData(w){
   const effRange=w.range||_reportRange;
   const days={'7d':7,'30d':30,'90d':90,'365d':365,'all':9999}[effRange]||30;
   const _startDate=new Date();_startDate.setDate(_startDate.getDate()-days);
-  // Restrict to the date range when the groupBy is date-based
-  // (so the chart matches the configured range). Skip for other groupings.
   const useRange=/^(day|week|month)\(/.test(w.groupBy);
-  const startKey=useRange?_ymd(_startDate):'';
+  const startKey=_ymd(_startDate);
   const todayKey=_ymd(new Date());
   const dm=useRange&&String(w.groupBy).match(/^(\w+)\((\w+)\)$/);
-  let rows=src.arr().filter(r=>_widgetFilterRow(r,w.filter||{}));
-  if(useRange&&dm){
-    const f=dm[2];
-    rows=rows.filter(r=>{const d=(r[f]||'').slice(0,10);return d>=startKey&&d<=todayKey;});
-  }
+  const rows=_widgetRows(w);
+  void startKey;void todayKey;
   if(w.groupBy==='_rows'){
     return {rows,total:rows.length};
   }
@@ -20225,7 +20291,7 @@ function _renderWidget(w,idx){
   const color=w.color||'var(--ac)';
   let body='';
   if(w.viz==='kpi'){
-    const val=w.groupBy==='_total'?_widgetMetric((WIDGET_SOURCES[w.source]||WIDGET_SOURCES.tasks).arr().filter(r=>_widgetFilterRow(r,w.filter||{})),w.metric):data.total;
+    const val=w.groupBy==='_total'?_widgetMetric(_widgetRows(w),w.metric):data.total;
     const display=typeof val==='number'?(Number.isInteger(val)?val:val.toFixed(1)):String(val);
     body=`<div style="display:flex;align-items:baseline;gap:8px;padding:4px 0"><div style="font-size:38px;font-weight:800;color:${color};line-height:1">${display}</div><div style="font-size:11px;color:var(--t3);font-weight:500">${esc(WIDGET_SOURCES[w.source].label)}</div></div>`;
   }else if(w.viz==='bar'){

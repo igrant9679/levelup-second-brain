@@ -15272,27 +15272,102 @@ function _populateMoneyRail(){
 }
 function _finCat(id){ return _finData().categories.find(c=>c.id===id)||{id,name:'(unknown)',group:'Misc',icon:'❓',kind:'expense'}; }
 function _finTxMonth(ym){ return _finData().transactions.filter(t=>String(t.date||'').slice(0,7)===ym); }
-// Transfers (category kind 'transfer') are money moving between the user's own
-// accounts — they never count as spending or income anywhere in Money.
-function _finIsXfer(t){ return !!t&&_finCat(t.catId).kind==='transfer'; }
-function _finIncome(ym){ return _finTxMonth(ym).filter(t=>t.amount>0&&!_finIsXfer(t)).reduce((s,t)=>s+t.amount,0); }
-function _finSpent(ym){ return -_finTxMonth(ym).filter(t=>t.amount<0&&!_finIsXfer(t)).reduce((s,t)=>s+t.amount,0); }
-function _finSpentByCat(ym){ const m={}; _finTxMonth(ym).forEach(t=>{ if(t.amount<0&&!_finIsXfer(t))m[t.catId]=(m[t.catId]||0)-t.amount; }); return m; }
+// ── What each transaction IS (build -229) ─────────────────────────────────
+// One classification for every total in Money, and the SAME rules as the
+// server's classifyFinanceTx (server/_core/financeEmail.ts) that feeds the
+// emails and the coach — server/phase4.money.test.ts runs both on one fixture
+// month and requires equal totals. Change both together.
+//  'xfer'  money moving between your own accounts, never income or spending:
+//          a Transfer-kind category; a payment credited to a card or loan
+//          ("PAYMENT - THANK YOU", "AUTOPAY"); and the checking/savings
+//          outflow of the same amount within 5 days that paid it. Before,
+//          with both sides synced, a purchase counted on the card AND again
+//          when checking paid the card, and the card's credit was income.
+//  'inc'   an income-kind category on a non-debt account.
+//  'spend' everything else, SIGNED — a refund (+$120 in Shopping) reduces
+//          Shopping instead of being income. A credit on a card that sits in
+//          an income category (bank default "Other income") nets against
+//          Miscellaneous. Categories netting below zero count as 0.
+// t.xfer === true / false overrides the automatic transfer detection.
+const _FIN_PAY_RE=/\b(payment|pmt|pymt|autopay|thank you)\b/i;
+let _finClassCache=null;
+function _finCatKind(f,id){ const c=(f.categories||[]).find(c=>c.id===id); return c&&c.kind?c.kind:(String(id||'').startsWith('inc-')?'income':'expense'); }
+function _finClassify(f){
+  const acct=new Map((f.accounts||[]).map(a=>[String(a.id),a]));
+  const isDebt=t=>{const a=acct.get(String(t.accountId));return !!a&&(a.type==='credit'||a.type==='loan');};
+  const dayMs=t=>Date.parse(String(t.date||'').slice(0,10)+'T12:00:00Z');
+  const out=new Map(),payIns=[],outflows=[];
+  (f.transactions||[]).forEach(t=>{
+    const amt=Number(t.amount)||0;
+    let cls=null;
+    if(t.xfer===true||_finCatKind(f,t.catId)==='transfer')cls='xfer';
+    else if(t.xfer!==false&&amt>0&&isDebt(t)&&_FIN_PAY_RE.test(String(t.payee||'')+' '+String(t.notes||'')))cls='xfer';
+    out.set(t,{cls,amt,cat:t.catId});
+    if(cls==='xfer'&&amt>0&&isDebt(t))payIns.push(t);
+    else if(!cls&&amt<0&&!isDebt(t)&&t.xfer!==false)outflows.push(t);
+  });
+  const used=new Set();
+  payIns.forEach(p=>{
+    const cents=Math.round(Math.abs(Number(p.amount)||0)*100),pd=dayMs(p);
+    let best=null,gap=Infinity;
+    outflows.forEach(o=>{ if(used.has(o)||Math.round(Math.abs(Number(o.amount)||0)*100)!==cents)return; const g=Math.abs(dayMs(o)-pd)/864e5; if(g<gap){gap=g;best=o;} });
+    if(best&&gap<=5){used.add(best);out.get(best).cls='xfer';}
+  });
+  out.forEach((v,t)=>{
+    if(v.cls)return;
+    const k=_finCatKind(f,t.catId);
+    if(k==='income'&&!isDebt(t))v.cls='inc';
+    else{v.cls='spend';if(k==='income')v.cat='misc-other';}
+  });
+  return out;
+}
+function _finClassMap(){
+  const f=_finData();
+  if(_finClassCache&&_finClassCache.f===f&&_finClassCache.n===f.transactions.length)return _finClassCache.m;
+  const m=_finClassify(f);
+  // Lives for the current render only: edits change categories in place.
+  _finClassCache={f,n:f.transactions.length,m};
+  setTimeout(()=>{_finClassCache=null;},0);
+  return m;
+}
+function _finTxClass(t){ const c=t&&_finClassMap().get(t); return c?c.cls:(t&&_finCat(t.catId).kind==='transfer'?'xfer':(t&&t.amount>0?'inc':'spend')); }
+function _finIsXfer(t){ return !!t&&_finTxClass(t)==='xfer'; }
+// Bill matching keeps the CATEGORY rule only: paying a card from checking is
+// a transfer for totals but it is exactly how a card's bill gets paid.
+function _finCatXfer(t){ return !!t&&_finCat(t.catId).kind==='transfer'; }
+function _finTotalsFor(keep){
+  const m=_finClassMap(); let income=0; const byCat={};
+  _finData().transactions.forEach(t=>{ if(!keep(t))return; const c=m.get(t); if(!c)return;
+    if(c.cls==='inc')income+=c.amt; else if(c.cls==='spend')byCat[c.cat]=(byCat[c.cat]||0)-c.amt; });
+  Object.keys(byCat).forEach(k=>{ if(!(byCat[k]>0.004))delete byCat[k]; });
+  return {income,spent:Object.values(byCat).reduce((s,v)=>s+v,0),byCat};
+}
+function _finTotals(ym){ return _finTotalsFor(t=>String(t.date||'').slice(0,7)===ym); }
+function _finIncome(ym){ return _finTotals(ym).income; }
+function _finSpent(ym){ return _finTotals(ym).spent; }
+function _finSpentByCat(ym){ return _finTotals(ym).byCat; }
 function _finNetWorth(){ return _finData().accounts.reduce((s,a)=>s+(['credit','loan'].includes(a.type)?-Math.abs(a.balance||0):(a.balance||0)),0); }
 function _finDebt(){ return _finData().accounts.filter(a=>['credit','loan'].includes(a.type)).reduce((s,a)=>s+Math.abs(a.balance||0),0); }
 function _finBudgetFor(catId,ym){ const f=_finData(); const ov=f.budgetOverrides&&f.budgetOverrides[ym]; if(ov&&ov[catId]!=null)return Number(ov[catId])||0; return Number(f.budgets[catId])||0; }
 function _finBudgetIds(ym){ const f=_finData(); const ids=new Set(Object.keys(f.budgets)); const ov=f.budgetOverrides&&f.budgetOverrides[ym]; if(ov)Object.keys(ov).forEach(id=>ids.add(id)); return [...ids]; }
 function _finBudgetTotal(ym){ ym=ym||_finMonth; return _finBudgetIds(ym).filter(id=>(_finCat(id).kind!=='income')).reduce((s,id)=>s+_finBudgetFor(id,ym),0); }
+// Expected income — same rule as the server's streamExpected: a stream with a
+// per-month schedule expects nothing in a month the schedule leaves out.
 function _finStreamExpected(st,ym){ if(st.active===false)return 0; if(st.perMonth&&typeof st.perMonth==='object'&&st.perMonth[ym]!=null)return Number(st.perMonth[ym])||0; if(st.perMonth&&typeof st.perMonth==='object'&&Object.keys(st.perMonth).length)return 0; return Number(st.expected)||0; }
 function _finStreamReceived(st,ym){ return _finTxMonth(ym).filter(t=>t.amount>0&&(String(t.streamId||'')===String(st.id)||(!t.streamId&&t.payee===st.name))).reduce((s,t)=>s+t.amount,0); }
+// The date a bill is owed. An UNPAID bill whose day has passed stays on this
+// month's date (it is overdue) — it used to roll to next month, so the Bills
+// chip, Overview, bell and reports showed it as weeks away while the rail
+// and emails called it overdue. Paid this month → next month's date.
 function _finBillNextDue(b){
   const today=new Date();
   const day=Math.min(Math.max(1,Number(b.dueDay)||1),28);
   const paidThisMonth=b.lastPaidYM===_finYM(today);
   let d=new Date(today.getFullYear(),today.getMonth(),day);
-  if(paidThisMonth||day<today.getDate())d=new Date(today.getFullYear(),today.getMonth()+1,day);
+  if(paidThisMonth)d=new Date(today.getFullYear(),today.getMonth()+1,day);
   return d;
 }
+function _finBillOverdue(b){ const d=_finBillNextDue(b),t=new Date();t.setHours(0,0,0,0); return d<t; }
 function _finModal(html){
   const m=document.getElementById('modal-content'); const bg=document.getElementById('modal-capture');
   if(!m||!bg){toast('Editor not available');return false;}
@@ -15854,7 +15929,7 @@ function finSaveBudgetLine(){
    agreement. */
 function _finBillTxMatch(b,t){
   if((t.amount||0)>=0)return false;
-  if(_finIsXfer(t))return false; // transfers are never bill payments
+  if(_finCatXfer(t))return false; // Transfer-category rows are never bill payments (a paired card payment can be)
   if(t.recurringBillId&&String(t.recurringBillId)===String(b.id))return true;
   const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
   const bn=norm(b.name),pn=norm(t.payee);
@@ -15899,7 +15974,7 @@ function finBillLinkPicker(id){
   const f=_finData(); const b=f.bills.find(x=>String(x.id)===String(id)); if(!b)return;
   const since=_ymd(new Date(Date.now()-120*86400000));
   const plan=Number(b.amount)||0;
-  const cands=(f.transactions||[]).filter(t=>t.amount<0&&!_finIsXfer(t)&&String(t.date||'')>=since&&(!t.recurringBillId||String(t.recurringBillId)===String(b.id)))
+  const cands=(f.transactions||[]).filter(t=>t.amount<0&&!_finCatXfer(t)&&String(t.date||'')>=since&&(!t.recurringBillId||String(t.recurringBillId)===String(b.id)))
     .map(t=>({t,d:plan>0?Math.abs(Math.abs(t.amount)-plan)/plan:0}))
     .sort((a,b2)=>a.d-b2.d||String(b2.t.date).localeCompare(String(a.t.date))).slice(0,25);
   _finModal(`<div style="padding:16px;max-width:560px">
@@ -15949,7 +16024,7 @@ function _finBillsHtml(){
       return `<div class="fin-card" style="margin-bottom:8px"><div class="fin-row">
       <span>${c.icon}</span><span class="nm"><b>${esc(b.name)}</b>${b.active===false?' <span class="fin-chip">paused</span>':''}${b.autopay?' <span class="fin-chip">⚡ autopay</span>':''}${jump?` <span class="fin-chip" style="color:var(--warn)" title="Latest payment ${_finFmt(Math.abs(last.tx.amount))} vs ${_finFmt(Math.abs(prev.tx.amount))} the month before">📈 price up</span>`:''}</span>
       ${ro?`<span class="fin-chip">day ${b.dueDay||1}</span>`:`<span class="fin-chip" title="Due day of the month — edit directly">due day <input type="number" min="1" max="28" value="${b.dueDay||1}" style="width:44px;height:20px;font-size:11px;text-align:center;background:var(--s1);border:1px solid var(--bd1);border-radius:4px;color:var(--t1)" onchange="finSetBillDay('${esc(String(b.id))}',this.value)"></span>`}
-      <span class="fin-chip" style="${days<=3&&!paid?'color:var(--warn)':''}">${paid?'✓ paid this month':'due '+x.due.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>
+      <span class="fin-chip" style="${!paid&&days<0?'color:var(--red);font-weight:650':days<=3&&!paid?'color:var(--warn)':''}">${paid?'✓ paid this month':(days<0?'overdue · was due ':'due ')+x.due.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>
       <span style="font-weight:650;min-width:76px;text-align:right">${_finFmt(b.amount,0)}</span>
       ${ro?'':`${paid?'':`<button class="btn btn-s" style="height:24px;font-size:11px" onclick="finBillMarkPaid('${esc(String(b.id))}')">✓ Mark paid</button>`}
       <button class="btn btn-s" style="height:24px;font-size:11px;padding:0 7px" onclick="finOpenBill('${esc(String(b.id))}')">✏</button>`}
@@ -15996,7 +16071,9 @@ function finSaveBill(id){
   const old=id?f.bills.find(x=>String(x.id)===String(id)):null;
   if(old)rec.lastPaidYM=old.lastPaidYM;
   const i=f.bills.findIndex(x=>String(x.id)===String(rec.id));
-  if(i>=0)f.bills[i]=rec; else f.bills.push(rec);
+  // Merge, don't replace: fields the form doesn't show (match text, payment
+  // links, history) were dropped on every edit — the -177 transaction bug.
+  if(i>=0)Object.assign(f.bills[i],rec); else f.bills.push(rec);
   _finSave(); _finCloseModal(); renderMoney();
 }
 function finDeleteBill(id){
@@ -16007,10 +16084,30 @@ function finDeleteBill(id){
 function finBillMarkPaid(id){
   if(_finGuard())return;
   const f=_finData(); const b=f.bills.find(x=>String(x.id)===String(id)); if(!b)return;
-  const today=new Date();
+  const today=new Date(); const ym=_finYM(today);
+  // 1) The bank charge already synced this month → link it, add nothing.
+  // 2) The bill's account is bank-synced (or no account and a bank is
+  //    linked) → just mark the month paid; the charge matches when it
+  //    syncs. Logging a payment here counted the bill twice once it did.
+  // 3) Manual tracking only (no bank sync) → log the payment as before.
+  const charge=f.transactions.filter(t=>String(t.date||'').slice(0,7)===ym&&_finBillTxMatch(b,t)&&(!t.recurringBillId||String(t.recurringBillId)===String(b.id)))
+    .sort((a,c)=>String(c.date).localeCompare(String(a.date)))[0];
+  const acct=b.accountId?f.accounts.find(a=>String(a.id)===String(b.accountId)):null;
+  const banked=acct?!!acct.bankId:f.accounts.some(a=>a.bankId);
+  b.lastPaidYM=ym;
+  if(charge){
+    charge.recurringBillId=b.id;
+    _finSave(); renderMoney();
+    toast({type:'success',title:'✓ '+b.name+' paid',msg:'Linked to the bank charge: '+(charge.payee||'')+' '+_finFmt(charge.amount)+' on '+charge.date+'.',duration:2600});
+    return;
+  }
+  if(banked){
+    _finSave(); renderMoney();
+    toast({type:'success',title:'✓ '+b.name+' marked paid',msg:'No transaction added — the bank charge will be matched when it syncs.',duration:2600});
+    return;
+  }
   f.transactions.push({ id:String(Date.now())+Math.floor(Math.random()*1000), date:_ymd(today),
-    payee:b.name, catId:b.catId, accountId:b.accountId||null, notes:'Bill payment', amount:-Math.abs(Number(b.amount)||0) });
-  b.lastPaidYM=_finYM(today);
+    payee:b.name, catId:b.catId, accountId:b.accountId||null, notes:'Bill payment', amount:-Math.abs(Number(b.amount)||0), recurringBillId:b.id });
   _finSave(); renderMoney();
   toast({type:'success',title:'✓ '+b.name+' paid',msg:_finFmt(-Math.abs(b.amount))+' logged to transactions.',duration:2000});
 }
@@ -16023,7 +16120,7 @@ function _finAccountsHtml(){
     <span>${a.icon||(isDebt?'💳':'🏦')}</span><span class="nm"><b>${esc(a.name)}</b>${a.apr?` <span class="fin-chip">${a.apr}% APR</span>`:''}${a.limit?` <span class="fin-chip">limit ${_finFmt(a.limit,0)}</span>`:''}</span>
     <span class="fin-chip">${esc(a.type)}</span>
     ${ro?`<span style="font-weight:650;color:${isDebt?'var(--red)':'var(--t1)'}">${_finFmt(isDebt?-Math.abs(a.balance||0):(a.balance||0),0)}</span>`
-        :`<input class="inp" type="number" step="0.01" value="${Math.abs(a.balance||0)}" style="width:110px;height:24px;font-size:11px;text-align:right;color:${isDebt?'var(--red)':'var(--t1)'}" onchange="finSetAcctBalance('${esc(String(a.id))}',this.value)" title="${isDebt?'Balance owed':'Balance'}">`}
+        :`<input class="inp" type="number" step="0.01" value="${isDebt?Math.abs(a.balance||0):(a.balance||0)}" style="width:110px;height:24px;font-size:11px;text-align:right;color:${isDebt||(a.balance||0)<0?'var(--red)':'var(--t1)'}" onchange="finSetAcctBalance('${esc(String(a.id))}',this.value)" title="${isDebt?'Balance owed':'Balance'}">`}
     ${ro?'':`<button class="btn btn-s" style="height:24px;font-size:11px;padding:0 7px" onclick="finOpenAcct('${esc(String(a.id))}')">✏</button>`}
   </div>`;};
   return `${(typeof _finBankCardHtml==='function')?_finBankCardHtml():''}<div class="fin-card" style="margin-bottom:12px"><div class="fin-row" style="font-size:13px">
@@ -16073,7 +16170,8 @@ function finDeleteAcct(id){
 function finSetAcctBalance(id,val){
   if(_finGuard())return;
   const f=_finData(); const a=f.accounts.find(x=>String(x.id)===String(id)); if(!a)return;
-  a.balance=Math.abs(parseFloat(val)||0); _finSave(); renderMoney();
+  const v=parseFloat(val)||0;
+  a.balance=['credit','loan'].includes(a.type)?Math.abs(v):v; _finSave(); renderMoney();
 }
 // ── Goals ──────────────────────────────────────────────────────────────
 function _finGoalsHtml(){
@@ -16118,7 +16216,7 @@ function finSaveGoal(id){
   const rec={ id:id||String(Date.now())+Math.floor(Math.random()*1000), name, icon:'🎯',
     target:parseFloat(g('fg-target').value)||0, saved:parseFloat(g('fg-saved').value)||0, due:g('fg-due').value||null };
   const i=f.goals.findIndex(x=>String(x.id)===String(rec.id));
-  if(i>=0)f.goals[i]=rec; else f.goals.push(rec);
+  if(i>=0)Object.assign(f.goals[i],rec); else f.goals.push(rec); // merge: keep fields the form doesn't show
   _finSave(); _finCloseModal(); renderMoney();
 }
 function finDeleteGoal(id){
@@ -16184,7 +16282,7 @@ function finOpenImport(){
     <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Paste a LevelUp Money JSON export (or a seed file). Your data stays in your account — nothing is shared unless you share it.</div>
     <div class="field"><label>Or pick a file</label><input class="inp" type="file" id="fim-file" accept=".json" onchange="(function(inp){const r=new FileReader();r.onload=()=>{document.getElementById('fim-text').value=r.result;};r.readAsText(inp.files[0]);})(this)"></div>
     <div class="field"><label>JSON</label><textarea class="inp" id="fim-text" style="min-height:140px;font-family:monospace;font-size:11px" placeholder='{"accounts":[...],"budgets":{...}}'></textarea></div>
-    <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin:8px 0"><input type="checkbox" id="fim-replace" checked> Replace my current Money data (uncheck to merge)</label>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin:8px 0"><input type="checkbox" id="fim-replace"> Replace my current Money data (uncheck to merge)</label>
     <div class="dr-actions" style="margin-top:10px">
       <button class="btn btn-p" onclick="finImport()">Import</button>
       <button class="btn btn-s" onclick="_finCloseModal()">Cancel</button>
@@ -16197,6 +16295,10 @@ function finImport(){
   if(!obj||typeof obj!=='object'||Array.isArray(obj)){ toast({type:'error',title:'Invalid data',msg:'Expected a Money JSON object.'}); return; }
   const replace=document.getElementById('fim-replace').checked;
   const cur=ensureFin();
+  // Replacing was the default and unconfirmed — a small seed file wiped
+  // synced transactions, rules and history. Merge is the default now, and a
+  // replace says what it removes first.
+  if(replace&&!confirm(`Replace ALL Money data with this file?\n\nThis removes ${cur.transactions.length} transactions, ${cur.accounts.length} accounts, ${cur.bills.length} bills and ${(cur.rules||[]).length} rules now in Money. Unticked, the file is merged in instead.`))return;
   if(replace){
     const keepShare=cur.share;
     const importedCats=Array.isArray(obj.categories)?obj.categories:[];
@@ -16234,7 +16336,7 @@ function _finIncomeHtml(){
   const totExp=streams.reduce((s,st)=>s+_finStreamExpected(st,ym),0);
   const totRec=_finIncome(ym);
   const y=ym.slice(0,4);
-  const ytdRec=f.transactions.filter(t=>t.amount>0&&!_finIsXfer(t)&&String(t.date||'').slice(0,4)===y).reduce((s,t)=>s+t.amount,0);
+  const ytdRec=_finTotalsFor(t=>String(t.date||'').slice(0,4)===y).income;
   const months=[]; const yp=ym.split('-');
   for(let i=5;i>=0;i--){ months.push(_finYM(new Date(Number(yp[0]),Number(yp[1])-1-i,1))); }
   const maxBar=Math.max(1,...months.map(m2=>Math.max(_finIncome(m2),streams.reduce((s,st)=>s+_finStreamExpected(st,m2),0))));
@@ -16298,7 +16400,7 @@ function finSaveStream(id){
     expected:parseFloat(g('fs-expected').value)||0, catId:g('fs-cat').value||'inc-salary', active:g('fs-active').checked };
   if(old&&old.perMonth)rec.perMonth=old.perMonth;
   const i=f.incomeStreams.findIndex(x=>String(x.id)===String(rec.id));
-  if(i>=0)f.incomeStreams[i]=rec; else f.incomeStreams.push(rec);
+  if(i>=0)Object.assign(f.incomeStreams[i],rec); else f.incomeStreams.push(rec);
   _finSave(); _finCloseModal(); renderMoney();
 }
 function finDeleteStream(id){
@@ -16646,7 +16748,7 @@ const FIN_REPORTS=[
  {id:'upcoming-bills',icon:'📅',name:'Upcoming bills (30 days)',desc:'What\'s due in the next month, in order, with the total.',run(){const f=_finData();const now=new Date();const horizon=new Date(now.getTime()+30*86400000);const list=f.bills.filter(b=>b.active!==false).map(b=>({b,due:_finBillNextDue(b)})).filter(x=>x.due<=horizon).sort((a,b)=>a.due-b.due);return list.length?_finRepTable(['Due','Bill','Category','Amount'],list.map(x=>[x.due.toLocaleDateString('en-US',{month:'short',day:'numeric'}),esc(x.b.name)+(x.b.autopay?' ⚡':''),esc(_finCat(x.b.catId).name),_finFmt(x.b.amount,0)]))+`<p style="font-size:12px;margin-top:8px">Total due in 30 days: <b>${_finFmt(list.reduce((s,x)=>s+(x.b.amount||0),0),0)}</b></p>`:'<p style="font-size:12px;color:var(--t3)">Nothing due in the next 30 days.</p>';}},
  {id:'largest-expenses',icon:'🔍',name:'Largest expenses (90 days)',desc:'The 15 biggest single transactions of the last quarter.',run(){const f=_finData();const cut=_ymd(new Date(Date.now()-90*86400000));const rows=f.transactions.filter(t=>t.amount<0&&!_finIsXfer(t)&&String(t.date||'')>=cut).sort((a,b)=>a.amount-b.amount).slice(0,15).map(t=>[esc(String(t.date||'')),esc(t.payee||_finCat(t.catId).name),esc(_finCat(t.catId).name),`<b>${_finFmt(t.amount)}</b>`]);return rows.length?_finRepTable(['Date','Payee','Category','Amount'],rows):'<p style="font-size:12px;color:var(--t3)">No expense transactions in the last 90 days.</p>';}},
  {id:'net-worth',icon:'🏦',name:'Net worth statement',desc:'Assets and debts, line by line, with the bottom line.',run(){const f=_finData();const assets=f.accounts.filter(a=>!['credit','loan'].includes(a.type));const debts=f.accounts.filter(a=>['credit','loan'].includes(a.type));return _finRepTable(['Assets','Balance'],assets.map(a=>[esc(a.name),_finFmt(a.balance||0,0)]))+_finRepTable(['Debts','Owed'],debts.map(a=>[esc(a.name),`<span style="color:var(--red)">${_finFmt(a.balance||0,0)}</span>`]))+`<p style="font-size:13px;margin-top:8px">Net worth: <b style="color:${_finNetWorth()>=0?'var(--ok)':'var(--red)'}">${_finFmt(_finNetWorth(),0)}</b></p>`;}},
- {id:'ytd-summary',icon:'🗓',name:'Year-to-date summary',desc:'Everything received and spent this calendar year.',run(){const f=_finData();const y=_finMonth.slice(0,4);const tx=f.transactions.filter(t=>String(t.date||'').slice(0,4)===y&&!_finIsXfer(t));const inc=tx.filter(t=>t.amount>0).reduce((s,t)=>s+t.amount,0);const sp=-tx.filter(t=>t.amount<0).reduce((s,t)=>s+t.amount,0);const by={};tx.forEach(t=>{if(t.amount<0)by[t.catId]=(by[t.catId]||0)-t.amount;});const rows=Object.entries(by).sort((a,b)=>b[1]-a[1]).slice(0,10).map(x=>[esc(_finCat(x[0]).name),_finFmt(x[1],0)]);return `<p style="font-size:12.5px">${y}: received <b class="fin-amount-pos">${_finFmt(inc,0)}</b> · spent <b>${_finFmt(sp,0)}</b> · net <b style="color:${inc-sp>=0?'var(--ok)':'var(--red)'}">${_finFmt(inc-sp,0)}</b> · ${tx.length} transactions</p>`+(rows.length?_finRepTable(['Top categories','Spent'],rows):'');}},
+ {id:'ytd-summary',icon:'🗓',name:'Year-to-date summary',desc:'Everything received and spent this calendar year.',run(){const f=_finData();const y=_finMonth.slice(0,4);const tot=_finTotalsFor(t=>String(t.date||'').slice(0,4)===y);const inc=tot.income;const sp=tot.spent;const by=tot.byCat;const rows=Object.entries(by).sort((a,b)=>b[1]-a[1]).slice(0,10).map(x=>[esc(_finCat(x[0]).name),_finFmt(x[1],0)]);return `<p style="font-size:12.5px">${y}: received <b class="fin-amount-pos">${_finFmt(inc,0)}</b> · spent <b>${_finFmt(sp,0)}</b> · net <b style="color:${inc-sp>=0?'var(--ok)':'var(--red)'}">${_finFmt(inc-sp,0)}</b> · ${f.transactions.filter(t=>String(t.date||'').slice(0,4)===y).length} transactions</p>`+(rows.length?_finRepTable(['Top categories','Spent'],rows):'');}},
  {id:'savings-goals',icon:'🎯',name:'Savings goals check',desc:'Progress on each goal and the monthly amount needed to hit its date.',run(){const f=_finData();const rows=f.goals.map(g=>{const left=Math.max(0,(g.target||0)-(g.saved||0));let need='—';if(g.due){const months=Math.max(1,Math.ceil((_pd(g.due)-new Date())/(30.4*86400000)));need=_finFmt(left/months,0)+'/mo';}return [esc(g.name),_finFmt(g.saved||0,0),_finFmt(g.target||0,0),_finFmt(left,0),need];});return rows.length?_finRepTable(['Goal','Saved','Target','Remaining','Needed'],rows):'<p style="font-size:12px;color:var(--t3)">No goals yet — add them in the Goals tab.</p>';}},
  {id:'bills-vs-budget',icon:'🧮',name:'Fixed vs flexible spending',desc:'How much of the budget is locked in bills vs discretionary.',run(){const ym=_finMonth;const f=_finData();const fixed=f.bills.filter(b=>b.active!==false).reduce((s,b)=>s+(b.amount||0),0);const tot=_finBudgetTotal(ym);const flex=Math.max(0,tot-fixed);return `<p style="font-size:12.5px">Planned spend ${_finFmt(tot,0)} · <b>fixed bills ${_finFmt(fixed,0)}</b> (${tot?Math.round(fixed/tot*100):0}%) · <b>flexible ${_finFmt(flex,0)}</b></p><div class="fin-bar" style="max-width:420px;height:12px"><div style="width:${tot?Math.min(100,Math.round(fixed/tot*100)):0}%;background:var(--warn)"></div></div><p style="font-size:11px;color:var(--t3);margin-top:8px">A high fixed share means less room to adjust in a tight month — debt payments are usually the biggest lever.</p>`;}},
 ];
@@ -16703,10 +16805,22 @@ function _finRules(){ const f=_finData(); if(!Array.isArray(f.rules))f.rules=[];
 // rule stay precise where a substring can't: /^check\s*#?\s*\d+/ catches
 // "Check 1234" but not "Check Card Purchase" or "Checking". Mirrored in
 // server/_core/simplefinAutoSync.ts applyRules — keep both in agreement.
+// /pattern/ rules are tested only when safe: at most 200 characters and no
+// nested quantifier like (a+)+ — those can take seconds per payee and freeze
+// the page (and the server's sync, which mirrors this as safeRuleRegex in
+// simplefinAutoSync.ts). Unsafe or invalid patterns simply never match.
+const _finReCache=new Map();
+function _finSafeRe(src){
+  if(_finReCache.has(src))return _finReCache.get(src);
+  let re=null;
+  if(src.length<=200&&!/\((?:[^()\\]|\\.)*[+*}](?:[^()\\]|\\.)*\)\s*[+*{]/.test(src)){try{re=new RegExp(src,'i');}catch(_){re=null;}}
+  _finReCache.set(src,re); return re;
+}
 function _finRuleTest(r,d){
   const m=String(r&&r.match||''); if(!m)return false;
   if(m.length>2&&m[0]==='/'&&m.lastIndexOf('/')>0){
-    try{return new RegExp(m.slice(1,m.lastIndexOf('/')),'i').test(d);}catch(_){return false;}
+    const re=_finSafeRe(m.slice(1,m.lastIndexOf('/')));
+    return !!re&&re.test(String(d).slice(0,300));
   }
   return d.includes(m.toLowerCase());
 }
@@ -16734,17 +16848,28 @@ function _finSeedCheckRule(){
    without such payees get nothing), then still-uncategorized transactions
    are re-run through the rules. Guarded by settings._xferSeeded. */
 function _finSeedTransferRules(){
-  const f=ensureFin(); const s=f.settings=f.settings||{}; if(s._xferSeeded)return;
+  const f=ensureFin(); const s=f.settings=f.settings||{};
+  // -229: the -187 seed added a plain "wise" rule, which also matched
+  // "Likewise" or "Wiseman's" and quietly moved them out of spending. Anchor
+  // it to the whole word once (only the seeded Transfer rule; your own rules
+  // are left as you wrote them).
+  if(!s._wiseAnchored&&Array.isArray(f.rules)){
+    const xf=f.categories.find(c=>c&&c.kind==='transfer');
+    const r=xf&&f.rules.find(r=>String(r.match||'').toLowerCase()==='wise'&&r.catId===xf.id);
+    if(r){r.match='/\\bwise\\b/';s._wiseAnchored=true;_finSave();}
+    else s._wiseAnchored=true;
+  }
+  if(s._xferSeeded)return;
   const xfer=f.categories.find(c=>c&&c.kind==='transfer'); if(!xfer)return;
   if(!Array.isArray(f.rules))f.rules=[];
-  const cands=[['online transfer',xfer.id],['transfer to',xfer.id],['transfer from',xfer.id],['internal transfer',xfer.id],['balance transfer',xfer.id],['offer moved to standard',xfer.id],['wise',xfer.id],['genesis fi','debt-loan']];
+  const cands=[['online transfer',xfer.id],['transfer to',xfer.id],['transfer from',xfer.id],['internal transfer',xfer.id],['balance transfer',xfer.id],['offer moved to standard',xfer.id],['/\\bwise\\b/',xfer.id],['genesis fi','debt-loan']];
   const have=new Set(f.rules.map(r=>String(r.match||'').toLowerCase()));
   const uncat=(f.transactions||[]).filter(t=>_finIsUncat(t));
   let added=0;
   cands.forEach(([m,catId])=>{
     if(have.has(m))return;
     if(catId!==xfer.id&&!f.categories.some(c=>c.id===catId))return;
-    if(!uncat.some(t=>String(t.payee||'').toLowerCase().includes(m)))return;
+    if(!uncat.some(t=>_finRuleTest({match:m},String(t.payee||'').toLowerCase())))return;
     f.rules.push({id:String(Date.now()+added),match:m,catId}); have.add(m); added++;
   });
   let recat=0;
@@ -17021,7 +17146,8 @@ async function sfSync(sfId){
       f.transactions.push({id:'sf-'+t.id,bankTxId:t.id,date:t.date,payee:(t.payee||t.description).slice(0,120),catId,accountId:acct.id,notes:(t.memo&&t.memo!==t.description)?t.memo.slice(0,200):'',amount:t.amount,cleared:true});
       added++;
     });
-    if(res.balance!=null)acct.balance=Math.abs(res.balance);
+    // Cards/loans store the amount owed; checking/savings keep their sign (an overdraft is not cash).
+    if(res.balance!=null)acct.balance=['credit','loan'].includes(acct.type)?Math.abs(res.balance):Number(res.balance);
     acct.bankLastSync=end;
     const billsPaid=(typeof _finReconcileBills==='function')?_finReconcileBills(f):0;
     _finSave(); renderMoney();
@@ -17171,7 +17297,7 @@ function finDetectRecurring(){
   if(_finGuard())return;
   const f=_finData();
   const byPayee={};
-  f.transactions.filter(t=>t.amount<0&&t.payee&&!_finIsXfer(t)).forEach(t=>{(byPayee[t.payee.toLowerCase().replace(/\d{4,}/g,'').trim()]=byPayee[t.payee.toLowerCase().replace(/\d{4,}/g,'').trim()]||[]).push(t);});
+  f.transactions.filter(t=>t.amount<0&&t.payee&&!_finCatXfer(t)).forEach(t=>{(byPayee[t.payee.toLowerCase().replace(/\d{4,}/g,'').trim()]=byPayee[t.payee.toLowerCase().replace(/\d{4,}/g,'').trim()]||[]).push(t);});
   const existing=new Set(f.bills.map(b=>String(b.name).toLowerCase()));
   const cands=[];
   Object.entries(byPayee).forEach(([key,txs])=>{
@@ -17212,7 +17338,7 @@ function _finNotifs(){
   // Bills due within 3 days (unpaid this month)
   f.bills.filter(b=>b.active!==false&&b.lastPaidYM!==ym).forEach(b=>{
     const due=_finBillNextDue(b); const days=Math.ceil((due-new Date())/86400000);
-    if(days<=3)out.push({id:'finb-'+b.id,type:days<=0?'warning':'info',icon:'💵',title:days<=0?'Bill due today':('Bill due in '+days+' day'+(days===1?'':'s')),body:b.name+' · '+_finFmt(b.amount,0),time:due.toLocaleDateString('en-US',{month:'short',day:'numeric'}),read:false,action:()=>{toggleNotifPanel();nav('money');setTimeout(()=>{_finTab='bills';renderMoney();},250);}});
+    if(days<=3)out.push({id:'finb-'+b.id,type:days<=0?'warning':'info',icon:'💵',title:days<0?'Bill overdue':days===0?'Bill due today':('Bill due in '+days+' day'+(days===1?'':'s')),body:b.name+' · '+_finFmt(b.amount,0),time:due.toLocaleDateString('en-US',{month:'short',day:'numeric'}),read:false,action:()=>{toggleNotifPanel();nav('money');setTimeout(()=>{_finTab='bills';renderMoney();},250);}});
   });
   // Categories over budget this month
   const by=_finSpentByCat(ym);
@@ -17393,7 +17519,7 @@ function _finAgentCommit(fresh){
 function _finTxForBill(b,days){
   const cut=_ymd(new Date(Date.now()-(days||95)*86400000));
   const key=String(b.name||'').toLowerCase().slice(0,14);
-  return _finData().transactions.filter(t=>t.amount<0&&!_finIsXfer(t)&&String(t.date)>=cut&&(String(t.payee||'').toLowerCase().includes(key)||(t.catId===b.catId&&Math.abs(Math.abs(t.amount)-b.amount)<Math.max(5,b.amount*0.3)))).sort((a,b2)=>String(a.date).localeCompare(String(b2.date)));
+  return _finData().transactions.filter(t=>t.amount<0&&!_finCatXfer(t)&&String(t.date)>=cut&&(String(t.payee||'').toLowerCase().includes(key)||(t.catId===b.catId&&Math.abs(Math.abs(t.amount)-b.amount)<Math.max(5,b.amount*0.3)))).sort((a,b2)=>String(a.date).localeCompare(String(b2.date)));
 }
 // ── analyzers ──────────────────────────────────────────────────────────
 function _finAgentBillsRun(out){

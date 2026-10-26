@@ -884,6 +884,7 @@ export const externalSourcesRouter = router({
       status: z.string().max(128),
     }))
     .mutation(async ({ input, ctx }) => {
+      if (isRetiredSource('smartsheet')) throw new TRPCError({ code: 'BAD_REQUEST', message: RETIRED_MESSAGE });
       const db = await requireDb();
       const [cred] = await db.select().from(externalSourceCredentials)
         .where(and(eq(externalSourceCredentials.userId, ctx.user.id), eq(externalSourceCredentials.source, 'smartsheet')))
@@ -930,6 +931,7 @@ export const externalSourcesRouter = router({
   smartsheetStatusOptions: protectedProcedure
     .input(z.object({ watchId: z.number().int() }))
     .query(async ({ input, ctx }) => {
+      if (isRetiredSource('smartsheet')) throw new TRPCError({ code: 'BAD_REQUEST', message: RETIRED_MESSAGE });
       const db = await requireDb();
       const [cred] = await db.select().from(externalSourceCredentials)
         .where(and(eq(externalSourceCredentials.userId, ctx.user.id), eq(externalSourceCredentials.source, 'smartsheet')))
@@ -1585,6 +1587,8 @@ export const externalSourcesRouter = router({
       if (input.localDue !== undefined) set.localDue = input.localDue;
       if (input.localProjectId !== undefined) set.localProjectId = input.localProjectId;
       if (input.pendingStatus !== undefined) {
+        // Nothing can be queued for a retired source — it would never be sent.
+        if (input.pendingStatus && isRetiredSource(input.source)) throw new TRPCError({ code: 'BAD_REQUEST', message: RETIRED_MESSAGE });
         set.pendingStatus = input.pendingStatus;
         set.pendingStatusAt = input.pendingStatus ? sql`CURRENT_TIMESTAMP` : null;
         set.pendingError = null;
@@ -1623,8 +1627,15 @@ export const externalSourcesRouter = router({
     }).optional())
     .mutation(async ({ ctx, input }) => {
     const db = await requireDb();
-    const allPending = await db.select().from(externalTaskOverrides)
+    const allPendingRaw = await db.select().from(externalTaskOverrides)
       .where(and(eq(externalTaskOverrides.userId, ctx.user.id), isNotNull(externalTaskOverrides.pendingStatus)));
+    // Status changes queued for a RETIRED source are dropped, not sent: "Push
+    // all" was still writing to Smartsheet after -223 retired it.
+    const retiredQueued = allPendingRaw.filter(p => isRetiredSource(p.source));
+    for (const p of retiredQueued) {
+      await db.update(externalTaskOverrides).set({ pendingStatus: null, pendingStatusAt: null, pendingError: null }).where(eq(externalTaskOverrides.id, p.id));
+    }
+    const allPending = allPendingRaw.filter(p => !isRetiredSource(p.source));
     // Apply the optional whitelist filter on the server so a stale client
     // can't ask us to push something it doesn't have.
     let pending = allPending;
@@ -1661,8 +1672,9 @@ export const externalSourcesRouter = router({
 
   pendingPushCount: protectedProcedure.query(async ({ ctx }) => {
     const db = await requireDb();
-    const rows = await db.select().from(externalTaskOverrides)
-      .where(and(eq(externalTaskOverrides.userId, ctx.user.id), isNotNull(externalTaskOverrides.pendingStatus)));
+    const rows = (await db.select().from(externalTaskOverrides)
+      .where(and(eq(externalTaskOverrides.userId, ctx.user.id), isNotNull(externalTaskOverrides.pendingStatus))))
+      .filter(r => !isRetiredSource(r.source)); // the ⬆ badge must not count retired-source items
     return { count: rows.length, items: rows.map(r => ({ source: r.source, externalId: r.externalId, pendingStatus: r.pendingStatus, pendingError: r.pendingError })) };
   }),
 

@@ -29,6 +29,22 @@ import { userAppData } from "../../drizzle/schema";
 interface PullResult { linked: number; added: number; balances: number; }
 
 /**
+ * A category rule's /pattern/ as a RegExp, or null when unsafe or invalid —
+ * same test as the client's _finSafeRe: at most 200 characters and no nested
+ * quantifier such as (a+)+, which can backtrack for seconds per payee.
+ */
+const _reCache = new Map<string, RegExp | null>();
+export function safeRuleRegex(src: string): RegExp | null {
+  if (_reCache.has(src)) return _reCache.get(src)!;
+  let re: RegExp | null = null;
+  if (src.length <= 200 && !/\((?:[^()\\]|\\.)*[+*}](?:[^()\\]|\\.)*\)\s*[+*{]/.test(src)) {
+    try { re = new RegExp(src, 'i'); } catch { re = null; }
+  }
+  _reCache.set(src, re);
+  return re;
+}
+
+/**
  * Merge one SimpleFIN /accounts payload into a finance object, in place.
  * Pure given its inputs — exported for tsx unit tests.
  */
@@ -46,7 +62,8 @@ export function mergeSimplefinPull(fin: any, sfAccounts: any[], nowYmd: string):
     const m = String((r && r.match) || '');
     if (!m) return false;
     if (m.length > 2 && m[0] === '/' && m.lastIndexOf('/') > 0) {
-      try { return new RegExp(m.slice(1, m.lastIndexOf('/')), 'i').test(d); } catch { return false; }
+      const re = safeRuleRegex(m.slice(1, m.lastIndexOf('/')));
+      return !!re && re.test(d.slice(0, 300));
     }
     return d.includes(m.toLowerCase());
   };
@@ -78,7 +95,9 @@ export function mergeSimplefinPull(fin: any, sfAccounts: any[], nowYmd: string):
     if (!acct) continue; // bridge account the user hasn't added to Money
     res.linked++;
     const bal = Number(sf.balance);
-    if (isFinite(bal)) { acct.balance = Math.abs(bal); res.balances++; }
+    // Cards and loans are stored as positive amounts owed; a checking or
+    // savings account keeps its sign, so an overdraft is not counted as cash.
+    if (isFinite(bal)) { acct.balance = (acct.type === 'credit' || acct.type === 'loan') ? Math.abs(bal) : bal; res.balances++; }
     acct.bankLastSync = nowYmd;
     for (const t of (Array.isArray(sf.transactions) ? sf.transactions : [])) {
       const id = String(t.id ?? '');
