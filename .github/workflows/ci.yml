@@ -1,0 +1,87 @@
+# LevelUp CI — the checks every push must pass (build -230).
+#
+# Railway deploys main on push. To make it deploy only when this passes,
+# turn on "Wait for CI" in the Railway service settings (Settings → Deploy).
+#
+# What runs, in order: install from the lockfile, the five client bundles'
+# syntax + app-part1's 12 NUL bytes, migrations against a throwaway MySQL,
+# tsc, every vitest test (the bookmarks integration tests use that MySQL),
+# the production build, and every guard — including the two that drive the
+# built app in headless Chrome (check:screens, check:dates).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci
+          MYSQL_DATABASE: levelup_ci
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DATABASE_URL: mysql://root:ci@127.0.0.1:3306/levelup_ci
+      JWT_SECRET: ci-only-not-a-secret
+      NODE_OPTIONS: --max-old-space-size=6144
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Client bundles parse (a syntax error in any of them stops the app booting)
+        run: |
+          for f in app-part1.js app-part2.js app-agent.js app-coach.js app-pm.js vendor/purify.min.js; do
+            node --check "client/public/js/$f"
+          done
+          n=$(tr -cd '\000' < client/public/js/app-part1.js | wc -c)
+          if [ "$n" != "12" ]; then echo "app-part1.js must keep exactly 12 NUL bytes (markdown placeholders), found $n"; exit 1; fi
+
+      - name: Migrations apply to an empty database
+        run: pnpm exec drizzle-kit migrate
+
+      - name: Type check
+        run: pnpm exec tsc --noEmit
+
+      - name: Tests
+        run: pnpm exec vitest run
+
+      - name: Build
+        run: pnpm build
+
+      - name: Guards
+        run: |
+          pnpm check:mobile-nav
+          pnpm check:ai-prompt
+          pnpm check:ai-knowledge
+          pnpm check:ai-agent
+          pnpm check:account-switch
+          node scripts/check-electric-contrast.mjs
+
+      - name: Dates (static scan + 23:30/00:05 clock test in headless Chrome)
+        run: pnpm check:dates
+
+      - name: Screens (every screen at 375 / 390 / 1440 in headless Chrome)
+        run: pnpm check:screens

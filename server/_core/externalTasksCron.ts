@@ -251,7 +251,7 @@ async function upsertOpportunitiesForUser(
       // is authoritative for terminal vs open. Preserve existing wonAt /
       // lostAt timestamps when the status didn't change, so we don't
       // overwrite the original close timestamp on every re-pull.
-      const nextStatus = deriveStatus(p.stage ?? ex.stage);
+      const nextStatus = deriveStatus(p.stage ?? (ex.stage as string | null | undefined));
       const status = {
         status: nextStatus.status,
         wonAt: nextStatus.status === 'won' ? (ex.wonAt || nextStatus.wonAt) : undefined,

@@ -131,6 +131,8 @@ describe("onenoteHtmlToMarkdown", () => {
 // Mock the database module
 vi.mock("../server/db", () => ({
   getOAuthToken: vi.fn(),
+  // getAuthUrl resolves the per-user Azure app first (build -135)
+  getUserOauthCredential: vi.fn(async () => null),
   upsertOAuthToken: vi.fn(),
   deleteOAuthToken: vi.fn(),
   getDb: vi.fn(() => null),

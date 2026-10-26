@@ -14,6 +14,8 @@ vi.mock('./db', () => ({
   getAllConnectedOAuthAccounts: vi.fn().mockResolvedValue([]),
   getSystemSetting: vi.fn().mockResolvedValue(null),
   setSystemSetting: vi.fn().mockResolvedValue(undefined),
+  // testEmail reads the newest delivery-log row to explain a failure
+  getEmailDeliveryLog: vi.fn().mockResolvedValue([]),
 }));
 // ─── Mock sendEmail ───────────────────────────────────────────────────────────
 vi.mock('./_core/sendEmail', () => ({
@@ -49,11 +51,22 @@ describe('oauthSync.testEmail', () => {
   beforeEach(() => vi.clearAllMocks());
   it('returns success:false with helpful message when no SMTP sender configured', async () => {
     vi.mocked(sendEmailModule.sendEmail).mockResolvedValue(false);
+    // sendEmail logs a "skipped" row when there is no sender at all
+    vi.mocked((db as any).getEmailDeliveryLog).mockResolvedValueOnce([{ status: 'skipped', errorMessage: null }]);
     const caller = appRouter.createCaller(createUserContext(1, 'Alice', 'alice@example.com'));
     const result = await caller.oauthSync.testEmail();
     expect(result.success).toBe(false);
-    expect(result.message).toMatch(/No SMTP sender/i);
+    expect(result.message).toMatch(/No sender is configured/i);
     expect(sendEmailModule.sendEmail).toHaveBeenCalledOnce();
+  });
+
+  it('surfaces the real delivery error instead of a canned message', async () => {
+    vi.mocked(sendEmailModule.sendEmail).mockResolvedValue(false);
+    vi.mocked((db as any).getEmailDeliveryLog).mockResolvedValueOnce([{ status: 'failed', errorMessage: '535 Username and Password not accepted' }]);
+    const caller = appRouter.createCaller(createUserContext(1, 'Alice', 'alice@example.com'));
+    const result = await caller.oauthSync.testEmail();
+    expect(result.success).toBe(false);
+    expect(result.message).toBe('Send failed: 535 Username and Password not accepted');
   });
   it('returns success:true with recipient address when email is sent', async () => {
     vi.mocked(sendEmailModule.sendEmail).mockResolvedValue(true);

@@ -40,7 +40,8 @@ async function cleanupTestData() {
   await db.delete(bookmarks).where(eq(bookmarks.userId, TEST_USER_ID));
 }
 
-describe('bookmark collections', () => {
+// Integration tests — need DATABASE_URL (CI runs them against MySQL).
+describe.skipIf(!process.env.DATABASE_URL)('bookmark collections', () => {
   let caller: ReturnType<typeof appRouter.createCaller>;
 
   beforeEach(async () => {
@@ -83,7 +84,7 @@ describe('bookmark collections', () => {
   });
 });
 
-describe('bookmark shares', () => {
+describe.skipIf(!process.env.DATABASE_URL)('bookmark shares', () => {
   let caller: ReturnType<typeof appRouter.createCaller>;
 
   beforeEach(async () => {

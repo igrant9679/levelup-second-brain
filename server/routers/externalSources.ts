@@ -820,7 +820,7 @@ export const externalSourcesRouter = router({
       const out: Array<Record<string, unknown>> = [];
       for (const w of watches) {
         // Try both filter combos. Report whichever finds the match.
-        const variants = [
+        const variants: Array<{ label: string; params: Record<string, string> }> = [
           { label: 'default', params: { include_archived: 'true' } },
           { label: 'completed=true', params: { completed: 'true', include_archived: 'true' } },
           { label: 'completed=false', params: { completed: 'false', include_archived: 'true' } },

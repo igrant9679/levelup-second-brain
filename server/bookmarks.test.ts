@@ -38,7 +38,10 @@ function createAuthContext(userId = 1): TrpcContext {
   };
 }
 
-describe("bookmarks", () => {
+// Integration tests: they write real rows, so they need a migrated MySQL
+// (DATABASE_URL). CI provides one (.github/workflows/ci.yml); without it they
+// skip instead of failing as "Failed to create bookmark".
+describe.skipIf(!process.env.DATABASE_URL)("bookmarks", () => {
   let caller: ReturnType<typeof appRouter.createCaller>;
 
   beforeEach(() => {

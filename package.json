@@ -17,7 +17,8 @@
     "check:ai-agent": "node scripts/check-ai-agent.mjs",
     "check:account-switch": "node scripts/check-account-switch.mjs",
     "check:screens": "node scripts/check-screens.mjs",
-    "check:dates": "node scripts/check-dates.mjs"
+    "check:dates": "node scripts/check-dates.mjs",
+    "check:all": "pnpm check:mobile-nav && pnpm check:ai-prompt && pnpm check:ai-knowledge && pnpm check:ai-agent && pnpm check:account-switch && node scripts/check-electric-contrast.mjs && pnpm check:dates && pnpm check:screens"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",

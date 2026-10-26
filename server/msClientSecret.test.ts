@@ -6,7 +6,11 @@
 
 import { describe, it, expect } from "vitest";
 
-describe("MS_CLIENT_SECRET configuration", () => {
+// A check of the DEPLOYED environment, not of the code: it runs only where
+// CHECK_PROD_ENV=1 (e.g. `CHECK_PROD_ENV=1 pnpm vitest run server/msClientSecret.test.ts`
+// on the Railway service). In CI and on a dev machine there is no secret to
+// check, and failing there only hid real failures among known ones.
+describe.skipIf(process.env.CHECK_PROD_ENV !== "1")("MS_CLIENT_SECRET configuration", () => {
   it("is set in the environment", () => {
     const secret = process.env.MS_CLIENT_SECRET;
     expect(secret, "MS_CLIENT_SECRET must be set").toBeTruthy();

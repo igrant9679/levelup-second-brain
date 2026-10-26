@@ -509,6 +509,7 @@ export async function pullSmartsheet(
   cfg: SmartsheetWatchedSheet,
   cred: ExternalSourceCredential,
 ): Promise<SmartsheetPullResult> {
+  if (!cred.apiToken) throw new Error('No Smartsheet token stored');
   const sheet = await fetchSheet(cred.apiToken, cfg.sheetId);
 
   const ownerColId = findColumnIdByTitle(sheet.columns, cfg.ownerColumn);

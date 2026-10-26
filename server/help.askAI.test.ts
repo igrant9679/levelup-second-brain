@@ -93,10 +93,12 @@ describe("help.askAI", () => {
     expect(callArgs.messages).toBeDefined();
     expect(callArgs.messages[0].role).toBe("system");
     expect(callArgs.messages[0].content).toContain("LevelUp Help Assistant");
-    // The last message should be the user's question
+    // The question goes out as one transcript-style user turn ("Q: …"):
+    // help.askAI routes through callAIProvider, which takes a single
+    // userContent block, not a message array.
     const lastMsg = callArgs.messages[callArgs.messages.length - 1];
     expect(lastMsg.role).toBe("user");
-    expect(lastMsg.content).toBe("How do I track habits?");
+    expect(lastMsg.content).toBe("Q: How do I track habits?");
   });
 
   it("includes conversation history in the LLM call", async () => {
@@ -113,11 +115,10 @@ describe("help.askAI", () => {
 
     const callArgs = (invokeLLM as ReturnType<typeof vi.fn>).mock.calls[0][0];
     const messages = callArgs.messages;
-    // Should have: system + 2 history + 1 user question = 4 messages
-    expect(messages.length).toBe(4);
+    // system + one user turn carrying the transcript, oldest first, question last
+    expect(messages.length).toBe(2);
     expect(messages[1].role).toBe("user");
-    expect(messages[1].content).toBe("What is LevelUp?");
-    expect(messages[2].role).toBe("assistant");
+    expect(messages[1].content).toBe("Q: What is LevelUp?\n\nA: LevelUp is a second brain app.\n\nQ: Tell me more about tasks");
   });
 
   it("rejects empty questions", async () => {
