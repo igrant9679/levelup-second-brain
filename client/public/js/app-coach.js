@@ -664,9 +664,10 @@ async function _coachDeliver(msg){
   if(typeof _agentRunPending!=='function')return;
   var orig=_agentRunPending;
   window._agentRunPending=function(mi,selected){
-    var m=_aiChatHistory()[mi];var cid=m&&m.coachId;
+    var get=function(){return typeof _agentMsg==='function'?_agentMsg(mi):_aiChatHistory()[mi];};
+    var m=get();var cid=m&&m.coachId;
     var res=orig(mi,selected);
-    if(cid){var recs=(_aiChatHistory()[mi]||{}).actions||[];
+    if(cid){var recs=(get()||{}).actions||[];
       _trpc('coach.reportApply',{id:cid,state:selected?'applied':'skipped',result:recs.map(function(a){return (a.skipped?'– ':a.ok?'✓ ':'✗ ')+(a.summary||a.tool);}).join('\n').slice(0,3900)},'mutation').catch(function(){});}
     return res;
   };

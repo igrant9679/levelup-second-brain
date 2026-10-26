@@ -87,6 +87,10 @@ function _pmCSS(){
     '.pm-heat .ax{background:none;color:var(--t3);font-weight:600;cursor:default;min-height:0}',
     '.pm-gantt{position:relative;font-size:11.5px}',
     '.pm-gantt .gl{position:sticky;left:0;z-index:2;background:var(--s1)}',
+    /* Phones: the 440px label column covered the whole scroll area, so no bar
+       was visible. Below 560px it narrows to the name (dates and float stay in
+       each bar\'s tooltip). */
+    '@media (max-width:560px){.pm-gantt .gl{width:150px!important}.pm-gantt .gl[style*="grid-template-columns"]{grid-template-columns:minmax(0,1fr)!important}.pm-gantt .gl[style*="grid-template-columns"]>:not(:first-child){display:none}}',
     '.pm-ims td.n{white-space:nowrap}',
     '#pm-main .pm-table .inp{height:30px!important;padding:3px 8px!important;font-size:12.5px!important;line-height:1.3!important;min-width:0}',
     '#pm-main .pm-table select.inp{padding-right:22px!important;text-overflow:ellipsis}',
@@ -135,7 +139,10 @@ function pmLoad(force){
   return _pmLoading;
 }
 function pmRecs(kind,projectKey){return PM.records.filter(function(r){return r.kind===kind&&(projectKey==null||r.projectKey===projectKey);});}
-function pmRec(id){return PM.records.find(function(r){return r.id===id||r._lk===id;})||null;}
+// By server id or local key (_lk). An empty key finds nothing: rows rendered
+// before the server returned an id used to pass undefined, which matched the
+// first unsaved record — so clicking a new row could open or delete another.
+function pmRec(id){if(id==null||id==='')return null;return PM.records.find(function(r){return (r.id!=null&&r.id===id)||r._lk===id||(r.id!=null&&String(r.id)===String(id));})||null;}
 /** Save a record: updates the local store at once, persists in the background
  *  (chained per record, so rapid edits land in order). Returns a promise. */
 function pmPut(rec){
@@ -520,14 +527,14 @@ function pmTab_waiting(key){
         var d=r.data||{},st=PM_DLG_STATUS[r.status||'open']||PM_DLG_STATUS.open;
         var lastU=(d.updates||[]).slice().reverse().find(function(u){return u.by!=='system';});
         var age=d.delegatedAt?_pmDays(_dayOf(d.delegatedAt),today):null;
-        return '<tr class="clk" onclick="pmDelegationDetail('+r.id+')"><td><b>'+_pmE(_pmDlgRefLabel(r))+'</b>'+(r.refType==='atlas'?' <span class="pm-pill" style="background:#dbeafe;color:#1d4ed8">Atlas</span>':'')+'</td>'+
+        return '<tr class="clk" onclick="pmDelegationDetail(\''+_pmJ(r._lk)+'\')"><td><b>'+_pmE(_pmDlgRefLabel(r))+'</b>'+(r.refType==='atlas'?' <span class="pm-pill" style="background:#dbeafe;color:#1d4ed8">Atlas</span>':'')+'</td>'+
           (g!=='person'?'<td>'+_pmE(pmPersonName(d.personKey))+'</td>':'')+(g!=='project'?'<td class="pm-muted">'+_pmE(_pmProjName(r.projectKey)||'—')+'</td>':'')+
           '<td class="pm-muted">'+(d.delegatedAt?_pmDate(_dayOf(d.delegatedAt))+(age!=null&&_pmDlgOpen(r)?' · '+age+'d':''):'—')+'</td>'+
           '<td>'+(d.expectedBy?(_pmDlgLate(r,today)?'<b style="color:#dc2626">'+_pmDate(d.expectedBy)+' · late</b>':_pmDate(d.expectedBy)):'<span class="pm-muted">—</span>')+'</td>'+
           '<td>'+(d.followUp&&_pmDlgOpen(r)?(_pmDlgDue(r,today)?'<b style="color:#d97706">'+_pmDate(d.followUp)+'</b>':_pmDate(d.followUp)):'<span class="pm-muted">—</span>')+((d.autoNudge===true||(d.autoNudge==null&&pmSettings(r.projectKey).autoNudge))&&_pmDlgOpen(r)?' <span title="Auto follow-up on">⚡</span>':'')+'</td>'+
           '<td>'+_pmPill(st.label,st.c)+'</td>'+
           '<td class="pm-muted" style="max-width:260px">'+(lastU?_pmE(String(lastU.text).slice(0,90))+(String(lastU.text).length>90?'…':'')+'<br><span style="font-size:10.5px">'+(lastU.by==='delegate'?'from them · ':'')+_pmDate(String(lastU.at).slice(0,10))+'</span>':'—')+'</td>'+
-          '<td style="white-space:nowrap" onclick="event.stopPropagation()">'+(_pmDlgOpen(r)?'<button class="btn btn-s" style="height:26px" onclick="pmNudgeDialog('+r.id+')" title="Email them for an update">'+_pmIcon('mail',13)+'</button> <button class="btn btn-s" style="height:26px" onclick="pmLogUpdateDialog('+r.id+')" title="Log an update">'+_pmIcon('edit',13)+'</button> <button class="btn btn-s" style="height:26px" onclick="pmDelegationDone('+r.id+')" title="Mark done">'+_pmIcon('check',13)+'</button>':'')+'</td></tr>';
+          '<td style="white-space:nowrap" onclick="event.stopPropagation()">'+(_pmDlgOpen(r)?'<button class="btn btn-s" style="height:26px" onclick="pmNudgeDialog(\''+_pmJ(r._lk)+'\')" title="Email them for an update">'+_pmIcon('mail',13)+'</button> <button class="btn btn-s" style="height:26px" onclick="pmLogUpdateDialog(\''+_pmJ(r._lk)+'\')" title="Log an update">'+_pmIcon('edit',13)+'</button> <button class="btn btn-s" style="height:26px" onclick="pmDelegationDone(\''+_pmJ(r._lk)+'\')" title="Mark done">'+_pmIcon('check',13)+'</button>':'')+'</td></tr>';
       }).join('')+'</tbody></table></div></div>';
   });
   return html;
@@ -556,7 +563,7 @@ async function pmDelegateDialog(o){
     '<div class="pm-row"><label>Auto follow-up email</label><select class="inp" id="pmd-auto"><option value="project"'+(auto==='project'?' selected':'')+'>Use the project setting</option><option value="on"'+(auto==='on'?' selected':'')+'>On — LevelUp emails them on the follow-up date</option><option value="off"'+(auto==='off'?' selected':'')+'>Off — I will press Follow up myself</option></select></div>'+
     '<div class="pm-row" style="align-items:start"><label>Instructions</label><textarea class="inp" id="pmd-note" rows="3" placeholder="What done looks like, links, context">'+_pmE(d.note||'')+'</textarea></div>'+
     (rec?'':'<label style="display:flex;gap:8px;align-items:center;font-size:12.5px;margin-top:6px"><input type="checkbox" id="pmd-send" checked> Email them now with the task and instructions</label>')+
-    '<div class="pm-acts">'+(rec?'<button class="btn btn-s" style="margin-right:auto;color:#dc2626" onclick="pmDelegationCancel('+rec.id+')">Cancel delegation</button>':'')+'<button class="btn btn-s" onclick="pmCloseModal()">Close</button><button class="btn btn-p" id="pmd-save">'+(rec?'Save':'Delegate')+'</button></div>');
+    '<div class="pm-acts">'+(rec?'<button class="btn btn-s" style="margin-right:auto;color:#dc2626" onclick="pmDelegationCancel(\''+_pmJ(rec._lk)+'\')">Cancel delegation</button>':'')+'<button class="btn btn-s" onclick="pmCloseModal()">Close</button><button class="btn btn-p" id="pmd-save">'+(rec?'Save':'Delegate')+'</button></div>');
   var wire=function(){
     pmWirePersonSelect('pmd-person');
     document.getElementById('pmd-save').onclick=function(){_pmDelegateSave(o,rec);};
@@ -675,8 +682,8 @@ function pmDelegationDetail(id){
     (d.note?'<div class="pm-card" style="margin-bottom:10px;white-space:pre-wrap;font-size:12.5px">'+_pmE(d.note)+'</div>':'')+
     '<div class="pm-h">History</div><div style="max-height:46vh;overflow:auto">'+(hist||'<div class="pm-muted">Nothing yet.</div>')+'</div>'+
     '<div class="pm-acts">'+(r.refType==='task'||r.refType==='atlas'?'<button class="btn btn-s" style="margin-right:auto" onclick="pmCloseModal();pmOpenItem(\''+_pmJ(r.refType==='task'?'task:'+r.refId:'atlas:'+r.refId)+'\')">Open task</button>':'')+
-      (_pmDlgOpen(r)?'<button class="btn btn-s" onclick="pmNudgeDialog('+r.id+')">Follow up</button><button class="btn btn-s" onclick="pmLogUpdateDialog('+r.id+')">Log update</button>':'')+
-      '<button class="btn btn-s" onclick="pmDelegateDialog({recordId:'+r.id+'})">Edit</button><button class="btn btn-s" style="color:#dc2626" onclick="pmCloseModal();pmDel(pmRec('+r.id+'),\'Delegation deleted\')">Delete</button></div>',true);
+      (_pmDlgOpen(r)?'<button class="btn btn-s" onclick="pmNudgeDialog(\''+_pmJ(r._lk)+'\')">Follow up</button><button class="btn btn-s" onclick="pmLogUpdateDialog(\''+_pmJ(r._lk)+'\')">Log update</button>':'')+
+      '<button class="btn btn-s" onclick="pmDelegateDialog({recordId:'+r.id+'})">Edit</button><button class="btn btn-s" style="color:#dc2626" onclick="pmCloseModal();pmDel(pmRec(\''+_pmJ(r._lk)+'\'),\'Delegation deleted\')">Delete</button></div>',true);
 }
 
 // The task drawer gets a 🤝 Delegate button next to Push to Nifty.
@@ -746,7 +753,7 @@ function pmTab_overview(key){
   var card=function(title,icon,body,go){return '<div class="pm-card"><div class="pm-h">'+_pmIcon(icon,15)+' '+title+'<span class="sp"></span>'+(go?'<button class="btn btn-s" style="height:24px;font-size:11px" onclick="pmGo(null,\''+go+'\')">Open</button>':'')+'</div>'+body+'</div>';};
   var li=function(arr,fn,empty){return arr.length?'<div style="display:flex;flex-direction:column;gap:6px">'+arr.map(fn).join('')+'</div>':'<div class="pm-muted">'+empty+'</div>';};
   html+='<div class="pm-grid2">'+
-    card('Waiting on others','clock',li(late.concat(due.filter(function(r){return late.indexOf(r)<0;})).slice(0,8),function(r){var d=r.data||{};return '<div style="font-size:12.5px;cursor:pointer" onclick="pmDelegationDetail('+r.id+')"><b>'+_pmE(_pmDlgRefLabel(r))+'</b> <span class="pm-muted">· '+_pmE(pmPersonName(d.personKey))+'</span> '+(_pmDlgLate(r,today)?_pmPill('late '+_pmDate(d.expectedBy),'#dc2626'):_pmPill('follow up','#d97706'))+'</div>';},'Nothing late or due a follow-up.'),'waiting')+
+    card('Waiting on others','clock',li(late.concat(due.filter(function(r){return late.indexOf(r)<0;})).slice(0,8),function(r){var d=r.data||{};return '<div style="font-size:12.5px;cursor:pointer" onclick="pmDelegationDetail(\''+_pmJ(r._lk)+'\')"><b>'+_pmE(_pmDlgRefLabel(r))+'</b> <span class="pm-muted">· '+_pmE(pmPersonName(d.personKey))+'</span> '+(_pmDlgLate(r,today)?_pmPill('late '+_pmDate(d.expectedBy),'#dc2626'):_pmPill('follow up','#d97706'))+'</div>';},'Nothing late or due a follow-up.'),'waiting')+
     card('Top risks','alertTriangle',li(risks.slice(0,6),function(r){var s=pmRiskScore(r);return '<div style="font-size:12.5px;cursor:pointer" onclick="pmRaidDialog(\'risk\','+r.id+')">'+_pmPill(String(s),_pmHeatColor(s))+' <b>'+_pmE(r.title)+'</b>'+((r.data||{}).owner?' <span class="pm-muted">· '+_pmE(pmPersonName(r.data.owner))+'</span>':'')+'</div>';},'No open risks logged.'),'raid')+
     card('Upcoming milestones','target',li(ms.slice(0,6),function(m){var lateM=m.date&&m.date<today;return '<div style="font-size:12.5px"><b>'+_pmE(m.name)+'</b> <span class="pm-muted">· '+(m.date?_pmDate(m.date):'no date')+'</span>'+(lateM?' '+_pmPill('late','#dc2626'):'')+'</div>';},'No milestones yet — add them on the Schedule tab.'),'schedule')+
     card('Open issues','alertCircle',li(issues.slice(0,6),function(r){return '<div style="font-size:12.5px;cursor:pointer" onclick="pmRaidDialog(\'issue\','+r.id+')"><b>'+_pmE(r.title)+'</b>'+((r.data||{}).priority?' <span class="pm-muted">· '+_pmE(r.data.priority)+'</span>':'')+'</div>';},'No open issues.'),'raid')+
@@ -1040,8 +1047,8 @@ function pmRaidDialog(kind,id,key){
   }
   body+=f('Status',sel('pmr-status',K.statuses,r?r.status:K.statuses[0]));
   pmModal('<h3>'+_pmIcon('alertTriangle',18)+' '+(r?_pmE(_pmRaidNo(r))+' '+K.one:'New '+K.one)+'<button class="x" onclick="pmCloseModal()">×</button></h3>'+body+
-    '<div class="pm-acts">'+(r?'<button class="btn btn-s" style="margin-right:auto;color:#dc2626" onclick="pmCloseModal();pmDel(pmRec('+r.id+'),\''+_pmJ(_pmRaidNo(r))+' deleted\')">Delete</button>':'')+
-    (r&&kind==='risk'?'<button class="btn btn-s" onclick="pmRiskToIssue('+r.id+')">It happened → issue</button>':'')+
+    '<div class="pm-acts">'+(r?'<button class="btn btn-s" style="margin-right:auto;color:#dc2626" onclick="pmCloseModal();pmDel(pmRec(\''+_pmJ(r._lk)+'\'),\''+_pmJ(_pmRaidNo(r))+' deleted\')">Delete</button>':'')+
+    (r&&kind==='risk'?'<button class="btn btn-s" onclick="pmRiskToIssue(\''+_pmJ(r._lk)+'\')">It happened → issue</button>':'')+
     '<button class="btn btn-s" onclick="pmCloseModal()">Cancel</button><button class="btn btn-p" id="pmr-save">Save</button></div>',true);
   var wire=function(){
     ['pmr-owner','pmr-by'].forEach(function(x){if(document.getElementById(x))pmWirePersonSelect(x);});
@@ -1108,7 +1115,7 @@ function pmTab_stakeholders(key){
       return '<tr class="clk" onclick="pmStakeholderDialog(\''+_pmJ(key)+'\','+r.id+')"><td><b>'+_pmE(p?p.name:'?')+'</b>'+(p&&p.org?'<div class="pm-muted">'+_pmE(p.org)+'</div>':'')+'</td><td>'+_pmE(d.role||'—')+'</td><td>'+_pmE(_pmQuadrant(d.influence,d.interest))+'</td><td>'+_pmE(d.attitude||'—')+'</td><td class="pm-muted">'+_pmE((d.engageNow||'?')+' → '+(d.engageWant||'?'))+'</td><td class="pm-muted" style="max-width:220px">'+_pmE(d.needs||'')+'</td></tr>';}).join('')+'</tbody></table>':'<div class="pm-empty"><b>No stakeholders yet</b>Add the people who care about this project — sponsors, client contacts, approvers.</div>')+'</div></div>';
   html+='<div class="pm-card pm-scroll" style="margin-top:12px;padding:0"><div class="pm-h" style="padding:12px 14px 0">'+_pmIcon('mail',15)+' Communication plan</div>'+(plans.length?'<table class="pm-table"><thead><tr><th>What</th><th>Audience</th><th>Channel</th><th>How often</th><th>Owner</th><th>Last sent</th><th>Next due</th><th></th></tr></thead><tbody>'+plans.map(function(r){var d=r.data||{};var next=_pmCommNext(r);var late=next&&next<=today;
       return '<tr><td class="clk" onclick="pmCommPlanDialog(\''+_pmJ(key)+'\','+r.id+')"><b>'+_pmE(r.title)+'</b></td><td>'+_pmE((d.audience||[]).map(pmPersonName).concat(d.audienceText?[d.audienceText]:[]).join(', ')||'—')+'</td><td>'+_pmE(d.channel||'')+'</td><td>'+_pmE(({weekly:'Weekly',biweekly:'Every 2 weeks',monthly:'Monthly',quarterly:'Quarterly',adhoc:'As needed'})[d.frequency]||'')+'</td><td>'+_pmE(pmPersonName(d.owner)||'You')+'</td><td class="pm-muted">'+(d.lastSent?_pmDate(d.lastSent):'never')+'</td><td>'+(next?(late?'<b style="color:#d97706">'+_pmDate(next)+'</b>':_pmDate(next)):'—')+'</td>'+
-        '<td style="white-space:nowrap"><button class="btn btn-s" style="height:24px;font-size:11px" onclick="pmGo(null,\'reports\');setTimeout(function(){pmReportNew(\''+_pmJ(key)+'\','+r.id+')},50)">Draft report</button> <button class="btn btn-s" style="height:24px;font-size:11px" onclick="pmCommMarkSent('+r.id+')">Mark sent</button></td></tr>';}).join('')+'</tbody></table>':'<div class="pm-empty" style="padding:16px">Plan who hears what and when — e.g. a weekly status email to the client, a monthly steering update.</div>')+'</div>';
+        '<td style="white-space:nowrap"><button class="btn btn-s" style="height:24px;font-size:11px" onclick="pmGo(null,\'reports\');setTimeout(function(){pmReportNew(\''+_pmJ(key)+'\','+r.id+')},50)">Draft report</button> <button class="btn btn-s" style="height:24px;font-size:11px" onclick="pmCommMarkSent(\''+_pmJ(r._lk)+'\')">Mark sent</button></td></tr>';}).join('')+'</tbody></table>':'<div class="pm-empty" style="padding:16px">Plan who hears what and when — e.g. a weekly status email to the client, a monthly steering update.</div>')+'</div>';
   return html;
 }
 function _pmCommNext(r){var d=r.data||{};var n=PM_FREQ[d.frequency];if(!n)return d.nextDue||null;var base=d.lastSent||d.startDate||_pmToday();return d.lastSent?_pmAddDays(base,n):base;}
@@ -1126,7 +1133,7 @@ function pmStakeholderDialog(key,id){
     '<div class="pm-row"><label>Engagement now</label>'+s('pms-en',PM_ENGAGE,d.engageNow||'Neutral')+'</div>'+
     '<div class="pm-row"><label>Engagement wanted</label>'+s('pms-ew',PM_ENGAGE,d.engageWant||'Supportive')+'</div>'+
     '<div class="pm-row" style="align-items:start"><label>What they need</label><textarea class="inp" id="pms-needs" rows="2" placeholder="Expectations, concerns, how they like updates">'+_pmE(d.needs||'')+'</textarea></div>'+
-    '<div class="pm-acts">'+(r?'<button class="btn btn-s" style="margin-right:auto;color:#dc2626" onclick="pmCloseModal();pmDel(pmRec('+r.id+'),\'Stakeholder removed\')">Remove</button>':'')+'<button class="btn btn-s" onclick="pmCloseModal()">Cancel</button><button class="btn btn-p" id="pms-save">Save</button></div>');
+    '<div class="pm-acts">'+(r?'<button class="btn btn-s" style="margin-right:auto;color:#dc2626" onclick="pmCloseModal();pmDel(pmRec(\''+_pmJ(r._lk)+'\'),\'Stakeholder removed\')">Remove</button>':'')+'<button class="btn btn-s" onclick="pmCloseModal()">Cancel</button><button class="btn btn-p" id="pms-save">Save</button></div>');
   var wire=function(){pmWirePersonSelect('pms-person');document.getElementById('pms-save').onclick=function(){
     var v=function(x){return document.getElementById(x).value;};var pk=v('pms-person');if(!pk||pk==='__new'){_pmToast('Choose a person','warn');return;}
     var rec=r||pmNew('stakeholder',key,{data:{}});rec.title=pmPersonName(pk);
@@ -1147,7 +1154,7 @@ function pmCommPlanDialog(key,id){
     '<div class="pm-row"><label>How often</label><select class="inp" id="pmc-fr">'+Object.keys(PM_FREQ).map(function(k){return '<option value="'+k+'"'+(k===(d.frequency||'weekly')?' selected':'')+'>'+({weekly:'Weekly',biweekly:'Every 2 weeks',monthly:'Monthly',quarterly:'Quarterly',adhoc:'As needed'})[k]+'</option>';}).join('')+'</select></div>'+
     '<div class="pm-row"><label>First / next due</label><input class="inp" type="date" id="pmc-start" value="'+_pmE(d.startDate||_pmToday())+'"></div>'+
     '<div class="pm-row"><label>Owner</label>'+pmPersonSelect('pmc-owner',d.owner||'',{blankLabel:'Me'})+'</div>'+
-    '<div class="pm-acts">'+(r?'<button class="btn btn-s" style="margin-right:auto;color:#dc2626" onclick="pmCloseModal();pmDel(pmRec('+r.id+'),\'Communication removed\')">Remove</button>':'')+'<button class="btn btn-s" onclick="pmCloseModal()">Cancel</button><button class="btn btn-p" id="pmc-save">Save</button></div>');
+    '<div class="pm-acts">'+(r?'<button class="btn btn-s" style="margin-right:auto;color:#dc2626" onclick="pmCloseModal();pmDel(pmRec(\''+_pmJ(r._lk)+'\'),\'Communication removed\')">Remove</button>':'')+'<button class="btn btn-s" onclick="pmCloseModal()">Cancel</button><button class="btn btn-p" id="pmc-save">Save</button></div>');
   var wire=function(){pmWirePersonSelect('pmc-owner');document.getElementById('pmc-save').onclick=function(){
     var v=function(x){return document.getElementById(x).value;};var t=v('pmc-title').trim();if(!t)return;
     var rec=r||pmNew('commplan',key,{data:{}});rec.title=t;
@@ -1170,8 +1177,8 @@ function pmTab_reports(key){
   var html='<div class="pm-bar"><button class="btn btn-p" onclick="pmReportNew(\''+_pmJ(key)+'\')">'+_pmIcon('sparkles',14,'#fff')+' New status report</button><span class="pm-muted">Drafted by AI from this project’s live data — you edit, then email it, print it or turn it into a slide deck.</span></div>';
   if(!list.length)return html+'<div class="pm-card pm-empty"><b>No reports yet</b>Press “New status report”.</div>';
   html+='<div class="pm-card pm-scroll" style="padding:0"><table class="pm-table"><thead><tr><th>Date</th><th>Status</th><th>Headline</th><th>Sent to</th><th></th></tr></thead><tbody>'+list.map(function(r){var d=r.data||{};
-    return '<tr><td class="pm-muted">'+_pmDate(_dayOf(r.createdAt||r.updatedAt))+'</td><td>'+_pmRagPill(d.rag)+'</td><td class="clk" onclick="pmReportEdit('+r.id+')"><b>'+_pmE(r.title||'Status report')+'</b></td><td class="pm-muted">'+_pmE((d.sentTo||[]).join(', ')||'—')+'</td>'+
-      '<td style="white-space:nowrap"><button class="btn btn-s" style="height:26px" onclick="pmReportEmail('+r.id+')">Email</button> <button class="btn btn-s" style="height:26px" onclick="pmReportPrint('+r.id+')">PDF</button> <button class="btn btn-s" style="height:26px" onclick="pmReportDeck('+r.id+')">Slides</button> <button class="btn btn-s" style="height:26px" onclick="pmDel(pmRec('+r.id+'),\'Report deleted\')">×</button></td></tr>';}).join('')+'</tbody></table></div>';
+    return '<tr><td class="pm-muted">'+_pmDate(_dayOf(r.createdAt||r.updatedAt))+'</td><td>'+_pmRagPill(d.rag)+'</td><td class="clk" onclick="pmReportEdit(\''+_pmJ(r._lk)+'\')"><b>'+_pmE(r.title||'Status report')+'</b></td><td class="pm-muted">'+_pmE((d.sentTo||[]).join(', ')||'—')+'</td>'+
+      '<td style="white-space:nowrap"><button class="btn btn-s" style="height:26px" onclick="pmReportEmail(\''+_pmJ(r._lk)+'\')">Email</button> <button class="btn btn-s" style="height:26px" onclick="pmReportPrint(\''+_pmJ(r._lk)+'\')">PDF</button> <button class="btn btn-s" style="height:26px" onclick="pmReportDeck(\''+_pmJ(r._lk)+'\')">Slides</button> <button class="btn btn-s" style="height:26px" onclick="pmDel(pmRec(\''+_pmJ(r._lk)+'\'),\'Report deleted\')">×</button></td></tr>';}).join('')+'</tbody></table></div>';
   return html;
 }
 /** Everything the report (and its AI draft) is built from. */
@@ -1349,7 +1356,7 @@ function pmChangeDialog(key,id){
     '<div class="pm-row" style="align-items:start"><label>Reason / benefit</label><textarea class="inp" id="pmcr-why" rows="2">'+_pmE(d.reason||'')+'</textarea></div>'+
     '<div class="pm-row"><label>Status</label><select class="inp" id="pmcr-st">'+PM_CR_STATUS.map(function(s){return '<option'+(s===(r?r.status:'proposed')?' selected':'')+'>'+s+'</option>';}).join('')+'</select></div>'+
     '<div class="pm-row" style="align-items:start"><label>Decision notes</label><textarea class="inp" id="pmcr-dec" rows="2">'+_pmE(d.decisionNotes||'')+'</textarea></div>'+
-    '<div class="pm-acts">'+(r?'<button class="btn btn-s" style="margin-right:auto;color:#dc2626" onclick="pmCloseModal();pmDel(pmRec('+r.id+'),\'Change request deleted\')">Delete</button>':'')+'<button class="btn btn-s" onclick="pmCloseModal()">Cancel</button><button class="btn btn-p" id="pmcr-save">Save</button></div>',true);
+    '<div class="pm-acts">'+(r?'<button class="btn btn-s" style="margin-right:auto;color:#dc2626" onclick="pmCloseModal();pmDel(pmRec(\''+_pmJ(r._lk)+'\'),\'Change request deleted\')">Delete</button>':'')+'<button class="btn btn-s" onclick="pmCloseModal()">Cancel</button><button class="btn btn-p" id="pmcr-save">Save</button></div>',true);
   var wire=function(){pmWirePersonSelect('pmcr-by');document.getElementById('pmcr-save').onclick=function(){
     var v=function(x){return document.getElementById(x).value;};var t=v('pmcr-title').trim();if(!t)return;
     var rec=r||pmNew('change',key,{data:{}});var nd=Object.assign({},rec.data||{});
@@ -1379,7 +1386,7 @@ function pmLessonDialog(key,id){
     '<div class="pm-row"><label>Category</label><select class="inp" id="pml2-c">'+['Planning','Scope','Schedule','Cost','Quality','People','Client','Vendors','Communication','Technical','Process'].map(function(o){return '<option'+(o===d.category?' selected':'')+'>'+o+'</option>';}).join('')+'</select></div>'+
     '<div class="pm-row" style="align-items:start"><label>What happened</label><textarea class="inp" id="pml2-d" rows="3">'+_pmE(d.detail||'')+'</textarea></div>'+
     '<div class="pm-row" style="align-items:start"><label>Recommendation</label><textarea class="inp" id="pml2-r" rows="2">'+_pmE(d.recommendation||'')+'</textarea></div>'+
-    '<div class="pm-acts">'+(r?'<button class="btn btn-s" style="margin-right:auto;color:#dc2626" onclick="pmCloseModal();pmDel(pmRec('+r.id+'),\'Lesson deleted\')">Delete</button>':'')+'<button class="btn btn-s" onclick="pmCloseModal()">Cancel</button><button class="btn btn-p" id="pml2-save">Save</button></div>');
+    '<div class="pm-acts">'+(r?'<button class="btn btn-s" style="margin-right:auto;color:#dc2626" onclick="pmCloseModal();pmDel(pmRec(\''+_pmJ(r._lk)+'\'),\'Lesson deleted\')">Delete</button>':'')+'<button class="btn btn-s" onclick="pmCloseModal()">Cancel</button><button class="btn btn-p" id="pml2-save">Save</button></div>');
   document.getElementById('pml2-save').onclick=function(){var v=function(x){return document.getElementById(x).value;};var t=v('pml2-t').trim();if(!t)return;
     var rec=r||pmNew('lesson',key,{data:{date:_pmToday()}});rec.title=t;rec.data=Object.assign({},rec.data,{went:v('pml2-w'),category:v('pml2-c'),detail:v('pml2-d'),recommendation:v('pml2-r')});
     pmCloseModal(true);pmPut(rec);pmRender();};
@@ -1419,6 +1426,17 @@ function pmScheduleNodes(key){
       return {key:keyOf(r),row:i+1,name:r.title||'(unnamed)',depth:w.depth,parent:par,dur:d.milestone?0:Math.max(0,Number(d.duration)||(d.milestone?0:1)),sne:_pmIsYmd(d.sne)?d.sne:null,
         preds:(d.preds||[]).map(function(p){var t=byLk[String(p.id)];return t?{key:keyOf(t),type:p.type||'FS',lag:Number(p.lag)||0}:null;}).filter(Boolean),
         milestone:!!d.milestone,done:r.status==='done',pct:Number(d.pct)||(r.status==='done'?100:0),refs:d.refs||[],imsType:d.imsType||'',rec:r};});
+    // A row with linked tasks takes its progress from them when it has no %
+    // of its own: completing the linked tasks used to leave the Gantt bar
+    // open and earned value at 0.
+    var itemBy={};pmItems(key).forEach(function(i){itemBy[i.ref]=i;});
+    nodes.forEach(function(n){
+      var linked=(n.refs||[]).map(function(r){return itemBy[r];}).filter(Boolean);
+      if(!linked.length||n.done)return;
+      var doneN=linked.filter(function(i){return i.done;}).length;
+      if(!Number((n.rec.data||{}).pct))n.pct=Math.round(doneN/linked.length*100);
+      if(doneN===linked.length)n.done=true;
+    });
     nodes.forEach(function(n){n.children=nodes.filter(function(c){return c.parent===n.key;}).map(function(c){return c.key;});});
     return {mode:'wbs',nodes:nodes,ww:ww};
   }
@@ -1490,7 +1508,7 @@ function pmMilestoneDialog(key,id){
     '<div class="pm-row"><label>Milestone</label><input class="inp" id="pmm-t" value="'+_pmE(r?r.title:'')+'"></div>'+
     '<div class="pm-row"><label>Date</label><input class="inp" type="date" id="pmm-d" value="'+_pmE(d.date||'')+'"></div>'+
     '<div class="pm-row"><label>Done</label><input type="checkbox" id="pmm-done" '+(r&&r.status==='done'?'checked':'')+'></div>'+
-    '<div class="pm-acts">'+(r?'<button class="btn btn-s" style="margin-right:auto;color:#dc2626" onclick="pmCloseModal();pmDel(pmRec('+r.id+'),\'Milestone deleted\')">Delete</button>':'')+'<button class="btn btn-s" onclick="pmCloseModal()">Cancel</button><button class="btn btn-p" id="pmm-save">Save</button></div>');
+    '<div class="pm-acts">'+(r?'<button class="btn btn-s" style="margin-right:auto;color:#dc2626" onclick="pmCloseModal();pmDel(pmRec(\''+_pmJ(r._lk)+'\'),\'Milestone deleted\')">Delete</button>':'')+'<button class="btn btn-s" onclick="pmCloseModal()">Cancel</button><button class="btn btn-p" id="pmm-save">Save</button></div>');
   document.getElementById('pmm-save').onclick=function(){var t=document.getElementById('pmm-t').value.trim();if(!t)return;var rec=r||pmNew('milestone',key,{data:{}});rec.title=t;rec.status=document.getElementById('pmm-done').checked?'done':null;rec.data=Object.assign({},rec.data,{date:document.getElementById('pmm-d').value||null});pmCloseModal(true);pmPut(rec);pmRender();};
 }
 
@@ -1853,7 +1871,7 @@ function pmAllocDialog(key,id){
     '<div class="pm-row"><label>Amount</label><div style="display:flex;gap:6px"><input class="inp" type="number" id="pma-amt" value="'+_pmE(d.amount!=null?d.amount:50)+'" style="width:100px"><select class="inp" id="pma-unit" style="width:auto"><option value="pct"'+(d.unit!=='hours'?' selected':'')+'>% of their week</option><option value="hours"'+(d.unit==='hours'?' selected':'')+'>hours per week</option></select></div></div>'+
     '<div class="pm-row"><label>From</label><input class="inp" type="date" id="pma-from" value="'+_pmE(d.from||_pmToday())+'"></div>'+
     '<div class="pm-row"><label>To</label><input class="inp" type="date" id="pma-to" value="'+_pmE(d.to||'')+'"></div>'+
-    '<div class="pm-acts">'+(r?'<button class="btn btn-s" style="margin-right:auto;color:#dc2626" onclick="pmCloseModal();pmDel(pmRec('+r.id+'),\'Allocation removed\')">Remove</button>':'')+'<button class="btn btn-s" onclick="pmCloseModal()">Cancel</button><button class="btn btn-p" id="pma-save">Save</button></div>');
+    '<div class="pm-acts">'+(r?'<button class="btn btn-s" style="margin-right:auto;color:#dc2626" onclick="pmCloseModal();pmDel(pmRec(\''+_pmJ(r._lk)+'\'),\'Allocation removed\')">Remove</button>':'')+'<button class="btn btn-s" onclick="pmCloseModal()">Cancel</button><button class="btn btn-p" id="pma-save">Save</button></div>');
   var wire=function(){pmWirePersonSelect('pma-person');document.getElementById('pma-save').onclick=function(){
     var v=function(x){var e=document.getElementById(x);return e?e.value:'';};var pk=v('pma-person');if(!pk||pk==='__new'){_pmToast('Choose a person','warn');return;}
     var rec=r||pmNew('alloc',all?v('pma-proj'):key,{data:{}});rec.title=pmPersonName(pk);
@@ -1880,14 +1898,19 @@ function pmEvm(key){
   var ac=costs.reduce(function(s,r){return s+(Number((r.data||{}).amount)||0);},0)+labor.cost;
   if(!bac&&!ac)return {bac:0,ac:0,ev:0,pv:0};
   var c=pmCpm(key),today=_pmToday(),leaves=c.nodes.filter(function(n){return !n.summary;});
-  var base=_pmActiveBaseline(key);
+  var base=_pmActiveBaseline(key),ww=_pmWorkWeekends(key);
   var tot=leaves.reduce(function(s,n){return s+Math.max(1,n.dur);},0)||1;
+  // Planned share in WORK days, like the schedule (calendar days made PV run
+  // ahead over weekends).
   var planned=leaves.reduce(function(s,n){var b=base&&base.data.nodes&&base.data.nodes[n.key];var st=b?b.start:n.start,fi=b?b.finish:n.finish;if(!st||!fi)return s;
-    var span=Math.max(1,_pmDays(st,fi)+1),el=Math.min(span,Math.max(0,_pmDays(st,today)+1));return s+Math.max(1,n.dur)*(el/span);},0)/tot;
+    var span=Math.max(1,_pmWorkBetween(st,fi,ww)+1),el=today<st?0:Math.min(span,_pmWorkBetween(st,today,ww)+1);return s+Math.max(1,n.dur)*(el/span);},0)/tot;
   var earned=leaves.reduce(function(s,n){return s+Math.max(1,n.dur)*((n.done?100:(n.pct||0))/100);},0)/tot;
   var pv=bac*planned,ev=bac*earned;
-  var cpi=ac>0?ev/ac:null,spi=pv>0?ev/pv:null,eac=cpi?bac/cpi:(ac+(bac-ev)),etc=eac-ac;
-  return {bac:bac,ac:ac,ev:ev,pv:pv,cpi:cpi,spi:spi,eac:eac,etc:etc,vac:bac-eac,tcpi:(bac-ac)>0?(bac-ev)/(bac-ac):null,planned:planned,earned:earned,labor:labor,crCost:cr,start:c.start,finish:c.finish};
+  // No cost logged yet → no forecast (EAC = AC + remaining showed a fake
+  // under-run). No baseline → PV follows the current plan, so SPI hovers at 1;
+  // `hasBaseline` lets the UI say so.
+  var cpi=ac>0?ev/ac:null,spi=pv>0?ev/pv:null,eac=ac>0?(cpi?bac/cpi:(ac+(bac-ev))):null,etc=eac!=null?eac-ac:null;
+  return {hasBaseline:!!base,bac:bac,ac:ac,ev:ev,pv:pv,cpi:cpi,spi:spi,eac:eac,etc:etc,vac:eac!=null?bac-eac:null,tcpi:(bac-ac)>0?(bac-ev)/(bac-ac):null,planned:planned,earned:earned,labor:labor,crCost:cr,start:c.start,finish:c.finish};
 }
 function _pmEvmSnap(key,ev){
   if(!ev||!ev.bac)return;var snaps=pmRecs('evmsnap',key);var today=_pmToday();
@@ -1928,7 +1951,8 @@ function pmTab_budget(key){
   html+='<div class="pm-kpis">'+k(_pmMoney(ev.bac),'Budget at completion',null,'Budget lines'+(ev.crCost?' + '+_pmMoney(ev.crCost)+' approved changes':''))+k(_pmMoney(ev.pv),'Planned value','','What should have been earned by today ('+Math.round(ev.planned*100)+'% of the plan)')+
     k(_pmMoney(ev.ev),'Earned value','','Value of work actually done ('+Math.round(ev.earned*100)+'% complete)')+k(_pmMoney(ev.ac),'Actual cost','','Costs logged'+(ev.labor.cost?' + '+_pmMoney(ev.labor.cost)+' labor from '+Math.round(ev.labor.hours)+'h tracked':''))+
     k(ev.cpi!=null?ev.cpi.toFixed(2):'—','CPI',good(ev.cpi),'Earned ÷ actual. Below 1 = over budget for the work done')+k(ev.spi!=null?ev.spi.toFixed(2):'—','SPI',good(ev.spi),'Earned ÷ planned. Below 1 = behind schedule')+
-    k(_pmMoney(ev.eac),'Estimate at completion',ev.eac>ev.bac?'#dc2626':null,'Budget ÷ CPI')+k(_pmMoney(ev.vac),'Variance at completion',ev.vac<0?'#dc2626':'#16a34a','Budget − estimate at completion')+'</div>';
+    k(ev.eac!=null?_pmMoney(ev.eac):'—','Estimate at completion',ev.eac!=null&&ev.eac>ev.bac?'#dc2626':null,ev.eac!=null?'Budget ÷ CPI':'Shown once a cost is logged')+k(ev.vac!=null?_pmMoney(ev.vac):'—','Variance at completion',ev.vac==null?null:ev.vac<0?'#dc2626':'#16a34a','Budget − estimate at completion')+'</div>'+
+    (ev.hasBaseline?'':'<div class="pm-muted" style="margin:-4px 0 10px;font-size:12px">No baseline yet — planned value follows the current plan, so SPI stays near 1. Save a baseline on the Schedule tab to measure slip.</div>');
   html+='<div class="pm-card" style="margin-bottom:12px"><div class="pm-h">'+_pmIcon('activity',15)+' Earned value over time</div>'+_pmSCurve(key,ev)+'</div>';
   var byCat={};lines.forEach(function(r){var d=r.data||{};var c=d.category||'Other';(byCat[c]=byCat[c]||{plan:0,act:0}).plan+=Number(d.amount)||0;});
   costs.forEach(function(r){var d=r.data||{};var c=d.category||'Other';(byCat[c]=byCat[c]||{plan:0,act:0}).act+=Number(d.amount)||0;});
@@ -1948,7 +1972,7 @@ function pmBudgetLineDialog(key,id){
     '<div class="pm-row"><label>Line</label><input class="inp" id="pmb-t" value="'+_pmE(r?r.title:'')+'" placeholder="e.g. Developer hours, AWS hosting"></div>'+
     '<div class="pm-row"><label>Category</label><select class="inp" id="pmb-c">'+PM_COST_CATS.map(function(c){return '<option'+(c===(d.category||'Labor')?' selected':'')+'>'+c+'</option>';}).join('')+'</select></div>'+
     '<div class="pm-row"><label>Planned amount ($)</label><input class="inp" type="number" id="pmb-a" value="'+_pmE(d.amount||'')+'"></div>'+
-    '<div class="pm-acts">'+(r?'<button class="btn btn-s" style="margin-right:auto;color:#dc2626" onclick="pmCloseModal();pmDel(pmRec('+r.id+'),\'Budget line deleted\')">Delete</button>':'')+'<button class="btn btn-s" onclick="pmCloseModal()">Cancel</button><button class="btn btn-p" id="pmb-save">Save</button></div>');
+    '<div class="pm-acts">'+(r?'<button class="btn btn-s" style="margin-right:auto;color:#dc2626" onclick="pmCloseModal();pmDel(pmRec(\''+_pmJ(r._lk)+'\'),\'Budget line deleted\')">Delete</button>':'')+'<button class="btn btn-s" onclick="pmCloseModal()">Cancel</button><button class="btn btn-p" id="pmb-save">Save</button></div>');
   document.getElementById('pmb-save').onclick=function(){var t=document.getElementById('pmb-t').value.trim();if(!t)return;var rec=r||pmNew('budgetline',key,{data:{}});rec.title=t;rec.data=Object.assign({},rec.data,{category:document.getElementById('pmb-c').value,amount:Number(document.getElementById('pmb-a').value)||0});pmCloseModal(true);pmPut(rec);pmRender();};
 }
 function pmCostDialog(key,id){
@@ -1958,7 +1982,7 @@ function pmCostDialog(key,id){
     '<div class="pm-row"><label>Date</label><input class="inp" type="date" id="pmk-d" value="'+_pmE(d.date||_pmToday())+'"></div>'+
     '<div class="pm-row"><label>Category</label><select class="inp" id="pmk-c">'+PM_COST_CATS.map(function(c){return '<option'+(c===(d.category||'Other')?' selected':'')+'>'+c+'</option>';}).join('')+'</select></div>'+
     '<div class="pm-row"><label>Amount ($)</label><input class="inp" type="number" id="pmk-a" value="'+_pmE(d.amount||'')+'"></div>'+
-    '<div class="pm-acts">'+(r?'<button class="btn btn-s" style="margin-right:auto;color:#dc2626" onclick="pmCloseModal();pmDel(pmRec('+r.id+'),\'Cost deleted\')">Delete</button>':'')+'<button class="btn btn-s" onclick="pmCloseModal()">Cancel</button><button class="btn btn-p" id="pmk-save">Save</button></div>');
+    '<div class="pm-acts">'+(r?'<button class="btn btn-s" style="margin-right:auto;color:#dc2626" onclick="pmCloseModal();pmDel(pmRec(\''+_pmJ(r._lk)+'\'),\'Cost deleted\')">Delete</button>':'')+'<button class="btn btn-s" onclick="pmCloseModal()">Cancel</button><button class="btn btn-p" id="pmk-save">Save</button></div>');
   document.getElementById('pmk-save').onclick=function(){var t=document.getElementById('pmk-t').value.trim();if(!t)return;var rec=r||pmNew('cost',key,{data:{}});rec.title=t;rec.data=Object.assign({},rec.data,{date:document.getElementById('pmk-d').value,category:document.getElementById('pmk-c').value,amount:Number(document.getElementById('pmk-a').value)||0});pmCloseModal(true);pmPut(rec);pmRender();};
 }
 async function pmBudgetExport(key){
@@ -2026,7 +2050,7 @@ function pmTemplates(){
 function pmTab_templates(){
   var list=pmTemplates();
   return '<div class="pm-bar"><button class="btn btn-p" onclick="pmTemplateNewProject()">'+_pmIcon('plus',14,'#fff')+' New project from a template</button><span class="pm-muted">Save any project as a template from its Settings tab.</span></div>'+
-    '<div class="pm-grid2">'+list.map(function(t){return '<div class="pm-card"><div class="pm-h">'+_pmIcon('bookOpen',15)+' '+_pmE(t.name)+'<span class="sp"></span>'+(t.saved?'<button class="btn btn-s" style="height:24px;font-size:11px;color:#dc2626" onclick="pmDel(pmRec('+t.rec.id+'),\'Template deleted\')">Delete</button>':'<span class="pm-muted">built in</span>')+'</div><div class="pm-muted" style="margin-bottom:8px">'+_pmE(t.desc||'')+'</div><div style="font-size:12px">'+(t.tasks||[]).length+' tasks · '+(t.roles||[]).length+' roles · '+(t.risks||[]).length+' risks</div><div style="margin-top:8px"><button class="btn btn-s" onclick="pmTemplateNewProject(\''+_pmJ(t.key)+'\')">Use</button></div></div>';}).join('')+'</div>';
+    '<div class="pm-grid2">'+list.map(function(t){return '<div class="pm-card"><div class="pm-h">'+_pmIcon('bookOpen',15)+' '+_pmE(t.name)+'<span class="sp"></span>'+(t.saved?'<button class="btn btn-s" style="height:24px;font-size:11px;color:#dc2626" onclick="pmDel(pmRec(\''+_pmJ(t.rec._lk)+'\'),\'Template deleted\')">Delete</button>':'<span class="pm-muted">built in</span>')+'</div><div class="pm-muted" style="margin-bottom:8px">'+_pmE(t.desc||'')+'</div><div style="font-size:12px">'+(t.tasks||[]).length+' tasks · '+(t.roles||[]).length+' roles · '+(t.risks||[]).length+' risks</div><div style="margin-top:8px"><button class="btn btn-s" onclick="pmTemplateNewProject(\''+_pmJ(t.key)+'\')">Use</button></div></div>';}).join('')+'</div>';
 }
 function pmTemplateNewProject(tkey){
   var list=pmTemplates();var t=list.find(function(x){return x.key===tkey;})||list[0];

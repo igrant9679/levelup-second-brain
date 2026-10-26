@@ -110,8 +110,25 @@ function _agentDate(s){
   if(lo==='next week')return add(7);
   if(lo==='end of week'||lo==='eow'){var f=(5-d.getDay()+7)%7;return add(f);}
   if(lo==='end of month'||lo==='eom'){d.setMonth(d.getMonth()+1,0);return _ymd(d);}
-  var p=_pd(s);if(!isNaN(p.getTime()))return _ymd(p);
+  // "Oct 30" / "30 October" with no year: this year, or next year if that
+  // day has already passed (V8 read a year-less date as 2001).
+  var MON=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+  var md=lo.match(/^([a-z]{3,9})\.?\s+(\d{1,2})(?:st|nd|rd|th)?$/)||null,dm2=lo.match(/^(\d{1,2})(?:st|nd|rd|th)?\s+([a-z]{3,9})\.?$/)||null;
+  var mon=md?MON.indexOf(md[1].slice(0,3)):dm2?MON.indexOf(dm2[2].slice(0,3)):-1;
+  if(mon>=0){var dd=parseInt(md?md[2]:dm2[1],10);var c=new Date(d.getFullYear(),mon,dd,12);if(c.getDate()!==dd)return '';var t0=new Date();t0.setHours(0,0,0,0);if(c<t0-2*86400000)c.setFullYear(c.getFullYear()+1);return _ymd(c);}
+  var p=_pd(s);if(!isNaN(p.getTime())&&p.getFullYear()>2000)return _ymd(p);
   return '';
+}
+// A task status as one of the app's statuses (TASK_STATUSES), or null when
+// unrecognised. "Completed", "done", "in-progress", "blocked"… used to be
+// stored raw, so the task fell out of every status-based view.
+function _agentTaskStatus(s){
+  if(s==null||s==='')return null;
+  var lo=String(s).trim().toLowerCase().replace(/[-_]+/g,' ');
+  var list=(typeof TASK_STATUSES!=='undefined'&&TASK_STATUSES)||['Not Started','Pending','Scheduled','In Progress','Done','Someday'];
+  for(var i=0;i<list.length;i++)if(list[i].toLowerCase()===lo)return list[i];
+  var syn={'done':'Done','complete':'Done','completed':'Done','finished':'Done','closed':'Done','to do':'Not Started','todo':'Not Started','open':'Not Started','new':'Not Started','not started':'Not Started','doing':'In Progress','started':'In Progress','wip':'In Progress','active':'In Progress','in progress':'In Progress','waiting':'Pending','blocked':'Pending','on hold':'Pending','pending':'Pending','later':'Someday','backlog':'Someday','someday':'Someday','scheduled':'Scheduled'};
+  return syn[lo]||null;
 }
 function _agentTime(s){
   if(!s)return '';s=String(s).trim().toLowerCase();
@@ -302,9 +319,10 @@ function _agentNewTask(a){
   if(a.cluster!=null&&a.cluster!==''){var cr=_agentFind(D.clusters||[],a.cluster,'name');var cn=_agentNeed(cr,'clusters');if(cn)return cn;clusterId=cr.item.id;}
   var pri=String(a.priority||'Medium');pri=pri.charAt(0).toUpperCase()+pri.slice(1).toLowerCase();if(['High','Medium','Low'].indexOf(pri)<0)pri='Medium';
   var due=_agentDate(a.due);
+  if(a.due&&!due)return {ok:false,error:'Could not read the date "'+_agentStr(a.due,40)+'" — use YYYY-MM-DD, "tomorrow", "next friday" or "Oct 30".'};
   var t={
     id:nextId(D.tasks),title:_agentStr(a.title,300).trim(),notes:_agentStr(a.notes||a.description||'',4000),
-    priority:pri,status:a.status||'Not Started',smartList:a.smartList||'Task Intake',
+    priority:pri,status:_agentTaskStatus(a.status)||'Not Started',smartList:a.smartList||'Task Intake',
     startDate:_agentDate(a.startDate)||'',endDate:due,due:due,
     startTime:_agentTime(a.startTime),endTime:_agentTime(a.endTime),
     estimatedMins:parseInt(a.estimatedMins,10)||0,actualMins:0,
@@ -365,9 +383,10 @@ var LU_AGENT_TOOLS=[
     describe:function(a){var f=Object.keys(a).filter(function(k){return k!=='id';});return 'Update task '+a.id+': '+f.map(function(k){return k+'='+_agentStr(JSON.stringify(a[k]),30);}).join(', ');},
     run:function(a){var r=_agentFind(D.tasks||[],a.id,'title');var need=_agentNeed(r,'tasks');if(need)return need;var t=r.item;var snap=_agentSnapshot(t);
       if(a.title!=null)t.title=_agentStr(a.title,300);if(a.notes!=null)t.notes=_agentStr(a.notes,4000);
-      if(a.due!==undefined){t.due=_agentDate(a.due);t.endDate=t.due;}
+      if(a.due!==undefined){var nd=_agentDate(a.due);if(a.due&&!nd)return {ok:false,error:'Could not read the date "'+_agentStr(a.due,40)+'" — use YYYY-MM-DD, "tomorrow", "next friday" or "Oct 30".'};t.due=nd;t.endDate=t.due;}
+      if(a.status&&!_agentTaskStatus(a.status))return {ok:false,error:'Unknown status "'+_agentStr(a.status,30)+'". Use one of: '+((typeof TASK_STATUSES!=='undefined'&&TASK_STATUSES)||[]).join(', ')+'.'};
       if(a.priority){var p=String(a.priority);p=p.charAt(0).toUpperCase()+p.slice(1).toLowerCase();if(['High','Medium','Low'].indexOf(p)>=0)t.priority=p;}
-      if(a.status){if(typeof setTaskStatus==='function')setTaskStatus(t,a.status,{noSave:true});else{t.status=a.status;_syncTaskCompletedAt(t);}}
+      if(a.status){var ns=_agentTaskStatus(a.status);if(typeof setTaskStatus==='function')setTaskStatus(t,ns,{noSave:true});else{t.status=ns;_syncTaskCompletedAt(t);}}
       if(a.myDay!=null)t.myDay=!!a.myDay;
       if(a.project!==undefined){if(!a.project){t.projectId=null;t.project='';}else{var pr=_agentFind(D.projects||[],a.project,'name');var pn=_agentNeed(pr,'projects');if(pn)return pn;t.projectId=pr.item.id;t.project=pr.item.name;}}
       if(a.cluster!==undefined){if(a.cluster===''||a.cluster===null){delete t.clusterId;}else{var cr=_agentFind(D.clusters||[],a.cluster,'name');var cn=_agentNeed(cr,'clusters');if(cn)return cn;t.clusterId=cr.item.id;}}
@@ -855,10 +874,29 @@ function _agentPush(msg){
   D.prefs.aiChat=D.prefs.aiChat||{messages:[]};
   if(!Array.isArray(D.prefs.aiChat.messages))D.prefs.aiChat.messages=[];
   msg.ts=msg.ts||Date.now();
+  // Messages are addressed by a stable id, not their position: trimming the
+  // transcript to 50 shifted every index, so an open approval card (or a
+  // coach message arriving during one) could resolve the wrong message and
+  // leave the assistant stuck busy.
+  msg.id=msg.id||_agentNewId();
   D.prefs.aiChat.messages.push(msg);
   if(D.prefs.aiChat.messages.length>50)D.prefs.aiChat.messages=D.prefs.aiChat.messages.slice(-50);
   save('prefs');
-  return D.prefs.aiChat.messages.length-1;
+  return msg.id;
+}
+function _agentNewId(){return 'am'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+// A message by id (or, for callers that still hold one, by index).
+function _agentMsg(id){
+  var msgs=_aiChatHistory();
+  if(typeof id==='number')return msgs[id]||null;
+  for(var i=msgs.length-1;i>=0;i--)if(msgs[i]&&msgs[i].id===id)return msgs[i];
+  var m=/^idx(\d+)$/.exec(String(id||''));return m?msgs[+m[1]]||null:null;
+}
+// Approving claims the card once across devices (the transcript syncs
+// through prefs, so the same card can be open on two devices). Offline or an
+// older server → allow, as before.
+async function _agentClaim(id){
+  try{var r=await _trpc('claims.once',{scope:'agent',key:String(id)},'mutation');return !r||r.claimed!==false;}catch(_){return true;}
 }
 function _agentTurnsForModel(){
   var hist=_aiChatHistory();
@@ -902,23 +940,32 @@ async function _agentFallbackAnswer(text){
 function _agentWaitForConfirm(mi){
   return new Promise(function(resolve){_agentWaiter={mi:mi,resolve:resolve};});
 }
-function _agentConfirm(mi,run){
-  var msgs=_aiChatHistory();var m=msgs[mi];
-  if(!m||!m.pending){if(_agentWaiter&&_agentWaiter.mi===mi){var w=_agentWaiter;_agentWaiter=null;w.resolve(null);}return;}
+async function _agentConfirm(mi,run){
+  var m=_agentMsg(mi);
+  // the waiter holds the message id; callers may pass the id or an index
+  var isMine=function(w){return !!w&&(w.mi===mi||(!!m&&!!m.id&&w.mi===m.id));};
+  if(!m||!m.pending){if(isMine(_agentWaiter)){var w=_agentWaiter;_agentWaiter=null;w.resolve(null);}return;}
+  if(run&&!(await _agentClaim(m.id||mi))){
+    // Approved on another device already: drop it here instead of running twice.
+    m.pending=null;save('prefs');
+    if(isMine(_agentWaiter)){var w0=_agentWaiter;_agentWaiter=null;w0.resolve(null);}
+    if(typeof toast==='function')toast('These actions were already approved on another device.');
+    _renderAIChatHistory();return;
+  }
   var selected=[];
   if(run){
     var boxes=document.querySelectorAll('[data-agent-mi="'+mi+'"] input[type=checkbox][data-idx]');
     var picked={};boxes.forEach(function(b){picked[b.getAttribute('data-idx')]=b.checked;});
     m.pending.forEach(function(a,i){if(picked[String(i)]!==false)selected.push(a);});
   }
-  var w2=_agentWaiter;_agentWaiter=null;
-  if(w2&&w2.mi===mi)w2.resolve(run?selected:null);
+  var w2=_agentWaiter;
+  if(isMine(w2)){_agentWaiter=null;w2.resolve(run?selected:null);}
   else{ // card was re-rendered after the loop ended (e.g. panel reopened) — run directly
     _agentRunPending(mi,run?selected:null);
   }
 }
 function _agentRunPending(mi,selected){
-  var msgs=_aiChatHistory();var m=msgs[mi];if(!m)return [];
+  var m=_agentMsg(mi);if(!m)return [];
   var pending=m.pending||[];m.pending=null;
   var results=[];
   m.actions=pending.map(function(a){
@@ -960,7 +1007,7 @@ async function _agentSend(text){
       }
       var parsed=_agentParse(raw);
       var mi=_agentPush({role:'assistant',content:parsed.say||'',ask:parsed.ask,pending:null,actions:null});
-      var m=_aiChatHistory()[mi];
+      var m=_agentMsg(mi);
       if(!parsed.actions.length){_renderAIChatHistory();break;}
       // split instant vs confirm-needed
       var prefs=_agentPrefs();
@@ -1017,7 +1064,7 @@ function _agentRenderActions(m,mi){
     var live=_agentWaiter&&_agentWaiter.mi===mi;
     html+='<div class="agent-card" data-agent-mi="'+mi+'"><div class="agent-card-h">✋ Approve these actions? <small>'+m.pending.length+' proposed</small></div>';
     m.pending.forEach(function(a,i){var k=kindOf(a.tool);html+='<div class="agent-act"><input type="checkbox" data-idx="'+i+'" checked><span class="k '+k+'">'+(k==='destructive'?'delete':k)+'</span><div class="d">'+esc(_agentDescribe(a))+(a.why?'<small>'+esc(a.why)+'</small>':'')+'</div></div>';});
-    html+='<div class="agent-card-f"><button class="btn btn-p" onclick="_agentConfirm('+mi+',true)">✓ Run selected</button><button class="btn btn-s" onclick="_agentConfirm('+mi+',false)">Skip</button>';
+    html+='<div class="agent-card-f"><button class="btn btn-p" onclick="_agentConfirm(\''+mi+'\',true)">✓ Run selected</button><button class="btn btn-s" onclick="_agentConfirm(\''+mi+'\',false)">Skip</button>';
     if(!m.pending.some(function(a){return kindOf(a.tool)==='destructive';}))html+='<label><input type="checkbox" onchange="_agentSetPref(\'autoWrite\',this.checked)" '+(_agentPrefs().autoWrite?'checked':'')+'> don\'t ask again for creates/edits</label>';
     html+='</div></div>';
     return html;
@@ -1066,7 +1113,7 @@ window._renderAIChatHistory=function(){
         return '<div class="ai-chat-msg user">'+esc(m.content)+'<div class="ai-chat-msg-meta">'+_fmtChatTime(m.ts)+'</div></div>';
       }
       var body=m.content?('<div class="agent-say">'+(typeof renderMd==='function'?renderMd(m.content):esc(m.content))+'</div>'):'';
-      return '<div class="ai-chat-msg bot">'+body+_agentRenderActions(m,mi)+_agentRenderAsk(m)+'<div class="ai-chat-msg-meta">'+_fmtChatTime(m.ts)+(m.fallback?' · answer-only mode':'')+'</div></div>';
+      return '<div class="ai-chat-msg bot">'+body+_agentRenderActions(m,m.id||('idx'+mi))+_agentRenderAsk(m)+'<div class="ai-chat-msg-meta">'+_fmtChatTime(m.ts)+(m.fallback?' · answer-only mode':'')+'</div></div>';
     }).join('');
   }
   if(_agentBusy)_agentTyping(true);
