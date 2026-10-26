@@ -253,7 +253,7 @@ r = exec('create_habit', { title: 'Read 20 pages', cadence: 'Daily', category: '
 const nh = D.habits.find((x) => x.title === 'Read 20 pages');
 t('create_habit builds the app shape', r.ok && nh && nh.targetTime === '21:00' && nh.streak === 0 && Array.isArray(nh.completedDates) && nh.startedOn === today);
 r = exec('habit_done', { id: 'Morning run' });
-t('habit_done ticks today + streak', r.ok && D.habits[0].doneToday === true && D.habits[0].completedDates.includes(new Date().toISOString().slice(0, 10)));
+t('habit_done ticks today + streak', r.ok && D.habits[0].doneToday === true && D.habits[0].completedDates.includes(today));
 t('habit_done idempotent', exec('habit_done', { id: 'Morning run' }).ok);
 
 r = exec('journal_entry', { title: 'Good day', body: 'Shipped it.', mood: 4, energy: 'high', gratitude: 'team' });
