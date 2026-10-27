@@ -545,6 +545,7 @@ var HC_CATS=[
   {id:12,icon:'💡',name:'Ideas & Thinking',desc:'Ideas lifecycle, Mind Maps, Focus, GTD, Knowledge Graph'},
   {id:13,icon:'🎛',name:'Your Workspace',desc:'Show only what you use — pages, sidebars, sections, and team layouts'},
   {id:14,icon:'⏱',name:'Routines & Mastery',desc:'Daily, weekly and monthly rhythms that make the app actually pay off'},
+  {id:15,icon:'💰',name:'Money',desc:'Budgets, bills, bank sync, rules and the review inbox'},
 ];
 var HC_ARTICLES=[
   {id:1,slug:'welcome',catId:1,title:'Welcome to LevelUp',summary:'A quick overview of every module and how they connect.',tags:['intro','overview'],tourId:1,body:`## Welcome to LevelUp\n\nLevelUp is your all-in-one **Second Brain Hub** — a single workspace for tasks, notes, calendar, mail, habits, goals, journal, and contacts.\n\n### Core Modules\n\n| Module | Purpose |\n|---|---|\n| **My Day** | Daily focus view with top tasks and schedule |\n| **Tasks** | Full task manager with AI decomposition |\n| **Notes** | Rich-text knowledge base with AI Q&A |\n| **Calendar** | Week/Day/Month views with drag-to-reschedule |\n| **Mail** | Unified inbox with AI smart replies |\n| **Habits** | Streak tracking with heatmap and coaching |\n| **Goals** | OKR-style goal tracking with AI alignment |\n| **Contacts** | CRM with Clodura enrichment |\n\n### Quick Start\n1. Open **My Day** to see today's focus\n2. Press **C** to quick-capture any thought\n3. Use **Cmd+K** to search across everything\n4. Press **?** to open this Help Center anytime`},
@@ -798,6 +799,24 @@ Every change can be undone (**↶** in the assistant panel), and anything the as
 ## What it knows about you
 
 Settings → AI Coach → **What the coach knows about you** lists everything it has remembered. Add facts yourself, remove anything wrong or private, or **Forget everything**. It never stores passwords or account numbers.
+`},
+  {id:66,slug:'money-review-bills-rules',catId:15,title:'Money — review inbox, bills and rules',summary:'Clear what needs a decision after a bank sync, bills that repeat on any schedule, and category rules.',tags:['money','budget','bills','transactions','rules','review','bank'],body:`## Money — review inbox, bills and rules
+
+### 📥 Review
+After a bank sync, the **📥 Review** tab (the number is how many items wait) collects everything that needs a decision:
+- **Needs a category** — uncategorized charges grouped by merchant, so one choice files every charge from it. Leave **Always** ticked to add a rule, and future syncs file that merchant automatically. **🔁 Transfer** marks money moving between your own accounts; **Keep as is** stops asking.
+- **Transfer?** — an outflow with the same amount as a payment into a card or loan a few days apart is left out of spending automatically. Confirm it, or say it was a real purchase.
+- **Overdue bills** — no matching charge has synced. **🔗 Link a charge** when the bank names it differently (future charges then match), or **✓ Mark paid**.
+- **Possible duplicates** — same day, amount, account and merchant. Delete the extra copy (the bank-synced one is kept) or say it isn't a duplicate.
+
+### Transactions
+Change a category right in the list; when other uncategorized charges come from the same merchant, the message offers **Apply to all + rule**. Tick the boxes on the left (or the header box for everything shown) for the bulk bar: set a category, mark as transfer / not a transfer, cleared, or delete.
+
+### Bills on any schedule
+A bill can repeat **every week, every 2 weeks, twice a month, every month, every 3 months, every 6 months or every year** (**Repeats** in the bill form). Weekly to yearly bills ask for the **next due date**; twice-a-month bills take two days. The Bills tab, calendar chips, reminders, emails and the coach all use each bill's own schedule, and **/month** totals convert to a monthly amount. A bank charge from a few days before the due date pays it automatically. **🔍 Recurring** in Transactions also finds weekly, fortnightly, quarterly and yearly charges.
+
+### Rules
+**⚙ Rules** lists every rule with how many of your transactions it decides. Edit the text or category in place, move rules **↑↓** (the first match wins), and type any payee in the test box to see which rule — if any — would file it. Wrap text in /slashes/ for a pattern, e.g. /^check\\s*\\d+/.
 `},
 ];
 var HC_TOURS=[

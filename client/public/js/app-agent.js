@@ -273,7 +273,8 @@ function _agentStatus(){
   try{var f=_agentFin();if(f&&((f.transactions||[]).length||(f.bills||[]).length)){
     var ym=today.slice(0,7);var spent=_finSpent(ym),inc=_finIncome(ym);var by=_finSpentByCat(ym);
     var over=[];Object.keys(f.budgets||{}).forEach(function(cid){var bud=_finBudgetFor(cid,ym);if(bud&&by[cid]>bud)over.push({cat:_finCat(cid).name,over:Math.round(by[cid]-bud)});});
-    var day=new Date().getDate();var dueSoon=(f.bills||[]).filter(function(b){return b.active!==false&&b.lastPaidYM!==ym&&b.dueDay>=day&&b.dueDay<=day+7;}).map(function(b){return {id:b.id,name:b.name,amount:b.amount,dueDay:b.dueDay};});
+    var day=new Date().getDate();var _due=function(b){return typeof _finBillDue==='function'?_finBillDue(b):'';};var _wk=_agentToday?_agentToday():'';
+    var dueSoon=(f.bills||[]).filter(function(b){if(b.active===false)return false;var d=_due(b);if(d){var n=(Date.parse(d+'T12:00:00Z')-Date.parse(String(_wk||d)+'T12:00:00Z'))/864e5;return n<=7;}return b.lastPaidYM!==ym&&b.dueDay>=day&&b.dueDay<=day+7;}).map(function(b){return {id:b.id,name:b.name,amount:b.amount,dueDay:b.dueDay,freq:b.freq||'monthly',due:_due(b)||undefined};});
     money={month:ym,spent:Math.round(spent),income:Math.round(inc),overBudget:over.slice(0,5),billsDue7d:dueSoon.slice(0,8)};
   }}catch(_){}
   return {
@@ -591,18 +592,21 @@ var LU_AGENT_TOOLS=[
       var rec={id:String(Date.now())+Math.floor(Math.random()*1000),date:_agentDate(a.date)||_agentToday(),payee:_agentStr(a.payee||'',120),catId:cat?cat.id:'',accountId:acct?acct.id:null,notes:_agentStr(a.notes||'',500),amount:kind==='income'?amt:-amt};
       f.transactions.push(rec);_agentFinSaveAll();var undo=_agentPushUndo('transaction '+rec.payee,function(){_agentRemoveById(f.transactions,rec.id);_agentFinSaveAll();});
       return {ok:true,summary:'Logged '+kind+' $'+amt.toFixed(2)+' · '+rec.payee+(cat?' ('+cat.name+')':''),ref:{type:'money',id:rec.id},undo:undo};}},
-  {name:'add_bill',kind:'write',sig:'add_bill{name,amount,dueDay(1-28),category?,account?,autopay?}',desc:'Add a recurring bill.',
+  {name:'add_bill',kind:'write',sig:'add_bill{name,amount,dueDay(1-28),freq?(weekly|biweekly|semimonthly|monthly|quarterly|semiannual|yearly),nextDue?(YYYY-MM-DD, for weekly…yearly),category?,account?,autopay?}',desc:'Add a recurring bill (monthly unless freq says otherwise).',
     describe:function(a){return 'Add bill "'+_agentStr(a.name,40)+'" $'+a.amount+' due day '+a.dueDay;},
     run:function(a){var f=_agentFin();if(!f)return {ok:false,error:'Money page not available.'};if(_finRO())return {ok:false,error:'This budget is view-only.'};if(!a.name)return {ok:false,error:'A bill needs a name.'};
       var cat=_agentFinCat(a.category,'expense');var acct=null;if(a.account){var ar=_agentFind(f.accounts||[],a.account,'name');if(ar.item)acct=ar.item;}
       var rec={id:String(Date.now())+Math.floor(Math.random()*1000),name:_agentStr(a.name,120),amount:Math.abs(_agentNum(a.amount,0)),dueDay:Math.min(28,Math.max(1,parseInt(a.dueDay,10)||1)),catId:cat?cat.id:'',accountId:acct?acct.id:null,autopay:!!a.autopay,active:true};
+      var fq=String(a.freq||'monthly');if(['weekly','biweekly','semimonthly','quarterly','semiannual','yearly'].indexOf(fq)>=0){rec.freq=fq;
+        if(fq!=='semimonthly'){var nd=String(a.nextDue||'');if(!/^\d{4}-\d{2}-\d{2}$/.test(nd))return {ok:false,error:'A '+fq+' bill needs nextDue (YYYY-MM-DD).'};rec.startDate=nd;rec.dueDay=Math.min(28,Number(nd.slice(8,10))||1);
+          if(typeof _finBillOccurrences==='function'){var prev=_finBillOccurrences(rec,_fbFromDay(_fbDayNum(nd)-400),_fbFromDay(_fbDayNum(nd)-1));if(prev.length)rec.paidThrough=prev[prev.length-1];}}}
       f.bills.push(rec);_agentFinSaveAll();var undo=_agentPushUndo('bill '+rec.name,function(){_agentRemoveById(f.bills,rec.id);_agentFinSaveAll();});
       return {ok:true,summary:'Added bill "'+rec.name+'" $'+rec.amount+' on day '+rec.dueDay,ref:{type:'bill',id:rec.id},undo:undo};}},
   {name:'pay_bill',kind:'write',sig:'pay_bill{id}',desc:'Mark a bill paid this month (logs the payment transaction).',
     describe:function(a){return 'Mark bill '+a.id+' paid';},
     run:function(a){var f=_agentFin();if(!f)return {ok:false,error:'Money page not available.'};if(_finRO())return {ok:false,error:'View-only budget.'};var r=_agentFind(f.bills||[],a.id,'name');var need=_agentNeed(r,'bills');if(need)return need;var b=r.item;
       var was=b.lastPaidYM;var today=new Date();var tx={id:String(Date.now())+Math.floor(Math.random()*1000),date:_agentToday(),payee:b.name,catId:b.catId,accountId:b.accountId||null,notes:'Bill payment',amount:-Math.abs(Number(b.amount)||0)};
-      f.transactions.push(tx);b.lastPaidYM=_finYM(today);_agentFinSaveAll();var undo=_agentPushUndo('pay '+b.name,function(){_agentRemoveById(f.transactions,tx.id);b.lastPaidYM=was;_agentFinSaveAll();});
+      var wasPt=b.paidThrough;f.transactions.push(tx);if(typeof _finBillSetPaid==='function')_finBillSetPaid(b,_finBillDue(b));else b.lastPaidYM=_finYM(today);_agentFinSaveAll();var undo=_agentPushUndo('pay '+b.name,function(){_agentRemoveById(f.transactions,tx.id);b.lastPaidYM=was;if(wasPt===undefined)delete b.paidThrough;else b.paidThrough=wasPt;_agentFinSaveAll();});
       return {ok:true,summary:'Paid "'+b.name+'" ($'+Math.abs(b.amount)+') and logged it',ref:{type:'bill',id:b.id},undo:undo};}},
   {name:'set_budget',kind:'write',sig:'set_budget{category,amount}',desc:'Set the monthly budget for a category (0 removes it).',
     describe:function(a){return 'Set '+a.category+' budget to $'+a.amount+'/mo';},

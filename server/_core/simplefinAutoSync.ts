@@ -24,6 +24,7 @@
 
 import { eq } from "drizzle-orm";
 import { getDb } from "../db";
+import { billReconcile } from "./billSchedule";
 import { userAppData } from "../../drizzle/schema";
 
 interface PullResult { linked: number; added: number; balances: number; }
@@ -127,11 +128,14 @@ export function mergeSimplefinPull(fin: any, sfAccounts: any[], nowYmd: string):
  * _finBillTxMatch/_finReconcileBills — keep the rules in agreement: a tx
  * belongs to a bill when explicitly linked (recurringBillId) OR the payee
  * name-matches AND the amount is within max($10, 40%) of the plan;
- * expenses only. A current-month match auto-marks the bill paid, so the
+ * expenses only. A match from a few days before the bill's current due
+ * date (any schedule, -246) through today marks it paid, so the
  * Bills page and the -176 emails update with the app closed. Pure —
  * exported for tsx tests. Returns bills flipped to paid.
  */
-export function reconcileBills(fin: any, nowYm: string): number {
+export function reconcileBills(fin: any, today: string): number {
+  // -246: `today` is YYYY-MM-DD; a bare YYYY-MM (the pre-246 call) means that month's 28th.
+  if (/^\d{4}-\d{2}$/.test(today)) today = today + '-28';
   if (!fin || typeof fin !== 'object') return 0;
   const bills: any[] = Array.isArray(fin.bills) ? fin.bills : [];
   const txs: any[] = Array.isArray(fin.transactions) ? fin.transactions : [];
@@ -153,10 +157,9 @@ export function reconcileBills(fin: any, nowYm: string): number {
   let flipped = 0;
   for (const b of bills) {
     if (b.active === false) continue;
-    const hit = txs.find(t => String(t.date || '').slice(0, 7) === nowYm && match(b, t));
-    if (!hit) continue;
-    if (!hit.recurringBillId) hit.recurringBillId = b.id;
-    if (b.lastPaidYM !== nowYm) { b.lastPaidYM = nowYm; flipped++; }
+    // The charge from a few days before the current due date through today
+    // pays that due date, on any schedule (billSchedule.ts, same as the app).
+    if (billReconcile(b, txs, match, today)) flipped++;
   }
   return flipped;
 }
@@ -203,7 +206,7 @@ export async function runSimplefinAutoSync(opts?: { userId?: number; force?: boo
       if (!cur || typeof cur !== 'object') { out.skipped++; continue; }
       const nowYmd = new Date().toISOString().slice(0, 10);
       const res = mergeSimplefinPull(cur, sfAccounts, nowYmd);
-      const billsPaid = reconcileBills(cur, nowYmd.slice(0, 7));
+      const billsPaid = reconcileBills(cur, nowYmd);
       cur.settings = cur.settings && typeof cur.settings === 'object' ? cur.settings : {};
       cur.settings._autoSyncLastAt = new Date().toISOString();
       cur._rev = (Number(cur._rev) || 0) + 1; // shared co-editors must reload before writing

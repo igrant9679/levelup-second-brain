@@ -12,9 +12,10 @@
  * The AI call is failure-safe and clamped; a provider error never blocks
  * the email.
  */
+import { billDue, type ScheduledBill } from './billSchedule';
 
 interface FinAccount { id?: string | number; name?: string; type?: string; balance?: number; apr?: number | null }
-interface FinBill { id?: string | number; name?: string; amount?: number; dueDay?: number; autopay?: boolean; active?: boolean; lastPaidYM?: string }
+interface FinBill { id?: string | number; name?: string; amount?: number; dueDay?: number; freq?: string; dueDay2?: number; startDate?: string; paidThrough?: string; autopay?: boolean; active?: boolean; lastPaidYM?: string }
 interface FinCat { id?: string; name?: string; icon?: string; kind?: string }
 interface FinTx { date?: string; amount?: number; catId?: string; accountId?: string | number | null; payee?: string; notes?: string; xfer?: boolean }
 interface FinStream { name?: string; active?: boolean; expected?: number; perMonth?: Record<string, number> }
@@ -192,20 +193,14 @@ export function computeMoneyStats(f: Finance, now = new Date()): MoneyStats {
   const prev = hist.filter(h => String(h.ym) < ym).slice(-1)[0];
   const nwDelta = prev ? netWorth - ((prev.assets || 0) - (prev.debts || 0)) : null;
 
-  const todayDate = now.getDate();
+  // -246: each bill's current due date on its own schedule (weekly … yearly),
+  // shared with the app (billSchedule.ts). An unpaid date that passed stays
+  // in view as overdue.
+  const todayYmd = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const bills7 = f.bills.filter(b => b.active !== false).map(b => {
-    const day = Math.min(Math.max(1, Number(b.dueDay) || 1), 28);
-    let d = new Date(now.getFullYear(), now.getMonth(), day);
-    let overdue = false;
-    if (day < todayDate) {
-      // This month's occurrence already passed. If it was PAID, look at next
-      // month's; if not, keep it in view as OVERDUE — a bill due the 28th
-      // must not silently vanish from the email on the 29th-31st.
-      if (String(b.lastPaidYM || '') === ym) d = new Date(now.getFullYear(), now.getMonth() + 1, day);
-      else overdue = true;
-    }
-    const paid = String(b.lastPaidYM || '') === ymOf(d);
-    return { name: String(b.name || '(bill)'), amount: Number(b.amount) || 0, date: d, autopay: !!b.autopay, today: !overdue && day === todayDate, overdue, paid };
+    const due = billDue(b as ScheduledBill, todayYmd);
+    const [y, m, d] = due.split('-').map(Number);
+    return { name: String(b.name || '(bill)'), amount: Number(b.amount) || 0, date: new Date(y, m - 1, d), autopay: !!b.autopay, today: due === todayYmd, overdue: due < todayYmd, paid: false };
   }).filter(x => (x.date.getTime() - now.getTime()) / 86400000 <= 7)
     .sort((a, b) => a.date.getTime() - b.date.getTime());
   const bills7Total = bills7.filter(x => !x.paid).reduce((s, x) => s + x.amount, 0);

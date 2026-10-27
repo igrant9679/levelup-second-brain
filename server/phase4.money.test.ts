@@ -26,9 +26,12 @@ function grabLine(prefix: string): string {
 }
 const CLIENT = [
   grabLine("const _FIN_PAY_RE="), grabLine("let _finClassCache="), grabLine("const _finReCache="),
+  // -246: bill due dates come from the shared schedule helpers.
+  ...["const _FIN_BILL_PER_MONTH=", "const _FIN_BILL_STEP_DAYS=", "const _FIN_BILL_STEP_MONTHS=", "const _FIN_BILL_PERIOD="].map(grabLine),
   ...["_finYM", "_finCat", "_finTxMonth", "_finCatKind", "_finClassify", "_finClassMap", "_finTxClass", "_finIsXfer", "_finCatXfer",
     "_finTotalsFor", "_finTotals", "_finIncome", "_finSpent", "_finSpentByCat", "_finBudgetFor", "_finBudgetIds", "_finBudgetTotal",
-    "_finStreamExpected", "_finBillNextDue", "_finBillOverdue", "_finSafeRe", "_finRuleTest"].map(grab),
+    "_finStreamExpected", "_finBillFreq", "_fbDayNum", "_fbFromDay", "_fbDay1", "_fbDay2", "_fbAnchor", "_finBillOccurrences",
+    "_finBillPaidThrough", "_finBillDue", "_finBillNextDue", "_finBillOverdue", "_finSafeRe", "_finRuleTest"].map(grab),
 ].join("\n");
 
 // ── the fixture month: October 2026, "today" = 20 Oct ──────────────────────
@@ -82,7 +85,9 @@ beforeAll(() => {
   vi.setSystemTime(NOW);
   const data = JSON.parse(JSON.stringify(fixture));
   const ctx: any = { Date, Map, Set, Math, JSON, String, Number, Object, Array, RegExp, isNaN, isFinite, parseFloat,
-    setTimeout: () => 0, _finData: () => data, _finMonth: "2026-10" };
+    setTimeout: () => 0, _finData: () => data, _finMonth: "2026-10",
+    _ymd: (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
+    _pd: (s: string) => { const [y, m, dd] = String(s).split("-").map(Number); return new Date(y, m - 1, dd); } };
   vm.createContext(ctx);
   vm.runInContext(CLIENT + "\n;this.__api={totals:_finTotals,income:_finIncome,spent:_finSpent,byCat:_finSpentByCat,streamExp:_finStreamExpected,nextDue:_finBillNextDue,overdue:_finBillOverdue,isXfer:_finIsXfer,safeRe:_finSafeRe,rule:_finRuleTest};", ctx);
   client = ctx.__api;
