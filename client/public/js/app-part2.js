@@ -13551,7 +13551,7 @@ function renderSheetsSection(){
 }
 function _shCard(s){
   const rows=(s.rows||[]).length,cols=(s.columns||[]).length;
-  const c=s.color||'#3b82f6';
+  const c=_luSafeColor(s.color)||'#3b82f6';
   const assignBadge=(s.shareAll||(Array.isArray(s.assignees)&&s.assignees.length))?`<span class="sh-card-badge" style="background:${c}22;color:${c}">${s.shareAll?'🌐':'👥 '+s.assignees.length}${(s.shareMode==='view')?' 👁':''}</span>`:'';
   return `<div class="sh-card" style="--c:${c}" onclick="shOpen(${Number(s.id)})">
     <span class="sh-card-del" title="Delete sheet" onclick="event.stopPropagation();shDeleteSheet(${Number(s.id)})">🗑</span>
@@ -13561,7 +13561,7 @@ function _shCard(s){
   </div>`;
 }
 function _shSharedCard(s,i){
-  const c=s.color||'#8b5cf6';
+  const c=_luSafeColor(s.color)||'#8b5cf6';
   const tag=s._delegated?`assigned to ${esc(s.assignedTo||'someone')}`:(s.shareAll&&!s._delegated?'shared with everyone':'shared with you');
   return `<div class="sh-card sh-card-shared" style="--c:${c}" onclick="shOpenShared(${i})">
     <div class="sh-card-top"><span class="sh-card-ic">${esc(s.icon||'📊')}</span><span class="sh-card-title">${esc(s.title||'Untitled')}</span></div>
@@ -13698,7 +13698,7 @@ function _shColSummary(sheet,col){
 
 // ─── Editor render ───────────────────────────────────────────────────────────
 function _shEditorHtml(){
-  const s=_sheetCurrent; const c=s.color||'#3b82f6';
+  const s=_sheetCurrent; const c=_luSafeColor(s.color)||'#3b82f6';
   const ro=!!(s._shared&&s._readOnly); // owner granted 'view' only
   const shared=s._shared?`<span class="sh-shared-tag">${ro?'👁 view only':(s._delegated?'➡ delegated':'👥 shared')}</span>`:'';
   return `<div class="sh-editor" style="--c:${c}">
@@ -13731,7 +13731,7 @@ function _shGridHtml(){
   const dens=th.density==='compact'?'sh-compact':'';
   const strp=th.striped?'sh-striped':''; const gl=th.gridlines===false?'sh-nogrid':'';
   const hdr=th.headerStyle==='accent'?'sh-hdr-accent':(th.headerStyle==='bold'?'sh-hdr-bold':'');
-  const cols=s.columns;
+  const cols=(s.columns||[]).map(_luSanSheetCol); // -254: ids/widths/colours from a shared sheet go into markup
   let head='<tr><th class="sh-rownum-h">#</th>';
   cols.forEach((col,ci)=>{
     const tIcon=(SHEET_COL_TYPES.find(t=>t.k===col.type)||{}).icon||'T';
@@ -13740,7 +13740,7 @@ function _shGridHtml(){
   });
   head+='<th class="sh-addcol" onclick="shAddCol()" title="Add column">+</th></tr>';
   let body='';
-  s.rows.forEach((row,ri)=>{
+  (s.rows||[]).map(_luSanSheetRow).forEach((row,ri)=>{
     const rh=row.height?`height:${row.height}px;`:'';
     const shadow=row.color?`box-shadow:inset 4px 0 0 ${row.color};`:'';
     const trStyle=(rh||shadow)?` style="${rh}${shadow}"`:'';
@@ -13832,7 +13832,7 @@ function shSetCell(rid,cid,val){
 function shToggleCheck(rid,cid){ const s=_sheetCurrent; const row=s.rows.find(r=>r.id===rid); if(!row)return; row.cells=row.cells||{}; _shSnap(); row.cells[cid]=!(row.cells[cid]&&row.cells[cid]!=='false'); saveSheets(); renderSheetGrid(); }
 function shSetRating(rid,cid,v){ const s=_sheetCurrent; const row=s.rows.find(r=>r.id===rid); if(!row)return; row.cells=row.cells||{}; const cur=Math.round(_shNum(row.cells[cid])||0); _shSnap(); row.cells[cid]=(cur===v?v-1:v)||0; if(!row.cells[cid])delete row.cells[cid]; saveSheets(); renderSheetGrid(); }
 function shEditProgress(rid,cid){ const s=_sheetCurrent; const row=s.rows.find(r=>r.id===rid); if(!row)return; const cur=Math.round(_shNum((row.cells||{})[cid])||0); const v=prompt('Progress % (0–100):',String(cur)); if(v==null)return; let n=Math.max(0,Math.min(100,Math.round(parseFloat(v)||0))); row.cells=row.cells||{}; _shSnap(); row.cells[cid]=n; saveSheets(); renderSheetGrid(); }
-function shOpenSelect(ev,rid,cid){ ev.stopPropagation(); const s=_sheetCurrent; const col=s.columns.find(c=>c.id===cid); col.options=col.options||[]; const items=col.options.map(o=>({html:`<span class="sh-dot" style="background:${o.color}"></span>${esc(o.label)}`,onClick:()=>shSetCell(rid,cid,o.label)})); items.push({html:'<span style="color:var(--ac)">＋ New option…</span>',onClick:()=>{ const lbl=prompt('New option label:'); if(!lbl)return; col.options.push({label:lbl.trim(),color:SHEET_PALETTE[col.options.length%SHEET_PALETTE.length]}); shSetCell(rid,cid,lbl.trim()); }}); items.push({html:'<span style="color:var(--t3)">Clear</span>',onClick:()=>shSetCell(rid,cid,'')}); _shPopMenu(ev,items); }
+function shOpenSelect(ev,rid,cid){ ev.stopPropagation(); const s=_sheetCurrent; const col=s.columns.find(c=>c.id===cid); col.options=col.options||[]; const items=col.options.map(o=>({html:`<span class="sh-dot" style="background:${_luSafeColor(o.color)||'#94a3b8'}"></span>${esc(o.label)}`,onClick:()=>shSetCell(rid,cid,o.label)})); items.push({html:'<span style="color:var(--ac)">＋ New option…</span>',onClick:()=>{ const lbl=prompt('New option label:'); if(!lbl)return; col.options.push({label:lbl.trim(),color:SHEET_PALETTE[col.options.length%SHEET_PALETTE.length]}); shSetCell(rid,cid,lbl.trim()); }}); items.push({html:'<span style="color:var(--t3)">Clear</span>',onClick:()=>shSetCell(rid,cid,'')}); _shPopMenu(ev,items); }
 function shOpenPerson(ev,rid,cid){ ev.stopPropagation(); const mem=(typeof _assigneeMembers==='function'?_assigneeMembers():[]).filter(m=>m&&m.name); const items=mem.length?mem.map(m=>({html:`<span class="sh-avatar">${esc((m.name[0]||'?').toUpperCase())}</span>${esc(m.name)}`,onClick:()=>shSetCell(rid,cid,m.name)})):[{html:'<span style="color:var(--t3)">No team members</span>',onClick:()=>{}}]; items.push({html:'<span style="color:var(--t3)">Clear</span>',onClick:()=>shSetCell(rid,cid,'')}); _shPopMenu(ev,items); }
 
 // ─── Column & row operations ─────────────────────────────────────────────────
@@ -14128,7 +14128,7 @@ function renderDecksSection(){
   `;
 }
 function _dkCard(d){
-  const c=d.color||'#3b82f6'; const n=(d.slides||[]).length;
+  const c=_luSafeColor(d.color)||'#3b82f6'; const n=(d.slides||[]).length;
   const assignBadge=(d.shareAll||(Array.isArray(d.assignees)&&d.assignees.length))?`<span class="sh-card-badge" style="background:${c}22;color:${c}">${d.shareAll?'🌐':'👥 '+d.assignees.length}${(d.shareMode==='view')?' 👁':''}</span>`:'';
   return `<div class="sh-card" style="--c:${c}" onclick="dkOpen(${Number(d.id)})">
     <span class="sh-card-del" title="Delete deck" onclick="event.stopPropagation();dkDeleteDeck(${Number(d.id)})">🗑</span>
@@ -14136,7 +14136,7 @@ function _dkCard(d){
     <div class="sh-card-meta">${n} slide${n===1?'':'s'} ${assignBadge}</div><div class="sh-card-bar"></div></div>`;
 }
 function _dkSharedCard(d,i){
-  const c=d.color||'#8b5cf6'; const tag=d._delegated?`assigned to ${esc(d.assignedTo||'someone')}`:(d.shareAll&&!d._delegated?'shared with everyone':'shared with you');
+  const c=_luSafeColor(d.color)||'#8b5cf6'; const tag=d._delegated?`assigned to ${esc(d.assignedTo||'someone')}`:(d.shareAll&&!d._delegated?'shared with everyone':'shared with you');
   return `<div class="sh-card sh-card-shared" style="--c:${c}" onclick="dkOpenShared(${i})">
     <div class="sh-card-top"><span class="sh-card-ic">${esc(d.icon||'🖼')}</span><span class="sh-card-title">${esc(d.title||'Untitled')}</span></div>
     <div class="sh-card-meta">${(d.slides||[]).length} slides · ${d._delegated?'➡ ':(d.shareAll?'🌐 ':'👥 ')}${tag}${d._readOnly?' · 👁 view':''}</div><div class="sh-card-bar"></div></div>`;
@@ -14175,7 +14175,7 @@ async function _loadSharedDecks(){ try{ if(typeof _trpc!=='function')return; _sh
 // ─── Editor shell ────────────────────────────────────────────────────────────
 function _dkSlide(){ return _deckCurrent&&_deckCurrent.slides[_deckSlide]; }
 function _dkEl(id){ const s=_dkSlide(); return s&&(s.elements||[]).find(e=>e.id===id); }
-function _dkBg(slide){ return (slide&&slide.bg)|| (_deckCurrent.theme&&_deckCurrent.theme.bg)||'#ffffff'; }
+function _dkBg(slide){ return _luSafeColor(slide&&slide.bg)||_luSafeColor(_deckCurrent.theme&&_deckCurrent.theme.bg)||'#ffffff'; }
 function _dkRO(){ return !!(_deckCurrent&&_deckCurrent._shared&&_deckCurrent._readOnly); } // owner granted 'view' only
 function _dkEditorHtml(){
   const d=_deckCurrent; const ro=_dkRO();
@@ -14221,9 +14221,43 @@ function dkSlideMenu(e,i){ e.preventDefault(); e.stopPropagation(); _shPopMenu(e
 ]); }
 function dkDeleteSlide(i){ if(_deckCurrent.slides.length<=1)return toast('A deck needs at least one slide'); _dkSnap(); _deckCurrent.slides.splice(i,1); _deckSlide=Math.max(0,Math.min(_deckSlide,_deckCurrent.slides.length-1)); _deckSelEl=null; saveDecks(); renderDecksSection(); }
 
+// ─── Deck & sheet sanitizer (build -254) ─────────────────────────────────────
+// Positions, sizes, colours, ids and alignment of deck elements and sheet
+// columns/rows go straight into markup. A shared deck or sheet can come from a
+// co-editor, so every render cleans them first: numbers become finite and
+// clamped, colours must be hex / rgb() / hsl() / var(--x) / a colour word,
+// enums come from fixed lists. Nothing stored is rewritten. Mirror of
+// server/_core/deckSheetSanitize.ts (the server cleans shared writes) — change
+// both together; server/phase7.decksheet.test.ts runs both.
+var _LU_DS_COLOR_KEY=/(colou?rs?|fill|stroke2|bg|background|accent)$/i;
+var _LU_DS_SAFE_COLOR=/^(#[0-9a-f]{3,8}|(rgb|hsl)a?\(\s*[-\d.%\s,/]+\)|var\(--[\w-]{1,40}\)|[a-z]{3,20})$/i;
+var _LU_DS_NUM={x:[-100,200],y:[-100,200],w:[0,300],h:[0,300],width:[20,2000],height:[10,2000],fontSize:[4,400],size:[4,400],stroke:[0,100],radius:[0,500],value:[-1e12,1e12]};
+var _LU_DS_ENUM={align:['left','center','right','justify'],fit:['contain','cover','fill','none','scale-down'],shape:['rect','ellipse','line']};
+function _luSafeColor(v){if(typeof v!=='string')return undefined;var s=v.trim();return s.length<=64&&_LU_DS_SAFE_COLOR.test(s)?s:undefined;}
+function _luDSNum(v,lo,hi){var n=typeof v==='number'?v:(typeof v==='string'&&v.trim()!==''?Number(v):NaN);if(!isFinite(n))return undefined;return Math.min(hi,Math.max(lo,n));}
+function _luDSClean(v,key,depth){
+  if(depth>8)return undefined;
+  if(Array.isArray(v)){var out=[];v.slice(0,500).forEach(function(x){var c=_luDSClean(x,key,depth+1);if(c!==undefined)out.push(c);});return out;}
+  if(v&&typeof v==='object'){var o={};Object.keys(v).slice(0,200).forEach(function(k){if(k==='__proto__'||k==='constructor'||k==='prototype')return;var c=_luDSClean(v[k],k,depth+1);if(c!==undefined)o[k]=c;});return o;}
+  if(_LU_DS_COLOR_KEY.test(key)&&typeof v==='string')return _luSafeColor(v);
+  if(_LU_DS_NUM[key]){if(key==='value'&&typeof v==='string')return v.slice(0,200);return _luDSNum(v,_LU_DS_NUM[key][0],_LU_DS_NUM[key][1]);}
+  if(_LU_DS_ENUM[key])return typeof v==='string'&&_LU_DS_ENUM[key].indexOf(v)>=0?v:undefined;
+  if(key==='data'||key==='id')return _luDSNum(v,-1e15,1e15);
+  if(typeof v==='string')return v.slice(0,20000);
+  if(typeof v==='number')return isFinite(v)?v:undefined;
+  if(typeof v==='boolean'||v===null)return v;
+  return undefined;
+}
+/** A clean copy of one deck element (render only). */
+function _luSanDeckEl(el){var e=_luDSClean(el||{},'element',1)||{};['x','y','w','h'].forEach(function(k){if(e[k]===undefined)e[k]=(k==='x'||k==='y')?10:20;});if(typeof e.type!=='string'||!/^[a-z]{2,20}$/.test(e.type))e.type='text';if(e.id===undefined)e.id=0;return e;}
+/** A clean copy of a sheet column / row header (cells are left alone: they are escaped where shown). */
+function _luSanSheetCol(c){var o=_luDSClean(c||{},'column',1)||{};if(typeof o.type!=='string'||!/^[a-z]{2,20}$/.test(o.type))o.type='text';if(o.id===undefined)o.id=0;return o;}
+function _luSanSheetRow(r){var cells=r&&r.cells;var o=_luDSClean(Object.assign({},r||{},{cells:undefined}),'row',1)||{};o.cells=cells&&typeof cells==='object'?cells:{};if(o.id===undefined)o.id=0;return o;}
+
 // ─── Canvas + element rendering ──────────────────────────────────────────────
 function _dkCanvasInner(){ const s=_dkSlide(); if(!s)return ''; return (s.elements||[]).map(e=>_dkElHtml(e,true,_deckEditingText===e.id)).join(''); }
 function _dkElInner(el,editing){
+  el=_luSanDeckEl(el); // -254
   const ce=editing?'contenteditable="true"':'';
   switch(el.type){
     case 'text': return `<div class="dk-el-text" style="font-size:${(el.fontSize||20)/9.6}cqw;font-weight:${el.bold?700:400};font-style:${el.italic?'italic':'normal'};text-align:${el.align||'left'};color:${el.color||'#0f172a'};white-space:pre-wrap;pointer-events:${editing?'auto':'none'}" ${ce} ${editing?`onblur="dkTextCommit(${el.id},this)" onmousedown="event.stopPropagation()"`:''}>${esc(el.text||'')}</div>`;
@@ -14239,6 +14273,7 @@ function _dkElInner(el,editing){
   }
 }
 function _dkElHtml(el,interactive,editing){
+  el=_luSanDeckEl(el); // -254: positions/ids from a shared deck go into markup
   const sel=interactive&&_deckSelEl===el.id;
   const handles=sel?`<div class="dk-el-resize" onmousedown="dkElMouseDown(event,${el.id},'resize')"></div><div class="dk-el-del" onmousedown="event.stopPropagation()" onclick="dkDeleteEl(event,${el.id})" title="Delete">×</div>`:'';
   const ev=interactive?`onmousedown="dkElMouseDown(event,${el.id},'move')" onclick="dkSelectEl(event,${el.id})" ondblclick="dkEditEl(event,${el.id})"`:'';
@@ -14314,7 +14349,7 @@ function _dkPropsHtml(){
   const insert=`<div class="dk-props-h">Insert</div><div class="dk-addgrid">
     ${[['title','🅣','Title'],['text','📝','Text'],['bullets','•','Bullets'],['chart','📊','Chart'],['table','▦','Table'],['kanban','🗂','Kanban'],['metric','①','Metric'],['progress','▬','Progress'],['shape','⬛','Shape'],['image','🖼','Image']].map(a=>`<div class="dk-add-b" onclick="dkAddElement('${a[0]}')"><span>${a[1]}</span>${a[2]}</div>`).join('')}
   </div>`;
-  const el=_deckSelEl?_dkEl(_deckSelEl):null;
+  const _rawSel=_deckSelEl?_dkEl(_deckSelEl):null; const el=_rawSel?_luSanDeckEl(_rawSel):null; // -254: a clean copy for display; edits go by id
   let body;
   if(el){ body=`<div style="margin-top:14px;border-top:1px solid var(--bd1);padding-top:12px">${_dkElPropsHtml(el)}</div>`; }
   else { const d=_deckCurrent; const th=d.theme||{};
@@ -14372,7 +14407,7 @@ function _dkElPropsHtml(el){
 }
 function _dkChartDataHtml(el){
   const labels=el.labels||[]; const series=el.series||[];
-  let html='<table style="width:100%;font-size:11px;border-collapse:collapse"><tr><th style="text-align:left">Label</th>'+series.map((s,si)=>`<th style="color:${s.color}">S${si+1}</th>`).join('')+'</tr>';
+  let html='<table style="width:100%;font-size:11px;border-collapse:collapse"><tr><th style="text-align:left">Label</th>'+series.map((s,si)=>`<th style="color:${_luSafeColor(s.color)||'inherit'}">S${si+1}</th>`).join('')+'</tr>';
   labels.forEach((l,i)=>{ html+=`<tr><td><input type="text" value="${esc(l)}" style="width:100%;font-size:11px;padding:2px 4px;background:var(--s1);border:1px solid var(--bd2);border-radius:4px;color:var(--t1)" onchange="dkChartLabel(${el.id},${i},this.value)"></td>`+series.map((s,si)=>`<td><input type="number" value="${Number((s.data||[])[i])||0}" style="width:46px;font-size:11px;padding:2px 4px;background:var(--s1);border:1px solid var(--bd2);border-radius:4px;color:var(--t1)" onchange="dkChartVal(${el.id},${si},${i},this.value)"></td>`).join('')+'</tr>'; });
   html+='</table><div style="display:flex;gap:4px;margin-top:5px"><button class="btn btn-s" style="height:24px;font-size:11px;flex:1" onclick="dkChartAddRow(${el.id})">+ Row</button><button class="btn btn-s" style="height:24px;font-size:11px;flex:1" onclick="dkChartAddSeries(${el.id})">+ Series</button></div>';
   return html;

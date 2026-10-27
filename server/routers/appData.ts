@@ -1246,10 +1246,12 @@ export const appDataRouter = router({
         if (q.shareMode !== undefined) sh.shareMode = q.shareMode;
         if (q.title != null) sh.title = q.title;
         if (q.icon != null) sh.icon = q.icon;
-        if (q.color != null) sh.color = q.color;
-        if (q.theme !== undefined) sh.theme = q.theme;
-        if (q.columns != null) sh.columns = q.columns;
-        if (q.rows != null) sh.rows = q.rows;
+        // -254: a co-editor's columns/rows/theme are cleaned (ids, sizes, colours, enums) — they reach the owner's markup
+        const SAN = await import("../_core/deckSheetSanitize");
+        if (q.theme !== undefined) sh.theme = SAN.sanitizeTheme(q.theme);
+        if (q.color != null) sh.color = SAN.safeColor(q.color);
+        if (q.columns != null) sh.columns = SAN.sanitizeSheetColumns(q.columns);
+        if (q.rows != null) sh.rows = SAN.sanitizeSheetRows(q.rows);
         if (q.assignees != null) sh.assignees = q.assignees;
         if (q.assigneeNames != null) sh.assigneeNames = q.assigneeNames;
         if (q.primaryAssigneeId !== undefined) sh.primaryAssigneeId = q.primaryAssigneeId;
@@ -1373,9 +1375,11 @@ export const appDataRouter = router({
         if (q.shareMode !== undefined) dk.shareMode = q.shareMode;
         if (q.title != null) dk.title = q.title;
         if (q.icon != null) dk.icon = q.icon;
-        if (q.color != null) dk.color = q.color;
-        if (q.theme !== undefined) dk.theme = q.theme;
-        if (q.slides != null) dk.slides = q.slides;
+        // -254: a co-editor's slides/theme are cleaned (ids, geometry, colours, enums) — they reach the owner's markup
+        const SAN = await import("../_core/deckSheetSanitize");
+        if (q.theme !== undefined) dk.theme = SAN.sanitizeTheme(q.theme);
+        if (q.color != null) dk.color = SAN.safeColor(q.color);
+        if (q.slides != null) dk.slides = SAN.sanitizeSlides(q.slides);
         if (q.assignees != null) dk.assignees = q.assignees;
         if (q.assigneeNames != null) dk.assigneeNames = q.assigneeNames;
         if (q.primaryAssigneeId !== undefined) dk.primaryAssigneeId = q.primaryAssigneeId;
