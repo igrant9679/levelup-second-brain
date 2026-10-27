@@ -19,6 +19,7 @@ import { assertOwner } from "../_core/ownerGuard";
 import { signOAuthState } from "../_core/oauthState";
 import { sendEmail } from "../_core/sendEmail";
 import { refreshOAuthTokenSilently, forceRefreshOAuthToken } from "../_core/refreshOAuthToken";
+import { graphEventOut, graphEventBody, graphWritable, type GraphEvent } from "../_core/outlookCalendar";
 import nodemailer from "nodemailer";
 
 // Microsoft Graph returns calendar times in UTC with NO zone suffix
@@ -291,40 +292,46 @@ export const oauthSyncRouter = router({
     }),
 
   syncCalendar: protectedProcedure
-    .input(z.object({ provider: z.enum(["microsoft", "google"]), daysAhead: z.number().default(30) }))
+    .input(z.object({
+      provider: z.enum(["microsoft", "google"]),
+      daysAhead: z.number().default(30),
+      // The client's local window (build -237); defaults to now → daysAhead.
+      fromISO: z.string().max(40).optional(),
+      toISO: z.string().max(40).optional(),
+    }))
     .mutation(async ({ input, ctx }) => {
       const accessToken = await getValidAccessToken(ctx.user.id, input.provider);
       if (!accessToken) throw new Error("Not connected to " + input.provider);
 
-      const now = new Date();
-      const end = new Date(now.getTime() + input.daysAhead * 24 * 60 * 60 * 1000);
+      let now = input.fromISO ? new Date(input.fromISO) : new Date();
+      if (isNaN(now.getTime())) now = new Date();
+      let end = input.toISO ? new Date(input.toISO) : new Date(now.getTime() + input.daysAhead * 24 * 60 * 60 * 1000);
+      if (isNaN(end.getTime()) || end <= now) end = new Date(now.getTime() + input.daysAhead * 24 * 60 * 60 * 1000);
+      if (end.getTime() - now.getTime() > 200 * 86400000) end = new Date(now.getTime() + 200 * 86400000);
 
       if (input.provider === "microsoft") {
-        const resp = await fetch(
-          `https://graph.microsoft.com/v1.0/me/calendarView?startDateTime=${now.toISOString()}&endDateTime=${end.toISOString()}&$top=50&$select=id,subject,start,end,location,bodyPreview,organizer,isAllDay,showAs`,
-          { headers: { Authorization: `Bearer ${accessToken}` } }
-        );
-        if (!resp.ok) throw new Error("Microsoft Graph calendar fetch failed: " + resp.status);
-        const data = await resp.json() as { value: Array<{ id: string; subject: string; start: { dateTime: string }; end: { dateTime: string }; location?: { displayName?: string }; bodyPreview?: string; organizer?: { emailAddress?: { name?: string } }; isAllDay?: boolean; showAs?: string }> };
-        
+        // Every page (it used to read only the first 50 events of the window).
+        const raw: GraphEvent[] = [];
+        let url: string | null = `https://graph.microsoft.com/v1.0/me/calendarView?startDateTime=${now.toISOString()}&endDateTime=${end.toISOString()}&$top=100&$select=id,subject,start,end,location,bodyPreview,organizer,isAllDay,showAs,isOrganizer,isCancelled,seriesMasterId,type,webLink,onlineMeeting,attendees,responseStatus`;
+        let pages = 0;
+        while (url && pages < 15) {
+          const resp = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+          if (!resp.ok) throw new Error("Microsoft Graph calendar fetch failed: " + resp.status);
+          const data = await resp.json() as { value?: GraphEvent[]; "@odata.nextLink"?: string };
+          raw.push(...(data.value || []));
+          url = data["@odata.nextLink"] || null;
+          pages++;
+        }
+        const truncated = !!url;
+
         // Update lastSyncedAt timestamp
         await db.updateOAuthTokenLastSynced(ctx.user.id, "microsoft");
 
-        const events = (data.value || []).map(e => ({
-          id: e.id,
-          title: e.subject,
-          start: graphUtc(e.start),
-          end: graphUtc(e.end),
-          location: e.location?.displayName ?? "",
-          notes: e.bodyPreview ?? "",
-          organizer: e.organizer?.emailAddress?.name ?? "",
-          isAllDay: e.isAllDay ? 1 : 0,
-          status: e.showAs ?? "busy",
-        }));
+        const events = raw.filter((e) => !e.isCancelled).map(graphEventOut);
 
-        // Persist events to DB (upsert — safe to call on every sync)
-        for (const e of events) {
-          await db.upsertCalendarEvent({
+        // Persist events to DB (upsert — safe to call on every sync), a few at a time.
+        for (let i = 0; i < events.length; i += 20) {
+          await Promise.all(events.slice(i, i + 20).map((e) => db.upsertCalendarEvent({
             userId: ctx.user.id,
             provider: 'microsoft',
             eventId: e.id,
@@ -336,10 +343,10 @@ export const oauthSyncRouter = router({
             organizer: e.organizer || null,
             isAllDay: e.isAllDay,
             status: e.status,
-          });
+          }).catch(() => null)));
         }
 
-        return { provider: "microsoft", events, eventsUpserted: events.length };
+        return { provider: "microsoft", events, eventsUpserted: events.length, truncated, window: { from: now.toISOString(), to: end.toISOString() } };
       }
 
       // Google
@@ -465,6 +472,73 @@ export const oauthSyncRouter = router({
 
       const okCount = created.filter(c => c.eventId).length;
       return { provider: input.provider, created, okCount, totalCount: created.length };
+    }),
+
+  /**
+   * calendarWrite (build -237) — two-way Outlook: create, move/edit or delete
+   * one event on the user's own calendar. Only events the user organises with
+   * no other attendees: changing a meeting with attendees would make Outlook
+   * email them on the user's behalf, so those are refused (change them in
+   * Outlook). Never adds attendees. Times are local wall-clock strings
+   * ('YYYY-MM-DDTHH:MM:SS') in the given IANA time zone.
+   */
+  calendarWrite: protectedProcedure
+    .input(z.object({
+      provider: z.literal("microsoft"),
+      op: z.enum(["create", "update", "delete"]),
+      extId: z.string().min(1).max(1024).optional(),
+      timeZone: z.string().max(64).default("UTC"),
+      event: z.object({
+        title: z.string().min(1).max(255),
+        start: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/),
+        end: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/),
+        isAllDay: z.boolean().optional(),
+        location: z.string().max(255).nullable().optional(),
+        body: z.string().max(4000).nullable().optional(),
+        recurrence: z.object({
+          freq: z.enum(["daily", "weekly", "monthly", "yearly"]),
+          interval: z.number().int().min(1).max(99).optional(),
+          byDay: z.array(z.number().int().min(0).max(6)).max(7).optional(),
+          until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+          count: z.number().int().min(1).max(999).optional(),
+          startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        }).optional(),
+      }).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const accessToken = await getValidAccessToken(ctx.user.id, "microsoft");
+      if (!accessToken) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Not connected to Microsoft 365" });
+      const auth = { Authorization: `Bearer ${accessToken}` };
+      const base = "https://graph.microsoft.com/v1.0/me/events";
+      const fail = async (resp: Response) => { const t = await resp.text().catch(() => ""); return { ok: false as const, status: resp.status, error: `${resp.status} ${t.slice(0, 200)}` }; };
+
+      if (input.op === "create") {
+        if (!input.event) throw new TRPCError({ code: "BAD_REQUEST", message: "event required" });
+        const resp = await fetch(base, { method: "POST", headers: { ...auth, "Content-Type": "application/json" }, body: JSON.stringify(graphEventBody(input.event, input.timeZone, true)) });
+        if (!resp.ok) return fail(resp);
+        const data = await resp.json() as { id: string; webLink?: string };
+        return { ok: true as const, id: data.id, webLink: data.webLink || null };
+      }
+
+      if (!input.extId) throw new TRPCError({ code: "BAD_REQUEST", message: "extId required" });
+      const url = `${base}/${encodeURIComponent(input.extId)}`;
+      // Check it is safe to change without notifying anyone.
+      const head = await fetch(`${url}?$select=id,isOrganizer,attendees`, { headers: auth });
+      if (head.status === 404) return { ok: input.op === "delete", status: 404, gone: true as const, error: input.op === "delete" ? undefined : "Event no longer exists in Outlook" };
+      if (!head.ok) return fail(head);
+      const cur = await head.json() as GraphEvent;
+      if (!graphWritable(cur)) {
+        return { ok: false as const, status: 409, readOnly: true as const, error: "This meeting has other attendees — change it in Outlook so they are notified." };
+      }
+      if (input.op === "delete") {
+        const resp = await fetch(url, { method: "DELETE", headers: auth });
+        if (!resp.ok && resp.status !== 404) return fail(resp);
+        return { ok: true as const, id: input.extId };
+      }
+      if (!input.event) throw new TRPCError({ code: "BAD_REQUEST", message: "event required" });
+      const resp = await fetch(url, { method: "PATCH", headers: { ...auth, "Content-Type": "application/json" }, body: JSON.stringify(graphEventBody(input.event, input.timeZone, false)) });
+      if (!resp.ok) return fail(resp);
+      return { ok: true as const, id: input.extId };
     }),
 
   syncMail: protectedProcedure

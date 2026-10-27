@@ -1040,12 +1040,14 @@ async function _pushScheduleToOAuthCalendar(){
   const rec=D.prefs&&D.prefs.todaySchedule;
   if(!rec||!(rec.blocks||[]).length){toast({type:'warn',title:'No blocks to push'});return;}
   // Probe which provider the user is connected to. The OAuth status query
-  // returns {microsoftConnected, googleConnected, …}; pick whichever is on.
+  // says which providers are connected; pick whichever is on.
   let provider=null;
   try{
     const status=await _trpc('oauthSync.status',undefined,'query');
-    if(status&&status.microsoftConnected)provider='microsoft';
-    else if(status&&status.googleConnected)provider='google';
+    // status is {microsoft:{connected}, google:{connected}} (it read
+    // microsoftConnected, which never existed, so this always said "not connected").
+    if(status&&status.microsoft&&status.microsoft.connected)provider='microsoft';
+    else if(status&&status.google&&status.google.connected)provider='google';
   }catch(_){/* fall through */}
   if(!provider){
     toast({type:'warn',title:'No OAuth calendar connected',msg:'Settings → Accounts → connect Microsoft 365 or Google.',duration:4500});

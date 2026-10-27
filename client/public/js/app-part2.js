@@ -9851,65 +9851,210 @@ async function syncCalendarO365(btn){
   }
 }
 
-async function syncOAuthCalendar(provider){
-  toast('⏳ Syncing '+provider+' calendar...');
+// ── Two-way Outlook calendar (build -237) ───────────────────────────────────
+// Outlook events live in _calEvents as rows with source 'microsoft', extId =
+// the Graph id, and id 'ms:<hash of extId>' — the same id on every device, so
+// two devices pulling the same event can never make two rows. `editable` is
+// true only for events you organise with no other attendees: changing a
+// meeting with attendees would make Outlook email them, so those stay
+// read-only here (Open in Outlook). Edits, moves and deletes of editable rows
+// go back to Outlook through a per-device queue (lu_cal_pushq: {rowId: op});
+// a pull never overwrites a row that is still waiting to go out. A new event
+// can be created in Outlook too ("Also add to my Outlook calendar").
+// The pull runs by itself: after sign-in, when the tab comes back, and every
+// 20 minutes while it is open (at most every 15), for 7 days back → 120 ahead.
+function _calMsId(extId){return 'ms:'+_luHash(String(extId||''));}
+function _calPushQ(){try{const q=JSON.parse(localStorage.getItem('lu_cal_pushq')||'{}');return q&&typeof q==='object'?q:{};}catch(_){return {};}}
+function _calSetPushQ(q){try{if(Object.keys(q).length)localStorage.setItem('lu_cal_pushq',JSON.stringify(q));else localStorage.removeItem('lu_cal_pushq');}catch(_){}}
+function _calQueuePush(row,op){
+  if(!row)return;
+  const q=_calPushQ(),k=String(row.id);
+  // A create that has not gone out yet stays a create (with the new values);
+  // deleting it before it went out just drops it.
+  if(q[k]==='create'&&op==='update')op='create';
+  if(q[k]==='create'&&op==='delete'){delete q[k];_calSetPushQ(q);const i=_calEvents.indexOf(row);if(i>-1)_calEvents.splice(i,1);_calPersist();return;}
+  q[k]=op;_calSetPushQ(q);
+  if(op==='delete')row._pendingDelete=true;
+  _calPersist();
+  setTimeout(()=>{_calPushPending();},0);
+}
+// Is this an Outlook row LevelUp may change?
+function _calIsOutlook(row){return !!(row&&row.source==='microsoft');}
+function _calOutlookEditable(row){return _calIsOutlook(row)&&row.editable===true;}
+// Re-key a row (and the meeting notes linked to it).
+function _calRekey(row,newId){
+  const old=String(row.id);if(old===String(newId))return;
+  row.id=newId;
+  const q=_calPushQ();if(q[old]){q[String(newId)]=q[old];delete q[old];_calSetPushQ(q);}
+  let n=0;(D.notes||[]).forEach(nt=>{(Array.isArray(nt.meetings)?nt.meetings:[]).forEach(m=>{if(m&&String(m.id)===old){m.id=newId;n++;}});});
+  if(n)save('notes');
+}
+// Local wall-clock times for Graph ('YYYY-MM-DDTHH:MM:00' in the browser's zone).
+function _calOutlookPayload(row){
+  const ds=row.dateStr;
+  const next=_calYmdOf(_calDn(ds)+1);
+  const hm=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+  const ev={title:String(row.title||'(No title)').slice(0,255),location:row.location||'',body:row.desc||row.description||''};
+  if(_calIsAllDay(row)){ev.start=ds+'T00:00:00';ev.end=next+'T00:00:00';ev.isAllDay=true;}
+  else{const {s,e}=_calEvMins(row);ev.start=ds+'T'+hm(s)+':00';ev.end=e>=1440?next+'T00:00:00':ds+'T'+hm(e)+':00';ev.isAllDay=false;}
+  const r=_calRule(row);
+  if(r){const rec={freq:r.freq,interval:r.interval,startDate:row.dateStr};if(r.freq==='weekly'&&r.byDay.length)rec.byDay=r.byDay;if(r.until)rec.until=r.until;else if(r.count)rec.count=r.count;ev.recurrence=rec;}
+  return ev;
+}
+let _calPushBusy=false;
+async function _calPushPending(){
+  if(_calPushBusy)return 0;
+  const q=_calPushQ(),ids=Object.keys(q);
+  if(!ids.length)return 0;
+  _calPushBusy=true;
+  const tz=(Intl.DateTimeFormat().resolvedOptions().timeZone)||'UTC';
+  let ok=0,pulled=false;const fails=[];
   try{
-    const result=await _trpc('oauthSync.syncCalendar',{provider,daysAhead:30},'mutation');
+    for(const k of ids){
+      const op=q[k];
+      const row=(_calEvents||[]).find(r=>r&&String(r.id)===k);
+      if(!row){delete q[k];continue;}
+      try{
+        const res=await _trpc('oauthSync.calendarWrite',{provider:'microsoft',op,extId:op==='create'?undefined:row.extId,timeZone:tz,event:op==='delete'?undefined:_calOutlookPayload(row)},'mutation');
+        if(res&&res.ok){
+          delete q[k];ok++;
+          if(op==='delete'||res.gone){const i=_calEvents.indexOf(row);if(i>-1)_calEvents.splice(i,1);}
+          else if(op==='create'){
+            row.source='microsoft';row.extId=res.id;row.editable=true;if(res.webLink)row.webLink=res.webLink;
+            if(_calRule(row))pulled=true; // Outlook's occurrences replace the local series on the next pull
+            else _calRekey(row,_calMsId(res.id));
+          }
+        }else if(res&&res.gone){delete q[k];const i=_calEvents.indexOf(row);if(i>-1)_calEvents.splice(i,1);}
+        else if(res&&res.readOnly){
+          // Outlook says it has attendees: keep Outlook's version (the next pull restores it).
+          delete q[k];row.editable=false;delete row._pendingDelete;
+          fails.push(`"${row.title}": ${res.error}`);
+        }else fails.push(`"${row.title}": ${(res&&res.error)||'not saved'}`);
+      }catch(e){
+        fails.push(`"${row.title}": ${e.message}`);
+        if(/not connected|PRECONDITION/i.test(String(e.message)))break;
+      }
+    }
+  }finally{
+    _calSetPushQ(q);_calPushBusy=false;
+    _calPersist();
+    if(typeof curScreen!=='undefined'&&curScreen==='calendar'&&typeof renderCal==='function')renderCal();
+  }
+  if(ok&&!fails.length)toast('☁ Outlook updated');
+  if(fails.length)toast({type:'warn',title:'Outlook not updated',msg:fails.slice(0,2).join(' · ')+(Object.keys(q).length?' — will retry on the next sync':''),duration:6000});
+  if(pulled)setTimeout(()=>syncOAuthCalendar('microsoft',{silent:true,force:true}),1500);
+  return ok;
+}
+let _calOutlookConnected=null;
+async function _calOutlookReady(){
+  if(_calOutlookConnected!=null)return _calOutlookConnected;
+  try{const st=await _trpc('oauthSync.status',undefined,'query');_calOutlookConnected=!!(st&&st.microsoft&&st.microsoft.connected);}
+  catch(_){return false;}
+  return _calOutlookConnected;
+}
+async function _calAutoSync(force){
+  if(D.prefs&&D.prefs.calAutoSync===false)return;
+  if(typeof document!=='undefined'&&document.visibilityState==='hidden')return;
+  if(!localStorage.getItem('lu_session'))return;
+  const last=+(localStorage.getItem('lu_cal_pull_microsoft')||0);
+  if(!force&&Date.now()-last<15*60*1000)return;
+  if(!(await _calOutlookReady()))return;
+  await syncOAuthCalendar('microsoft',{silent:true});
+}
+function toggleCalAutoSync(){
+  D.prefs=D.prefs||{};
+  D.prefs.calAutoSync=D.prefs.calAutoSync===false;
+  save('prefs');
+  toast(D.prefs.calAutoSync===false?'Outlook auto-sync off — use ☁ Sync O365':'☁ Outlook auto-sync on');
+  if(D.prefs.calAutoSync!==false)_calAutoSync(true);
+  if(typeof renderCal==='function'&&curScreen==='calendar')renderCal();
+}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(()=>{_calAutoSync().then(()=>_calPushPending());},2500);});
+setInterval(()=>{_calAutoSync();},20*60*1000);
+
+async function syncOAuthCalendar(provider,opts){
+  opts=opts||{};
+  const silent=!!opts.silent;
+  if(window._calSyncBusy)return;
+  window._calSyncBusy=true;
+  if(!silent)toast('⏳ Syncing '+provider+' calendar...');
+  try{
+    if(provider==='microsoft')await _calPushPending();
+    const from=new Date();from.setHours(0,0,0,0);from.setDate(from.getDate()-7);
+    const to=new Date();to.setHours(0,0,0,0);to.setDate(to.getDate()+121);
+    const result=await _trpc('oauthSync.syncCalendar',{provider,daysAhead:120,fromISO:from.toISOString(),toISO:to.toISOString()},'mutation');
+    if(provider==='microsoft')_calOutlookConnected=true;
+    try{localStorage.setItem('lu_cal_pull_'+provider,String(Date.now()));}catch(_){}
     const events=result?.events||[];
-    if(!events.length){toast('No upcoming events found.');return;}
-    // After sync, load DB events to get their numeric IDs
-    let dbEvents=[];
-    try{dbEvents=await _trpc('oauthSync.getCalendarEventsFromDB',null,'query');}catch(e){}
-    // Merge into _calEvents, keyed by the PROVIDER's event id (extId).
-    // It used to match on title + day: a moved event was added again, a
-    // cancelled one stayed, and a second same-named meeting was skipped.
-    // Start/end come from the server as real instants (UTC with Z, or with
-    // an offset), so the local day and time are right; all-day events come
-    // as a bare date. Minutes are kept in start/end ("HH:MM"); hour/endHour
-    // are the grid cells, a :30 end rounding up.
+    // Merge into _calEvents, keyed by the provider's event id (extId). Start/
+    // end come from the server as real instants, so the local day and time
+    // are right; all-day events come as a bare date. Minutes are kept in
+    // start/end ("HH:MM"); hour/endHour are the grid cells.
     let added=0,updated=0,removed=0;
-    const seen=new Set();
+    const seen=new Set(),masters=new Set();
+    const q=_calPushQ();
     const hm=d=>String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+    // One row per Outlook event, on the shared id (older rows had random ids).
+    const byExt={};
+    for(let i=_calEvents.length-1;i>=0;i--){
+      const x=_calEvents[i];
+      if(!x||x.source!==provider||!x.extId||_calRule(x))continue;
+      const k=String(x.extId);
+      // A second copy: its meeting-note links move to the shared id first.
+      if(byExt[k]){_calRekey(x,provider==='microsoft'?_calMsId(k):byExt[k].id);_calEvents.splice(i,1);removed++;continue;}
+      byExt[k]=x;
+      if(provider==='microsoft'&&!q[String(x.id)])_calRekey(x,_calMsId(k));
+    }
     events.forEach(ev=>{
       if(!ev||!ev.start)return;
       const s=_pd(ev.start),e=_pd(ev.end||ev.start);
       if(isNaN(s))return;
       const allDay=!!ev.isAllDay;
-      // All-day: the provider's own date (a UTC midnight is the evening before here).
       const dateStr=allDay?String(ev.start).slice(0,10):_ymd(s);
       const hour=allDay?8:s.getHours();
       const endHour=allDay?9:Math.max(hour+1,e.getHours()+(e.getMinutes()>0?1:0)+(_ymd(e)!==dateStr?24:0));
-      const fields={title:ev.title||'(No title)',dateStr,hour,endHour:Math.min(endHour,24),start:allDay?'':hm(s),end:allDay?'':hm(e),time:allDay?'':hm(s),desc:ev.notes||'',location:ev.location||'',isAllDay:allDay?1:0};
+      const fields={title:ev.title||'(No title)',dateStr,day:(s.getDay()+6)%7,hour,minute:allDay?0:s.getMinutes(),endHour:Math.min(endHour,24),start:allDay?'':hm(s),end:allDay?'':hm(e),time:allDay?'':hm(s),desc:ev.notes||'',location:ev.location||'',isAllDay:allDay?1:0,
+        editable:ev.editable===true,seriesMasterId:ev.seriesMasterId||null,webLink:ev.webLink||null,meetingUrl:ev.joinUrl||null,attendees:Array.isArray(ev.attendees)?ev.attendees:[],organizer:ev.organizer||''};
       const extId=ev.id?String(ev.id):'';
       if(extId)seen.add(extId);
-      let row=extId?_calEvents.find(x=>x.source===provider&&String(x.extId||'')===extId):null;
+      if(ev.seriesMasterId)masters.add(String(ev.seriesMasterId));
+      let row=extId?byExt[extId]:null;
       // Rows synced before ids were kept: adopt the same-title same-day one.
       if(!row)row=_calEvents.find(x=>x.source===provider&&!x.extId&&x.title===fields.title&&x.dateStr===dateStr);
-      const dbEv=dbEvents.find(d=>(extId&&String(d.eventId||'')===extId)||(d.title===fields.title&&_ymd(_pd(d.start))===dateStr));
       if(row){
-        const before=JSON.stringify([row.title,row.dateStr,row.start,row.end,row.location]);
+        if(q[String(row.id)])return; // a local change is still going out
+        const before=JSON.stringify([row.title,row.dateStr,row.start,row.end,row.location,row.editable]);
         Object.assign(row,fields,{extId:extId||row.extId||''});
-        if(dbEv&&!row.dbId)row.dbId=dbEv.id;
-        if(before!==JSON.stringify([row.title,row.dateStr,row.start,row.end,row.location]))updated++;
+        delete row._pendingDelete;
+        if(provider==='microsoft'&&extId)_calRekey(row,_calMsId(extId));
+        if(before!==JSON.stringify([row.title,row.dateStr,row.start,row.end,row.location,row.editable]))updated++;
       }else{
-        _calEvents.push(Object.assign({id:Date.now()+Math.random(),dbId:dbEv?.id||null,extId,color:'var(--ac)',source:provider,recurrence:dbEv?.recurrence||'none'},fields));
+        const id=provider==='microsoft'&&extId?_calMsId(extId):Date.now()+Math.random();
+        _calEvents.push(Object.assign({id,extId,color:'var(--ac)',source:provider},fields));
         added++;
       }
     });
+    // A series created here and sent to Outlook: Outlook's occurrences take over.
+    for(let i=_calEvents.length-1;i>=0;i--){const x=_calEvents[i];if(x&&x.source===provider&&x.extId&&_calRule(x)&&masters.has(String(x.extId))){_calEvents.splice(i,1);}}
     // Drop rows the provider no longer returns inside the window it covered
-    // (cancelled or moved out of it). Only rows that carry a provider id, so
-    // nothing synced before -228 or made by hand is touched. The fetch starts
-    // NOW, so today's earlier meetings are absent by design: start tomorrow.
-    const winStart=_ymd(new Date(Date.now()+86400000)),winEnd=_ymd(new Date(Date.now()+29*86400000));
-    for(let i=_calEvents.length-1;i>=0;i--){
-      const x=_calEvents[i];
-      if(x&&x.source===provider&&x.extId&&!seen.has(String(x.extId))&&x.dateStr>=winStart&&x.dateStr<=winEnd){_calEvents.splice(i,1);removed++;}
+    // (cancelled, deleted, or moved out of it) — never one still going out.
+    const win=result&&result.window;
+    const winStart=win&&win.from?_ymd(_pd(win.from)):_ymd(new Date(Date.now()+86400000));
+    const winEnd=win&&win.to?_ymd(new Date(_pd(win.to).getTime()-1)):_ymd(new Date(Date.now()+29*86400000));
+    if(!result||!result.truncated){
+      for(let i=_calEvents.length-1;i>=0;i--){
+        const x=_calEvents[i];
+        if(x&&x.source===provider&&x.extId&&!_calRule(x)&&!q[String(x.id)]&&!seen.has(String(x.extId))&&x.dateStr>=winStart&&x.dateStr<=winEnd){_calEvents.splice(i,1);removed++;}
+      }
     }
     _calPersist();
-    renderCal();
-    toast('✓ '+provider+' calendar: '+added+' new'+(updated?', '+updated+' updated':'')+(removed?', '+removed+' removed':''));
+    if(typeof curScreen!=='undefined'&&curScreen==='calendar')renderCal();
+    if(!silent)toast('✓ '+provider+' calendar: '+added+' new'+(updated?', '+updated+' updated':'')+(removed?', '+removed+' removed':''));
   }catch(e){
-    toast('⚠️ '+e.message);
+    if(/not connected/i.test(String(e.message))&&provider==='microsoft')_calOutlookConnected=false;
+    if(!silent)toast('⚠️ '+e.message);
+  }finally{
+    window._calSyncBusy=false;
   }
 }
 
@@ -11853,6 +11998,8 @@ async function loadServerData(){
       if((!Array.isArray(_srvCal)||!_srvCal.length)&&Array.isArray(_calEvents)&&_calEvents.length&&_calEvents!==_calEventsDefault){
         setTimeout(()=>_pushKeyToServer('calGrid'),1500);
       }
+      // Pull Outlook (and send any queued changes) once the account has loaded (-237).
+      setTimeout(()=>{if(typeof _calAutoSync==='function')_calAutoSync();},5000);
       // Old repeat copies from either device fold into one repeating row (-236).
       if(typeof _calMigrateRecurrence==='function'&&_calMigrateRecurrence())_calPersist();
       if(Array.isArray(_srvCal)&&_srvCal.length&&typeof curScreen!=='undefined'&&curScreen==='calendar'&&typeof renderCal==='function')setTimeout(renderCal,0);

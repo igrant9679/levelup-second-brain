@@ -1905,7 +1905,13 @@ function openCalEvent(id){
   const mtgNote=_noteForEvent(id);
   const ruleText=hit&&_calRule(hit.row)?_calRuleText(hit.row):(ev.recurrence&&ev.recurrence!=='none'?({'daily':'Daily','weekly':'Weekly','biweekly':'Every 2 weeks','monthly':'Monthly','yearly':'Yearly'}[ev.recurrence]||ev.recurrence):(!ev.dateStr&&/^weekly$/i.test(String(ev.repeat||''))?'Every week':''));
   const noteBtn=`<button class="btn btn-s" style="height:26px;font-size:11px;color:var(--ac);font-weight:600" onclick="openMeetingNote('${_jsAttr(String(id))}','${_jsAttr(ev.dateStr||'')}')" title="${mtgNote?'Open the meeting note linked to this event':'Create a meeting note linked to this event'}">📝 ${mtgNote?'Open notes':'Take notes'}</button>`;
-  const actions=noteBtn+(isSynced
+  const orow=hit&&hit.row;
+  const outlook=!!(orow&&orow.source==='microsoft');
+  const outlookRO=outlook&&orow.editable!==true;
+  const openOutlook=outlook&&orow.webLink?`<button class="btn btn-s" style="height:26px;font-size:11px"${_act('_luOpenUrl',[orow.webLink])} title="Open this event in Outlook">↗ Outlook</button>`:'';
+  const actions=noteBtn+openOutlook+(outlookRO
+    ?`<span style="font-size:11px;color:var(--t3);padding:3px 8px;background:var(--s3);border-radius:10px;white-space:normal" title="It has other attendees (or someone else organises it), so changing it here would email them — change it in Outlook">☁ Outlook meeting · change it in Outlook</span>`
+    :isSynced
     ?`<span style="font-size:11px;color:var(--t3);padding:3px 8px;background:var(--s3);border-radius:10px" title="Synced from Office 365 — edit in Outlook">☁ Synced from Office 365</span>`
     :`<button class="btn btn-s" style="height:26px;font-size:11px" onclick="openEditCalEvent('${_jsAttr(String(id))}')" title="Edit event">✏️ Edit</button>
       <button class="btn btn-s" style="height:26px;font-size:11px;color:var(--red)" onclick="deleteCalEvent('${_jsAttr(String(id))}')" title="Delete event">🗑️ Delete</button>`);
@@ -1953,7 +1959,7 @@ function openEditCalEvent(id){
   </div>
   <div class="field"><label for="cev-loc">Location</label><input class="inp" id="cev-loc" value="${esc(ev.location||'')}"></div>
   <div class="field"><label for="cev-desc">Description</label><textarea class="inp" id="cev-desc" style="min-height:60px">${esc(ev.desc||ev.description||'')}</textarea></div>
-  ${_calRepeatEditor('cev',row)}
+  ${row.source==='microsoft'?`<div style="font-size:11px;color:var(--t3);background:var(--s2);border-radius:6px;padding:6px 8px">☁ Saving updates this event in Outlook.${row.seriesMasterId?' It is one date of an Outlook series — change the whole series in Outlook.':''}</div>`:_calRepeatEditor('cev',row)}
   </div>
   <div style="display:flex;gap:8px;margin-top:12px">
   <button class="btn btn-p" onclick="saveEditCalEvent('${_jsAttr(String(id))}')">&#10003; Save Changes</button>
@@ -2002,8 +2008,11 @@ async function saveEditCalEvent(id){
     row.day=(new Date(_calDn(row.dateStr)*86400000).getUTCDay()+6)%7;
   }
   _calPersist();
-  // A synced row also keeps its server copy current.
-  if(row.dbId&&!_calRule(row)){
+  // An Outlook event goes back to Outlook (-237); other synced rows keep
+  // their server copy current.
+  if(row.source==='microsoft'&&row.extId){
+    if(row.editable===true&&typeof _calQueuePush==='function'){_calQueuePush(row,'update');msg+=' · sending to Outlook';}
+  }else if(row.dbId&&!_calRule(row)){
     try{
       await _trpc('oauthSync.updateCalendarEvent',{id:row.dbId,title,start:new Date(row.dateStr+'T'+startTime+':00'),end:new Date(row.dateStr+'T'+endTime+':00'),location,description:desc,isAllDay},'mutate');
     }catch(e){msg+=' (server copy not updated: '+e.message+')';}
@@ -2024,7 +2033,14 @@ async function deleteCalEvent(id){
     removeRow=_calApplyDelete(row,hit.occ,scope);
     if(!removeRow)msg=scope==='one'?'✓ This occurrence deleted':'✓ This and later occurrences deleted';
     else if(scope!=='all')msg='✓ Series deleted';
-  }else if(!confirm('Delete "'+row.title+'"? This cannot be undone.'))return;
+  }else if(!confirm('Delete "'+row.title+'"'+(row.source==='microsoft'&&row.extId?' from Outlook too':'')+'? This cannot be undone.'))return;
+  if(removeRow&&row.source==='microsoft'&&row.extId&&typeof _calQueuePush==='function'){
+    // Hidden now, removed once Outlook confirms (-237).
+    _calQueuePush(row,'delete');
+    toast('✓ Event deleted · removing it from Outlook');
+    closeModal();renderCal();
+    return;
+  }
   if(removeRow){const idx=_calEvents.indexOf(row);if(idx>-1)_calEvents.splice(idx,1);}
   _calPersist();
   toast(msg);
@@ -2088,6 +2104,7 @@ function openNewCalEventModal(prefillDay,prefillHour,prefillTitle,prefillDuratio
   <div class="field"><label>Attendees</label><input class="inp" id="nev-att" placeholder="Names, comma separated..."></div>
   <div class="field"><label>Description</label><textarea class="inp" id="nev-desc" style="min-height:60px" placeholder="Event details..."></textarea></div>
   ${_calRepeatEditor('nev',null)}
+  <label id="nev-outlook-row" style="display:none;align-items:center;gap:6px;font-size:12px;color:var(--t2)"><input type="checkbox" id="nev-outlook"> ☁ Also add to my Outlook calendar <span style="font-size:11px;color:var(--t3)">(no invitations are sent)</span></label>
   </div>
   <div style="display:flex;gap:8px;margin-top:12px">
   <button class="btn btn-p" onclick="saveNewCalEvent()">✓ Add Event</button>
@@ -2095,6 +2112,7 @@ function openNewCalEventModal(prefillDay,prefillHour,prefillTitle,prefillDuratio
   </div>`;
   document.getElementById('modal-capture').classList.add('show');
   _calRepeatUi(document.getElementById('nev-freq'));
+  if(typeof _calOutlookReady==='function')_calOutlookReady().then(ok=>{const r=document.getElementById('nev-outlook-row');if(!ok||!r)return;r.style.display='flex';const c=document.getElementById('nev-outlook');if(c)c.checked=localStorage.getItem('lu_cal_push_new')==='1';});
   setTimeout(()=>document.getElementById('nev-title')?.focus(),100);
 }
 // Default date for the new-event form: an explicit date, else the chosen
@@ -2126,8 +2144,14 @@ function saveNewCalEvent(){
   const rule=_calReadRepeat('nev',dateStr);
   const ev={id:Date.now(),title,dateStr,day,time:startVal,start:startVal,end:endVal,hour:sh||0,minute:sm||0,endHour:Math.max((sh||0)+1,(eh||0)+((em||0)>0?1:0)),color,location:loc,attendees:att?att.split(',').map(x=>x.trim()).filter(Boolean):[],desc};
   if(rule)ev.rrule=rule;
+  // Also on Outlook (-237): remembered per device.
+  const ob=document.getElementById('nev-outlook'),orow=document.getElementById('nev-outlook-row');
+  const toOutlook=!!(ob&&orow&&orow.style.display!=='none'&&ob.checked);
+  if(orow&&orow.style.display!=='none'){try{localStorage.setItem('lu_cal_push_new',toOutlook?'1':'0');}catch(_){}}
+  if(toOutlook){ev.source='microsoft';ev.editable=true;}
   _calEvents.push(ev);
   if(typeof _calPersist==='function')_calPersist();
+  if(toOutlook&&typeof _calQueuePush==='function')_calQueuePush(ev,'create');
   closeModal();
   renderCal();
   toast('✓ Event added'+(rule?' · '+_calRuleText(ev):''));
@@ -2147,11 +2171,16 @@ function renderCal(){
 function _calViewTabs(){
   const showTasks=!(D&&D.prefs&&D.prefs.calShowTasks===false);
   const n=showTasks?_scheduledTaskEvents().length:0;
+  // Outlook auto-sync switch (-237), once Outlook is known to be connected.
+  const ol=typeof _calOutlookConnected!=='undefined'&&_calOutlookConnected===true;
+  const auto=!(D&&D.prefs&&D.prefs.calAutoSync===false);
+  const lastPull=+(localStorage.getItem('lu_cal_pull_microsoft')||0);
+  const olBtn=ol?`<button class="btn btn-s" style="height:24px;font-size:11px;white-space:normal;color:${auto?'var(--ac)':'var(--t3)'}" onclick="toggleCalAutoSync()" title="${auto?'Outlook is pulled every 15–20 minutes while LevelUp is open, and your changes to your own events go back to it':'Outlook syncs only when you press ☁ Sync O365'}${lastPull?' · last pulled '+esc(new Date(lastPull).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})):''}">☁ Outlook ${auto?'auto':'manual'}</button>`:'';
   return `<div class="tabs" style="margin-bottom:10px;align-items:center">
     <div class="tab ${_calView==='week'?'on':''}" onclick="_calView='week';renderCal()">Week</div>
     <div class="tab ${_calView==='day'?'on':''}" onclick="_calView='day';renderCal()">Day</div>
     <div class="tab ${_calView==='month'?'on':''}" onclick="_calView='month';renderCal()">Month</div>
-    <button class="btn btn-s" style="margin-left:auto;height:24px;font-size:11px;white-space:normal;background:${showTasks?'var(--acs)':''};color:${showTasks?'var(--ac)':'var(--t3)'}" onclick="toggleCalShowTasks()" title="Tasks that have both a date and a start time appear on the grid alongside events">${showTasks?'▢ Tasks shown':'▢ Tasks hidden'}${showTasks&&n?` · ${n}`:''}</button>
+    <button class="btn btn-s" style="margin-left:auto;height:24px;font-size:11px;white-space:normal;background:${showTasks?'var(--acs)':''};color:${showTasks?'var(--ac)':'var(--t3)'}" onclick="toggleCalShowTasks()" title="Tasks that have both a date and a start time appear on the grid alongside events">${showTasks?'▢ Tasks shown':'▢ Tasks hidden'}${showTasks&&n?` · ${n}`:''}</button>${olBtn}
   </div>`;
 }
 
@@ -2217,7 +2246,7 @@ function renderCalDay(){
       if(e._task)return _calChip(e,{cls:'',extra:`;padding:4px 8px;border-radius:4px;margin-bottom:3px;font-size:11px;border-left-width:3px`});
       return`<div
         data-ev-id="${esc(String(e.id))}"
-        draggable="true"
+        draggable="${_calCanMove(e)}"
         style="background:${e.color}22;border-left:3px solid ${e.color};padding:4px 8px 2px 8px;border-radius:4px;margin-bottom:3px;cursor:grab;font-size:11px;user-select:none;position:relative"
         onclick="openCalEvent('${_jsAttr(String(e.id))}')"
         ondragstart="calDayDragStart(event,'${_jsAttr(String(e.id))}')"
@@ -2286,12 +2315,19 @@ function _calMoveEvent(id,dateStr,startMins,endMins){
   _calPersist();
   return hit;
 }
+// After a drag or resize: an Outlook event goes back to Outlook (-237).
+function _calAfterMove(id){const hit=_calResolve(id);if(hit&&hit.occ==null&&hit.row.source==='microsoft'&&hit.row.extId&&hit.row.editable===true&&typeof _calQueuePush==='function')_calQueuePush(hit.row,'update');}
+// May this event be dragged or resized? Not an Outlook meeting with other
+// attendees (moving it here would email them) — those move in Outlook.
+function _calCanMove(e){return !!e&&!e._task&&!e._finBill&&!(e.source==='microsoft'&&e.editable!==true);}
+function _calMoveBlocked(e){toast({type:'info',title:'Move it in Outlook',msg:'"'+(e&&e.title||'This meeting')+'" has other attendees, so changing it here would email them.',duration:4500});}
 let _calResizeNewEnd=null;
 function calResizeStart(event,evId){
   event.preventDefault();
   event.stopPropagation();
   const hit=_calResolve(evId);
   if(!hit)return;
+  if(!_calCanMove(hit.ev)){_calMoveBlocked(hit.ev);return;}
   _calResizeEvId=evId;
   _calResizeStartY=event.clientY;
   _calResizeStartEndHour=_calEvMins(hit.ev).e;
@@ -2346,6 +2382,7 @@ function calDayDrop(event,newHour,dayOfWeek,dayStr){
   _calDragEvId=null;
   const hit=_calResolve(evId);
   if(!hit)return;
+  if(!_calCanMove(hit.ev)){_calMoveBlocked(hit.ev);return;}
   const {s,e}=_calEvMins(hit.ev);
   const ns=newHour*60+(s%60);
   if(ns===s&&hit.ev.dateStr===dayStr)return;
