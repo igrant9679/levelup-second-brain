@@ -369,10 +369,101 @@ function _opportunityTaskCount(oppId){
   }
   return n;
 }
+// ── Atlas opportunities in the Pipeline (build -247) ───────────────────────
+// CommunityForce deals live in Atlas now (Smartsheet was retired in -223).
+// Each Atlas opportunity is copied into D.opportunities as source 'atlas':
+// name, customer, stage, potential, close date and PM follow Atlas on every
+// render; notes, probability override, contact and linked tasks are yours
+// and are kept. An old Smartsheet copy of the same deal (same name) is
+// adopted instead of duplicated. A deal no longer in Atlas stays, marked.
+const _ATLAS_STATUS_TO_STAGE={'new':'Lead','qualified':'Qualified','proposal':'Proposal','negotiation':'Negotiation','on hold':'On-Hold'};
+const _ATLAS_STAGE_TO_STAGE={'lead gen':'Lead','presales':'Qualified','sales':'Proposal','delivery':'Closed Won','won':'Closed Won','lost':'Closed Lost'};
+function _atlasOppStage(a){
+  const st=_normStage(a.status),sg=_normStage(a.stage);
+  if(/won/.test(st)||sg==='won')return 'Closed Won';
+  if(/lost/.test(st)||sg==='lost')return 'Closed Lost';
+  return _ATLAS_STATUS_TO_STAGE[st]||_ATLAS_STAGE_TO_STAGE[sg]||'Lead';
+}
+function _atlasOppDate(v){
+  const s=String(v||'').trim();if(!s)return '';
+  if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10);
+  const d=new Date(s);return isNaN(d.getTime())?'':_ymd(d);
+}
+function _pipeSyncAtlas(){
+  const snap=D.atlas;
+  if(!snap||!Array.isArray(snap.projects))return 0;
+  const atl=snap.projects.filter(p=>p&&p.category==='opportunity'&&p.id!=null);
+  const opps=_opps();
+  const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  const seen=new Set();let changed=0;
+  atl.forEach(a=>{
+    const ext=String(a.id);seen.add(ext);
+    let o=opps.find(x=>x.source==='atlas'&&String(x.externalId)===ext);
+    if(!o)o=opps.find(x=>x.source!=='atlas'&&norm(x.name)===norm(a.name)&&(x.source==='smartsheet'||norm(x.accountName)===norm(a.customer)));
+    const want={name:String(a.name||'(unnamed)'),accountName:String(a.customer||''),value:Number(a.potential)||0,closeDate:_atlasOppDate(a.closeDate),owner:String(a.pm||'')};
+    const stage=_atlasOppStage(a);
+    if(!o){
+      const now=new Date().toISOString();
+      o=Object.assign({id:Date.now()+opps.length+changed,probability:null,contact:'',notes:'',linkedTaskIds:[],createdAt:now,updatedAt:now,stage,stageAt:now,stageHistory:[{stage,at:now}]},want,{source:'atlas',externalId:ext});
+      const def=_stageDef(stage);o.status=def.outcome==='won'?'won':def.outcome==='lost'?'lost':'open';
+      opps.push(o);changed++;return;
+    }
+    let c=false;
+    if(o.source!=='atlas'||String(o.externalId)!==ext){o.source='atlas';o.externalId=ext;delete o.sourceConfigId;c=true;}
+    Object.keys(want).forEach(k=>{if(String(o[k]??'')!==String(want[k])){o[k]=want[k];c=true;}});
+    if(o.atlasGone){delete o.atlasGone;c=true;}
+    if(_stageDef(o.stage).key!==_stageDef(stage).key){
+      const at=new Date().toISOString();
+      o.stageAt=at;o.stageHistory=(Array.isArray(o.stageHistory)?o.stageHistory.slice(-49):[]).concat([{stage,at}]);
+      const def=_stageDef(stage);
+      if(def.outcome==='won'){o.status='won';o.wonAt=o.wonAt||at;}else if(def.outcome==='lost'){o.status='lost';o.lostAt=o.lostAt||at;}else{o.status='open';delete o.wonAt;delete o.lostAt;}
+      c=true;
+    }
+    if(o.stage!==stage){o.stage=stage;c=true;}
+    if(c){o.updatedAt=new Date().toISOString();changed++;}
+  });
+  opps.forEach(o=>{if(o.source==='atlas'&&!seen.has(String(o.externalId))&&!o.atlasGone){o.atlasGone=true;changed++;}});
+  if(changed)save('opportunities');
+  return changed;
+}
+// ── Drag a deal to another stage (build -247; the -238 pointer drag, so it
+// works with a finger too). Atlas deals follow Atlas and don't drag.
+_luDropRoutes.pipe=function(kind,id,stage){
+  if(kind!=='opp')return;
+  const o=_opps().find(x=>String(x.id)===String(id));if(!o||o.source==='atlas')return;
+  const was=o.stage;
+  if(_stageDef(was).key===_stageDef(stage).key)return;
+  _setOpportunityStage(id,stage,{quiet:true});
+  toast({type:'info',title:'Stage → '+stage,msg:o.name||'',duration:5000,actions:[{label:'Undo',onClick:()=>_setOpportunityStage(id,was,{quiet:true})}]});
+};
+// ── Link an existing task to a deal ──
+function _oppLinkTask(oppId){
+  const sel=document.getElementById('opp-link-task');const tid=sel&&sel.value;if(!tid)return;
+  const t=(D.tasks||[]).find(x=>String(x.id)===String(tid));if(!t)return;
+  t.linkedOpportunityId=String(oppId);save('tasks');
+  openOpportunityDetail(oppId);
+  if(curScreen==='pipeline')renderPipeline();
+  toast({type:'success',title:'🔗 Task linked',msg:t.title||'',duration:1800});
+}
+function _oppUnlinkTask(oppId,taskId){
+  const t=(D.tasks||[]).find(x=>String(x.id)===String(taskId));if(!t)return;
+  delete t.linkedOpportunityId;save('tasks');
+  openOpportunityDetail(oppId);
+  if(curScreen==='pipeline')renderPipeline();
+}
+// Phones (build -248): stages stack, forecast and reports go to one column,
+// the table scrolls sideways inside its card.
+function _pipeCSS(){
+  if(document.getElementById('lu-pipe-css'))return;
+  const st=document.createElement('style');st.id='lu-pipe-css';
+  st.textContent='@media (max-width:600px){#pipeline-main .pipe-board,#pipeline-main .pipe-forecast,#pipeline-main .pipe-reports{grid-template-columns:1fr!important}#pipeline-main .pipe-col{min-height:0!important}#pipeline-main .pipe-table{overflow-x:auto!important}#pipeline-main .pipe-table table{min-width:640px}}';
+  document.head.appendChild(st);
+}
 function renderPipeline(){
   const m=document.getElementById('pipeline-main');
   const r=document.getElementById('pipeline-rail');
   if(!m)return;
+  try{_pipeSyncAtlas();}catch(e){console.warn('[pipeline] Atlas sync failed',e);}
   const opps=_opps();
   // Header KPIs.
   const open=opps.filter(o=>o.status!=='won'&&o.status!=='lost');
@@ -422,7 +513,7 @@ function renderPipeline(){
       else if(visibleStages[0])byStage[visibleStages[0].key].push(o);
     }
     body=`<div style="display:flex;gap:6px;margin-bottom:6px;font-size:11px"><label style="display:flex;align-items:center;gap:6px;color:var(--t2);cursor:pointer"><input type="checkbox" ${_pipelineHideClosed?'checked':''} onchange="_pipelineHideClosed=this.checked;renderPipeline()"> Hide Closed Won/Lost</label></div>
-    <div style="display:grid;grid-template-columns:repeat(${visibleStages.length},minmax(220px,1fr));gap:10px;align-items:flex-start;overflow-x:auto">
+    <div class="pipe-board" style="display:grid;grid-template-columns:repeat(${visibleStages.length},minmax(220px,1fr));gap:10px;align-items:flex-start;overflow-x:auto">
     ${visibleStages.map(s=>{
       const stageOpps=byStage[s.key]||[];
       const stageValue=stageOpps.reduce((sum,o)=>sum+(Number(o.value)||0),0);
@@ -430,8 +521,8 @@ function renderPipeline(){
         const closeDays=o.closeDate?Math.ceil((+_pd(o.closeDate)-Date.now())/86400000):null;
         const closeLabel=closeDays==null?'':closeDays<0?`<span style="color:var(--red)">${-closeDays}d late</span>`:closeDays===0?'<span style="color:var(--warn)">today</span>':closeDays<=14?`<span style="color:var(--warn)">${closeDays}d</span>`:`${closeDays}d`;
         const taskN=_opportunityTaskCount(o.id);
-        return `<div class="cd" style="padding:9px 11px;margin-bottom:6px;border-left:3px solid ${s.color};cursor:pointer" onclick="openOpportunityDetail(${o.id})">
-          <div style="font-size:12px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(o.name||'(unnamed)')}</div>
+        return `<div class="cd" style="padding:9px 11px;margin-bottom:6px;border-left:3px solid ${s.color};cursor:pointer" onclick="openOpportunityDetail(${o.id})"${o.source==='atlas'?'':` data-drag="opp" data-drag-id="${esc(String(o.id))}"`} title="${o.source==='atlas'?'From Atlas — its stage follows Atlas':'Drag to another stage'}">
+          <div style="font-size:12px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${o.source==='atlas'?`<span title="From Atlas" style="font-size:10px;margin-right:3px">🗺</span>`:''}${o.atlasGone?'<span title="No longer in Atlas" style="color:var(--t3)">⊘ </span>':''}${esc(o.name||'(unnamed)')}</div>
           ${o.accountName?`<div style="font-size:11px;color:var(--t3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(o.accountName)}</div>`:''}
           <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:11px">
             <span style="color:var(--t2);font-weight:600">${_fmtMoney(o.value||0)}</span>
@@ -440,7 +531,7 @@ function renderPipeline(){
           ${taskN?`<div style="font-size:11px;color:var(--ac);margin-top:3px">📋 ${taskN} active task${taskN===1?'':'s'}</div>`:''}
         </div>`;
       }).join('')||'<div style="font-size:11px;color:var(--t3);font-style:italic;padding:8px 0;text-align:center">empty</div>';
-      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;min-height:300px">
+      return `<div class="pipe-col" style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;min-height:300px" data-drop="pipe" data-drop-v="${esc(s.key)}">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
           <div style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:${s.color}"></span><span style="font-size:11px;font-weight:700;color:var(--t1)">${esc(s.label)}</span></div>
           <div style="font-size:11px;color:var(--t3)">${stageOpps.length} · ${_fmtMoney(stageValue)}</div>
@@ -465,7 +556,7 @@ function renderPipeline(){
         <td style="padding:8px 10px;font-size:11px;color:var(--t2)">${taskN?taskN+' tasks':''}</td>
       </tr>`;
     }).join('');
-    body=`<div class="cd" style="padding:0;overflow:hidden">
+    body=`<div class="cd pipe-table" style="padding:0;overflow:hidden">
       <table style="width:100%;border-collapse:collapse">
         <thead><tr style="background:var(--s2);font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em">
           <th style="padding:8px 10px;text-align:left">Opportunity</th>
@@ -502,7 +593,7 @@ function renderPipeline(){
     let acc=0;
     const stops=stageEntries.map(([k,v])=>{const stageCol=_stageDef(k).color;const start=acc/stageTotal*100;acc+=v;const end=acc/stageTotal*100;return `${stageCol} ${start}% ${end}%`;}).join(',');
     const legend=stageEntries.map(([k,v])=>`<div style="display:flex;align-items:center;gap:7px;font-size:11px;padding:4px 0"><span style="width:9px;height:9px;background:${_stageDef(k).color};border-radius:2px"></span><span style="flex:1">${esc(k)}</span><span style="font-weight:600">${_fmtMoney(v)}</span></div>`).join('');
-    body=`<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:14px">
+    body=`<div class="pipe-forecast" style="display:grid;grid-template-columns:1.4fr 1fr;gap:14px">
       <div class="cd" style="padding:13px 15px">
         <div style="font-size:12px;font-weight:600;margin-bottom:10px">📅 Weighted Forecast by Close Month</div>
         ${bars}
@@ -517,6 +608,7 @@ function renderPipeline(){
   if(_pipelineView==='reports'){
     body=_renderPipelineReports(opps,open,won,lost);
   }
+  _pipeCSS();
   m.innerHTML=header+kpis+body;
   if(r){
     // Right rail: quick add + recent activity.
@@ -552,11 +644,81 @@ function _pipelineQuota(){
   };
 }
 function _renderPipelineReports(opps,open,won,lost){
-  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px">
+  return `<div class="pipe-reports" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px">
+    ${_reportAttainment(won,lost)}
+    ${_reportFunnel(opps)}
+    ${_reportWinLoss(won,lost)}
     ${_reportByCustomer(opps,open,won,lost)}
     ${_reportStageAging(open)}
     ${_reportQuarterlyBooking(open)}
     ${_reportCoverage(open)}
+  </div>`;
+}
+// ── Won this period, funnel, win/loss (build -248) ──
+// When a deal was won or lost: wonAt / lostAt (set by every stage change),
+// else the last stage-history entry, else updatedAt.
+function _oppClosedAt(o){
+  const h=Array.isArray(o.stageHistory)?o.stageHistory:[];
+  const last=h.length?h[h.length-1].at:'';
+  return _dayOf((o.status==='won'?o.wonAt:o.lostAt)||last||o.updatedAt||''); // local day, not the UTC one
+}
+function _reportAttainment(won,lost){
+  const q=_pipelineQuota(),w=_quotaWindow(q.periodLabel);
+  const inWin=o=>{const d=_oppClosedAt(o);return d>=w.start&&d<=w.end;};
+  const wonIn=won.filter(inWin),lostIn=lost.filter(inWin);
+  const wonVal=wonIn.reduce((s,o)=>s+(Number(o.value)||0),0);
+  const pct=q.amount>0?Math.round(wonVal/q.amount*100):null;
+  const rate=(wonIn.length+lostIn.length)?Math.round(wonIn.length/(wonIn.length+lostIn.length)*100):null;
+  const bar=pct==null?'':`<div style="height:10px;background:var(--s3);border-radius:5px;overflow:hidden;margin:8px 0 4px"><div style="height:100%;width:${Math.min(100,pct)}%;background:${pct>=100?'var(--ok)':pct>=60?'#16a34a':'var(--warn)'}"></div></div>`;
+  return `<div class="cd" style="padding:13px 15px;border-left:3px solid var(--ok)">
+    <div style="font-size:13px;font-weight:600;margin-bottom:4px">🏆 Won this ${esc(String(q.periodLabel||'Annual').toLowerCase().replace('annual','year').replace('half-year','half').replace('quarterly','quarter').replace('monthly','month'))}</div>
+    <p style="font-size:11px;color:var(--t3);margin:0 0 8px">${esc(w.start)} → ${esc(w.end)}, by the date each deal was won.</p>
+    <div style="display:flex;gap:18px;align-items:baseline;flex-wrap:wrap">
+      <div><div style="font-size:22px;font-weight:750;color:var(--ok)">${_fmtMoney(wonVal)}</div><div style="font-size:11px;color:var(--t3)">${wonIn.length} deal${wonIn.length===1?'':'s'} won</div></div>
+      ${pct!=null?`<div><div style="font-size:22px;font-weight:750">${pct}%</div><div style="font-size:11px;color:var(--t3)">of ${_fmtMoney(q.amount)} quota</div></div>`:''}
+      <div><div style="font-size:22px;font-weight:750">${rate==null?'—':rate+'%'}</div><div style="font-size:11px;color:var(--t3)">win rate (${wonIn.length}W · ${lostIn.length}L)</div></div>
+    </div>
+    ${bar}
+    ${q.amount>0?'':`<div style="font-size:11px;color:var(--t3);margin-top:6px">Set a quota to see attainment — <a href="#" onclick="event.preventDefault();_openPipelineQuotaSettings()">⚙ Configure quota</a>.</div>`}
+  </div>`;
+}
+// How far deals get: the share of all deals that reached each stage (from
+// their stage history; a won deal reached every stage before Closed Won).
+function _reportFunnel(opps){
+  const order=['Lead','Qualified','Proposal','Negotiation','Closed Won'];
+  const idx=s=>order.indexOf(_stageDef(s).key);
+  const reached=order.map(()=>0);
+  opps.forEach(o=>{
+    let top=Math.max(idx(o.stage),...(Array.isArray(o.stageHistory)?o.stageHistory.map(h=>idx(h.stage)):[]));
+    if(o.status==='won')top=order.length-1;
+    if(top<0)top=0;
+    for(let i=0;i<=top;i++)reached[i]++;
+  });
+  const n=reached[0]||0;
+  const rows=order.map((s,i)=>{const pct=n?Math.round(reached[i]/n*100):0;const st=_stageDef(s);
+    return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:11px"><span style="min-width:86px;color:var(--t2)">${esc(st.label)}</span><div style="flex:1;height:14px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${st.color}"></div></div><span style="min-width:72px;text-align:right"><b>${reached[i]}</b> · ${pct}%</span></div>`;}).join('');
+  return `<div class="cd" style="padding:13px 15px;border-left:3px solid #a855f7">
+    <div style="font-size:13px;font-weight:600;margin-bottom:4px">🔻 Funnel</div>
+    <p style="font-size:11px;color:var(--t3);margin:0 0 8px">How many of your ${n} deal${n===1?'':'s'} reached each stage. Deals lost or on hold count up to the furthest stage they reached.</p>
+    ${n?rows:'<div style="font-size:11px;color:var(--t3);text-align:center;padding:14px">No deals yet.</div>'}
+  </div>`;
+}
+function _reportWinLoss(won,lost){
+  const months=[];for(let i=11;i>=0;i--){const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-i);months.push(_ymd(d).slice(0,7));}
+  const by=m=>({w:won.filter(o=>_oppClosedAt(o).slice(0,7)===m),l:lost.filter(o=>_oppClosedAt(o).slice(0,7)===m)});
+  const data=months.map(m=>({m,...by(m)}));
+  const max=Math.max(1,...data.map(x=>x.w.length+x.l.length));
+  const days=won.map(o=>{const a=Date.parse(o.createdAt||''),b=Date.parse(_oppClosedAt(o));return a&&b&&b>=a?(b-a)/864e5:null;}).filter(v=>v!=null);
+  const avg=days.length?Math.round(days.reduce((s,v)=>s+v,0)/days.length):null;
+  const cols=data.map(x=>`<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:1px;height:90px" title="${x.m}: ${x.w.length} won (${_fmtMoney(x.w.reduce((s,o)=>s+(Number(o.value)||0),0))}) · ${x.l.length} lost">
+      <div style="width:70%;background:var(--red);opacity:.75;height:${x.l.length/max*80}px;border-radius:2px 2px 0 0"></div>
+      <div style="width:70%;background:var(--ok);height:${x.w.length/max*80}px;border-radius:${x.l.length?0:'2px 2px'} 0 0"></div>
+    </div>`).join('');
+  return `<div class="cd" style="padding:13px 15px;border-left:3px solid var(--red)">
+    <div style="font-size:13px;font-weight:600;margin-bottom:4px">⚖ Won and lost — last 12 months</div>
+    <p style="font-size:11px;color:var(--t3);margin:0 0 8px"><span style="color:var(--ok)">■</span> won · <span style="color:var(--red)">■</span> lost, by the month each deal closed.${avg!=null?` Won deals took <b>${avg} days</b> on average from creation.`:''}</p>
+    <div style="display:flex;gap:3px;align-items:flex-end">${cols}</div>
+    <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--t3);margin-top:3px"><span>${months[0]}</span><span>${months[11]}</span></div>
   </div>`;
 }
 function _reportByCustomer(opps,open,won,lost){
@@ -827,9 +989,14 @@ function openOpportunityDetail(oppId,opts){
     <span class="rt" style="font-size:12px;${t.status==='Done'?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.title)}</span>
     <span class="pill ${pillClass?pillClass(t.priority):''}" style="font-size:11px">${esc(t.priority||'')}</span>
     <span style="font-size:11px;color:var(--t3)">${esc(t.due||'')}</span>
+    <span role="button" tabindex="0" title="Unlink from this deal" aria-label="Unlink task" style="color:var(--t3);padding:0 4px"${_act('_oppUnlinkTask',[o.id,t.id],{stop:true})}>✕</span>
   </div>`;
+  // Open tasks not linked to this deal, for "Link a task".
+  const linkable=(D.tasks||[]).filter(t=>t.status!=='Done'&&!t.parentTaskId&&String(t.linkedOpportunityId||'')!==String(o.id)).sort((a,b)=>String(b.createdAt||b.id).localeCompare(String(a.createdAt||a.id))).slice(0,300);
+  const fromAtlas=o.source==='atlas';
+  const ro=fromAtlas?' readonly title="Follows Atlas"':'';
   // Stage progression buttons — quick-advance through non-terminal stages.
-  const stageButtons=_PIPELINE_STAGES.map(s=>{
+  const stageButtons=fromAtlas?`<span style="font-size:11px;color:var(--t3)">Set in Atlas</span>`:_PIPELINE_STAGES.map(s=>{
     const active=s.key===o.stage;
     return `<button class="btn btn-s" style="height:24px;font-size:11px;padding:0 9px;background:${active?s.color:'transparent'};color:${active?'#fff':s.color};border-color:${s.color}" onclick="_setOpportunityStage(${o.id},'${_jsAttr(s.key)}')">${esc(s.label)}</button>`;
   }).join('');
@@ -844,30 +1011,36 @@ function openOpportunityDetail(oppId,opts){
       <span style="font-size:11px;color:var(--t2);align-self:center;font-weight:600">💰 ${_fmtMoney(o.value||0)}</span>
       <span style="font-size:11px;color:var(--ok);align-self:center">⚖ ${_fmtMoney(_weightedValue(o))} weighted</span>
       ${o.closeDate?`<span style="font-size:11px;color:var(--t3);align-self:center">📅 ${esc(o.closeDate)}</span>`:''}
-      ${o.source==='smartsheet'?`<span class="pill" style="background:color-mix(in srgb,#1f6feb 16%,transparent);color:#1f6feb;font-weight:600;font-size:11px" title="Auto-synced from Smartsheet">📊 Synced</span>`:''}
+      ${o.source==='smartsheet'?`<span class="pill" style="background:color-mix(in srgb,#1f6feb 16%,transparent);color:#1f6feb;font-weight:600;font-size:11px" title="Was synced from Smartsheet (retired)">📊 Smartsheet</span>`:''}
+      ${fromAtlas?`<span class="pill" style="background:color-mix(in srgb,#0ea5e9 16%,transparent);color:#0369a1;font-weight:600;font-size:11px">🗺 From Atlas${o.atlasGone?' · no longer in Atlas':''}</span>`:''}
     </div>
+    ${fromAtlas?`<div style="font-size:11px;color:var(--t3);margin:-4px 0 10px">Name, customer, stage, value, close date and owner follow Atlas. Notes, probability, contact and tasks here are yours.</div>`:''}
     <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Stage</div>
     <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:14px">${stageButtons}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      ${field('Name','opp-name','text',o.name)}
-      ${field('Account / Customer','opp-account','text',o.accountName)}
-      ${field('Value ($)','opp-value','number',o.value,'min="0" step="100"')}
+      ${field('Name','opp-name','text',o.name,ro)}
+      ${field('Account / Customer','opp-account','text',o.accountName,ro)}
+      ${field('Value ($)','opp-value','number',o.value,'min="0" step="100"'+ro)}
       ${field('Probability % (blank = stage default)','opp-prob','number',o.probability,'min="0" max="100"')}
-      ${field('Close Date','opp-close','date',o.closeDate)}
-      ${field('Owner','opp-owner','text',o.owner)}
+      ${field('Close Date','opp-close','date',o.closeDate,ro)}
+      ${field('Owner','opp-owner','text',o.owner,ro)}
       ${field('Primary Contact','opp-contact','text',o.contact)}
       <div></div>
     </div>
     ${field('Notes','opp-notes','textarea',o.notes)}
     <div style="display:flex;gap:6px;margin-bottom:14px">
       <button class="btn btn-p" onclick="_saveOpportunityFields(${o.id})">💾 Save changes</button>
-      <button class="btn btn-s" style="color:var(--ok);border-color:var(--ok)" onclick="_setOpportunityStage(${o.id},'Closed Won')">🎉 Mark Won</button>
-      <button class="btn btn-s" style="color:var(--red);border-color:var(--red)" onclick="_setOpportunityStage(${o.id},'Closed Lost')">✕ Mark Lost</button>
+      ${fromAtlas?'':`<button class="btn btn-s" style="color:var(--ok);border-color:var(--ok)" onclick="_setOpportunityStage(${o.id},'Closed Won')">🎉 Mark Won</button>
+      <button class="btn btn-s" style="color:var(--red);border-color:var(--red)" onclick="_setOpportunityStage(${o.id},'Closed Lost')">✕ Mark Lost</button>`}
       <button class="btn btn-d" style="margin-left:auto" onclick="_deleteOpportunity(${o.id})">${_icon('trash',12,'currentColor')} Delete</button>
     </div>
     <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Tasks to win this opportunity (${linkedOpen.length})</div>
     ${linkedOpen.length?linkedOpen.map(taskRow).join(''):'<p style="font-size:11px;color:var(--t3);padding:6px 0;font-style:italic">No active tasks linked yet — click below to add one.</p>'}
     ${linkedDone.length?`<div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:10px 0 5px">Done (${linkedDone.length})</div>${linkedDone.map(taskRow).join('')}`:''}
+    ${linkable.length?`<div style="display:flex;gap:6px;margin-top:10px;align-items:center">
+      <select class="inp" id="opp-link-task" aria-label="Link an existing task" style="flex:1;min-width:0;height:30px;font-size:12px"><option value="">Link an existing task…</option>${linkable.map(t=>`<option value="${esc(String(t.id))}">${esc(String(t.title||'(untitled)').slice(0,90))}${t.linkedOpportunityId?' (another deal)':''}</option>`).join('')}</select>
+      <button class="btn btn-s" style="height:30px"${_act('_oppLinkTask',[o.id])}>🔗 Link</button>
+    </div>`:''}
     <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap">
       <button class="btn btn-p" onclick="_newTaskForOpportunity(${o.id})">+ New task for this opportunity</button>
       <button class="btn btn-s" onclick="_aiOpportunityNextSteps(${o.id})" style="color:var(--purp)" title="AI-suggested next 3 actions for advancing this deal">✨ AI: Next steps</button>
@@ -904,11 +1077,13 @@ function _saveOpportunityFields(oppId){
   openOpportunityDetail(oppId);
   if(curScreen==='pipeline')renderPipeline();
 }
-function _setOpportunityStage(oppId,stage){
+// opts.quiet: a Kanban drag — no drawer, the caller shows its own toast.
+function _setOpportunityStage(oppId,stage,opts){
   const o=_opps().find(x=>String(x.id)===String(oppId));if(!o)return;
+  const quiet=!!(opts&&opts.quiet);
   // Keep what was typed in the drawer: the re-render below used to throw
   // unsaved field edits away.
-  _readOpportunityForm(o);
+  if(!quiet)_readOpportunityForm(o);
   if(_stageDef(o.stage).key!==_stageDef(stage).key){
     const at=new Date().toISOString();
     o.stageAt=at;
@@ -922,9 +1097,9 @@ function _setOpportunityStage(oppId,stage){
   else {o.status='open';delete o.wonAt;delete o.lostAt;}
   o.updatedAt=new Date().toISOString();
   save('opportunities');
-  openOpportunityDetail(oppId);
+  if(!quiet)openOpportunityDetail(oppId);
   if(curScreen==='pipeline')renderPipeline();
-  toast({type:def.outcome==='won'?'success':'info',title:`Stage → ${stage}`,duration:1800});
+  if(!quiet)toast({type:def.outcome==='won'?'success':'info',title:`Stage → ${stage}`,duration:1800});
 }
 function _deleteOpportunity(oppId){
   const o=_opps().find(x=>String(x.id)===String(oppId));if(!o)return;
