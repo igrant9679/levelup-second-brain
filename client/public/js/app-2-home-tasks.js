@@ -1160,48 +1160,49 @@ function _applyScheduleToCalendar(){
 }
 
 /**
- * Manual time-block picker for a single task. Shows free slots in today's
- * working hours; click one to create a calendar event linked to the task.
- * Lighter alternative to the AI scheduler — drop one specific task without
- * regenerating an entire plan.
+ * Manual time-block picker for a single task. Shows free slots in a day's
+ * working hours (today by default; any of the next two weeks, build -239);
+ * click one to create a calendar event linked to the task. Busy = events,
+ * other scheduled tasks and time blocks on that day, to the minute.
  */
-function openTimeBlockPicker(taskId){
+function openTimeBlockPicker(taskId,ymd){
   const t=D.tasks.find(x=>String(x.id)===String(taskId));
   if(!t){toast({type:'warn',title:'Task not found'});return;}
-  const c=_dayCapacityCheck();
+  const today=_todayStr;
+  const day=/^\d{4}-\d{2}-\d{2}$/.test(String(ymd||''))?String(ymd):today;
+  const d=_pd(day);
+  const wh=_workingHours(d);
   const dur=Number(t.estimatedMins)||30;
-  // Build free-slot list: scan working hours by 30-min increments, skip any
-  // hour that overlaps a calendar event. Group consecutive free segments.
-  const free=[];
-  let curStart=null;
-  for(let mins=c.workingHoursStart*60; mins<c.workingHoursEnd*60; mins+=30){
-    const h=Math.floor(mins/60);
-    const overlap=c.events.some(e=>{
-      const eh=typeof e.hour==='number'?e.hour:0;
-      const ehe=typeof e.endHour==='number'?e.endHour:eh+1;
-      return h>=eh&&h<ehe;
-    });
-    if(!overlap){
-      if(curStart==null)curStart=mins;
-    }else{
-      if(curStart!=null){free.push({startMins:curStart,endMins:mins});curStart=null;}
-    }
-  }
-  if(curStart!=null)free.push({startMins:curStart,endMins:c.workingHoursEnd*60});
+  // Busy intervals in minutes (all-day events and bills don't block time).
+  const busy=((typeof _calEventsOn==='function')?_calEventsOn(d):[]).filter(e=>e&&!e._finBill&&!(typeof _calIsAllDay==='function'&&_calIsAllDay(e))&&!(e._task&&String(e.id)===String(t.id))&&String(e.linkedTaskId||'')!==String(t.id)).map(e=>{
+    if(typeof _calEvMins==='function')return _calEvMins(e);
+    const s=(Number(e.hour)||0)*60;return {s,e:(Number(e.endHour)||Number(e.hour)+1)*60};
+  });
+  // Today: nothing before now (rounded up to the next half hour).
+  const nowM=day===today?Math.ceil((new Date().getHours()*60+new Date().getMinutes())/30)*30:0;
   const slots=[];
-  for(const seg of free){
-    // Within each free segment, list start options every 30 min that fit dur.
-    for(let s=seg.startMins; s+dur<=seg.endMins; s+=30){
-      slots.push({startMins:s,endMins:s+dur});
+  if(!wh.nonWorking){
+    for(let s=Math.max(wh.start*60,nowM);s+dur<=wh.end*60;s+=30){
+      const e=s+dur;
+      if(!busy.some(b=>s<b.e&&e>b.s))slots.push({startMins:s,endMins:e});
     }
   }
   const m=document.getElementById('modal-content');
   if(!m){toast({type:'warn',title:'Modal not available'});return;}
   const fmt=mins=>String(Math.floor(mins/60)).padStart(2,'0')+':'+String(mins%60).padStart(2,'0');
-  const slotButtons=slots.length?slots.slice(0,24).map(s=>`<button class="btn btn-s" style="height:30px;font-size:11px;padding:0 10px;justify-content:flex-start" onclick="_blockTaskAt(${_jsArg(taskId)},${s.startMins},${s.endMins})">${fmt(s.startMins)} – ${fmt(s.endMins)}</button>`).join(''):'<div style="font-size:11px;color:var(--t3);font-style:italic;padding:8px">No free slots fit ' +_fmtHm(dur)+' today. Try the AI Smart Plan to reorganise around your meetings.</div>';
-  m.innerHTML=`<div style="padding:16px;max-width:480px">
+  // Day chooser: today + the next 13 days.
+  const days=Array.from({length:14},(_,i)=>{const x=_pd(today);x.setDate(x.getDate()+i);return x;});
+  const dayChips=days.map((x,i)=>{
+    const k=_ymd(x),on=k===day,off=_workingHours(x).nonWorking;
+    const lbl=i===0?'Today':i===1?'Tomorrow':x.toLocaleDateString('en-US',{weekday:'short',day:'numeric'});
+    return `<button class="btn btn-s" style="height:26px;font-size:11px;padding:0 8px;${on?'background:var(--acs);color:var(--ac);font-weight:700;':''}${off?'opacity:.6;':''}"${_act('openTimeBlockPicker',[t.id,k])} aria-pressed="${on}">${lbl}</button>`;
+  }).join('');
+  const dayLabel=day===today?'today':fmtDate(day);
+  const slotButtons=slots.length?slots.slice(0,24).map(s=>`<button class="btn btn-s" style="height:30px;font-size:11px;padding:0 10px;justify-content:flex-start" onclick="_blockTaskAt(${_jsArg(taskId)},${s.startMins},${s.endMins},'${_jsAttr(day)}')">${fmt(s.startMins)} – ${fmt(s.endMins)}</button>`).join(''):`<div style="font-size:11px;color:var(--t3);font-style:italic;padding:8px">${wh.nonWorking?'Not a working day (Settings → General → Working Hours).':'No free slots fit '+_fmtHm(dur)+' '+esc(dayLabel)+'. Pick another day above, or drag the task onto the calendar.'}</div>`;
+  m.innerHTML=`<div style="padding:16px;max-width:520px">
     <h2 style="font-size:14px;font-weight:650;margin:0 0 6px">⏱ Time-block "${esc((t.title||'').slice(0,80))}"</h2>
-    <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Estimated ${_fmtHm(dur)}. Pick a free slot below — a linked calendar event will be created.</div>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:8px">Estimated ${_fmtHm(dur)}. Pick a day and a free slot — a linked calendar event will be created.</div>
+    <div role="group" aria-label="Day" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px">${dayChips}</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px;margin-bottom:12px">${slotButtons}</div>
     <div style="display:flex;gap:6px;justify-content:flex-end;padding-top:10px;border-top:1px solid var(--bd1)">
       <button class="btn btn-s" onclick="closeModal()">Cancel</button>
@@ -1209,29 +1210,32 @@ function openTimeBlockPicker(taskId){
   </div>`;
   document.getElementById('modal-capture').classList.add('show');
 }
-function _blockTaskAt(taskId,startMins,endMins){
+function _blockTaskAt(taskId,startMins,endMins,ymd){
   const t=D.tasks.find(x=>String(x.id)===String(taskId));
   if(!t)return;
-  const ds=_todayStr;
-  const startH=Math.floor(startMins/60);
-  const endH=Math.ceil(endMins/60); // round up to fill the bar
+  const ds=/^\d{4}-\d{2}-\d{2}$/.test(String(ymd||''))?String(ymd):_todayStr;
+  const hm=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
   _calEvents=Array.isArray(_calEvents)?_calEvents:[];
+  // One block per task: re-blocking moves the old one.
+  for(let i=_calEvents.length-1;i>=0;i--){if(_calEvents[i]&&String(_calEvents[i].linkedTaskId||'')===String(taskId)&&_calEvents[i]._planned)_calEvents.splice(i,1);}
   _calEvents.push({
     id:Date.now()+Math.floor(Math.random()*1000),
     title:`▶ ${t.title||'Focus block'}`,
-    hour:startH,
-    endHour:endH,
-    color:'var(--ac)',
     dateStr:ds,
+    hour:Math.floor(startMins/60),minute:startMins%60,
+    endHour:Math.ceil(endMins/60), // the grid cell the block reaches
+    start:hm(startMins),time:hm(startMins),end:hm(endMins),
+    color:'var(--ac)',
     linkedTaskId:String(taskId),
     _planned:true,
   });
   try{_calPersist();}catch(_){}
-  t.startTime=String(startH).padStart(2,'0')+':'+String(startMins%60).padStart(2,'0');
-  t.endTime=String(Math.floor(endMins/60)).padStart(2,'0')+':'+String(endMins%60).padStart(2,'0');
-  if(!t.myDay)t.myDay=true; // implicit: blocking time means it's in today's plan
+  t.startTime=hm(startMins);
+  t.endTime=hm(endMins);
+  if(ds!==_todayStr||t.startDate)t.startDate=ds;
+  if(ds===_todayStr&&!t.myDay)t.myDay=true; // blocking time today puts it in today's plan
   save('tasks');
-  toast({type:'success',title:`⏱ Blocked ${t.startTime}–${t.endTime}`,duration:2400});
+  toast({type:'success',title:`⏱ Blocked ${ds===_todayStr?'today':fmtDate(ds)} ${t.startTime}–${t.endTime}`,duration:2400});
   closeModal();
   if(curScreen==='calendar'&&typeof renderCal==='function')renderCal();
   if(curScreen==='myday'&&typeof renderMyDay==='function')renderMyDay();

@@ -2221,7 +2221,7 @@ ${_calViewTabs()}
 <div style="overflow-x:auto"><div class="cal-grid" style="min-width:600px"><div></div>${weekDays.map((wd,i)=>`<div class="cal-hd" style="${wd.isToday?'color:var(--ac);font-weight:700;background:var(--acs);border-radius:4px':''};padding:2px 4px">${wd.label}</div>`).join('')}
 ${_allDayRow}${_hours.map(h=>`<div class="cal-tl">${_hLabel(h)}</div>${weekDays.map((wd,d)=>{
   const evs=_timed[d].filter(e=>Number(e.hour)===h);
-  return`<div class="cal-c" data-drop="cal" data-drop-v="${weekDayStrs[d]}|${h}">${evs.map(e=>_calChip(e)).join('')}</div>`}).join('')}`).join('')}</div></div>`;
+  return`<div class="cal-c" data-drop="cal" data-drop-v="${weekDayStrs[d]}|${h}">${evs.map(e=>_calChip(e)).join('')}</div>`}).join('')}`).join('')}</div></div>${_calTrayHtml()}`;
 }
 
 function renderCalDay(){
@@ -2329,6 +2329,41 @@ function _calMoveBlocked(e){toast({type:'info',title:'Move it in Outlook',msg:'"
 // scheduled task); Week cells are data-drop="cal" "<ymd>|<hour or allday>",
 // Day rows the same, Month cells data-drop="calday" "<ymd>". Moving keeps the
 // minutes and the length; dropping on All day or a Month cell keeps the time.
+// ── Unscheduled tasks under the Week view (build -239) ──
+// Your open tasks with no start time. Drag one onto a day and hour to
+// schedule it there (start date + time, length from its estimate), or tap it
+// to pick a free slot on any day (openTimeBlockPicker). My Day first, then
+// overdue, due this week, by priority. Hide/show: D.prefs.calTray.
+let _calTrayAll=false;
+function _calTrayTasks(){
+  const today=_todayStr,wk=_ymd(new Date(Date.now()+7*86400000));
+  const pr={High:0,Medium:1,Low:2};
+  const blocked=_blockedTaskIds();
+  return (D.tasks||[]).filter(t=>t&&!t.parentTaskId&&t.status!=='Done'&&t.status!=='Someday'&&!_taskSchedule(t)&&!blocked.has(String(t.id)))
+    .map(t=>({t,k:(t.myDay?0:100)+((t.due&&t.due<today)?0:(t.due&&t.due<=wk)?10:20)+(pr[t.priority]!=null?pr[t.priority]:1)}))
+    .sort((a,b)=>a.k-b.k||String(a.t.due||'9').localeCompare(String(b.t.due||'9')))
+    .map(x=>x.t);
+}
+function _calTrayHtml(){
+  if(D.prefs&&D.prefs.calTray===false)return `<div style="margin-top:8px"><button class="btn btn-s" style="height:24px;font-size:11px"${_act('toggleCalTray',[])}>📋 Show unscheduled tasks</button></div>`;
+  const list=_calTrayTasks();
+  const shown=list.slice(0,_calTrayAll?60:12);
+  const pcol={High:'var(--red)',Medium:'var(--warn)',Low:'var(--ok)'};
+  const chips=shown.map(t=>{
+    const due=t.due&&/^\d{4}-\d{2}-\d{2}/.test(t.due)?` · due ${esc(fmtDate(String(t.due).slice(0,10)))}`:'';
+    return `<div class="cal-tray-chip" data-drag="task" data-drag-id="${esc(String(t.id))}"${_act('openTimeBlockPicker',[t.id])} role="button" tabindex="0" title="Drag onto the calendar to schedule it, or click to pick a free slot" style="display:inline-flex;align-items:center;gap:5px;max-width:240px;padding:4px 8px;border:1px dashed var(--bd2);border-left:3px solid ${pcol[t.priority]||'var(--warn)'};border-radius:6px;background:var(--s2);font-size:11px;color:var(--t1)"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.myDay?'☀ ':''}${esc(String(t.title||'(untitled)'))}</span><span style="color:var(--t3);white-space:nowrap">${_fmtHm(Number(t.estimatedMins)||60)}${due}</span></div>`;
+  }).join('');
+  return `<div class="cal-tray" style="margin-top:10px;border:1px solid var(--bd1);border-radius:8px;padding:8px 10px;background:var(--s1)">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+      <span style="font-size:12px;font-weight:600">📋 Unscheduled tasks · ${list.length}</span>
+      <span style="font-size:11px;color:var(--t3)">Drag one onto the calendar to schedule it, or click it to pick a free slot.</span>
+      <button class="btn btn-s" style="margin-left:auto;height:22px;font-size:11px"${_act('toggleCalTray',[])}>Hide</button>
+    </div>
+    ${list.length?`<div style="display:flex;flex-wrap:wrap;gap:6px">${chips}${list.length>12?`<button class="btn btn-s" style="height:24px;font-size:11px"${_act('_calTrayMore',[])}>${_calTrayAll?'Show fewer':'+'+(list.length-12)+' more'}</button>`:''}</div>`:`<div style="font-size:11px;color:var(--t3)">Every open task has a time. Nice.</div>`}
+  </div>`;
+}
+function toggleCalTray(){D.prefs=D.prefs||{};D.prefs.calTray=D.prefs.calTray===false;save('prefs');renderCal();}
+function _calTrayMore(){_calTrayAll=!_calTrayAll;renderCal();}
 function _calDropTo(kind,id,ymd,hour){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(String(ymd||'')))return;
   const hm=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
@@ -2356,8 +2391,9 @@ function _calDropTo(kind,id,ymd,hour){
     const s0=sch?p(sch.time):null,e0=p(t.endTime);
     const len=s0!=null&&e0!=null&&e0>s0?e0-s0:Math.max(15,Number(t.estimatedMins)||60);
     const ns=hour!=null?hour*60+(s0!=null?s0%60:0):(s0!=null?s0:9*60);
-    // The calendar shows a task on startDate, else due: move whichever it uses.
-    if(t.startDate||!t.due)t.startDate=ymd;else t.due=ymd;
+    // Scheduling sets when the work happens (startDate, which the calendar
+    // shows first) — never the deadline.
+    t.startDate=ymd;
     t.startTime=hm(ns);
     if(t.endTime||t.estimatedMins)t.endTime=hm(Math.min(ns+len,1439));
     t.updatedAt=new Date().toISOString();
