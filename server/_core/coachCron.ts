@@ -42,6 +42,7 @@ import { callWorkspaceAI, resolveWorkspaceAI } from "./workspaceAI";
 import { ENV } from "./env";
 import { delegationSnapshotLines } from "./pmDelegation";
 import { allowedRecipient } from "./recipient";
+import { calOccurrencesBetween } from "./calRecur";
 
 interface SlotDef { label: string; time: string; goal: string; day?: number; words?: number }
 export type CoachSlot = "morning" | "midmorning" | "midday" | "afternoon" | "evening" | "weekly" | "money";
@@ -198,10 +199,10 @@ async function buildSnapshot(db: any, row: any, coach: CoachPrefs, local: Local,
   } catch { /* table may be empty */ }
   // calendar — the grid is server-synced as user_app_data.calGrid since
   // migration 0053; the client's old 7-day prefs copy is only a fallback.
-  const hhmm = (e: any, k: "start" | "end") => { const v = e[k]; if (v && /^\d{1,2}:\d{2}$/.test(String(v))) return String(v); const h = e[k === "start" ? "hour" : "endHour"]; return h != null && h !== "" ? `${String(h).padStart(2, "0")}:00` : ""; };
   const grid = parseJSON<any[]>((row as any).calGrid, []);
   const evOn = (from: string, to: string) => {
-    const g = Array.isArray(grid) ? grid.filter((e) => e && e.dateStr >= from && e.dateStr <= to).map((e) => ({ date: String(e.dateStr), start: hhmm(e, "start"), end: hhmm(e, "end"), title: String(e.title || "") })) : [];
+    // Repeating events expanded (-236): one row per series, not per date.
+    const g = calOccurrencesBetween(Array.isArray(grid) ? grid : [], from, to).map((o) => ({ date: o.date, start: o.start, end: o.end, title: o.title }));
     return g.length ? g : (coach.calendar?.events || []).filter((e) => e && String(e.date) >= from && String(e.date) <= to).map((e) => ({ date: String(e.date), start: String(e.start || ""), end: String(e.end || ""), title: String(e.title || "") }));
   };
   const byTime = (a: any, b: any) => (a.date + a.start).localeCompare(b.date + b.start);

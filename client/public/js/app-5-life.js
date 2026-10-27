@@ -1133,7 +1133,7 @@ function switchMailTab(el,tab){
     const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
     const weekDays=days.map((d,i)=>{const dt=_pd(monday);dt.setDate(monday.getDate()+i);return`${d} ${dt.getDate()}`});
     const weekDateStrs=days.map((_,i)=>{const dt=_pd(monday);dt.setDate(monday.getDate()+i);return _ymd(dt);});
-    const gridRows=[8,9,10,11,12,13,14,15,16,17].map(h=>`<div style="font-size:11px;color:var(--t3);text-align:right;padding-right:6px;padding-top:2px">${h>12?h-12:h} ${h>=12?'PM':'AM'}</div>${Array(7).fill(0).map((_,d)=>{const evs=[..._calEvents.filter(e=>e.day===d&&e.hour===h),..._cellEventsForDate(weekDateStrs[d],h)];return`<div style="border-left:1px solid var(--bd1);border-top:1px solid var(--bd1);min-height:32px;padding:2px">${evs.map(e=>`<div style="font-size:11px;background:${e.color}22;border-left:2px solid ${e.color};padding:2px 4px;border-radius:2px;cursor:pointer;margin-bottom:1px" onclick="openCalEvent(${e.id})">${esc(e.title)}</div>`).join('')}</div>`}).join('')}`).join('');
+    const gridRows=[8,9,10,11,12,13,14,15,16,17].map(h=>`<div style="font-size:11px;color:var(--t3);text-align:right;padding-right:6px;padding-top:2px">${h>12?h-12:h} ${h>=12?'PM':'AM'}</div>${Array(7).fill(0).map((_,d)=>{const evs=[..._calLocalEventsOn(_pd(weekDateStrs[d])).filter(e=>Number(e.hour)===h&&!_calIsAllDay(e)),..._cellEventsForDate(weekDateStrs[d],h)];return`<div style="border-left:1px solid var(--bd1);border-top:1px solid var(--bd1);min-height:32px;padding:2px">${evs.map(e=>`<div style="font-size:11px;background:${e.color}22;border-left:2px solid ${e.color};padding:2px 4px;border-radius:2px;cursor:pointer;margin-bottom:1px" onclick="openCalEvent('${_jsAttr(String(e.id))}')">${esc(e.title)}</div>`).join('')}</div>`}).join('')}`).join('');
     body.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:12px;font-weight:600">📅 This Week</span><button class="btn btn-p" style="height:26px;font-size:11px" onclick="openNewCalEventModal()">＋ Event</button></div><div style="overflow-x:auto"><div style="display:grid;grid-template-columns:40px repeat(7,1fr);min-width:500px;font-size:11px"><div></div>${weekDays.map((d,i)=>`<div style="text-align:center;padding:4px;font-weight:${i===dayOfWeek-1?700:400};color:${i===dayOfWeek-1?'var(--ac)':'var(--t2)'}">${d}</div>`).join('')}${gridRows}</div></div>`;
   } else {
     body.innerHTML=`<div style="padding:40px;text-align:center;color:var(--t3)"><div style="font-size:32px;margin-bottom:8px">📁</div><div style="font-size:12px">Files integration coming soon</div></div>`;
@@ -1285,11 +1285,11 @@ function _scheduledTaskEvents(){
   return out;
 }
 function _cellTasksForDate(dateStr,hour){
-  return _scheduledTaskEvents().filter(e=>e.dateStr===dateStr&&e.hour===hour);
+  return [..._scheduledTaskEvents().filter(e=>e.dateStr===dateStr),..._taskGhostsOn(dateStr)].filter(e=>e.hour===hour);
 }
 function _tasksOnDate(dateObj){
   const ds=_ymd(dateObj);
-  return _scheduledTaskEvents().filter(e=>e.dateStr===ds);
+  return [..._scheduledTaskEvents().filter(e=>e.dateStr===ds),..._taskGhostsOn(ds)];
 }
 // One click handler for every calendar chip. Task chips must open the TASK
 // drawer, not openCalEvent — their id is a task id and would not resolve.
@@ -1320,9 +1320,11 @@ function _calChip(e,opts){
   // (the `${e.color}22` concat only works for hex — see note above).
   const bg=(task||bill)?`color-mix(in srgb,${e.color} 15%,transparent)`:`${e.color}22`;
   const edge=task?`2px dashed ${e.color}`:`2px solid ${e.color}`;
-  const done=task&&e._done?';opacity:.55;text-decoration:line-through':'';
-  const tip=bill?'Bill due — click to open Money → Bills':task?`${e._done?'Completed task':'Task'}${e.time?' · '+e.time:''} — click to open`:'';
-  return `<div class="${o.cls||'cal-ev'}${task?' cal-task':''}"${tip?` title="${_jsAttr(tip)}"`:''} style="background:${bg};border-left:${edge};color:var(--t1);cursor:pointer${done}${o.extra||''}" onclick="event.stopPropagation();${_calChipClick(e)}">${task&&!e._done?'▢ ':''}${esc(e.title)}</div>`;
+  const ghost=!!(e&&e._ghost);
+  const done=task&&e._done?';opacity:.55;text-decoration:line-through':ghost?';opacity:.5':'';
+  const series=e&&e._seriesId!=null;
+  const tip=bill?'Bill due — click to open Money → Bills':ghost?`Repeats here${e.time?' · '+e.time:''} — click to open the task`:task?`${e._done?'Completed task':'Task'}${e.time?' · '+e.time:''} — click to open`:series?_calRuleText({rrule:e._rrule,dateStr:String(e.id).split('~')[1]||e.dateStr}):'';
+  return `<div class="${o.cls||'cal-ev'}${task?' cal-task':''}"${tip?` title="${esc(tip)}"`:''} style="background:${bg};border-left:${edge};color:var(--t1);cursor:pointer${done}${o.extra||''}" onclick="event.stopPropagation();${_calChipClick(e)}">${ghost||series?'🔁 ':task&&!e._done?'▢ ':''}${esc(e.title)}</div>`;
 }
 // Show/hide scheduled tasks. Default ON — the user asked for them — so only an
 // explicit false opts out.
@@ -1376,8 +1378,370 @@ function _calLocalOn(e,dt){
   return d0>=mon&&d0-mon<7*86400000;
 }
 const _calIsAllDay=e=>!!(e&&(e.isAllDay||e.allDay));
+// ── Repeating events (build -236) ───────────────────────────────────────────
+// A repeating event is ONE row. dateStr is its first occurrence, rrule says
+// how it repeats, exdates are occurrences deleted on their own, overrides are
+// occurrences changed on their own — keyed by the date the rule gives them;
+// an override carrying its own dateStr has been moved to that day:
+//   rrule     {freq:'daily'|'weekly'|'monthly'|'yearly', interval:1,
+//              byDay:[0-6, 0=Sun] (weekly only), until:'YYYY-MM-DD', count:N}
+//   exdates   ['YYYY-MM-DD']
+//   overrides {'YYYY-MM-DD':{title,start,end,hour,endHour,location,desc,isAllDay,dateStr}}
+// An occurrence's id is '<row id>~<YYYY-MM-DD rule date>', so one occurrence
+// can be opened, edited, moved, deleted and linked to a meeting note.
+// Monthly/yearly on the 29th-31st fall on the month's last day when the month
+// is shorter (as Outlook and recurring tasks do). Before -236 "daily" made 14
+// copies and "monthly" 6, and the edit dialog's Repeat only labelled the
+// event; _calMigrateRecurrence folds those into one row.
+// server/_core/calRecur.ts applies the same rules for the coach — change both.
+const _CAL_FREQS=['daily','weekly','monthly','yearly'];
+// Day numbers (days since 1970-01-01 as a calendar date) keep the arithmetic
+// free of time zones and DST.
+function _calDn(ymd){const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(ymd||''));return m?Date.UTC(+m[1],+m[2]-1,+m[3])/86400000:NaN;}
+function _calYmdOf(dn){const d=new Date(dn*86400000);return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');}
+// The row's rule, cleaned; null when it does not repeat.
+function _calRule(e){
+  const r=e&&e.rrule;
+  if(!r||_CAL_FREQS.indexOf(r.freq)<0||!/^\d{4}-\d{2}-\d{2}$/.test(String(e.dateStr||'')))return null;
+  const n=parseInt(r.interval,10);
+  const days=Array.isArray(r.byDay)?r.byDay.map(Number).filter(x=>Number.isInteger(x)&&x>=0&&x<=6):[];
+  return {freq:r.freq,interval:n>0?Math.min(n,99):1,byDay:Array.from(new Set(days)).sort((a,b)=>a-b),
+    until:/^\d{4}-\d{2}-\d{2}$/.test(String(r.until||''))?String(r.until):'',count:Math.min(Math.max(parseInt(r.count,10)||0,0),999)};
+}
+// Does the rule (start day number s) land on day number dn? until/count aside.
+function _calRuleHits(r,s,dn){
+  if(!(dn>=s))return false;
+  if(r.freq==='daily')return (dn-s)%r.interval===0;
+  const sd=new Date(s*86400000),d=new Date(dn*86400000);
+  if(r.freq==='weekly'){
+    const days=r.byDay.length?r.byDay:[sd.getUTCDay()];
+    if(days.indexOf(d.getUTCDay())<0)return false;
+    return (((dn-d.getUTCDay())-(s-sd.getUTCDay()))/7)%r.interval===0;
+  }
+  const months=(d.getUTCFullYear()-sd.getUTCFullYear())*12+d.getUTCMonth()-sd.getUTCMonth();
+  if(r.freq==='monthly'){if(months%r.interval)return false;}
+  else if(d.getUTCMonth()!==sd.getUTCMonth()||(months/12)%r.interval)return false;
+  const last=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,0)).getUTCDate();
+  return d.getUTCDate()===Math.min(sd.getUTCDate(),last);
+}
+// Last day number the series may use (until, or the count-th occurrence).
+const _calLastMemo=new Map();
+function _calRuleLast(r,s){
+  let last=r.until?_calDn(r.until):Infinity;
+  if(r.count){
+    const k=[r.freq,r.interval,r.byDay.join(','),s,r.count].join('|');
+    let c=_calLastMemo.get(k);
+    if(c===undefined){
+      c=Infinity;
+      if(r.freq==='daily')c=s+(r.count-1)*r.interval;
+      else{let n=0;for(let dn=s;dn<s+40000;dn++){if(_calRuleHits(r,s,dn)&&++n>=r.count){c=dn;break;}}}
+      _calLastMemo.set(k,c);
+    }
+    last=Math.min(last,c);
+  }
+  return last;
+}
+// Is ymd one of the series' rule dates (exdates and overrides aside)?
+function _calNaturalOn(e,ymd){
+  const r=_calRule(e);if(!r)return false;
+  const s=_calDn(e.dateStr),dn=_calDn(ymd);
+  return dn<=_calRuleLast(r,s)&&_calRuleHits(r,s,dn);
+}
+// How many rule dates fall before ymd (for splitting a counted series).
+function _calCountBefore(e,ymd){
+  const r=_calRule(e);if(!r)return 0;
+  const s=_calDn(e.dateStr),end=Math.min(_calDn(ymd),_calRuleLast(r,s)+1);
+  let n=0;for(let dn=s;dn<end;dn++)if(_calRuleHits(r,s,dn))n++;
+  return n;
+}
+function _calOccurrence(e,key,ov){
+  const o=Object.assign({},e,ov||{});
+  delete o.rrule;delete o.exdates;delete o.overrides;
+  o.id=e.id+'~'+key;o._seriesId=e.id;o._occ=key;o._rrule=e.rrule;
+  o.dateStr=(ov&&ov.dateStr)||key;
+  return o;
+}
+// A series' occurrences on a local date: its own rule date (unless deleted
+// or moved away) plus any occurrence moved onto this day.
+function _calSeriesOn(e,dt){
+  const ymd=_ymd(dt),out=[];
+  const ov=e.overrides&&typeof e.overrides==='object'?e.overrides:{};
+  const ex=Array.isArray(e.exdates)?e.exdates:[];
+  if(ex.indexOf(ymd)<0&&_calNaturalOn(e,ymd)){const o=ov[ymd];if(!(o&&o.dateStr&&o.dateStr!==ymd))out.push(_calOccurrence(e,ymd,o));}
+  Object.keys(ov).forEach(k=>{const o=ov[k];if(k!==ymd&&o&&o.dateStr===ymd&&ex.indexOf(k)<0&&_calNaturalOn(e,k))out.push(_calOccurrence(e,k,o));});
+  return out;
+}
+// Every grid event on a local date, repeating ones expanded. All readers of
+// "events on a day" go through this (directly or via _calEventsOn).
+function _calLocalEventsOn(dt){
+  const out=[];
+  (_calEvents||[]).forEach(e=>{
+    if(!e||e._pendingDelete)return;
+    if(_calRule(e))out.push(..._calSeriesOn(e,dt));
+    else if(_calLocalOn(e,dt))out.push(e);
+  });
+  return out;
+}
+// Grid events between two local dates (inclusive), each with its date.
+function _calLocalBetween(fromYmd,toYmd){
+  const out=[],a=_calDn(fromYmd),b=_calDn(toYmd);
+  for(let dn=a;dn<=b&&dn-a<400;dn++){const ymd=_calYmdOf(dn);_calLocalEventsOn(_pd(ymd)).forEach(e=>out.push(Object.assign({},e,{dateStr:e.dateStr||ymd})));}
+  return out;
+}
+// id → {row, occ (rule date or null), ev (what to show/edit)}.
+function _calResolve(id){
+  const k=String(id),i=k.indexOf('~');
+  if(i>0){
+    const row=(_calEvents||[]).find(e=>e&&String(e.id)===k.slice(0,i));
+    if(!row)return null;
+    const key=k.slice(i+1);
+    return {row,occ:_calRule(row)?key:null,ev:_calRule(row)?_calOccurrence(row,key,(row.overrides||{})[key]):row};
+  }
+  const row=(_calEvents||[]).find(e=>e&&String(e.id)===k);
+  return row?{row,occ:null,ev:row}:null;
+}
+const _CAL_DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function _calRuleText(e){
+  const r=_calRule(e);if(!r)return '';
+  const unit={daily:'day',weekly:'week',monthly:'month',yearly:'year'}[r.freq];
+  let t=r.interval>1?`Every ${r.interval} ${unit}s`:{daily:'Daily',weekly:'Weekly',monthly:'Monthly',yearly:'Yearly'}[r.freq];
+  if(r.freq==='weekly'){
+    const days=r.byDay.length?r.byDay:[new Date(_calDn(e.dateStr)*86400000).getUTCDay()];
+    t=(r.interval===1&&days.join()==='1,2,3,4,5')?'Every weekday':t+' on '+days.map(d=>_CAL_DOW[d]).join(', ');
+  }
+  if(r.until)t+=' · until '+fmtDate(r.until);
+  else if(r.count)t+=` · ${r.count} times`;
+  return t;
+}
+// Old shapes → one row. (1) "+ Event" daily / every-2-weeks / monthly made
+// dated copies sharing a recurId: the first becomes the series (count = the
+// copies made), a missing copy becomes an exdate, a moved or edited copy an
+// override. (2) A "Repeat" chosen in the old edit dialog was only a label on
+// a one-off; it now repeats as it said. Undated weekly rows keep their old
+// meaning (every week on that weekday). Idempotent; returns rows changed.
+function _calMigrateRecurrence(){
+  if(!Array.isArray(_calEvents))return 0;
+  let changed=0;
+  const groups={};
+  _calEvents.forEach(e=>{if(e&&e.recurId!=null&&!e.rrule&&/^\d{4}-\d{2}-\d{2}$/.test(String(e.dateStr||''))&&/^(daily|biweekly|monthly)$/.test(String(e.repeat||'')))(groups[e.recurId]=groups[e.recurId]||[]).push(e);});
+  Object.keys(groups).forEach(k=>{
+    const g=groups[k];
+    const base=g.find(e=>!e._recurIndex)||g.slice().sort((a,b)=>(a._recurIndex||0)-(b._recurIndex||0))[0];
+    const rep=base.repeat,s=_calDn(base.dateStr);
+    const sd=new Date(s*86400000);
+    const total=rep==='daily'?14:rep==='biweekly'?7:6;
+    const rule=rep==='monthly'?{freq:'monthly',interval:1,count:total}:rep==='daily'?{freq:'daily',interval:1,count:total}:{freq:'weekly',interval:2,byDay:[sd.getUTCDay()],count:total};
+    const natural=i=>rep==='monthly'?(()=>{const y=sd.getUTCFullYear(),m=sd.getUTCMonth()+i;const last=new Date(Date.UTC(y,m+1,0)).getUTCDate();return _calYmdOf(Date.UTC(y,m,Math.min(sd.getUTCDate(),last))/86400000);})():_calYmdOf(s+i*(rep==='daily'?1:14));
+    const exdates=[],overrides={};
+    const F=['title','hour','endHour','start','end','time','location','desc','color','isAllDay'];
+    for(let i=0;i<total;i++){
+      const copy=i===0?base:g.find(e=>e!==base&&Number(e._recurIndex)===i);
+      const key=natural(i);
+      if(!copy){exdates.push(key);continue;}
+      const ov={};
+      F.forEach(f=>{if(copy[f]!==undefined&&JSON.stringify(copy[f])!==JSON.stringify(base[f]))ov[f]=copy[f];});
+      if(copy.dateStr!==key)ov.dateStr=copy.dateStr;
+      if(Object.keys(ov).length)overrides[key]=ov;
+    }
+    base.dateStr=natural(0);
+    base.rrule=rule;
+    if(exdates.length)base.exdates=exdates;
+    if(Object.keys(overrides).length)base.overrides=overrides;
+    delete base.repeat;delete base.recurId;delete base._recurIndex;
+    for(let i=_calEvents.length-1;i>=0;i--){const e=_calEvents[i];if(e!==base&&g.indexOf(e)>=0)_calEvents.splice(i,1);}
+    changed++;
+  });
+  _calEvents.forEach(e=>{
+    if(!e||e.rrule||e.source||e.recurId!=null||!/^\d{4}-\d{2}-\d{2}$/.test(String(e.dateStr||'')))return;
+    const rec=String(e.recurrence||'');
+    if(!/^(daily|weekly|biweekly|monthly|yearly)$/.test(rec))return;
+    const wd=new Date(_calDn(e.dateStr)*86400000).getUTCDay();
+    e.rrule=rec==='biweekly'?{freq:'weekly',interval:2,byDay:[wd]}:rec==='weekly'?{freq:'weekly',interval:1,byDay:[wd]}:{freq:rec,interval:1};
+    delete e.recurrence;
+    changed++;
+  });
+  return changed;
+}
+// ── Editing a repeating event ──
+// What an edit / delete changes, kept apart from the dialogs so it is testable.
+// scope: 'one' (this occurrence), 'following' (this and later), 'all'.
+// fields = the edited event fields; fields.dateStr = the date shown in the
+// dialog (the occurrence's date). rule = the Repeat setting (null = none).
+// Returns a new row when 'following' splits the series, else null.
+const _CAL_EV_FIELDS=['title','start','end','time','hour','endHour','minute','location','desc','isAllDay','color','attendees'];
+function _calApplyEdit(row,occ,fields,rule,scope){
+  const key=occ||row.dateStr;
+  if(!_calRule(row)||(scope==='following'&&key===row.dateStr))scope='all';
+  if(scope==='one'){
+    const ov=Object.assign({},(row.overrides||{})[key]);
+    _CAL_EV_FIELDS.forEach(f=>{if(fields[f]!==undefined)ov[f]=fields[f];});
+    if(fields.dateStr&&fields.dateStr!==key)ov.dateStr=fields.dateStr;
+    else if(fields.dateStr)delete ov.dateStr;
+    row.overrides=Object.assign({},row.overrides||{},{[key]:ov});
+    return null;
+  }
+  if(scope==='following'){
+    const before=_calCountBefore(row,key);
+    const oldR=Object.assign({},row.rrule,{until:_calYmdOf(_calDn(key)-1)});
+    const nr=Object.assign({},row);
+    _CAL_EV_FIELDS.forEach(f=>{if(fields[f]!==undefined)nr[f]=fields[f];});
+    nr.id=Date.now()+Math.floor(Math.random()*1000);
+    nr.dateStr=fields.dateStr||key;
+    const shift=_calDn(nr.dateStr)-_calDn(key);
+    if(rule){
+      nr.rrule=Object.assign({},rule);
+      if(row.rrule.count&&rule.count===_calRule(row).count)nr.rrule.count=Math.max(1,rule.count-before);
+    }else delete nr.rrule;
+    const keep=(d)=>_calDn(d)>=_calDn(key);
+    nr.exdates=rule?(row.exdates||[]).filter(keep).map(d=>_calYmdOf(_calDn(d)+shift)):[];
+    nr.overrides={};
+    if(rule)Object.keys(row.overrides||{}).forEach(d=>{if(keep(d))nr.overrides[_calYmdOf(_calDn(d)+shift)]=row.overrides[d];});
+    if(!nr.exdates.length)delete nr.exdates;
+    if(!Object.keys(nr.overrides).length)delete nr.overrides;
+    delete nr.extId;delete nr.dbId;
+    row.rrule=oldR;
+    if(row.exdates)row.exdates=row.exdates.filter(d=>!keep(d));
+    if(row.overrides)Object.keys(row.overrides).forEach(d=>{if(keep(d))delete row.overrides[d];});
+    return nr;
+  }
+  // all
+  const shift=fields.dateStr?_calDn(fields.dateStr)-_calDn(key):0;
+  _CAL_EV_FIELDS.forEach(f=>{if(fields[f]!==undefined)row[f]=fields[f];});
+  if(shift)row.dateStr=_calYmdOf(_calDn(row.dateStr)+shift);
+  else if(!_calRule(row)&&fields.dateStr)row.dateStr=fields.dateStr;
+  if(rule){
+    const r=Object.assign({},rule);
+    // Moving every occurrence to another weekday moves the chosen weekdays too.
+    if(shift&&r.freq==='weekly'&&Array.isArray(r.byDay)&&_calRule(row)&&JSON.stringify(r.byDay)===JSON.stringify(_calRule(row).byDay))r.byDay=r.byDay.map(d=>(((d+shift)%7)+7)%7).sort((a,b)=>a-b);
+    row.rrule=r;
+    if(shift){
+      if(row.exdates)row.exdates=row.exdates.map(d=>_calYmdOf(_calDn(d)+shift));
+      if(row.overrides){const o={};Object.keys(row.overrides).forEach(d=>{o[_calYmdOf(_calDn(d)+shift)]=row.overrides[d];});row.overrides=o;}
+    }
+  }else{delete row.rrule;delete row.exdates;delete row.overrides;}
+  delete row.repeat;delete row.recurrence;
+  return null;
+}
+// Returns true when the whole row should be removed.
+function _calApplyDelete(row,occ,scope){
+  const key=occ||row.dateStr;
+  if(!_calRule(row)||scope==='all'||(scope==='following'&&key===row.dateStr))return true;
+  if(scope==='one'){
+    row.exdates=Array.from(new Set([...(row.exdates||[]),key]));
+    if(row.overrides&&row.overrides[key])delete row.overrides[key];
+    return false;
+  }
+  row.rrule=Object.assign({},row.rrule,{until:_calYmdOf(_calDn(key)-1)});
+  const keep=d=>_calDn(d)<_calDn(key);
+  if(row.exdates)row.exdates=row.exdates.filter(keep);
+  if(row.overrides)Object.keys(row.overrides).forEach(d=>{if(!keep(d))delete row.overrides[d];});
+  return false;
+}
+// "This event / this and following / all events?" — resolves null on cancel.
+function _calAskScope(title,verb){
+  return new Promise(resolve=>{
+    const ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center';
+    ov.innerHTML=`<div role="dialog" aria-label="${esc(verb)} a repeating event" style="background:var(--bg);border:1px solid var(--bd2);border-radius:12px;padding:22px;max-width:340px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.3)">
+      <h3 style="font-size:15px;font-weight:600;margin:0 0 8px">${esc(verb)} repeating event</h3>
+      <p style="font-size:12px;color:var(--t2);margin:0 0 16px">"${esc(title)}" repeats. Which events?</p>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn btn-s" style="text-align:left;padding:8px 12px;font-size:12px" data-s="one">This event</button>
+        <button class="btn btn-s" style="text-align:left;padding:8px 12px;font-size:12px" data-s="following">This and following events</button>
+        <button class="btn btn-s" style="text-align:left;padding:8px 12px;font-size:12px" data-s="all">All events</button>
+        <button class="btn btn-s" style="text-align:left;padding:8px 12px;font-size:12px" data-s="">Cancel</button>
+      </div></div>`;
+    document.body.appendChild(ov);
+    ov.querySelectorAll('button[data-s]').forEach(b=>{b.onclick=()=>{ov.remove();resolve(b.dataset.s||null);};});
+    ov.addEventListener('click',e=>{if(e.target===ov){ov.remove();resolve(null);}});
+    setTimeout(()=>{const b=ov.querySelector('button[data-s="one"]');if(b)b.focus();},30);
+  });
+}
+// Repeat editor shared by the New and Edit event dialogs (ids <prefix>-freq …).
+function _calRepeatEditor(prefix,e){
+  let r=_calRule(e);
+  if(!r&&e){const rec=String(e.recurrence||e.repeat||'');if(/^(daily|weekly|biweekly|monthly|yearly)$/.test(rec))r={freq:rec==='biweekly'?'weekly':rec,interval:rec==='biweekly'?2:1,byDay:[],until:'',count:0};}
+  r=r||{freq:'',interval:1,byDay:[],until:'',count:0};
+  const sel=(r.freq==='weekly'&&r.interval===1&&r.byDay.join()==='1,2,3,4,5')?'weekdays':r.freq;
+  const mode=r.until?'until':r.count?'count':'never';
+  const opt=(v,l)=>`<option value="${v}"${sel===v?' selected':''}>${l}</option>`;
+  return `<div class="field"><label for="${prefix}-freq">Repeat</label>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <select class="inp" id="${prefix}-freq" style="flex:1;min-width:150px" onchange="_calRepeatUi(this)">${opt('','Does not repeat')}${opt('daily','Daily')}${opt('weekdays','Every weekday (Mon–Fri)')}${opt('weekly','Weekly')}${opt('monthly','Monthly')}${opt('yearly','Yearly')}</select>
+      <span id="${prefix}-every" style="font-size:12px;color:var(--t2);display:inline-flex;align-items:center;gap:4px">every <input type="number" min="1" max="99" class="inp" id="${prefix}-int" aria-label="Repeat interval" value="${r.interval}" style="width:58px;height:30px"> <span id="${prefix}-unit"></span></span>
+    </div>
+    <div id="${prefix}-days" style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap">${_CAL_DOW.map((l,i)=>`<label style="font-size:11px;display:inline-flex;align-items:center;gap:3px;padding:3px 7px;border:1px solid var(--bd2);border-radius:12px;cursor:pointer"><input type="checkbox" value="${i}"${r.byDay.indexOf(i)>=0?' checked':''}> ${l}</label>`).join('')}</div>
+    <div id="${prefix}-ends" style="display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap;font-size:12px;color:var(--t2)">Ends
+      <select class="inp" id="${prefix}-endmode" aria-label="Repeat ends" style="width:auto;height:30px" onchange="_calRepeatUi(this)"><option value="never"${mode==='never'?' selected':''}>Never</option><option value="until"${mode==='until'?' selected':''}>On date</option><option value="count"${mode==='count'?' selected':''}>After</option></select>
+      <input type="date" class="inp" id="${prefix}-until" aria-label="Repeat until" value="${esc(r.until||'')}" style="width:auto;height:30px">
+      <span id="${prefix}-countwrap" style="display:inline-flex;align-items:center;gap:4px"><input type="number" min="1" max="999" class="inp" id="${prefix}-count" aria-label="Number of times" value="${r.count||10}" style="width:64px;height:30px"> times</span>
+    </div></div>`;
+}
+function _calRepeatUi(el){
+  const prefix=String(el&&el.id||'').replace(/-(freq|endmode)$/,'');
+  const g=s=>document.getElementById(prefix+s);
+  const f=(g('-freq')||{}).value||'';
+  const show=(n,on)=>{const x=g(n);if(x)x.style.display=on?'':'none';};
+  show('-every',!!f&&f!=='weekdays');
+  show('-days',f==='weekly');
+  show('-ends',!!f);
+  const u=g('-unit');if(u)u.textContent={daily:'day(s)',weekly:'week(s)',monthly:'month(s)',yearly:'year(s)'}[f]||'';
+  const m=(g('-endmode')||{}).value;
+  show('-until',m==='until');show('-countwrap',m==='count');
+}
+function _calReadRepeat(prefix,startYmd){
+  const g=s=>document.getElementById(prefix+s);
+  const f=(g('-freq')||{}).value||'';
+  if(!f)return null;
+  const r={freq:f==='weekdays'?'weekly':f,interval:f==='weekdays'?1:Math.max(1,Math.min(99,parseInt((g('-int')||{}).value,10)||1))};
+  if(f==='weekdays')r.byDay=[1,2,3,4,5];
+  else if(f==='weekly'){
+    const box=g('-days');
+    r.byDay=box?Array.from(box.querySelectorAll('input:checked')).map(x=>Number(x.value)).sort((a,b)=>a-b):[];
+    if(!r.byDay.length&&startYmd)r.byDay=[new Date(_calDn(startYmd)*86400000).getUTCDay()];
+  }
+  const m=(g('-endmode')||{}).value;
+  const until=(g('-until')||{}).value||'';
+  if(m==='until'&&/^\d{4}-\d{2}-\d{2}$/.test(until)&&(!startYmd||until>=startYmd))r.until=until;
+  if(m==='count')r.count=Math.max(1,Math.min(999,parseInt((g('-count')||{}).value,10)||1));
+  return r;
+}
+// Upcoming repeats of recurring tasks that have a date and a start time,
+// for the next 90 days — shown faded so you can plan around them. Built once
+// per render pass. Completing the current one still spawns the next for real.
+let _taskGhostMemo=null;
+function _taskGhosts(){
+  if(_taskGhostMemo)return _taskGhostMemo;
+  const map={};
+  _taskGhostMemo=map;
+  setTimeout(()=>{_taskGhostMemo=null;},0);
+  if((D&&D.prefs&&D.prefs.calShowTasks===false)||typeof _nextRecurringDue!=='function')return map;
+  const horizon=_ymd(new Date(Date.now()+90*86400000));
+  const pool=(typeof _taskPool==='function'?_taskPool():D.tasks)||[];
+  pool.forEach(t=>{
+    if(!t||!t.recurring||t.recurring==='None'||String(t.status||'')==='Done'||t._shared)return;
+    const s=_taskSchedule(t);if(!s)return;
+    // A later copy already spawned shows itself.
+    if(pool.some(x=>x&&x!==t&&x._recurringFrom!=null&&String(x._recurringFrom)===String(t.id)&&x.status!=='Done'))return;
+    const base=t.due&&/^\d{4}-\d{2}-\d{2}/.test(t.due)?String(t.due).slice(0,10):s.dateStr;
+    let cur={due:base,recurrenceRule:t.recurrenceRule,recurring:t.recurring,_recurrenceIndex:t._recurrenceIndex};
+    for(let i=0;i<60;i++){
+      const nx=_nextRecurringDue(cur);
+      if(!nx)break;
+      const date=_calYmdOf(_calDn(s.dateStr)+(_calDn(nx.due)-_calDn(base)));
+      if(date>horizon)break;
+      (map[date]=map[date]||[]).push({id:t.id,_taskId:t.id,_task:true,_ghost:true,title:String(t.title||'(untitled task)'),hour:s.hour,endHour:s.endHour,time:s.time,dateStr:date,color:_taskCalColor(t)});
+      cur=Object.assign({},cur,{due:nx.due,_recurrenceIndex:nx.idx});
+    }
+  });
+  return map;
+}
+function _taskGhostsOn(ymd){return (_taskGhosts()[ymd]||[]).slice();}
+// Fold old repeat copies in this device's cached calendar now; the server's
+// copy is folded again after it loads (loadServerData).
+try{if(_calMigrateRecurrence())_calPersist();}catch(_){}
 function _calEventsOn(dateObj){
-  const local=(_calEvents||[]).filter((e)=>_calLocalOn(e,dateObj));
+  const local=_calLocalEventsOn(dateObj);
   return [...local,..._syncedEventsOn(dateObj),..._tasksOnDate(dateObj),...((typeof _finBillsOnDate==="function")?_finBillsOnDate(dateObj):[])].sort((a,b)=>(a.hour||0)-(b.hour||0));
 }
 // Resolve the next `limit` _calEvents occurrences (recurring + date-pinned) into
@@ -1410,8 +1774,8 @@ function _noteMeetings(n){return Array.isArray(n&&n.meetings)?n.meetings.filter(
 function _noteForEvent(evId){const k=String(evId);return (D.notes||[]).find(n=>_noteMeetings(n).some(m=>String(m.id)===k));}
 function _findCalEventById(evId){
   const k=String(evId);
-  const local=(_calEvents||[]).find(e=>e&&String(e.id)===k);
-  if(local)return {ev:local,synced:false};
+  const hit=_calResolve(k);
+  if(hit)return {ev:hit.ev,synced:false};
   const raw=((typeof D!=='undefined'&&D&&D.calEvents)||[]).find(e=>e&&String(e.id)===k);
   if(raw)return {ev:raw,synced:true};
   return null;
@@ -1514,7 +1878,8 @@ function _meetPickerFilter(q){
 }
 
 function openCalEvent(id){
-  let ev=_calEvents.find(e=>String(e.id)===String(id));
+  const hit=_calResolve(id);
+  let ev=hit?hit.ev:null;
   let isSynced=false;
   if(!ev){
     const raw=((typeof D!=='undefined'&&D&&D.calEvents)||[]).find(e=>e&&String(e.id)===String(id));
@@ -1535,15 +1900,16 @@ function openCalEvent(id){
   }
   if(!ev)return;
   const m=document.getElementById('modal-content');
-  const dateDisplay=ev.dateStr||'This week';
-  const timeDisplay=(ev.start||ev.time||'')+' – '+(ev.end||'');
+  const dateDisplay=ev.dateStr?fmtDate(ev.dateStr):'Every week';
+  const timeDisplay=_calIsAllDay(ev)?'All day':(ev.start||ev.time||'')+(ev.end?' – '+ev.end:'');
   const mtgNote=_noteForEvent(id);
+  const ruleText=hit&&_calRule(hit.row)?_calRuleText(hit.row):(ev.recurrence&&ev.recurrence!=='none'?({'daily':'Daily','weekly':'Weekly','biweekly':'Every 2 weeks','monthly':'Monthly','yearly':'Yearly'}[ev.recurrence]||ev.recurrence):(!ev.dateStr&&/^weekly$/i.test(String(ev.repeat||''))?'Every week':''));
   const noteBtn=`<button class="btn btn-s" style="height:26px;font-size:11px;color:var(--ac);font-weight:600" onclick="openMeetingNote('${_jsAttr(String(id))}','${_jsAttr(ev.dateStr||'')}')" title="${mtgNote?'Open the meeting note linked to this event':'Create a meeting note linked to this event'}">📝 ${mtgNote?'Open notes':'Take notes'}</button>`;
   const actions=noteBtn+(isSynced
     ?`<span style="font-size:11px;color:var(--t3);padding:3px 8px;background:var(--s3);border-radius:10px" title="Synced from Office 365 — edit in Outlook">☁ Synced from Office 365</span>`
-    :`<button class="btn btn-s" style="height:26px;font-size:11px" onclick="openEditCalEvent(${id})" title="Edit event">✏️ Edit</button>
-      <button class="btn btn-s" style="height:26px;font-size:11px;color:var(--red)" onclick="deleteCalEvent(${id})" title="Delete event">🗑️ Delete</button>`);
-  m.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    :`<button class="btn btn-s" style="height:26px;font-size:11px" onclick="openEditCalEvent('${_jsAttr(String(id))}')" title="Edit event">✏️ Edit</button>
+      <button class="btn btn-s" style="height:26px;font-size:11px;color:var(--red)" onclick="deleteCalEvent('${_jsAttr(String(id))}')" title="Delete event">🗑️ Delete</button>`);
+  m.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px;flex-wrap:wrap">
     <h2 style="font-size:16px;font-weight:600;margin:0">${esc(ev.title)}</h2>
     <div style="display:flex;gap:6px;align-items:center">${actions}</div>
   </div>
@@ -1551,7 +1917,7 @@ function openCalEvent(id){
   <div style="display:flex;gap:8px;align-items:center"><span style="font-size:16px">🕒</span><div><div style="font-size:12px;font-weight:500">${esc(timeDisplay)}</div><div style="font-size:11px;color:var(--t3)">${esc(dateDisplay)}</div></div></div>
   <div style="display:flex;gap:8px;align-items:center"><span style="font-size:16px">📍</span><div style="font-size:12px">${esc(ev.location||'No location')}</div></div>
   <div style="display:flex;gap:8px;align-items:flex-start"><span style="font-size:16px">📝</span><div style="font-size:12px;color:var(--t2);line-height:1.5">${esc(ev.desc||ev.description||'No description')}</div></div>
-  ${ev.recurrence&&ev.recurrence!=='none'?`<div style="display:flex;gap:8px;align-items:center"><span style="font-size:16px">🔁</span><div style="font-size:12px;color:var(--t2)">${{'daily':'Daily','weekly':'Weekly','biweekly':'Every 2 weeks','monthly':'Monthly','yearly':'Yearly'}[ev.recurrence]||ev.recurrence}</div></div>`:''}
+  ${ruleText?`<div style="display:flex;gap:8px;align-items:center"><span style="font-size:16px">🔁</span><div style="font-size:12px;color:var(--t2)">${esc(ruleText)}</div></div>`:''}
   ${ev.attendees&&ev.attendees.length?`<div style="display:flex;gap:8px;align-items:flex-start"><span style="font-size:16px">👥</span><div><div style="font-size:11px;color:var(--t3);margin-bottom:4px">Attendees</div><div style="display:flex;flex-wrap:wrap;gap:4px">${ev.attendees.map(a=>`<span style="font-size:11px;background:var(--s3);padding:2px 6px;border-radius:10px">${esc(a)}</span>`).join('')}</div></div></div>`:''}
   </div>
   <div style="display:flex;gap:6px;margin-top:14px;justify-content:flex-end">
@@ -1562,164 +1928,109 @@ function openCalEvent(id){
 }
 
 function openEditCalEvent(id){
-  const ev=_calEvents.find(e=>String(e.id)===String(id));
-  if(!ev)return;
+  const hit=_calResolve(id);
+  if(!hit)return;
+  const ev=hit.ev,row=hit.row;
   const m=document.getElementById('modal-content');
-  // Parse existing time values
   // <input type=time> needs 24h HH:MM; older events carry "10:00 AM" or
   // only an hour.
   const startTime=_calHM(ev.start||ev.time,Number.isFinite(ev.hour)?ev.hour:9);
   const endTime=_calHM(ev.end,Number.isFinite(ev.endHour)?ev.endHour:(Number.isFinite(ev.hour)?ev.hour+1:10));
-  const dateVal=ev.dateStr||_ymd(new Date());
-  // An undated row repeats every week on its weekday; it stays undated
-  // unless the date is actually changed (saving used to pin it to today).
+  // An undated row (every week on its weekday) shows this week's date and
+  // stays undated unless the date or the Repeat setting is changed.
+  const dateVal=ev.dateStr||_nevDefaultDate(ev.day,null);
   const undatedAttr=ev.dateStr?'':` data-undated="${esc(dateVal)}"`;
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:14px">✏️ Edit Event</h2>
   <div style="display:flex;flex-direction:column;gap:10px">
-  <div class="field"><label>Title</label><input class="inp" id="cev-title" value="${esc(ev.title)}"></div>
+  <div class="field"><label for="cev-title">Title</label><input class="inp" id="cev-title" value="${esc(ev.title)}"></div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-    <div class="field"><label>Date</label><input type="date" class="inp" id="cev-date" value="${esc(dateVal)}"${undatedAttr}></div>
-    <div class="field"><label>All Day</label><select class="inp" id="cev-allday"><option value="0" ${!ev.isAllDay?'selected':''}>No</option><option value="1" ${ev.isAllDay?'selected':''}>Yes</option></select></div>
+    <div class="field"><label for="cev-date">Date</label><input type="date" class="inp" id="cev-date" value="${esc(dateVal)}"${undatedAttr}></div>
+    <div class="field"><label for="cev-allday">All Day</label><select class="inp" id="cev-allday"><option value="0" ${!ev.isAllDay?'selected':''}>No</option><option value="1" ${ev.isAllDay?'selected':''}>Yes</option></select></div>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-    <div class="field"><label>Start Time</label><input type="time" class="inp" id="cev-start" value="${esc(startTime)}"></div>
-    <div class="field"><label>End Time</label><input type="time" class="inp" id="cev-end" value="${esc(endTime)}"></div>
+    <div class="field"><label for="cev-start">Start Time</label><input type="time" class="inp" id="cev-start" value="${esc(startTime)}"></div>
+    <div class="field"><label for="cev-end">End Time</label><input type="time" class="inp" id="cev-end" value="${esc(endTime)}"></div>
   </div>
-  <div class="field"><label>Location</label><input class="inp" id="cev-loc" value="${esc(ev.location||'')}"></div>
-  <div class="field"><label>Description</label><textarea class="inp" id="cev-desc" style="min-height:60px">${esc(ev.desc||ev.description||'')}</textarea></div>
-  <div class="field"><label>Repeat</label><select class="inp" id="cev-recurrence">
-    <option value="none" ${(!ev.recurrence||ev.recurrence==='none')?'selected':''}>Does not repeat</option>
-    <option value="daily" ${ev.recurrence==='daily'?'selected':''}>Daily</option>
-    <option value="weekly" ${ev.recurrence==='weekly'?'selected':''}>Weekly</option>
-    <option value="biweekly" ${ev.recurrence==='biweekly'?'selected':''}>Every 2 weeks</option>
-    <option value="monthly" ${ev.recurrence==='monthly'?'selected':''}>Monthly</option>
-    <option value="yearly" ${ev.recurrence==='yearly'?'selected':''}>Yearly</option>
-  </select></div>
+  <div class="field"><label for="cev-loc">Location</label><input class="inp" id="cev-loc" value="${esc(ev.location||'')}"></div>
+  <div class="field"><label for="cev-desc">Description</label><textarea class="inp" id="cev-desc" style="min-height:60px">${esc(ev.desc||ev.description||'')}</textarea></div>
+  ${_calRepeatEditor('cev',row)}
   </div>
   <div style="display:flex;gap:8px;margin-top:12px">
-  <button class="btn btn-p" onclick="saveEditCalEvent(${id})">&#10003; Save Changes</button>
-  <button class="btn btn-s" onclick="openCalEvent(${id})">Cancel</button>
+  <button class="btn btn-p" onclick="saveEditCalEvent('${_jsAttr(String(id))}')">&#10003; Save Changes</button>
+  <button class="btn btn-s" onclick="openCalEvent('${_jsAttr(String(id))}')">Cancel</button>
   </div>`;
   document.getElementById('modal-capture').classList.add('show');
+  _calRepeatUi(document.getElementById('cev-freq'));
   setTimeout(()=>document.getElementById('cev-title')?.focus(),100);
 }
 
 async function saveEditCalEvent(id){
-  const ev=_calEvents.find(e=>String(e.id)===String(id));
-  if(!ev)return;
+  const hit=_calResolve(id);
+  if(!hit)return;
+  const row=hit.row;
   const title=document.getElementById('cev-title')?.value.trim();
   if(!title){toast('⚠ Title is required');return;}
   const dateEl=document.getElementById('cev-date');
-  const keepUndated=!!(dateEl&&dateEl.dataset.undated&&dateEl.value===dateEl.dataset.undated);
-  const dateVal=keepUndated?'':dateEl?.value;
+  const dateVal=dateEl?.value||hit.ev.dateStr||_ymd(new Date());
   const startTime=document.getElementById('cev-start')?.value||'09:00';
   const endTime=document.getElementById('cev-end')?.value||'10:00';
   const location=document.getElementById('cev-loc')?.value.trim()||null;
   const desc=document.getElementById('cev-desc')?.value.trim()||null;
   const isAllDay=parseInt(document.getElementById('cev-allday')?.value||'0');
-  const startHour=parseInt(startTime.split(':')[0]);
-  // The grid is hour cells: an end at 10:30 still occupies the 10:00 cell
-  // (it used to be cut off at 10:00).
+  const [sh,sm]=startTime.split(':').map(Number);
+  // The grid is hour cells: an end at 10:30 still occupies the 10:00 cell.
   const [eh,em]=endTime.split(':').map(Number);
-  const endHour=Math.max(startHour+1,(eh||0)+((em||0)>0?1:0));
-  // Update local state
-  const recurrence=document.getElementById('cev-recurrence')?.value||'none';
-  ev.title=title;
-  ev.dateStr=dateVal;
-  ev.start=startTime;
-  ev.time=startTime;
-  ev.end=endTime;
-  ev.hour=startHour;
-  ev.endHour=endHour;
-  ev.location=location;
-  ev.desc=desc;
-  ev.isAllDay=isAllDay;
-  ev.recurrence=recurrence;
-  _calPersist();
-  // If event has a DB ID, persist to server
-  if(ev.dbId){
-    try{
-      const startDate=dateVal?new Date(dateVal+'T'+startTime+':00'):null;
-      const endDate=dateVal?new Date(dateVal+'T'+endTime+':00'):null;
-      await _trpc('oauthSync.updateCalendarEvent',{
-        id:ev.dbId,
-        title,
-        ...(startDate?{start:startDate}:{}),
-        ...(endDate?{end:endDate}:{}),
-        location,
-        description:desc,
-        isAllDay,
-        recurrence,
-      },'mutate');
-      toast('✓ Event updated and saved to server');
-    }catch(e){
-      toast('✓ Event updated locally (server sync failed: '+e.message+')');
-    }
+  const fields={title,start:startTime,time:startTime,end:endTime,hour:sh||0,minute:sm||0,endHour:Math.max((sh||0)+1,(eh||0)+((em||0)>0?1:0)),location,desc,isAllDay};
+  const rule=_calReadRepeat('cev',dateVal);
+  let msg='✓ Event updated';
+  if(_calRule(row)){
+    const scope=await _calAskScope(title,'Edit');
+    if(!scope)return;
+    const nr=_calApplyEdit(row,hit.occ,Object.assign({},fields,{dateStr:dateVal}),rule,scope);
+    if(nr)_calEvents.push(nr);
+    msg=scope==='one'?'✓ This occurrence updated':scope==='following'?'✓ This and later occurrences updated':'✓ All occurrences updated';
+  }else if(!row.dateStr&&dateEl&&dateEl.dataset.undated&&dateVal===dateEl.dataset.undated&&rule&&rule.freq==='weekly'&&rule.interval===1&&(rule.byDay||[]).length===1&&!rule.until&&!rule.count&&/^weekly$/i.test(String(row.repeat||''))){
+    // An every-week row left as every week: keep it as it was.
+    _CAL_EV_FIELDS.forEach(f=>{if(fields[f]!==undefined)row[f]=fields[f];});
   }else{
-    toast('✓ Event updated');
+    let start=dateVal;
+    // An undated weekly row made into a series starts from when it was made,
+    // so earlier weeks keep showing it.
+    if(!row.dateStr&&rule&&Number(row.id)>1e12){const c=_calDn(_ymd(new Date(Number(row.id)))),k=_calDn(dateVal);if(c<k)start=_calYmdOf(k-Math.floor((k-c)/7)*7);}
+    _calApplyEdit(row,null,Object.assign({},fields,{dateStr:start}),rule,'all');
+    row.dateStr=row.dateStr||start;
+    row.day=(new Date(_calDn(row.dateStr)*86400000).getUTCDay()+6)%7;
   }
+  _calPersist();
+  // A synced row also keeps its server copy current.
+  if(row.dbId&&!_calRule(row)){
+    try{
+      await _trpc('oauthSync.updateCalendarEvent',{id:row.dbId,title,start:new Date(row.dateStr+'T'+startTime+':00'),end:new Date(row.dateStr+'T'+endTime+':00'),location,description:desc,isAllDay},'mutate');
+    }catch(e){msg+=' (server copy not updated: '+e.message+')';}
+  }
+  toast(msg);
   closeModal();
   renderCal();
 }
 
 async function deleteCalEvent(id){
-  const ev=_calEvents.find(e=>String(e.id)===String(id));
-  if(!ev)return;
-  // Check if this is a recurring event (has recurId or repeat field set)
-  const isRecurring=ev.recurId||(ev.repeat&&ev.repeat!=='none')||(ev.recurrence&&ev.recurrence!=='none');
-  let deleteAll=false;
-  if(isRecurring){
-    // Show a custom choice dialog instead of plain confirm
-    const choice=await new Promise(resolve=>{
-      const ov=document.createElement('div');
-      ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center';
-      ov.innerHTML=`<div style="background:var(--bg);border:1px solid var(--br);border-radius:12px;padding:24px;max-width:340px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.3)">
-        <h3 style="font-size:15px;font-weight:600;margin:0 0 8px">Delete recurring event?</h3>
-        <p style="font-size:12px;color:var(--t2);margin:0 0 18px">"${ev.title.replace(/"/g,'&quot;')}" repeats. What would you like to delete?</p>
-        <div style="display:flex;flex-direction:column;gap:8px">
-          <button class="btn btn-s" style="text-align:left;padding:8px 12px;font-size:12px" id="del-one">🗑 Delete this event only</button>
-          <button class="btn btn-s" style="text-align:left;padding:8px 12px;font-size:12px;color:var(--red)" id="del-all">🗑 Delete all occurrences</button>
-          <button class="btn btn-s" style="text-align:left;padding:8px 12px;font-size:12px" id="del-cancel">Cancel</button>
-        </div>
-      </div>`;
-      document.body.appendChild(ov);
-      ov.querySelector('#del-one').onclick=()=>{document.body.removeChild(ov);resolve('one');};
-      ov.querySelector('#del-all').onclick=()=>{document.body.removeChild(ov);resolve('all');};
-      ov.querySelector('#del-cancel').onclick=()=>{document.body.removeChild(ov);resolve(null);};
-    });
-    if(!choice)return;
-    deleteAll=choice==='all';
-  }else{
-    if(!confirm('Delete "'+ev.title+'"? This cannot be undone.'))return;
-  }
-  // Remove from local array
-  if(deleteAll&&(ev.recurId||ev.repeat)){
-    const recurId=ev.recurId;
-    const repeat=ev.repeat;
-    const title=ev.title;
-    const before=_calEvents.length;
-    // Remove all events with same recurId or same title+repeat (for older format)
-    for(let i=_calEvents.length-1;i>=0;i--){
-      const e=_calEvents[i];
-      if((recurId&&e.recurId===recurId)||(repeat&&e.repeat===repeat&&e.title===title)){
-        _calEvents.splice(i,1);
-      }
-    }
-    const removed=before-_calEvents.length;
-    toast(`✓ Deleted ${removed} occurrence${removed!==1?'s':''}`);
-  }else{
-    const idx=_calEvents.findIndex(e=>String(e.id)===String(id));
-    if(idx>-1)_calEvents.splice(idx,1);
-    toast('✓ Event deleted');
-  }
+  const hit=_calResolve(id);
+  if(!hit)return;
+  const row=hit.row;
+  let removeRow=true,msg='✓ Event deleted';
+  if(_calRule(row)){
+    const scope=await _calAskScope(row.title||'','Delete');
+    if(!scope)return;
+    removeRow=_calApplyDelete(row,hit.occ,scope);
+    if(!removeRow)msg=scope==='one'?'✓ This occurrence deleted':'✓ This and later occurrences deleted';
+    else if(scope!=='all')msg='✓ Series deleted';
+  }else if(!confirm('Delete "'+row.title+'"? This cannot be undone.'))return;
+  if(removeRow){const idx=_calEvents.indexOf(row);if(idx>-1)_calEvents.splice(idx,1);}
   _calPersist();
-  // If event has a DB ID, delete from server too
-  if(ev.dbId){
-    try{
-      await _trpc('oauthSync.deleteCalendarEvent',{id:ev.dbId},'mutate');
-    }catch(e){
-      console.warn('Server delete failed:',e.message);
-    }
+  toast(msg);
+  if(removeRow&&row.dbId){
+    try{await _trpc('oauthSync.deleteCalendarEvent',{id:row.dbId},'mutate');}
+    catch(e){console.warn('Server delete failed:',e.message);}
   }
   closeModal();
   renderCal();
@@ -1776,13 +2087,14 @@ function openNewCalEventModal(prefillDay,prefillHour,prefillTitle,prefillDuratio
   <div class="field"><label>Location</label><input class="inp" id="nev-loc" placeholder="Room, Zoom, Teams..."></div>
   <div class="field"><label>Attendees</label><input class="inp" id="nev-att" placeholder="Names, comma separated..."></div>
   <div class="field"><label>Description</label><textarea class="inp" id="nev-desc" style="min-height:60px" placeholder="Event details..."></textarea></div>
-  <div class="field"><label>Repeat</label><select class="inp" id="nev-repeat"><option value="none">Does not repeat</option><option value="daily">Daily</option><option value="weekly">Weekly (same day each week)</option><option value="biweekly">Every 2 weeks</option><option value="monthly">Monthly (same day of month)</option></select></div>
+  ${_calRepeatEditor('nev',null)}
   </div>
   <div style="display:flex;gap:8px;margin-top:12px">
   <button class="btn btn-p" onclick="saveNewCalEvent()">✓ Add Event</button>
   <button class="btn btn-s" onclick="closeModal()">Cancel</button>
   </div>`;
   document.getElementById('modal-capture').classList.add('show');
+  _calRepeatUi(document.getElementById('nev-freq'));
   setTimeout(()=>document.getElementById('nev-title')?.focus(),100);
 }
 // Default date for the new-event form: an explicit date, else the chosen
@@ -1804,33 +2116,21 @@ function saveNewCalEvent(){
   const endVal=document.getElementById('nev-end')?.value||'10:00';
   const [sh,sm]=startVal.split(':').map(Number);
   const [eh,em]=endVal.split(':').map(Number);
-  const fmt=(h,mi)=>{const ampm=h>=12?'PM':'AM';const h12=h%12||12;return`${h12}:${String(mi||0).padStart(2,'0')} ${ampm}`};
   const dateStr=document.getElementById('nev-date')?.value||_ymd(new Date());
-  const _d0=new Date(dateStr+'T00:00');
-  const day=(_d0.getDay()+6)%7; // 0=Mon, the grid's weekday convention
+  const day=(new Date(_calDn(dateStr)*86400000).getUTCDay()+6)%7; // 0=Mon, the grid's weekday convention
   const color=document.getElementById('nev-color')?.value||'var(--ac)';
   const loc=document.getElementById('nev-loc')?.value||'';
   const att=document.getElementById('nev-att')?.value||'';
   const desc=document.getElementById('nev-desc')?.value||'';
-  const repeat=document.getElementById('nev-repeat')?.value||'none';
-  const recurId=repeat!=='none'?Date.now():null;
-  const baseEv={id:Date.now(),title,time:fmt(sh,sm),end:fmt(eh,em),start:startVal,endTime:endVal,day,hour:sh,minute:sm||0,endHour:eh,color,location:loc,attendees:att?att.split(',').map(s=>s.trim()).filter(Boolean):[],desc,repeat,recurId};
-  if(repeat==='weekly'){
-    // One row with no date = the grid's "every week on this weekday".
-    _calEvents.push(baseEv);
-  }else{
-    _calEvents.push({...baseEv,dateStr});
-    // Dated copies for the other repeats (they used to be 12 identical
-    // weekday-only rows stacked in one cell).
-    const add=(n,unit)=>{const d=_pd(_d0);if(unit==='d')d.setDate(d.getDate()+n);else d.setMonth(d.getMonth()+n);return _ymd(d);};
-    const plan=repeat==='daily'?Array.from({length:13},(_,i)=>[i+1,'d']):repeat==='biweekly'?Array.from({length:6},(_,i)=>[(i+1)*14,'d']):repeat==='monthly'?Array.from({length:5},(_,i)=>[i+1,'m']):[];
-    plan.forEach(([n,u],i)=>{const ds=add(n,u);const dd=new Date(ds+'T00:00');_calEvents.push({...baseEv,id:Date.now()+i+1,dateStr:ds,day:(dd.getDay()+6)%7,_recurIndex:i+1});});
-  }
-  // Persist: this used to only change memory, so the event vanished on reload.
+  // One row; a repeat is a rule on it (it used to be up to 14 copies).
+  const rule=_calReadRepeat('nev',dateStr);
+  const ev={id:Date.now(),title,dateStr,day,time:startVal,start:startVal,end:endVal,hour:sh||0,minute:sm||0,endHour:Math.max((sh||0)+1,(eh||0)+((em||0)>0?1:0)),color,location:loc,attendees:att?att.split(',').map(x=>x.trim()).filter(Boolean):[],desc};
+  if(rule)ev.rrule=rule;
+  _calEvents.push(ev);
   if(typeof _calPersist==='function')_calPersist();
   closeModal();
   renderCal();
-  toast(`✓ Event added${repeat!=='none'?' (recurring)':''}!`);
+  toast('✓ Event added'+(rule?' · '+_calRuleText(ev):''));
 }
 let _calWeekOffset=0;
 let _calView='week'; // 'week' | 'day' | 'month'
@@ -1876,7 +2176,7 @@ function renderCalWeek(){
   const weekDayStrs=weekDays.map(wd=>_ymd(wd.dt));
   // Events per column, split into all-day and timed (all-day ones used to be
   // invisible, and anything outside 8 AM–5 PM was dropped with no hint).
-  const _colEvents=weekDays.map((wd,d)=>[..._calEvents.filter(e=>_calLocalOn(e,wd.dt)),..._syncedEventsOn(wd.dt),..._scheduledTaskEvents().filter(e=>e.dateStr===weekDayStrs[d])]);
+  const _colEvents=weekDays.map((wd,d)=>[..._calLocalEventsOn(wd.dt),..._syncedEventsOn(wd.dt),..._scheduledTaskEvents().filter(e=>e.dateStr===weekDayStrs[d]),..._taskGhostsOn(weekDayStrs[d])]);
   const _allDay=_colEvents.map(list=>list.filter(_calIsAllDay));
   const _timed=_colEvents.map(list=>list.filter(e=>!_calIsAllDay(e)));
   const _hrs=_timed.flat().map(e=>Number(e.hour)).filter(h=>Number.isFinite(h)&&h>=0&&h<=23);
@@ -1901,7 +2201,7 @@ function renderCalDay(){
   const dayLabel=viewDay.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
   const dayStr=_ymd(viewDay);
   const dayOfWeek=(viewDay.getDay()+6)%7; // 0=Mon
-  const _dayLocal=_calEvents.filter(e=>_calLocalOn(e,viewDay)&&!_calIsAllDay(e));
+  const _dayLocal=_calLocalEventsOn(viewDay).filter(e=>!_calIsAllDay(e));
   const _dayHrs=_dayLocal.map(e=>Number(e.hour)).filter(h=>Number.isFinite(h)&&h>=0&&h<=23);
   const hours=Array.from({length:Math.max(22,..._dayHrs)-Math.min(6,..._dayHrs)+1},(_,i)=>Math.min(6,..._dayHrs)+i);
   const rows=hours.map(h=>{
@@ -1916,13 +2216,13 @@ function renderCalDay(){
       // Rescheduling a task happens in its drawer.
       if(e._task)return _calChip(e,{cls:'',extra:`;padding:4px 8px;border-radius:4px;margin-bottom:3px;font-size:11px;border-left-width:3px`});
       return`<div
-        data-ev-id="${e.id}"
+        data-ev-id="${esc(String(e.id))}"
         draggable="true"
         style="background:${e.color}22;border-left:3px solid ${e.color};padding:4px 8px 2px 8px;border-radius:4px;margin-bottom:3px;cursor:grab;font-size:11px;user-select:none;position:relative"
-        onclick="openCalEvent(${e.id})"
-        ondragstart="calDayDragStart(event,${e.id})"
+        onclick="openCalEvent('${_jsAttr(String(e.id))}')"
+        ondragstart="calDayDragStart(event,'${_jsAttr(String(e.id))}')"
         title="Drag to reschedule">
-        <strong>${esc(e.title)}</strong>
+        <strong>${e._seriesId!=null?'🔁 ':''}${esc(e.title)}</strong>
         ${e.time?`<span style="color:var(--t3);font-size:11px;margin-left:6px">${e.time}${e.end?' – '+e.end:''}</span>`:''}
         ${e.location?`<span style="color:var(--t3);font-size:11px;margin-left:6px">📍 ${esc(e.location)}</span>`:''}
         <span style="float:right;font-size:11px;color:var(--t3);opacity:.6" title="Drag to move">↕</span>
@@ -1931,7 +2231,7 @@ function renderCalDay(){
           style="position:absolute;bottom:0;left:0;right:0;height:8px;cursor:ns-resize;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s"
           onmouseenter="this.style.opacity='1'"
           onmouseleave="this.style.opacity='0'"
-          onmousedown="calResizeStart(event,${e.id})"
+          onmousedown="calResizeStart(event,'${_jsAttr(String(e.id))}')"
           onclick="event.stopPropagation()"
           title="Drag to resize">
           <div style="width:24px;height:3px;background:${e.color};border-radius:2px;opacity:.7"></div>
@@ -1954,21 +2254,48 @@ function renderCalDay(){
   }).join('');
   $('cal-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('calendar',22,'var(--page-accent)')}Calendar</h1><p style="font-size:12px;color:var(--t2)">${dayLabel}</p></div><div style="display:flex;gap:4px;align-items:center"><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calDayOffset--;renderCal()" title="Previous day">‹</button><button class="btn btn-s" style="height:28px;font-size:11px" onclick="_calDayOffset=0;renderCal()">Today</button><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calDayOffset++;renderCal()" title="Next day">›</button>${_calAIMenu('cal-ai-day',[{label:'💬 NL Event',fn:'aiCalNLP()',c:'var(--ac)'},{label:'📝 Prep Brief',fn:'aiMeetingPrepBrief()',c:'var(--grn)'},{label:'✓ Extract Actions',fn:'aiExtractActions()',c:'var(--purp)'}])}<button class="btn btn-s" id="cal-sync-btn-day" style="height:28px;font-size:11px" onclick="syncCalendarO365(this)" title="Sync Office 365 calendar">☁ Sync O365</button><button class="btn btn-p" onclick="openNewCalEventModal()">+ Event</button></div></div>
 ${_calViewTabs()}
-${(()=>{const ad=[..._calEvents.filter(e=>_calLocalOn(e,viewDay)&&_calIsAllDay(e)),..._syncedEventsOn(viewDay).filter(_calIsAllDay)];return ad.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><span style="font-size:11px;color:var(--t3);font-weight:600">All day</span>${ad.map(e=>_calChip(e)).join('')}</div>`:'';})()}<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;overflow:hidden">${rows}</div>`;
+${(()=>{const ad=[..._calLocalEventsOn(viewDay).filter(_calIsAllDay),..._syncedEventsOn(viewDay).filter(_calIsAllDay)];return ad.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><span style="font-size:11px;color:var(--t3);font-weight:600">All day</span>${ad.map(e=>_calChip(e)).join('')}</div>`:'';})()}<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;overflow:hidden">${rows}</div>`;
 }
 
 let _calDragEvId=null;
 let _calResizeEvId=null;
 let _calResizeStartY=0;
 let _calResizeStartEndHour=0;
+// Start/end of a grid event in minutes after midnight (start/end may be
+// "HH:MM", "9:00 AM", or only hour/endHour on older rows).
+function _calEvMins(ev){
+  const p=v=>{const m=/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])?$/.exec(String(v||'').trim());if(!m)return null;let h=+m[1]%24;if(m[3]){h=h%12+(/p/i.test(m[3])?12:0);}return h*60+(+m[2]);};
+  let s=p(ev&&ev.start);if(s==null)s=p(ev&&ev.time);if(s==null)s=(Number(ev&&ev.hour)||0)*60+(Number(ev&&ev.minute)||0);
+  let e=p(ev&&ev.end);if(e==null)e=(Number.isFinite(Number(ev&&ev.endHour))&&ev.endHour!=null?Number(ev.endHour)*60:s+60);
+  if(e<=s)e=s+60;
+  return {s,e};
+}
+// Move/resize a grid event, or just one occurrence of a repeating one.
+// Returns the resolved hit (null when the id is unknown).
+function _calMoveEvent(id,dateStr,startMins,endMins){
+  const hit=_calResolve(id);
+  if(!hit)return null;
+  const s=Math.max(0,Math.min(1439,Math.round(startMins))),e=Math.max(s+15,Math.min(1440,Math.round(endMins)));
+  const hm=m=>String(Math.floor(Math.min(m,1439)/60)).padStart(2,'0')+':'+String(Math.min(m,1439)%60).padStart(2,'0');
+  const f={hour:Math.floor(s/60),minute:s%60,endHour:Math.min(24,Math.max(Math.floor(s/60)+1,Math.ceil(e/60))),start:hm(s),time:hm(s),end:hm(e===1440?1439:e)};
+  if(hit.occ!=null)_calApplyEdit(hit.row,hit.occ,Object.assign({},f,dateStr?{dateStr}:{}),_calRule(hit.row),'one');
+  else{
+    Object.assign(hit.row,f);
+    if(dateStr){hit.row.dateStr=dateStr;hit.row.day=(new Date(_calDn(dateStr)*86400000).getUTCDay()+6)%7;}
+  }
+  _calPersist();
+  return hit;
+}
+let _calResizeNewEnd=null;
 function calResizeStart(event,evId){
   event.preventDefault();
   event.stopPropagation();
-  const ev=_calEvents.find(e=>String(e.id)===String(evId));
-  if(!ev)return;
+  const hit=_calResolve(evId);
+  if(!hit)return;
   _calResizeEvId=evId;
   _calResizeStartY=event.clientY;
-  _calResizeStartEndHour=ev.endHour||(ev.hour+1);
+  _calResizeStartEndHour=_calEvMins(hit.ev).e;
+  _calResizeNewEnd=null;
   // Prevent drag-to-move from firing during resize
   document.addEventListener('mousemove',calResizeMove);
   document.addEventListener('mouseup',calResizeEnd,{once:true});
@@ -1977,34 +2304,33 @@ function calResizeStart(event,evId){
 }
 function calResizeMove(event){
   if(_calResizeEvId===null)return;
-  const ev=_calEvents.find(e=>String(e.id)===String(_calResizeEvId));
-  if(!ev)return;
-  // Each hour row is approximately 52px tall (min-height)
-  const rowH=52;
-  const deltaHours=Math.round((event.clientY-_calResizeStartY)/rowH);
-  const newEndHour=Math.max(ev.hour+1,Math.min(23,_calResizeStartEndHour+deltaHours));
-  if(newEndHour===ev.endHour)return;
-  ev.endHour=newEndHour;
-  const fmt=h=>{const ampm=h>=12?'PM':'AM';const h12=h%12||12;return`${h12}:00 ${ampm}`};
-  ev.end=fmt(newEndHour);
-  // Live update the time label in DOM without full re-render
-  const el=document.querySelector(`[data-ev-id="${ev.id}"]`);
-  if(el){
-    const timeSpan=el.querySelector('span');
-    if(timeSpan)timeSpan.textContent=`${ev.time} – ${ev.end}`;
-  }
+  const hit=_calResolve(_calResizeEvId);
+  if(!hit)return;
+  const {s}=_calEvMins(hit.ev);
+  // Each hour row is about 52px tall; snap to half hours.
+  const delta=Math.round((event.clientY-_calResizeStartY)/26)*30;
+  const ne=Math.max(s+30,Math.min(1440,_calResizeStartEndHour+delta));
+  if(ne===_calResizeNewEnd)return;
+  _calResizeNewEnd=ne;
+  const el=document.querySelector(`[data-ev-id="${CSS.escape(String(_calResizeEvId))}"]`);
+  const span=el&&el.querySelector('span');
+  const hm=m=>String(Math.floor(Math.min(m,1439)/60)).padStart(2,'0')+':'+String(Math.min(m,1439)%60).padStart(2,'0');
+  if(span)span.textContent=`${hm(s)} – ${hm(ne)}`;
 }
 function calResizeEnd(){
   if(_calResizeEvId===null)return;
   document.removeEventListener('mousemove',calResizeMove);
   document.body.style.cursor='';
   document.body.style.userSelect='';
-  const ev=_calEvents.find(e=>String(e.id)===String(_calResizeEvId));
-  _calResizeEvId=null;
-  if(!ev)return;
-  _calPersist();
-  renderCalDay();
-  toast(`📅 "${ev.title}" resized to ${ev.time} – ${ev.end}`);
+  const id=_calResizeEvId,ne=_calResizeNewEnd;
+  _calResizeEvId=null;_calResizeNewEnd=null;
+  const hit=_calResolve(id);
+  if(!hit||ne==null)return;
+  const {s}=_calEvMins(hit.ev);
+  _calMoveEvent(id,null,s,ne);
+  if(typeof _calAfterMove==='function')_calAfterMove(id);
+  renderCal();
+  toast(`📅 "${hit.ev.title}" now ends at ${String(Math.floor(Math.min(ne,1439)/60)).padStart(2,'0')}:${String(Math.min(ne,1439)%60).padStart(2,'0')}${hit.occ!=null?' (this occurrence)':''}`);
 }
 function calDayDragStart(event,evId){
   _calDragEvId=evId;
@@ -2016,26 +2342,17 @@ function calDayDragStart(event,evId){
 }
 function calDayDrop(event,newHour,dayOfWeek,dayStr){
   event.preventDefault();
-  const evId=_calDragEvId||parseInt(event.dataTransfer.getData('text/plain'));
+  const evId=_calDragEvId!=null?_calDragEvId:event.dataTransfer.getData('text/plain');
   _calDragEvId=null;
-  const ev=_calEvents.find(e=>String(e.id)===String(evId));
-  if(!ev)return;
-  const oldHour=ev.hour;
-  if(oldHour===newHour)return;
-  const durationH=ev.endHour&&ev.endHour>ev.hour?ev.endHour-ev.hour:1;
-  ev.hour=newHour;
-  ev.endHour=newHour+durationH;
-  // Update dateStr to current day view
-  ev.dateStr=dayStr;
-  ev.day=dayOfWeek;
-  // Recalculate time labels
-  const fmt=h=>{const ampm=h>=12?'PM':'AM';const h12=h%12||12;return`${h12}:00 ${ampm}`};
-  ev.time=fmt(newHour);
-  ev.end=fmt(newHour+durationH);
-  // Persist
-  _calPersist();
-  renderCalDay();
-  toast(`📅 "${ev.title}" moved to ${ev.time}`);
+  const hit=_calResolve(evId);
+  if(!hit)return;
+  const {s,e}=_calEvMins(hit.ev);
+  const ns=newHour*60+(s%60);
+  if(ns===s&&hit.ev.dateStr===dayStr)return;
+  _calMoveEvent(evId,dayStr,ns,ns+(e-s));
+  if(typeof _calAfterMove==='function')_calAfterMove(evId);
+  renderCal();
+  toast(`📅 "${hit.ev.title}" moved to ${String(newHour).padStart(2,'0')}:${String(s%60).padStart(2,'0')}${hit.occ!=null?' (this occurrence)':''}`);
 }
 function renderCalMonth(){
   const today=new Date();
@@ -2057,7 +2374,7 @@ function renderCalMonth(){
     const dStr=_ymd(d);
     const dow=(d.getDay()+6)%7;
     const isCurrentMonth=_calMonthOffset===0;
-    const evs=[..._calEvents.filter(e=>_calLocalOn(e,d)),..._syncedEventsOn(d),..._tasksOnDate(d),...((typeof _finBillsOnDate==="function")?_finBillsOnDate(d):[])];
+    const evs=[..._calLocalEventsOn(d),..._syncedEventsOn(d),..._tasksOnDate(d),...((typeof _finBillsOnDate==="function")?_finBillsOnDate(d):[])];
     const evDots=evs.slice(0,3).map(e=>_calChip(e,{cls:'',extra:';font-size:11px;padding:1px 4px;border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis'})).join('');
     const moreCount=evs.length>3?`<div style="font-size:9px;color:var(--t3);padding-left:4px">+${evs.length-3} more</div>`:'';
     return`<div style="border:1px solid var(--bd1);min-height:80px;padding:4px;cursor:pointer;background:${isTodayCell?'var(--acs)':isThisMonth?'var(--s2)':'var(--s1)'};border-radius:4px" onclick="_calDayOffset=Math.round((new Date('${_jsAttr(dStr)}')-new Date(new Date().toDateString()))/(86400000));_calView='day';renderCal()">
@@ -2157,7 +2474,7 @@ function aiScheduleOptimize(){
     const d=_pd(weekStart);d.setDate(weekStart.getDate()+i);
     return _ymd(d);
   });
-  const weekEvents=_calEvents.filter(e=>weekDates.includes(e.dateStr));
+  const weekEvents=_calLocalBetween(weekDates[0],weekDates[6]);
   const suggestions=[];
   // Check for back-to-back meetings
   weekDates.forEach(dateStr=>{
@@ -2192,7 +2509,7 @@ function aiMeetingPrepBrief(){
   // Find the next upcoming event
   const today=new Date();
   const todayStr=_ymd(today);
-  const upcoming=_calEvents.filter(e=>e.dateStr>=todayStr).sort((a,b)=>a.dateStr.localeCompare(b.dateStr)||a.hour-b.hour);
+  const upcoming=_calLocalBetween(todayStr,_ymd(new Date(Date.now()+60*86400000))).filter(e=>!(e.dateStr===todayStr&&(Number(e.endHour)||0)<=new Date().getHours())).sort((a,b)=>a.dateStr.localeCompare(b.dateStr)||a.hour-b.hour);
   if(!upcoming.length){toast('No upcoming events found');return;}
   const ev=upcoming[0];
   // Find linked notes, tasks, contacts

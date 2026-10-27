@@ -11853,6 +11853,8 @@ async function loadServerData(){
       if((!Array.isArray(_srvCal)||!_srvCal.length)&&Array.isArray(_calEvents)&&_calEvents.length&&_calEvents!==_calEventsDefault){
         setTimeout(()=>_pushKeyToServer('calGrid'),1500);
       }
+      // Old repeat copies from either device fold into one repeating row (-236).
+      if(typeof _calMigrateRecurrence==='function'&&_calMigrateRecurrence())_calPersist();
       if(Array.isArray(_srvCal)&&_srvCal.length&&typeof curScreen!=='undefined'&&curScreen==='calendar'&&typeof renderCal==='function')setTimeout(renderCal,0);
       localStorage.setItem('lu_calGrid_synced','1');
     }catch(_){}
