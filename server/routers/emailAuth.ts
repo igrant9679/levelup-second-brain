@@ -23,6 +23,7 @@ import { ENV } from '../_core/env';
 import { appOrigin } from '../_core/appOrigin';
 import { and, isNull, sql } from 'drizzle-orm';
 import { users } from '../../drizzle/schema';
+import { hit, blocked, clearKey, clientIp } from "../_core/rateLimit";
 
 /** Reset tokens are stored as SHA-256 hashes, so a DB read can't reveal a live link. */
 function hashResetToken(token: string): string {
@@ -56,15 +57,22 @@ export const emailAuthRouter = router({
    */
   login: publicProcedure
     .input(z.object({
-      email: z.string().email(),
-      password: z.string().min(1),
+      email: z.string().email().max(320),
+      password: z.string().min(1).max(500),
       rememberMe: z.boolean().optional().default(false),
     }))
     .mutation(async ({ input, ctx }) => {
-      const user = await db.getUserByEmail(input.email.toLowerCase().trim());
-      if (!user) {
-        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid email or password' });
+      // Throttle guessing (-255): 8 failures per address or 30 per IP in 15 minutes.
+      const em = input.email.toLowerCase().trim(), ip = clientIp(ctx.req), WIN = 15 * 60_000;
+      if (blocked('login:e:' + em, 8, WIN) || blocked('login:ip:' + ip, 30, WIN)) {
+        throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: 'Too many sign-in attempts. Wait 15 minutes and try again, or reset your password.' });
       }
+      const failed = (message: string): never => {
+        hit('login:e:' + em, 8, WIN); hit('login:ip:' + ip, 30, WIN);
+        throw new TRPCError({ code: 'UNAUTHORIZED', message });
+      };
+      const user = await db.getUserByEmail(em);
+      if (!user) return failed('Invalid email or password');
       if (!user.passwordHash) {
         throw new TRPCError({
           code: 'UNAUTHORIZED',
@@ -72,9 +80,8 @@ export const emailAuthRouter = router({
         });
       }
       const valid = await bcrypt.compare(input.password, user.passwordHash);
-      if (!valid) {
-        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid email or password' });
-      }
+      if (!valid) return failed('Invalid email or password');
+      clearKey('login:e:' + em);
       // Update lastSignedIn and ensure owner always has admin role in DB
       const isOwner = ENV.ownerOpenId && user.openId === ENV.ownerOpenId;
       await db.upsertUser({ openId: user.openId, lastSignedIn: new Date(), ...(isOwner ? { role: 'admin' as const } : {}) });
@@ -188,11 +195,17 @@ export const emailAuthRouter = router({
    */
   forgotPassword: publicProcedure
     .input(z.object({
-      email: z.string().email(),
-      origin: z.string().url().optional(), // frontend origin for building the reset link
+      email: z.string().email().max(320),
+      origin: z.string().url().max(500).optional(), // frontend origin for building the reset link
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const email = input.email.toLowerCase().trim();
+      // At most 3 reset emails per address and 10 per IP an hour (-255) — each
+      // one cancels the previous link, so a flood would also block a real reset.
+      // Over the limit the answer is the same, so it reveals nothing.
+      if (!hit('reset:e:' + email, 3, 3600_000) || !hit('reset:ip:' + clientIp(ctx.req), 10, 3600_000)) {
+        return { success: true, message: 'If that email is registered, a reset link has been sent.' };
+      }
       const user = await db.getUserByEmail(email);
 
       // Always return success to prevent user enumeration

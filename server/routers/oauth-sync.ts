@@ -2060,12 +2060,14 @@ export const oauthSyncRouter = router({
 
   suggestFollowUps: protectedProcedure
     .input(z.object({
-      subject: z.string(),
-      body: z.string(),
+      subject: z.string().max(500),
+      body: z.string().max(20000),
       provider: z.enum(['manus', 'openai', 'claude', 'gemini']).optional().default('manus'),
       apiKey: z.string().max(512).optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      // the workspace key costs the workspace: count it against the AI quota (-255)
+      if (!input.apiKey) await (await import('../_core/quota')).spendQuota(ctx.user, 'ai');
       const { callAIProvider } = await import('../_core/aiProviders');
       const userContent = `Email draft to follow up on.\n\nSubject: ${input.subject || '(no subject)'}\n\nBody:\n${input.body || '(empty)'}`;
       const { text } = await callAIProvider({

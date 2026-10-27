@@ -53,6 +53,8 @@ const TEAM_PRESET_KEY = 'teamStarterPreset';
 
 // Keys that can be saved/loaded
 const DATA_KEYS =['projects', 'goals', 'journal', 'habits', 'contacts', 'teams', 'prefs', 'calEvents', 'clusters', 'programs', 'opportunities', 'atlas', 'atlasAnnotations', 'mindmaps', 'sheets', 'decks', 'finance', 'calGrid'] as const;
+/** Largest list a whole-data save accepts (mediumtext holds 16 MB). */
+const SAVE_MAX = 16_000_000;
 type DataKey = typeof DATA_KEYS[number];
 
 // Truncate a value to a column's max length (defensive against varchar overflow).
@@ -595,29 +597,30 @@ export const appDataRouter = router({
    * Save one or more data blobs for the current user.
    * Accepts a partial object — only provided keys are updated.
    */
+  // Each list is stored in a mediumtext column (16 MB); refuse anything bigger up front (-255).
   save: protectedProcedure
     .input(
       z.object({
-        tasks:     z.string().optional(),
-        notes:     z.string().optional(),
-        projects:  z.string().optional(),
-        goals:     z.string().optional(),
-        journal:   z.string().optional(),
-        habits:    z.string().optional(),
-        contacts:  z.string().optional(),
-        ideas:     z.string().optional(),
-        teams:     z.string().optional(),
-        prefs:     z.string().optional(),
-        calEvents: z.string().optional(),
-        clusters:  z.string().optional(),
-        programs:  z.string().optional(),
-        opportunities: z.string().optional(),
-        atlasAnnotations: z.string().optional(),
-        mindmaps: z.string().optional(),
-        sheets: z.string().optional(),
-        decks: z.string().optional(),
-        finance: z.string().optional(),
-        calGrid: z.string().optional(),
+        tasks:     z.string().max(SAVE_MAX).optional(),
+        notes:     z.string().max(SAVE_MAX).optional(),
+        projects:  z.string().max(SAVE_MAX).optional(),
+        goals:     z.string().max(SAVE_MAX).optional(),
+        journal:   z.string().max(SAVE_MAX).optional(),
+        habits:    z.string().max(SAVE_MAX).optional(),
+        contacts:  z.string().max(SAVE_MAX).optional(),
+        ideas:     z.string().max(SAVE_MAX).optional(),
+        teams:     z.string().max(SAVE_MAX).optional(),
+        prefs:     z.string().max(SAVE_MAX).optional(),
+        calEvents: z.string().max(SAVE_MAX).optional(),
+        clusters:  z.string().max(SAVE_MAX).optional(),
+        programs:  z.string().max(SAVE_MAX).optional(),
+        opportunities: z.string().max(SAVE_MAX).optional(),
+        atlasAnnotations: z.string().max(SAVE_MAX).optional(),
+        mindmaps: z.string().max(SAVE_MAX).optional(),
+        sheets: z.string().max(SAVE_MAX).optional(),
+        decks: z.string().max(SAVE_MAX).optional(),
+        finance: z.string().max(SAVE_MAX).optional(),
+        calGrid: z.string().max(SAVE_MAX).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {

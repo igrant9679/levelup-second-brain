@@ -9,6 +9,8 @@ import { z } from 'zod';
 import { protectedProcedure, router } from '../_core/trpc';
 import * as db from '../db';
 import { resolveRequestAI } from '../_core/workspaceAI';
+import { spendQuota } from '../_core/quota';
+import { safeFetch } from '../_core/netGuard';
 
 // ─── Metadata Extraction ────────────────────────────────────────────────────
 
@@ -43,13 +45,14 @@ async function extractMetadata(url: string): Promise<PageMetadata> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10_000);
 
-    const response = await fetch(url, {
+    // Public addresses only, re-checked on every redirect (-255): a member could
+    // otherwise point this at internal or cloud-metadata addresses.
+    const response = await safeFetch(url, {
       signal: controller.signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; LevelUpBot/1.0; +https://levelupnow.tools)',
         'Accept': 'text/html,application/xhtml+xml',
       },
-      redirect: 'follow',
     });
     clearTimeout(timeout);
 
@@ -328,13 +331,15 @@ export const bookmarksRouter = router({
    */
   suggestTags: protectedProcedure
     .input(z.object({
-      url: z.string().url(),
-      title: z.string().optional(),
-      description: z.string().optional(),
+      url: z.string().url().max(2048),
+      title: z.string().max(500).optional(),
+      description: z.string().max(4000).optional(),
       provider: z.enum(['manus', 'openai', 'claude', 'gemini']).optional().default('manus'),
       apiKey: z.string().max(512).optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      // the workspace key costs the workspace: count it against the AI quota (-255)
+      if (!input.apiKey) await spendQuota(ctx.user, 'ai');
       // Use provided metadata or fetch it
       let title = input.title;
       let description = input.description;
@@ -374,13 +379,15 @@ export const bookmarksRouter = router({
    */
   suggestDescription: protectedProcedure
     .input(z.object({
-      url: z.string().url(),
-      title: z.string().optional(),
-      description: z.string().optional(),
+      url: z.string().url().max(2048),
+      title: z.string().max(500).optional(),
+      description: z.string().max(4000).optional(),
       provider: z.enum(['manus', 'openai', 'claude', 'gemini']).optional().default('manus'),
       apiKey: z.string().max(512).optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      // the workspace key costs the workspace: count it against the AI quota (-255)
+      if (!input.apiKey) await spendQuota(ctx.user, 'ai');
       let title = input.title;
       let pageDesc = input.description;
       if (!title || !pageDesc) {

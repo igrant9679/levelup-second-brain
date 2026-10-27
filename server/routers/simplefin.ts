@@ -23,6 +23,7 @@ import { and, eq } from "drizzle-orm";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { externalSourceCredentials } from "../../drizzle/schema";
+import { assertPublicUrl, safeFetch } from "../_core/netGuard";
 
 function parseAccessUrl(accessUrl: string): { base: string; auth: string; host: string } {
   const u = new URL(accessUrl);
@@ -46,7 +47,8 @@ export async function sfGet(accessUrl: string, params: Record<string, string>): 
   const { base, auth } = parseAccessUrl(accessUrl);
   const qs = new URLSearchParams(params).toString();
   const url = base + "/accounts" + (qs ? "?" + qs : "");
-  const resp = await fetch(url, {
+  // Public addresses only (-255): the access URL comes from a token a member pastes.
+  const resp = await safeFetch(url, {
     method: "GET",
     headers: { Authorization: auth, Accept: "application/json" },
     signal: AbortSignal.timeout(45000),
@@ -115,7 +117,9 @@ export const simplefinRouter = router({
       }
       let accessUrl = "";
       try {
-        const resp = await fetch(claimUrl, {
+        // Public addresses only (-255): the claim URL is whatever the pasted token decodes to.
+        await assertPublicUrl(claimUrl);
+        const resp = await safeFetch(claimUrl, {
           method: "POST",
           headers: { "Content-Length": "0" },
           body: "",
@@ -123,7 +127,7 @@ export const simplefinRouter = router({
         });
         const text = (await resp.text()).trim();
         if (!resp.ok) {
-          return { ok: false as const, error: `Claim failed — HTTP ${resp.status}: ${text.slice(0, 200)}. Setup tokens are ONE-TIME; if this one was already used, generate a new one at the bridge.` };
+          return { ok: false as const, error: `Claim failed — HTTP ${resp.status}. Setup tokens are ONE-TIME; if this one was already used, generate a new one at the bridge.` };
         }
         accessUrl = text;
       } catch (e: any) {
@@ -134,8 +138,10 @@ export const simplefinRouter = router({
         const parsed = parseAccessUrl(accessUrl);
         host = parsed.host;
         if (!/^https:\/\//i.test(accessUrl) || !new URL(accessUrl).username) throw new Error("no credentials in URL");
+        await assertPublicUrl(parsed.base);
       } catch {
-        return { ok: false as const, error: "The bridge returned something that isn't a usable access URL: " + accessUrl.slice(0, 120) };
+        // the response is not echoed back (-255)
+        return { ok: false as const, error: "The bridge did not return a usable access URL. Generate a new setup token at the bridge and try again." };
       }
       const existing = await db.select({ id: externalSourceCredentials.id }).from(externalSourceCredentials)
         .where(and(eq(externalSourceCredentials.userId, ctx.user.id), eq(externalSourceCredentials.source, "simplefin"))).limit(1);

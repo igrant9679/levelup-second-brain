@@ -167,9 +167,13 @@ export const pmRouter = router({
     text: z.string().max(100_000).optional(),
   })).mutation(async ({ ctx, input }) => {
     await spendQuota(ctx.user, "email", input.to.length);
+    // These go to OUTSIDE addresses from the system sender (-255): no active
+    // content and no links leave LevelUp, and the footer names the sender.
+    const { cleanEmailHtml, senderFooter } = await import("../_core/emailHtml");
+    const html = cleanEmailHtml(input.html) + senderFooter(ctx.user.name, ctx.user.email);
     let sent = 0; const failed: string[] = [];
     for (const to of input.to) {
-      const ok = await sendEmail({ to, subject: input.subject, html: input.html, text: input.text, senderUserId: ctx.user.id, fromName: `${ctx.user.name || "LevelUp"} via LevelUp` }).catch(() => false);
+      const ok = await sendEmail({ to, subject: input.subject, html, text: input.text, senderUserId: ctx.user.id, fromName: `${ctx.user.name || "LevelUp"} via LevelUp` }).catch(() => false);
       if (ok) sent++; else failed.push(to);
     }
     return { sent, failed };
