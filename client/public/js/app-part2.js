@@ -10983,7 +10983,47 @@ if(typeof document!=='undefined'&&!window._luSyncFlushWired){
 //     copy wins but, for notes, this device's text is kept in the note's
 //     version history.
 // Hash = FNV-1a over JSON.stringify(item), identical to server _itemHash.
-const _LU_ITEM_KEYS=new Set(['tasks','notes','ideas']);
+// Build -232: every other list (projects, goals, journal, habits, …) and the
+// preferences object sync the same way (server applyBlobChanges). Preferences
+// are synced key by key: each top-level key is an item {id:key,v:value}.
+// A list holding elements without a usable id (or two with the same id)
+// can't be synced item by item, so it falls back to the whole-list save
+// until it is clean (_luItemsSafe).
+const _LU_ENTITY_KEYS=new Set(['tasks','notes','ideas']);
+const _LU_OBJ_KEYS=new Set(['prefs','atlasAnnotations']);
+const _LU_ITEM_KEYS=new Set(['tasks','notes','ideas','projects','goals','journal','habits','contacts','teams','calEvents','clusters','programs','opportunities','mindmaps','sheets','decks','calGrid','prefs','atlasAnnotations']);
+const _LU_ITEM_LABEL={tasks:'task',notes:'note',ideas:'idea',projects:'project',goals:'goal',journal:'journal entry',habits:'habit',contacts:'contact',teams:'team',calEvents:'calendar event',clusters:'cluster',programs:'program',opportunities:'opportunity',mindmaps:'mind map',sheets:'sheet',decks:'deck',calGrid:'calendar event',atlasAnnotations:'Atlas note'};
+// The synced items of a key as an array: list keys are themselves; object
+// keys become [{id:key,v:value}] (undefined values are not synced).
+function _luObjItems(o){
+  const out=[];
+  if(o&&typeof o==='object'&&!Array.isArray(o))Object.keys(o).forEach(key=>{if(o[key]!==undefined)out.push({id:key,v:o[key]});});
+  return out;
+}
+function _luItemsOf(k,v){
+  if(v===undefined)v=D[k];
+  return _LU_OBJ_KEYS.has(k)?_luObjItems(v):(Array.isArray(v)?v:[]);
+}
+function _luFromItems(k,arr){
+  if(!_LU_OBJ_KEYS.has(k))return arr;
+  const o={};(arr||[]).forEach(x=>{if(x&&x.id!=null)o[x.id]=x.v;});return o;
+}
+// Every element has a usable, unique id (always true for object keys).
+function _luItemsSafe(k){
+  if(_LU_OBJ_KEYS.has(k)||_LU_ENTITY_KEYS.has(k))return true;
+  const seen=new Set();
+  for(const x of (Array.isArray(D[k])?D[k]:[])){
+    if(!x||x.id==null||x.id!==x.id||String(x.id)===''||seen.has(String(x.id)))return false;
+    seen.add(String(x.id));
+  }
+  return true;
+}
+// The server's copy is now this device's confirmed state.
+function _luBaseFromServer(k,v){
+  if(!_LU_ITEM_KEYS.has(k))return;
+  const nb={};_luItemsOf(k,v).forEach(x=>{if(x&&x.id!=null)nb[String(x.id)]=_luHash(JSON.stringify(x));});
+  _luBaseSet(k,nb);
+}
 function _luHash(s){let h=0x811c9dc5;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,0x01000193);}return (h>>>0).toString(16);}
 const _luBaseCache={};
 const _luOrderSig={};
@@ -11054,12 +11094,26 @@ function _luMerge3(k,srv,localArr,fallback){
     if(!choose.has(id))return;
     out.splice(after+1,0,choose.get(id));after++;placed.add(id);
   });
+  // Server elements with no usable id (or a repeated one) can't be merged by
+  // id; keep them as they are so nothing on the server disappears here.
+  // Same for this device's: one not on the server yet is kept and pushed
+  // (with the whole-list save — see _luItemsSafe).
+  if(!_LU_ENTITY_KEYS.has(k)&&!_LU_OBJ_KEYS.has(k)){
+    const loose=arr=>{const seen=new Set(),o=[];(arr||[]).forEach(x=>{
+      const ok=x&&x.id!=null&&x.id===x.id&&String(x.id)!=='';
+      if(ok&&!seen.has(String(x.id))){seen.add(String(x.id));return;}
+      o.push(x);
+    });return o;};
+    const sl=loose(srv);const have=new Set(sl.map(x=>JSON.stringify(x)));
+    sl.forEach(x=>out.push(x));
+    loose(localArr).forEach(x=>{if(!have.has(JSON.stringify(x))){out.push(x);push=true;}});
+  }
   const nb={};S.forEach((sx,id)=>{nb[id]=_luHash(JSON.stringify(sx));});
   return {items:out,base:nb,push,conflicts};
 }
 async function _luPushItems(k){
   const base=_luBaseGet(k)||{};
-  const cur=_luItemMap(D[k]);
+  const cur=_luItemMap(_luItemsOf(k));
   const curKeys=[...cur.keys()];
   const baseIds=Object.keys(base);
   // An empty list against a populated base is a cache that failed to load
@@ -11071,7 +11125,7 @@ async function _luPushItems(k){
   if(!wipe)baseIds.forEach(id=>{if(!cur.has(id))deletes.push({id,baseHash:base[id]});});
   const orderSig=_luHash(curKeys.join('\u0001'));
   if(!upserts.length&&!deletes.length&&orderSig===_luOrderSig[k])return;
-  const res=await _trpc('appData.syncEntity',{kind:k,upserts,deletes,order:wipe?null:curKeys},'mutation');
+  const res=await _trpc('appData.syncEntity',{kind:k,upserts,deletes,order:(wipe||_LU_OBJ_KEYS.has(k))?null:curKeys},'mutation');
   const nb=Object.assign({},base);
   (res&&res.applied||[]).forEach(a=>{nb[a.id]=a.hash;});
   (res&&res.deleted||[]).forEach(id=>{delete nb[id];});
@@ -11083,16 +11137,24 @@ async function _luPushItems(k){
       let sx=null;try{sx=JSON.parse(c.raw);}catch(_){}
       if(!sx)return;
       nb[c.id]=_luHash(c.raw);
-      const idx=(D[k]||[]).findIndex(x=>x&&String(x.id)===String(c.id));
-      const lx=idx>=0?D[k][idx]:null;
-      const keep=_luResolveConflict(k,sx,lx);
-      if(idx>=0)D[k][idx]=keep;else D[k].push(keep);
+      if(_LU_OBJ_KEYS.has(k)){
+        if(!D[k]||typeof D[k]!=='object')D[k]={};
+        D[k][c.id]=sx.v;
+      }else{
+        if(!Array.isArray(D[k]))D[k]=[];
+        const idx=D[k].findIndex(x=>x&&String(x.id)===String(c.id));
+        const lx=idx>=0?D[k][idx]:null;
+        const keep=_luResolveConflict(k,sx,lx);
+        if(idx>=0)D[k][idx]=keep;else D[k].push(keep);
+      }
       kept++;
     });
     _luBaseSet(k,nb);
     try{_safeOrigSave(k);}catch(_){}
-    const label=k==='notes'?'note':k==='tasks'?'task':'idea';
-    if(typeof toast==='function')toast({type:'warning',title:'Changed on another device',msg:kept+' '+label+(kept===1?'':'s')+' had newer changes from another device, so those were kept'+(k==='notes'?' — your version is in the note\'s history.':'.'),duration:8000});
+    // A setting changed on two devices at once: the other device's value is
+    // kept quietly (a toast per preference would be noise).
+    const label=_LU_ITEM_LABEL[k];
+    if(label&&typeof toast==='function')toast({type:'warning',title:'Changed on another device',msg:kept+' '+(kept===1?label:label.replace(/y$/,'ie')+'s')+' had newer changes from another device, so those were kept'+(k==='notes'?' — your version is in the note\'s history.':'.'),duration:8000});
     try{if(typeof curScreen!=='undefined'&&typeof renderScreen==='function'&&!_luEditing())renderScreen(curScreen);}catch(_){}
     if(k==='notes'){_dirtyKeys.add(k);setTimeout(()=>_pushKeyToServer(k),1500);} // push the merged history
   }else{
@@ -11118,15 +11180,18 @@ async function _luPullItems(){
     if([..._LU_ITEM_KEYS].some(k=>_dirtyKeys.has(k)))return;
     const sd=await _trpc('appData.loadEntities',undefined,'query');
     if(!sd)return;
-    let changed=false;
+    let changed=false,prefsChanged=false;
     for(const k of _LU_ITEM_KEYS){
-      if(!Array.isArray(sd[k]))continue;
-      const before=JSON.stringify(D[k]||[]);
-      const m=_luMerge3(k,sd[k],D[k]||[],null);
-      D[k]=m.items;_luBaseSet(k,m.base);
-      if(JSON.stringify(D[k])!==before){changed=true;try{_safeOrigSave(k);}catch(_){}}
+      const obj=_LU_OBJ_KEYS.has(k);
+      if(obj?!(sd[k]&&typeof sd[k]==='object'&&!Array.isArray(sd[k])):!Array.isArray(sd[k]))continue;
+      if(_dirtyKeys.has(k))continue; // edited here since the push above: next pull
+      const before=JSON.stringify(D[k]===undefined?null:D[k]);
+      const m=_luMerge3(k,_luItemsOf(k,sd[k]),_luItemsOf(k),null);
+      D[k]=_luFromItems(k,m.items);_luBaseSet(k,m.base);
+      if(JSON.stringify(D[k])!==before){changed=true;if(k==='prefs')prefsChanged=true;try{_safeOrigSave(k);}catch(_){}}
       if(m.push){_dirtyKeys.add(k);setTimeout(()=>_pushKeyToServer(k),800);}
     }
+    if(prefsChanged){try{if(Array.isArray(D.prefs.aiTopics))D.aiTopics=D.prefs.aiTopics.slice();}catch(_){}try{if(typeof applyPrefs==='function')applyPrefs();}catch(_){}}
     if(changed){try{invalidateSearchIndex();}catch(_){}try{if(typeof curScreen!=='undefined'&&typeof renderScreen==='function'&&!_luEditing())renderScreen(curScreen);}catch(_){}}
   }catch(e){console.warn('[appData] refresh failed',e&&e.message);}
   finally{_luPulling=false;}
@@ -11147,7 +11212,8 @@ async function _pushKeyToServer(k){
   }
   try{
     let viaItems=false;
-    if(_LU_ITEM_KEYS.has(k)&&!window._luItemSyncOff){
+    const blob=!_LU_ENTITY_KEYS.has(k);
+    if(_LU_ITEM_KEYS.has(k)&&!window._luItemSyncOff&&!(blob&&window._luBlobSyncOff)&&_luItemsSafe(k)){
       try{
         // Serialise pushes per key so two can't race on the base.
         const p=(_luPushChain[k]||Promise.resolve()).catch(()=>{}).then(()=>_luPushItems(k));
@@ -11155,14 +11221,19 @@ async function _pushKeyToServer(k){
         await p;
         viaItems=true;
       }catch(e){
-        // Server predates syncEntity (deploy skew): use the old whole-list save.
-        if(/No "mutation"-procedure|No procedure|not found on path|404/i.test(String(e&&e.message||e)))window._luItemSyncOff=true;
+        // Server predates syncEntity, or (pre-232) only knows tasks/notes/
+        // ideas: deploy skew, so use the old whole-list save.
+        const msg=String(e&&e.message||e);
+        if(/No "mutation"-procedure|No procedure|not found on path|404/i.test(msg))window._luItemSyncOff=true;
+        else if(blob&&/invalid_enum|invalid_value|Invalid enum|Invalid option|expected one of/i.test(msg))window._luBlobSyncOff=true;
         else throw e;
       }
     }
     if(!viaItems){
       const val=JSON.stringify(D[k]);
       await _trpc('appData.save',{[k]:val},'mutation');
+      // The server now holds exactly this copy.
+      if(blob&&_LU_ITEM_KEYS.has(k))_luBaseFromServer(k,D[k]);
     }
     _dirtyKeys.delete(k); // confirmed persisted on the server
     window._luLastSyncOk=Date.now();
@@ -11258,7 +11329,7 @@ async function forceResyncFromServer(){
         // truly oversized keys still fail.
         D[k]=v;touched++;
         // The server copy is now this device's confirmed state (per-item sync base).
-        if(_LU_ITEM_KEYS.has(k)&&Array.isArray(v)){const nb={};v.forEach(x=>{if(x&&x.id!=null)nb[String(x.id)]=_luHash(JSON.stringify(x));});_luBaseSet(k,nb);}
+        _luBaseFromServer(k,v);
         if(typeof _safeOrigSave==='function'){
           const ok=_safeOrigSave(k);
           if(!ok) quotaFails.push(k);
@@ -11293,6 +11364,7 @@ async function forcePushAllToServer(){
     try{
       const val=JSON.stringify(D[k]);
       await _trpc('appData.save',{[k]:val},'mutation');
+      _luBaseFromServer(k,D[k]); // the server now holds this device's copy
       window._luLastSyncOk=Date.now();
       _dirtyKeys.delete(k);
       ok++;
@@ -11506,6 +11578,7 @@ window.save=function(k){
     D.prefs.aiTopics=Array.isArray(D.aiTopics)?D.aiTopics.slice():[];
     _safeOrigSave('prefs');
     if(_syncKeys.has('prefs')){
+      _dirtyKeys.add('prefs');
       clearTimeout(_syncTimers['prefs']);
       _syncTimers['prefs']=setTimeout(()=>_pushKeyToServer('prefs'),2000);
     }
@@ -11619,7 +11692,10 @@ async function loadServerData(){
         if(!Array.isArray(_cache))_cache=[];
         const _memIds=new Set(_mem.map(x=>x&&String(x.id)));
         const _local=_mem.concat(_cache.filter(x=>x&&x.id!=null&&!_memIds.has(String(x.id))));
-        const m=_luMerge3(k,srv,_local,x=>!_srvUpd||_itemTime(x)>=(_srvUpd-_GRACE));
+        // No sync history on this device yet (first load, or first since
+        // build -232 for the blob lists): keep a local-only item only if it
+        // looks newer than the server's last write — the pre-232 rule.
+        const m=_luMerge3(k,srv,_local,x=>(k==='calGrid'&&_calFirstSync)||!_srvUpd||_itemTime(x)>=(_srvUpd-_GRACE));
         D[k]=m.items;
         _luBaseSet(k,m.base);
         if(typeof _safeOrigSave==='function')_safeOrigSave(k);
@@ -11628,6 +11704,10 @@ async function loadServerData(){
         if(m.conflicts.length)console.warn('[appData] '+k+': '+m.conflicts.length+' item(s) changed on both sides — kept the server copy'+(k==='notes'?' (this device\'s text is in the note history)':''));
         if(k==='notes'&&typeof _backfillNoteStarredFromFavorite==='function')_backfillNoteStarredFromFavorite();
         if(k==='tasks'&&typeof _luRepairCarryOver==='function')_luRepairCarryOver();
+        if(k==='habits'){
+          try{localStorage.removeItem('lu_habits_owner_migrated_v1');}catch(_){}
+          if(typeof reassignHabitsToOwner==='function')reassignHabitsToOwner();
+        }
         return;
       }
       if(srv&&Array.isArray(srv)&&srv.length>0){
@@ -11696,7 +11776,10 @@ async function loadServerData(){
     // Object keyed by `{type}:{id}`. Editable on the client; persisted via
     // appData.save's atlasAnnotations field.
     if(sd.atlasAnnotations&&typeof sd.atlasAnnotations==='object'){
-      D.atlasAnnotations=sd.atlasAnnotations;changed=true;
+      // Merged note by note, like prefs (build -232).
+      const m=_luMerge3('atlasAnnotations',_luItemsOf('atlasAnnotations',sd.atlasAnnotations),_luItemsOf('atlasAnnotations',D.atlasAnnotations||{}),null);
+      D.atlasAnnotations=_luFromItems('atlasAnnotations',m.items);_luBaseSet('atlasAnnotations',m.base);changed=true;
+      if(m.push){_dirtyKeys.add('atlasAnnotations');setTimeout(()=>_pushKeyToServer('atlasAnnotations'),1500);}
     } else if(!D.atlasAnnotations){
       D.atlasAnnotations={};
     }
@@ -11715,7 +11798,14 @@ async function loadServerData(){
       changed=true;
     }
     if(sd.prefs&&typeof sd.prefs==='object'&&Object.keys(sd.prefs).length>0){
-      D.prefs=Object.assign({},D.prefs,sd.prefs);
+      // Key-by-key three-way merge (build -232): a setting changed only here
+      // since the last sync is kept and pushed, one changed only elsewhere is
+      // taken. With no history yet the server wins on shared keys and keys
+      // only this device has are kept — the old Object.assign rule.
+      const m=_luMerge3('prefs',_luItemsOf('prefs',sd.prefs),_luItemsOf('prefs',D.prefs||{}),null);
+      D.prefs=_luFromItems('prefs',m.items);
+      _luBaseSet('prefs',m.base);
+      if(m.push){_dirtyKeys.add('prefs');try{clearTimeout(_syncTimers.prefs);}catch(_){}setTimeout(()=>_pushKeyToServer('prefs'),1500);}
       localStorage.setItem('lu_prefs',JSON.stringify(D.prefs));
       // The server's user_app_data table doesn't have a dedicated aiTopics
       // column, so we mirror aiTopics through prefs.aiTopics for cross-device
@@ -11762,7 +11852,9 @@ if(!D.finance) D.finance = JSON.parse(localStorage.getItem('lu_finance') || 'nul
 
 function saveMindmaps(){ localStorage.setItem('lu_mindmaps', JSON.stringify(D.mindmaps)); _syncMindmapsDebounced(); }
 let _mmSyncTimer=null;
-function _syncMindmapsDebounced(){ clearTimeout(_mmSyncTimer); _mmSyncTimer=setTimeout(()=>{ if(typeof _trpc==='function') _trpc('appData.save',{mindmaps:JSON.stringify(D.mindmaps)},'mutation').catch(()=>{}); },2000); }
+// Through the standard path (build -232): debounced, flushed on app-hide, and
+// synced item by item instead of replacing every map on the server.
+function _syncMindmapsDebounced(){ if(typeof window.save==='function') window.save('mindmaps'); }
 
 let _mmCurrent = null; // currently open mindmap
 let _mmDrag = null;    // drag state

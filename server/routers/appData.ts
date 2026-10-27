@@ -374,6 +374,107 @@ export async function applyEntityChanges(db: any, userId: number, kind: EntityKi
   return { applied, deleted, conflicts };
 }
 
+// ─── Per-item sync for the blob-stored lists and preferences (build -232) ───
+// Projects, goals, journal, habits, … still live as one JSON column each on
+// user_app_data, and preferences as one JSON object. Saving them whole let a
+// device with a stale copy undo other devices' changes and server jobs'
+// edits (shared-item updates, crons). They now take the same per-item
+// changes as tasks/notes/ideas: the row is locked, the stored list is
+// patched item by item (baseHash check = same conflict rule), written back.
+//   • list kinds: an item is an element with a usable id; elements without
+//     one (or repeating an earlier id) can't be addressed and are left as
+//     they are — the client falls back to the whole-list save while its copy
+//     holds such elements.
+//   • object kinds (prefs, atlasAnnotations): an item is one top-level key,
+//     exchanged as {"id":key,"v":value} so both sides hash the same string.
+export const BLOB_LIST_KINDS = ['projects', 'goals', 'journal', 'habits', 'contacts', 'teams', 'calEvents', 'clusters', 'programs', 'opportunities', 'mindmaps', 'sheets', 'decks', 'calGrid'] as const;
+export const BLOB_OBJECT_KINDS = ['prefs', 'atlasAnnotations'] as const;
+type BlobKind = typeof BLOB_LIST_KINDS[number] | typeof BLOB_OBJECT_KINDS[number];
+const _isObjectKind = (k: string) => (BLOB_OBJECT_KINDS as readonly string[]).includes(k);
+
+/** Stored blob → ordered [id, item] entries plus the elements that have no usable id. */
+function _blobEntries(kind: BlobKind, stored: string | null | undefined) {
+  let v: any = null;
+  try { v = stored ? JSON.parse(stored) : null; } catch { v = null; }
+  const entries: Array<[string, any]> = [];
+  const loose: any[] = [];
+  if (_isObjectKind(kind)) {
+    if (v && typeof v === 'object' && !Array.isArray(v)) for (const key of Object.keys(v)) entries.push([key, { id: key, v: v[key] }]);
+  } else if (Array.isArray(v)) {
+    const seen = new Set<string>();
+    for (const el of v) {
+      if (_validItem(el) && !seen.has(String(el.id))) { seen.add(String(el.id)); entries.push([String(el.id), el]); }
+      else loose.push(el);
+    }
+  }
+  return { entries, loose };
+}
+
+export async function applyBlobChanges(db: any, userId: number, kind: BlobKind, input: {
+  upserts: Array<{ id: string; raw: string; baseHash?: string | null }>;
+  deletes: Array<{ id: string; baseHash?: string | null }>;
+  order?: string[] | null;
+}) {
+  const obj = _isObjectKind(kind);
+  const col = (userAppData as any)[kind];
+  const applied: Array<{ id: string; hash: string }> = [];
+  const deleted: string[] = [];
+  const conflicts: Array<{ id: string; raw: string | null }> = [];
+  // Make sure the row exists so it can be locked.
+  await db.insert(userAppData).values({ userId }).onDuplicateKeyUpdate({ set: { userId } });
+  await db.transaction(async (tx: any) => {
+    const q = tx.select({ v: col }).from(userAppData).where(eq(userAppData.userId, userId)).limit(1);
+    const [row] = typeof q.for === 'function' ? await q.for('update') : await q;
+    const { entries, loose } = _blobEntries(kind, row?.v);
+    const items = new Map<string, any>(entries);
+    const seq = entries.map(([id]) => id);
+    for (const u of input.upserts) {
+      let item: any;
+      try { item = JSON.parse(u.raw); } catch { throw new Error(`${kind} item ${u.id} is not valid JSON`); }
+      if (!_validItem(item) || String(item.id) !== String(u.id)) throw new Error(`${kind} item id mismatch for ${u.id}`);
+      if (obj && !Object.prototype.hasOwnProperty.call(item, 'v')) throw new Error(`${kind} key ${u.id} has no value`);
+      const id = String(u.id);
+      const cur = items.get(id);
+      if (cur !== undefined) {
+        const curRaw = JSON.stringify(cur);
+        if (curRaw === u.raw) { applied.push({ id, hash: _itemHash(curRaw) }); continue; }
+        if (u.baseHash && _itemHash(curRaw) !== u.baseHash) { conflicts.push({ id, raw: curRaw }); continue; }
+      } else {
+        seq.push(id);
+      }
+      items.set(id, item);
+      applied.push({ id, hash: _itemHash(u.raw) });
+    }
+    for (const d of input.deletes) {
+      const id = String(d.id);
+      const cur = items.get(id);
+      if (cur === undefined) { deleted.push(id); continue; }
+      const curRaw = JSON.stringify(cur);
+      if (d.baseHash && _itemHash(curRaw) !== d.baseHash) { conflicts.push({ id, raw: curRaw }); continue; }
+      items.delete(id);
+      deleted.push(id);
+    }
+    let ids = seq.filter((id) => items.has(id));
+    if (!obj && input.order) {
+      // The device's order for what it knows, then anything it didn't (added
+      // elsewhere since) in stored order.
+      const want = input.order.map(String).filter((id, i, a) => items.has(id) && a.indexOf(id) === i);
+      const set = new Set(want);
+      ids = want.concat(ids.filter((id) => !set.has(id)));
+    }
+    let out: string;
+    if (obj) {
+      const o: Record<string, any> = {};
+      for (const id of ids) o[id] = items.get(id).v;
+      out = JSON.stringify(o);
+    } else {
+      out = JSON.stringify(ids.map((id) => items.get(id)).concat(loose));
+    }
+    if (out !== row?.v) await tx.update(userAppData).set({ [kind]: out, updatedAt: new Date() }).where(eq(userAppData.userId, userId));
+  });
+  return { applied, deleted, conflicts };
+}
+
 // Table-based array access for the migrated entities — used by server-side
 // jobs (image migration, ownership transfer, automations). The write is a
 // full replace in a transaction; it does not use the shrink guard because
@@ -556,27 +657,41 @@ export const appDataRouter = router({
    */
   syncEntity: protectedProcedure
     .input(z.object({
-      kind: z.enum(['tasks', 'notes', 'ideas']),
-      upserts: z.array(z.object({ id: z.string().min(1).max(64), raw: z.string().max(20_000_000), baseHash: z.string().max(16).nullable().optional() })).max(5000),
-      deletes: z.array(z.object({ id: z.string().min(1).max(64), baseHash: z.string().max(16).nullable().optional() })).max(5000),
-      order: z.array(z.string().max(64)).max(20000).nullable().optional(),
+      kind: z.enum(['tasks', 'notes', 'ideas', ...BLOB_LIST_KINDS, ...BLOB_OBJECT_KINDS]),
+      upserts: z.array(z.object({ id: z.string().min(1).max(200), raw: z.string().max(20_000_000), baseHash: z.string().max(16).nullable().optional() })).max(5000),
+      deletes: z.array(z.object({ id: z.string().min(1).max(200), baseHash: z.string().max(16).nullable().optional() })).max(5000),
+      order: z.array(z.string().max(200)).max(20000).nullable().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new Error('db unavailable');
-      const r = await applyEntityChanges(db, ctx.user.id, input.kind, input);
+      const k = input.kind;
+      const r = (k === 'tasks' || k === 'notes' || k === 'ideas')
+        ? await applyEntityChanges(db, ctx.user.id, k, input)
+        : await applyBlobChanges(db, ctx.user.id, k, input);
       return { ok: true as const, ...r };
     }),
 
-  /** Just tasks / notes / ideas (in list order) — the light refresh a tab runs when it regains focus. */
+  /**
+   * The light refresh a tab runs when it regains focus: tasks / notes / ideas
+   * (in list order) plus the per-item-synced blobs (build -232). Money and
+   * the Atlas snapshot are not included.
+   */
   loadEntities: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) return null;
-    return {
+    const out: Record<string, unknown> = {
       tasks: (await readTasks(db, ctx.user.id)).tasks,
       notes: (await readNotes(db, ctx.user.id)).notes,
       ideas: (await readIdeas(db, ctx.user.id)).ideas,
     };
+    const [row] = await db.select().from(userAppData).where(eq(userAppData.userId, ctx.user.id)).limit(1);
+    for (const k of [...BLOB_LIST_KINDS, ...BLOB_OBJECT_KINDS]) {
+      const raw = row ? (row as any)[k] : null;
+      try { out[k] = raw != null ? JSON.parse(raw) : null; } catch { out[k] = null; }
+    }
+    out.updatedAt = row?.updatedAt ?? null;
+    return out;
   }),
 
   /**
