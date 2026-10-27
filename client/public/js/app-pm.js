@@ -1521,6 +1521,7 @@ function pmMilestoneDialog(key,id){
 
 // ─── Gantt ──────────────────────────────────────────────────────────────────
 function pmTab_schedule(key){
+  _pmGCSS();
   var c=pmCpm(key),zoom=_pmState.ganttZoom||'week',crit=_pmState.ganttCrit!==false,hideDone=!!_pmState.ganttHideDone;
   var base=_pmActiveBaseline(key),bases=pmBaselines(key);
   var ms=pmMilestones(key).filter(function(m){return m.src==='project'||m.src==='pm';});
@@ -1530,7 +1531,7 @@ function pmTab_schedule(key){
     '<button class="pm-chip'+(hideDone?' on':'')+'" onclick="_pmState.ganttHideDone='+(!hideDone)+';_pmSaveState();pmRender()">Hide done</button>'+
     '<span class="pm-muted">Baseline</span><select class="inp" onchange="pmSetSettings(\''+_pmJ(key)+'\',{baselineLk:this.value});pmRender()"><option value="none"'+(!base?' selected':'')+'>none</option>'+bases.map(function(b){return '<option value="'+_pmE(b._lk)+'"'+(base&&base._lk===b._lk?' selected':'')+'>'+_pmE(b.title)+'</option>';}).join('')+'</select>'+
     '<span class="sp"></span><button class="btn btn-s" onclick="pmBaselineSave(\''+_pmJ(key)+'\')">📌 Save baseline</button><button class="btn btn-s" onclick="pmMilestoneDialog(\''+_pmJ(key)+'\')">◆ Milestone</button>'+
-    (c.mode==='wbs'?'<button class="btn btn-s" onclick="pmWbsWriteBack(\''+_pmJ(key)+'\')" title="Copy the computed dates onto the linked LevelUp tasks">Write dates to tasks</button>':'')+'</div>';
+    (c.mode==='wbs'||c.nodes.some(function(n){return n.item&&n.item.editable;})?'<button class="btn btn-s" onclick="pmWbsWriteBack(\''+_pmJ(key)+'\')" title="Copy the computed dates onto the linked LevelUp tasks">Write dates to tasks</button>':'')+'</div>';
   if(c.mode==='items')html+='<div class="pm-muted" style="margin-bottom:8px">Showing task dates'+(c.undated?' — '+c.undated+' item'+(c.undated===1?' has':'s have')+' no dates and '+(c.undated===1?'sits':'sit')+' at the project start':'')+'. Build a WBS on the <a href="javascript:void(0)" onclick="pmGo(null,\'ims\')">WBS / IMS</a> tab for durations, dependencies and an exportable schedule.</div>';
   if(c.cycles)html+='<div style="color:#dc2626;font-size:12px;margin-bottom:8px">⚠ '+c.cycles+' item'+(c.cycles===1?' is':'s are')+' in a dependency loop — those links were ignored.</div>';
   if(!nodes.length&&!ms.length)return html+'<div class="pm-card pm-empty"><b>Nothing to schedule yet</b>Add tasks to this project, or build a WBS.</div>';
@@ -1545,15 +1546,21 @@ function pmTab_schedule(key){
     var label=zoom==='week'?(d.getDay()===1?d.toLocaleDateString(undefined,{month:'short',day:'numeric'}):''):zoom==='month'?(d.getDay()===1?String(d.getDate()):''):(d.getDate()===1?d.toLocaleDateString(undefined,{month:'short',year:'2-digit'}):'');
     if(zoom!=='quarter'&&d.getDate()===1)ticks+='<div style="position:absolute;left:'+x(dt)+'px;top:0;font-size:10.5px;font-weight:700;color:var(--t2)">'+d.toLocaleDateString(undefined,{month:'short'})+'</div>';
     if(label)ticks+='<div style="position:absolute;left:'+x(dt)+'px;top:16px;font-size:10px;color:var(--t3);border-left:1px solid var(--bd1);padding-left:2px;height:18px">'+label+'</div>';
-    if(!_pmIsWork(d,c.ww)&&zoom==='week')ticks+='<div style="position:absolute;left:'+x(dt)+'px;top:'+HEAD+'px;width:'+Math.ceil(ppd)+'px;height:{{H}}px;background:var(--s2);opacity:.6"></div>';}
+    if(!_pmIsWork(d,c.ww)&&zoom==='week')ticks+='<div style="position:absolute;left:'+x(dt)+'px;top:'+HEAD+'px;width:'+Math.ceil(ppd)+'px;height:{{H}}px;background:var(--s2);opacity:.6;pointer-events:none"></div>';}
   var today=_pmToday();
   var rows=nodes.map(function(n,ri){
     var bl=base&&base.data.nodes&&base.data.nodes[n.key];
     var color=n.done?'#94a3b8':(crit&&n.critical?'#dc2626':(n.summary?'#475569':'var(--page-accent,#0891b2)'));
     var bx=x(n.start),bw=Math.max(n.milestone?0:6,x(_pmAddDays(n.finish,1))-bx);
-    var bar=n.milestone?'<div title="'+_pmE(n.name+' — '+_pmDate(n.start))+'" style="position:absolute;left:'+(bx-7)+'px;top:7px;width:14px;height:14px;transform:rotate(45deg);background:'+color+'"></div>'
+    // Editable bars (-250): data-* only — one delegated pointer/keyboard layer
+    // (block "Editable Gantt") does the dragging.
+    var can=_pmGCan(c,n),any=can.move||can.resize||can.link;
+    var ga=' class="pm-gbar" data-gk="'+_pmE(n.key)+'" data-move="'+(can.move?1:0)+'" data-resize="'+(can.resize?1:0)+'" data-link="'+(can.link?1:0)+'"'+
+      (any?' tabindex="0" role="button" aria-label="'+_pmE(n.name+', '+_pmDate(n.start)+' to '+_pmDate(n.finish)+'.'+(can.move?' Arrow keys move it.':'')+(can.resize?' Shift and arrow keys change its length.':''))+'"':'');
+    var hd=(can.resize?'<div class="pm-gres" aria-hidden="true"></div>':'')+(can.link?'<div class="pm-glink" aria-hidden="true" title="Drag onto another bar to link them"></div>':'');
+    var bar=n.milestone?'<div'+ga+' title="'+_pmE(n.name+' — '+_pmDate(n.start))+'" style="position:absolute;left:'+(bx-7)+'px;top:7px;width:14px;height:14px"><div style="width:14px;height:14px;transform:rotate(45deg);background:'+color+'"></div>'+hd+'</div>'
       :n.summary?'<div title="'+_pmE(n.name)+'" style="position:absolute;left:'+bx+'px;top:10px;width:'+bw+'px;height:7px;background:'+color+';border-radius:2px"></div>'
-      :'<div title="'+_pmE(n.name+' · '+_pmDate(n.start)+' → '+_pmDate(n.finish)+(n.float!=null?' · float '+n.float+'d':''))+'" style="position:absolute;left:'+bx+'px;top:6px;width:'+bw+'px;height:'+(bl?11:16)+'px;background:'+color+';border-radius:4px;opacity:'+(n.done?.6:1)+'"><div style="height:100%;width:'+(n.pct||0)+'%;background:rgba(255,255,255,.35);border-radius:4px"></div></div>';
+      :'<div'+ga+' title="'+_pmE(n.name+' · '+_pmDate(n.start)+' → '+_pmDate(n.finish)+(n.float!=null?' · float '+n.float+'d':''))+'" style="position:absolute;left:'+bx+'px;top:6px;width:'+bw+'px;height:'+(bl?11:16)+'px;background:'+color+';border-radius:4px;opacity:'+(n.done?.6:1)+'"><div style="height:100%;width:'+(n.pct||0)+'%;background:rgba(255,255,255,.35);border-radius:4px"></div>'+hd+'</div>';
     var blBar=bl&&bl.start?'<div title="Baseline '+_pmDate(bl.start)+' → '+_pmDate(bl.finish)+'" style="position:absolute;left:'+x(bl.start)+'px;top:19px;width:'+Math.max(4,x(_pmAddDays(bl.finish,1))-x(bl.start))+'px;height:5px;background:#94a3b8;border-radius:2px;opacity:.8"></div>':'';
     var varD=bl&&bl.finish?_pmWorkBetween(bl.finish,n.finish,c.ww):null;
     return '<div style="display:flex;height:'+rowH+'px;border-bottom:1px solid var(--bd1)">'+
@@ -1562,7 +1569,7 @@ function pmTab_schedule(key){
         '<div class="pm-muted">'+_pmDate(n.start)+'</div><div class="pm-muted">'+_pmDate(n.finish)+'</div>'+
         '<div class="pm-muted" title="Float (slack) in work days">'+(n.summary||n.done?'':(n.critical?'<b style="color:#dc2626">0</b>':n.float))+'</div>'+
         '<div title="Finish vs baseline (work days)" style="font-size:11px;'+(varD>0?'color:#dc2626':varD<0?'color:#16a34a':'color:var(--t3)')+'">'+(varD==null?'':varD>0?'+'+varD:varD)+'</div></div>'+
-      '<div style="position:relative;width:'+W+'px;flex:none">'+blBar+bar+'</div></div>';
+      '<div style="position:relative;width:'+W+'px;flex:none"'+(can.link?' data-grow="'+_pmE(n.key)+'"':'')+'>'+blBar+bar+'</div></div>';
   }).join('');
   // milestone rows (project/PM milestones that are not tasks)
   rows+=ms.length?'<div style="display:flex;height:'+rowH+'px;border-bottom:1px solid var(--bd1);background:var(--s2)"><div class="gl" style="width:'+L+'px;flex:none;padding:6px;font-size:11px;font-weight:700;color:var(--t3)">MILESTONES</div><div style="width:'+W+'px;flex:none"></div></div>'+
@@ -1573,14 +1580,17 @@ function pmTab_schedule(key){
   var arrows=nodes.map(function(n){return (n.preds||[]).map(function(p){var a=pos[p.key];if(!a)return '';var pn=a.n;
     var x1=(p.type==='SS'||p.type==='SF')?x(pn.start):x(_pmAddDays(pn.finish,1)),y1=a.i*rowH+rowH/2;
     var x2=(p.type==='FF'||p.type==='SF')?x(_pmAddDays(n.finish,1)):x(n.start),y2=pos[n.key].i*rowH+rowH/2;
-    var c=crit&&n.critical&&pn.critical?'#dc2626':'var(--t3)';
-    return '<path d="M'+x1+' '+y1+' h8 V'+y2+' H'+(x2-2)+'" fill="none" stroke="'+c+'" stroke-width="1.3" marker-end="url(#pm-arr)" opacity=".85"/>';}).join('');}).join('');
-  var todayLine=today>=t0&&today<=t1?'<div style="position:absolute;left:'+(L+x(today))+'px;top:0;bottom:0;width:2px;background:#dc2626;opacity:.5;z-index:1"></div>':'';
-  html+='<div class="pm-card pm-scroll" style="padding:0;max-height:72vh"><div class="pm-gantt" style="position:relative;width:'+(L+W)+'px">'+
+    var col=crit&&n.critical&&pn.critical?'#dc2626':'var(--t3)',dpath='M'+x1+' '+y1+' h8 V'+y2+' H'+(x2-2);
+    // a wide invisible copy takes the click (-250): change or remove the link
+    var hit=c.mode==='wbs'||(n.item&&n.item.editable)?'<path class="pm-garr" data-from="'+_pmE(p.key)+'" data-to="'+_pmE(n.key)+'" d="'+dpath+'" fill="none" stroke="transparent" stroke-width="10"><title>'+_pmE(pn.name+' → '+n.name+' · '+(p.type||'FS')+(p.lag?(p.lag>0?' +':' ')+p.lag+'d':'')+' — click to change')+'</title></path>':'';
+    return '<path d="'+dpath+'" fill="none" stroke="'+col+'" stroke-width="1.3" marker-end="url(#pm-arr)" opacity=".85"/>'+hit;}).join('');}).join('');
+  var todayLine=today>=t0&&today<=t1?'<div style="position:absolute;left:'+(L+x(today))+'px;top:0;bottom:0;width:2px;background:#dc2626;opacity:.5;z-index:1;pointer-events:none"></div>':'';
+  html+='<div class="pm-card pm-scroll" style="padding:0;max-height:72vh"><div class="pm-gantt" data-key="'+_pmE(key)+'" data-ppd="'+ppd+'" style="position:relative;width:'+(L+W)+'px">'+
     '<div style="display:flex;height:'+HEAD+'px;position:sticky;top:0;z-index:3;background:var(--s1);border-bottom:1px solid var(--bd2)"><div class="gl" style="width:'+L+'px;flex:none;display:grid;grid-template-columns:minmax(0,1fr) 70px 70px 44px 44px;align-items:end;padding:0 6px 6px;font-size:10.5px;color:var(--t3);font-weight:700;text-transform:uppercase"><div>'+(c.mode==='wbs'?'WBS':'Task')+'</div><div>Start</div><div>Finish</div><div>Float</div><div>Var</div></div><div style="position:relative;width:'+W+'px;flex:none">'+ticks.replace(/\{\{H\}\}/g,String(H))+'</div></div>'+
     rows+todayLine+
     '<svg style="position:absolute;left:'+L+'px;top:'+HEAD+'px;pointer-events:none;z-index:2" width="'+W+'" height="'+H+'"><defs><marker id="pm-arr" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="var(--t3)"/></marker></defs>'+arrows+'</svg>'+
-    '</div></div><div class="pm-muted" style="margin-top:6px">Project '+_pmDate(c.start)+' → <b>'+_pmDate(c.finish)+'</b>'+(base?' · baseline finish '+_pmDate(base.data.finish)+' ('+(function(v){return v>0?'+'+v+' work days late':v<0?Math.abs(v)+' work days early':'on baseline';})(_pmWorkBetween(base.data.finish,c.finish,c.ww))+')':'')+(c.ww?'':' · work days are Mon–Fri')+'</div>';
+    '</div></div><div class="pm-muted" style="margin-top:6px">Project '+_pmDate(c.start)+' → <b>'+_pmDate(c.finish)+'</b>'+(base?' · baseline finish '+_pmDate(base.data.finish)+' ('+(function(v){return v>0?'+'+v+' work days late':v<0?Math.abs(v)+' work days early':'on baseline';})(_pmWorkBetween(base.data.finish,c.finish,c.ww))+')':'')+(c.ww?'':' · work days are Mon–Fri')+'</div>'+
+    (nodes.some(function(n){return _pmGCan(c,n).move;})?'<div class="pm-muted" style="margin-top:3px">Drag a bar to move it, drag its right edge to change its length, drag its ● onto another bar to make that one follow it. Click an arrow to change or remove a link. A selected bar moves with the arrow keys (Shift: length).</div>':'');
   return html;
 }
 /** Copy computed WBS dates onto the linked native tasks (explicit button). */
@@ -1592,6 +1602,203 @@ function pmWbsWriteBack(key){
   list.forEach(function(x){x.t.startDate=x.s;x.t.due=x.f;x.t.updatedAt=new Date().toISOString();n++;});
   try{save('tasks');}catch(_){}_pmToast('Updated '+n+' task'+(n===1?'':'s'));pmRender();
 }
+
+// ═══ EDITABLE GANTT (build -250) ═══════════════════════════════════════════
+// Drag a bar to move it, its right edge to change its length, its ● onto
+// another bar to link them; click an arrow to change or remove a link; arrow
+// keys on a focused bar (Shift = length). Mouse, pen and touch (touch moves a
+// bar after a short hold, so a quick swipe still scrolls the chart).
+// What a change writes:
+//  WBS rows   — move = "start no earlier than" (sne); length = duration in
+//               work days; link = data.preds {id,type,lag}. Logic still wins:
+//               a row its predecessors hold later says so in the toast.
+//  Task dates — (no WBS) the LevelUp task's startDate/due and predecessorIds.
+//               Atlas / Nifty items and summaries are not editable here.
+// Every drag edit offers Undo. A link that would make a loop is refused.
+function _pmGCan(c,n){
+  if(!n||n.summary)return {};
+  if(c.mode==='wbs')return {move:!n.actualStart,resize:!n.milestone&&!n.actualFinish,link:true};
+  if(!(n.item&&n.item.editable&&n.item.src))return {};
+  return {move:true,resize:!n.milestone,link:true};
+}
+function _pmPrevWork(ymd,ww){var d=new Date(ymd+'T12:00:00');while(!_pmIsWork(d,ww))d.setDate(d.getDate()-1);return _pmYmd(d);}
+function _pmGNode(key,gk){return pmCpm(key).nodes.find(function(n){return n.key===gk;})||null;}
+/** Re-render the Schedule tab keeping the chart where it was scrolled. */
+function _pmGRender(focusGk){
+  var sc=document.querySelector('#pm-body .pm-gantt');sc=sc&&sc.closest('.pm-scroll');
+  var sl=sc?sc.scrollLeft:0,st=sc?sc.scrollTop:0;
+  pmRender();
+  var nsc=document.querySelector('#pm-body .pm-gantt');nsc=nsc&&nsc.closest('.pm-scroll');
+  if(nsc){nsc.scrollLeft=sl;nsc.scrollTop=st;}
+  if(focusGk){var el=document.querySelector('#pm-body .pm-gbar[data-gk="'+(window.CSS&&CSS.escape?CSS.escape(focusGk):focusGk)+'"]');if(el)try{el.focus({preventScroll:true});}catch(_){el.focus();}}
+}
+/** Undo closure for one node (a WBS row's data, or a task's dates + links). */
+function _pmGSnap(n){
+  if(n.rec){var lk=n.rec._lk,d=JSON.parse(JSON.stringify(n.rec.data||{}));return function(){var r=pmRec(lk);if(!r)return;r.data=d;pmPut(r);};}
+  var t=n.item&&n.item.src;if(!t)return function(){};
+  var s={startDate:t.startDate,due:t.due,predecessorIds:Array.isArray(t.predecessorIds)?t.predecessorIds.slice():t.predecessorIds};
+  return function(){Object.keys(s).forEach(function(k){if(s[k]===undefined)delete t[k];else t[k]=s[k];});t.updatedAt=new Date().toISOString();try{save('tasks');}catch(_){}};
+}
+function _pmGDone(msg,undo,gk,quiet){
+  _pmGRender(gk);
+  if(quiet){if(msg.warn)_pmToast(msg.text,'warn');return;}
+  try{toast({type:msg.warn?'warn':'success',title:'Schedule updated',msg:msg.text,duration:8000,actions:[{label:'Undo',primary:true,onClick:function(){undo();_pmGRender();}}]});}catch(_){_pmToast(msg.text);}
+}
+function _pmGSaveTask(t){t.updatedAt=new Date().toISOString();try{save('tasks');}catch(_){}}
+/** Move a bar so it starts on newStart (snapped to a work day). */
+function pmGanttMove(key,gk,newStart,quiet){
+  var c=pmCpm(key),n=c.nodes.find(function(x){return x.key===gk;});if(!n||!_pmGCan(c,n).move)return;
+  newStart=_pmNextWork(newStart,c.ww);if(newStart===n.start)return _pmGRender(gk);
+  var undo=_pmGSnap(n);
+  if(n.rec){var r=n.rec;r.data=Object.assign({},r.data,{sne:newStart});pmPut(r);}
+  else{var t=n.item.src,dur=Math.max(0,n.dur-1);
+    if(_pmIsYmd(t.startDate)||!_pmIsYmd(t.due))t.startDate=newStart;
+    if(_pmIsYmd(t.due))t.due=_pmAddWork(newStart,dur,c.ww);
+    _pmGSaveTask(t);}
+  var after=_pmGNode(key,gk),held=after&&after.start!==newStart;
+  _pmGDone({text:held?'“'+n.name+'” starts '+_pmDate(after.start)+' — '+(after.start>newStart?'its predecessors hold it there':'the project start holds it there'):'“'+n.name+'” now starts '+_pmDate(newStart)+(after?' and finishes '+_pmDate(after.finish):''),warn:held},undo,gk,quiet);
+}
+/** Change a bar's length so it finishes on newFinish (snapped back to a work day). */
+function pmGanttResize(key,gk,newFinish,quiet){
+  var c=pmCpm(key),n=c.nodes.find(function(x){return x.key===gk;});if(!n||!_pmGCan(c,n).resize)return;
+  newFinish=_pmPrevWork(newFinish,c.ww);if(newFinish<n.start)newFinish=n.start;if(newFinish===n.finish)return _pmGRender(gk);
+  var days=_pmWorkBetween(n.start,newFinish,c.ww)+1,undo=_pmGSnap(n);
+  if(n.rec){var r=n.rec;r.data=Object.assign({},r.data,{duration:Math.max(1,days)});pmPut(r);}
+  else{var t=n.item.src;if(!_pmIsYmd(t.startDate))t.startDate=n.start;t.due=newFinish;_pmGSaveTask(t);}
+  _pmGDone({text:'“'+n.name+'” is now '+days+' work day'+(days===1?'':'s')+', finishing '+_pmDate(newFinish)},undo,gk,quiet);
+}
+/** Make `toK` follow `fromK` (finish → start). */
+function pmGanttLink(key,fromK,toK){
+  if(!fromK||!toK||fromK===toK)return;
+  var c=pmCpm(key),from=c.nodes.find(function(x){return x.key===fromK;}),to=c.nodes.find(function(x){return x.key===toK;});
+  if(!from||!to||!_pmGCan(c,from).link||!_pmGCan(c,to).link)return;
+  if((to.preds||[]).some(function(p){return p.key===fromK;})){_pmToast('“'+to.name+'” already follows “'+from.name+'”');return;}
+  var undo=_pmGSnap(to),before=c.cycles;
+  if(to.rec){if(!from.rec.id){_pmToast('Still saving that row — try again in a moment','warn');return;}
+    to.rec.data=Object.assign({},to.rec.data,{preds:((to.rec.data||{}).preds||[]).concat([{id:from.rec.id,type:'FS',lag:0}])});pmPut(to.rec);}
+  else{var t=to.item.src;t.predecessorIds=(Array.isArray(t.predecessorIds)?t.predecessorIds:[]).concat([from.item.src.id]);_pmGSaveTask(t);}
+  if(pmCpm(key).cycles>before){undo();_pmGRender();_pmToast('That link would make a loop — “'+from.name+'” already depends on “'+to.name+'”','warn');return;}
+  _pmGDone({text:'“'+to.name+'” now follows “'+from.name+'”'},undo,toK);
+}
+function _pmGPredMatch(to,from){return function(p){var id=String(p.id);return to.rec?(from.rec&&(id===String(from.rec.id)||id===from.rec._lk)):String(p)===String(from.item.src.id);};}
+/** Change or remove one link (opened by clicking its arrow). */
+function pmGanttLinkDialog(key,fromK,toK){
+  var c=pmCpm(key),from=c.nodes.find(function(x){return x.key===fromK;}),to=c.nodes.find(function(x){return x.key===toK;});if(!from||!to)return;
+  var wbs=!!to.rec,cur=(to.preds||[]).find(function(p){return p.key===fromK;})||{type:'FS',lag:0};
+  // a link set on a summary row (it applies to every row inside) is changed on WBS / IMS
+  var direct=wbs?((to.rec.data||{}).preds||[]).some(_pmGPredMatch(to,from)):(to.item&&to.item.editable&&(to.item.src.predecessorIds||[]).some(_pmGPredMatch(to,from)));
+  var TYPES=[['FS','Finish → start'],['SS','Start → start'],['FF','Finish → finish'],['SF','Start → finish']];
+  pmModal('<h3>'+_pmIcon('link',18)+' Link<button class="x" onclick="pmCloseModal()">×</button></h3>'+
+    '<div style="margin-bottom:10px;font-size:13px"><b>'+_pmE(from.name)+'</b> → <b>'+_pmE(to.name)+'</b></div>'+
+    (!direct?'<div class="pm-muted">This link comes from a summary row — change it on the <a href="javascript:void(0)" onclick="pmCloseModal();pmGo(null,\'ims\')">WBS / IMS</a> tab.</div>':
+     wbs?'<div class="pm-row"><label for="pmgl-t">Type</label><select class="inp" id="pmgl-t">'+TYPES.map(function(t){return '<option value="'+t[0]+'"'+((cur.type||'FS')===t[0]?' selected':'')+'>'+t[1]+'</option>';}).join('')+'</select></div>'+
+       '<div class="pm-row"><label for="pmgl-l">Lag (work days)</label><input class="inp" type="number" id="pmgl-l" value="'+_pmE(String(cur.lag||0))+'"></div><div class="pm-muted" style="font-size:12px">A negative lag is a lead. The schedule health check prefers plain finish → start links with no lag.</div>'
+       :'<div class="pm-muted">Task links are finish → start. Build a WBS (WBS / IMS tab) for other link types and lags.</div>')+
+    '<div class="pm-acts">'+(direct?'<button class="btn btn-s" style="margin-right:auto;color:#dc2626" id="pmgl-rm">Remove link</button>':'')+'<button class="btn btn-s" onclick="pmCloseModal()">'+(direct&&wbs?'Cancel':'Close')+'</button>'+(direct&&wbs?'<button class="btn btn-p" id="pmgl-save">Save</button>':'')+'</div>');
+  var rm=document.getElementById('pmgl-rm');
+  if(rm)rm.onclick=function(){var undo=_pmGSnap(to),m=_pmGPredMatch(to,from);pmCloseModal(true);
+    if(wbs){to.rec.data=Object.assign({},to.rec.data,{preds:(to.rec.data.preds||[]).filter(function(p){return !m(p);})});pmPut(to.rec);}
+    else{var t=to.item.src;t.predecessorIds=(t.predecessorIds||[]).filter(function(p){return !m(p);});_pmGSaveTask(t);}
+    _pmGDone({text:'Link removed — “'+to.name+'” no longer waits for “'+from.name+'”'},undo,toK);};
+  var sv=document.getElementById('pmgl-save');
+  if(sv)sv.onclick=function(){var type=document.getElementById('pmgl-t').value,lag=Math.round(Number(document.getElementById('pmgl-l').value)||0);
+    var undo=_pmGSnap(to),m=_pmGPredMatch(to,from),before=pmCpm(key).cycles;pmCloseModal(true);
+    to.rec.data=Object.assign({},to.rec.data,{preds:(to.rec.data.preds||[]).map(function(p){return m(p)?Object.assign({},p,{type:type,lag:lag}):p;})});pmPut(to.rec);
+    if(pmCpm(key).cycles>before){undo();_pmGRender();_pmToast('That change would make a loop','warn');return;}
+    _pmGDone({text:'Link set to '+type+(lag?(lag>0?' +':' ')+lag+'d':'')},undo,toK);};
+}
+// ─── the pointer + keyboard layer (one set of document listeners) ───────────
+var _pmGD=null;
+function _pmGCSS(){
+  if(document.getElementById('lu-pm-gantt-css'))return;
+  var s=document.createElement('style');s.id='lu-pm-gantt-css';
+  s.textContent='.pm-gantt .pm-gbar[data-move="1"]{cursor:grab}'+
+    '.pm-gantt .pm-gbar:focus-visible{outline:2px solid var(--page-accent,#0891b2);outline-offset:2px}'+
+    '.pm-gantt .pm-gres{position:absolute;right:-3px;top:-2px;bottom:-2px;width:9px;cursor:ew-resize;touch-action:none}'+
+    '.pm-gantt .pm-glink{position:absolute;right:-15px;top:50%;width:10px;height:10px;margin-top:-5px;border-radius:50%;box-sizing:border-box;background:var(--s1);border:2px solid var(--page-accent,#0891b2);cursor:crosshair;opacity:0;transition:opacity .12s;touch-action:none}'+
+    '.pm-gantt .pm-gbar:hover .pm-glink,.pm-gantt .pm-gbar:focus .pm-glink,.pm-gantt.linking .pm-glink{opacity:1}'+
+    '@media (pointer:coarse){.pm-gantt .pm-glink{opacity:.85;width:16px;height:16px;margin-top:-8px;right:-22px}.pm-gantt .pm-gres{width:16px;right:-8px}}'+
+    '.pm-gantt .pm-gbar.drag{box-shadow:0 3px 10px rgba(0,0,0,.28);z-index:5;cursor:grabbing}'+
+    '.pm-gantt [data-grow].pm-gdrop{background:color-mix(in srgb,var(--page-accent,#0891b2) 14%,transparent)}'+
+    '.pm-gantt .pm-garr{pointer-events:stroke;cursor:pointer}'+
+    '#pm-gtip{position:fixed;z-index:9500;background:var(--t1);color:var(--bg);font-size:11.5px;font-weight:600;padding:3px 8px;border-radius:5px;pointer-events:none;white-space:nowrap}';
+  document.head.appendChild(s);
+}
+function _pmGTip(text,x,y){var t=document.getElementById('pm-gtip');if(!text){if(t)t.remove();return;}
+  if(!t){t=document.createElement('div');t.id='pm-gtip';document.body.appendChild(t);}t.textContent=text;t.style.left=(x+14)+'px';t.style.top=(y-30)+'px';}
+function _pmGEnd(){
+  if(!_pmGD)return;var g=_pmGD;_pmGD=null;clearTimeout(g.hold);
+  _pmGTip(null);if(g.line)g.line.remove();if(g.g)g.g.classList.remove('linking');
+  if(g.bar)g.bar.classList.remove('drag');if(g.over)g.over.classList.remove('pm-gdrop');
+  return g;
+}
+function _pmGStart(g){
+  g.active=true;g.bar.classList.add('drag');
+  if(g.mode==='link'){g.g.classList.add('linking');
+    var ns='http://www.w3.org/2000/svg',sv=document.createElementNS(ns,'svg');sv.setAttribute('style','position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:6;overflow:visible');
+    var ln=document.createElementNS(ns,'line');ln.setAttribute('stroke','var(--page-accent,#0891b2)');ln.setAttribute('stroke-width','2');ln.setAttribute('stroke-dasharray','5 3');sv.appendChild(ln);g.g.appendChild(sv);g.line=sv;g.ln=ln;}
+}
+document.addEventListener('pointerdown',function(e){
+  if(e.button!==0||_pmGD)return;
+  var h=e.target&&e.target.closest&&e.target.closest('.pm-gres,.pm-glink,.pm-gbar');if(!h)return;
+  var g=h.closest('.pm-gantt'),bar=h.closest('.pm-gbar');if(!g||!bar)return;
+  var mode=h.classList.contains('pm-gres')?'resize':h.classList.contains('pm-glink')?'link':'move';
+  if(bar.getAttribute('data-'+mode)!=='1')return;
+  var gr=g.getBoundingClientRect(),hr=h.getBoundingClientRect();
+  _pmGD={mode:mode,g:g,bar:bar,gk:bar.getAttribute('data-gk'),key:g.getAttribute('data-key'),ppd:Number(g.getAttribute('data-ppd'))||22,
+    x0:e.clientX,y0:e.clientY,left:bar.offsetLeft,width:bar.offsetWidth,touch:e.pointerType==='touch'&&mode==='move',
+    lx:hr.left+hr.width/2-gr.left,ly:hr.top+hr.height/2-gr.top,active:false,ready:!(e.pointerType==='touch'&&mode==='move')};
+  _pmGD.node=_pmGNode(_pmGD.key,_pmGD.gk);if(!_pmGD.node){_pmGD=null;return;}
+  if(_pmGD.touch)_pmGD.hold=setTimeout(function(){if(_pmGD&&!_pmGD.active){_pmGD.ready=true;_pmGStart(_pmGD);try{navigator.vibrate&&navigator.vibrate(12);}catch(_){}}},350);
+  if(mode!=='move'||e.pointerType!=='touch')e.preventDefault();
+},true);
+document.addEventListener('pointermove',function(e){
+  var g=_pmGD;if(!g)return;
+  var dx=e.clientX-g.x0,dy=e.clientY-g.y0;
+  if(!g.active){
+    if(!g.ready){if(Math.abs(dx)>8||Math.abs(dy)>8){_pmGEnd();}return;} // a swipe: let the chart scroll
+    if(Math.abs(dx)<4&&Math.abs(dy)<4)return;_pmGStart(g);
+  }
+  e.preventDefault();
+  var n=g.node,days=Math.round(dx/g.ppd),ww=pmCpm(g.key).ww;
+  if(g.mode==='move'){g.bar.style.left=(g.left+dx)+'px';_pmGTip('Starts '+_pmDate(_pmNextWork(_pmAddDays(n.start,days),ww)),e.clientX,e.clientY);}
+  else if(g.mode==='resize'){g.bar.style.width=Math.max(g.ppd,g.width+dx)+'px';var f=_pmPrevWork(_pmAddDays(n.finish,days),ww);if(f<n.start)f=n.start;
+    _pmGTip('Finishes '+_pmDate(f)+' · '+(_pmWorkBetween(n.start,f,ww)+1)+' work days',e.clientX,e.clientY);}
+  else{var gr=g.g.getBoundingClientRect();g.ln.setAttribute('x1',g.lx);g.ln.setAttribute('y1',g.ly);g.ln.setAttribute('x2',e.clientX-gr.left);g.ln.setAttribute('y2',e.clientY-gr.top);
+    var el=document.elementFromPoint(e.clientX,e.clientY),row=el&&el.closest&&el.closest('.pm-gantt [data-grow]');
+    if(row&&row.getAttribute('data-grow')===g.gk)row=null;
+    if(row!==g.over){if(g.over)g.over.classList.remove('pm-gdrop');g.over=row;if(row)row.classList.add('pm-gdrop');}
+    var tn=row&&_pmGNode(g.key,row.getAttribute('data-grow'));_pmGTip(tn?'“'+tn.name+'” follows “'+n.name+'”':'Drop on the bar that should follow',e.clientX,e.clientY);}
+  // keep the pointer in view near the chart's edges
+  var sc=g.g.closest('.pm-scroll');if(sc){var r=sc.getBoundingClientRect();if(e.clientX>r.right-40)sc.scrollLeft+=14;else if(e.clientX<r.left+40+(g.mode==='link'?0:440))sc.scrollLeft-=14;
+    if(e.clientY>r.bottom-30)sc.scrollTop+=10;else if(e.clientY<r.top+40)sc.scrollTop-=10;}
+},{passive:false});
+// Once a touch drag is on, the page must not scroll under it.
+document.addEventListener('touchmove',function(e){if(_pmGD&&_pmGD.active)e.preventDefault();},{passive:false});
+document.addEventListener('pointerup',function(e){
+  var g=_pmGEnd();if(!g||!g.active)return;
+  // swallow the click that ends a drag
+  var sw=function(ev){ev.stopPropagation();ev.preventDefault();window.removeEventListener('click',sw,true);};
+  window.addEventListener('click',sw,true);setTimeout(function(){window.removeEventListener('click',sw,true);},60);
+  var days=Math.round((e.clientX-g.x0)/g.ppd),n=g.node;
+  if(g.mode==='move'){if(!days)return _pmGRender(g.gk);pmGanttMove(g.key,g.gk,_pmAddDays(n.start,days));}
+  else if(g.mode==='resize'){if(!days)return _pmGRender(g.gk);pmGanttResize(g.key,g.gk,_pmAddDays(n.finish,days));}
+  else if(g.over)pmGanttLink(g.key,g.gk,g.over.getAttribute('data-grow'));
+},true);
+document.addEventListener('pointercancel',function(){var g=_pmGEnd();if(g&&g.active)_pmGRender();},true);
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'&&_pmGD){var g=_pmGEnd();if(g.active){e.preventDefault();_pmGRender(g.gk);}return;}
+  if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;
+  var bar=e.target&&e.target.closest&&e.target.closest('.pm-gantt .pm-gbar');if(!bar||e.altKey||e.ctrlKey||e.metaKey)return;
+  var g=bar.closest('.pm-gantt'),key=g.getAttribute('data-key'),gk=bar.getAttribute('data-gk'),n=_pmGNode(key,gk);if(!n)return;
+  var step=e.key==='ArrowRight'?1:-1,ww=pmCpm(key).ww;
+  if(e.shiftKey){if(bar.getAttribute('data-resize')!=='1')return;e.preventDefault();pmGanttResize(key,gk,_pmAddWork(n.finish,step,ww),true);}
+  else{if(bar.getAttribute('data-move')!=='1')return;e.preventDefault();pmGanttMove(key,gk,_pmAddWork(n.start,step,ww),true);}
+});
+document.addEventListener('click',function(e){
+  var a=e.target&&e.target.closest&&e.target.closest('.pm-gantt .pm-garr');if(!a)return;
+  var g=a.closest('.pm-gantt');pmGanttLinkDialog(g.getAttribute('data-key'),a.getAttribute('data-from'),a.getAttribute('data-to'));
+});
 
 // ═══ WBS / IMS (phase 3) ════════════════════════════════════════════════════
 // Both styles the owner asked for, on the same rows:
@@ -2403,7 +2610,7 @@ async function pmExportAll(key){
   try{if(typeof HC_ARTICLES!=='undefined'&&Array.isArray(HC_ARTICLES)&&!HC_ARTICLES.some(function(a){return a.slug==='project-management';})){
     HC_ARTICLES.push({id:65,slug:'project-management',catId:10,title:'Project management — delegation, RACI, schedule, risks and budget',
       summary:'The PM Workspace: track work you hand to others (even people without LevelUp), RACI, RAID log and risk matrix, stakeholders and status reports, Gantt with critical path and baselines, WBS / DoD IMS with MS Project export, resources, budget with earned value, change requests, lessons, templates and meeting notes → action items.',
-      tags:['project','projects','pm','project management','program','delegate','delegated','delegation','waiting','raci','raid','risk','risks','issue','stakeholder','status report','gantt','schedule','critical path','baseline','ims','wbs','ms project','dod','dcma','schedule health','14 point','status date','actual start','actual finish','percent complete','cpli','bei','resource','resources','budget','evm','earned value','cpi','spi','change request','lessons','template','meeting notes','action items'],
-      body:'## Project management\n\nOpen **PM Workspace** in the sidebar (under Work), or **💼 PM workspace** in a project\'s details. Pick a project at the top — LevelUp projects and **Atlas (CommunityForce)** projects are both listed — or **All projects** for the portfolio.\n\n## Delegate and track (Waiting on)\n\nIn any task press **🤝 Delegate** (or **Delegate something** on the Waiting on tab). Choose the person — a team member, someone from your Contacts, or anyone you add with an email address; they do **not** need LevelUp. Set when you expect it back and when to follow up. Tick **Email them now** to send the details.\n\n**Waiting on** lists everything you have handed off, grouped by person or project, with what is late and what is due a follow-up. **Follow up** emails the person; they just **reply** ("done", "Friday", "blocked on the client") and LevelUp reads the reply, updates the delegation and tells you. A "done" marks the task done. Turn on **Automatic follow-up emails** in the project\'s Settings tab to have LevelUp send follow-ups on the date for you. Your coach mentions late delegated work in its check-ins.\n\n## RACI\n\nAdd people as columns, then click a cell to mark **R**esponsible, **A**ccountable (exactly one), **C**onsulted, **I**nformed. The Check column flags rows with no or several Accountables. **Fill from assignments** starts it from task assignees and delegations. Export to Excel or print.\n\n## RAID log\n\nRisks (with a 5×5 probability × impact matrix), Issues, Assumptions and Decisions. A risk that happens becomes an issue in one click.\n\n## Stakeholders and reports\n\nPlace stakeholders on the influence/interest grid and plan who hears what and how often. **Reports → New status report** drafts a red/amber/green report from live data with AI; edit it, then **Email** it, save a **PDF**, or turn it into a **Slides** deck.\n\n## Schedule, WBS and IMS\n\n**Schedule** is a Gantt with dependency arrows, the **critical path** in red, float, milestones and **baselines** (save one, then see how far each item has slipped). **WBS / IMS** holds the outline with durations in work days and predecessors ("3", "3SS", "3FS+2"). Two styles: **MS Project-style WBS** or **DoD IMS** (event → significant accomplishment → accomplishment criteria → task). Build it from the project\'s tasks, from your milestones, or draft it with AI. Export to **Excel** or **MS Project XML** (open it in Microsoft Project).\n\n## Progress and schedule health\n\nOn **WBS / IMS** set each row\'s **% done**, **Actual start** and **Actual finish** — an actual finish marks the row done, and the schedule moves the rest of the plan from the real dates. The **Health** tab runs the DCMA 14-point check on the schedule against a **status date** you choose: missing logic, leads and lags, link types, constraints, high float, negative float, long tasks, dates that are already past, unassigned work, missed tasks, the critical path, CPLI and BEI. Each failing check lists the rows to fix. Save a baseline on the Schedule tab first for the last three. The MS Project XML export carries % done, actual dates and the baseline.\n\n## Resources and budget\n\n**Resources** shows each person\'s load per week against their capacity (allocations plus estimated work they own; Atlas team plans too). **Budget** holds planned lines and actual costs and works out **earned value**: CPI (cost efficiency), SPI (schedule efficiency) and the estimate at completion. Approved **change requests** add to the budget.\n\n## Templates and meeting notes\n\n**All projects → Templates** creates a project with tasks, dependencies, RACI roles and risks from a template (client onboarding, ATO package, software release, proposal response — or save your own). **Action items from meeting notes** reads a note, finds who committed to what, and creates the tasks and delegations.'});
+      tags:['project','projects','pm','project management','program','delegate','delegated','delegation','waiting','raci','raid','risk','risks','issue','stakeholder','status report','gantt','drag','schedule','critical path','baseline','ims','wbs','ms project','dod','dcma','schedule health','14 point','status date','actual start','actual finish','percent complete','cpli','bei','resource','resources','budget','evm','earned value','cpi','spi','change request','lessons','template','meeting notes','action items'],
+      body:'## Project management\n\nOpen **PM Workspace** in the sidebar (under Work), or **💼 PM workspace** in a project\'s details. Pick a project at the top — LevelUp projects and **Atlas (CommunityForce)** projects are both listed — or **All projects** for the portfolio.\n\n## Delegate and track (Waiting on)\n\nIn any task press **🤝 Delegate** (or **Delegate something** on the Waiting on tab). Choose the person — a team member, someone from your Contacts, or anyone you add with an email address; they do **not** need LevelUp. Set when you expect it back and when to follow up. Tick **Email them now** to send the details.\n\n**Waiting on** lists everything you have handed off, grouped by person or project, with what is late and what is due a follow-up. **Follow up** emails the person; they just **reply** ("done", "Friday", "blocked on the client") and LevelUp reads the reply, updates the delegation and tells you. A "done" marks the task done. Turn on **Automatic follow-up emails** in the project\'s Settings tab to have LevelUp send follow-ups on the date for you. Your coach mentions late delegated work in its check-ins.\n\n## RACI\n\nAdd people as columns, then click a cell to mark **R**esponsible, **A**ccountable (exactly one), **C**onsulted, **I**nformed. The Check column flags rows with no or several Accountables. **Fill from assignments** starts it from task assignees and delegations. Export to Excel or print.\n\n## RAID log\n\nRisks (with a 5×5 probability × impact matrix), Issues, Assumptions and Decisions. A risk that happens becomes an issue in one click.\n\n## Stakeholders and reports\n\nPlace stakeholders on the influence/interest grid and plan who hears what and how often. **Reports → New status report** drafts a red/amber/green report from live data with AI; edit it, then **Email** it, save a **PDF**, or turn it into a **Slides** deck.\n\n## Schedule, WBS and IMS\n\n**Schedule** is a Gantt with dependency arrows, the **critical path** in red, float, milestones and **baselines** (save one, then see how far each item has slipped). Drag a bar to move it, drag its right edge to change its length, and drag its ● onto another bar to make that one follow it; click an arrow to change or remove a link. Arrow keys move a selected bar (Shift changes its length), and each drag can be undone. **WBS / IMS** holds the outline with durations in work days and predecessors ("3", "3SS", "3FS+2"). Two styles: **MS Project-style WBS** or **DoD IMS** (event → significant accomplishment → accomplishment criteria → task). Build it from the project\'s tasks, from your milestones, or draft it with AI. Export to **Excel** or **MS Project XML** (open it in Microsoft Project).\n\n## Progress and schedule health\n\nOn **WBS / IMS** set each row\'s **% done**, **Actual start** and **Actual finish** — an actual finish marks the row done, and the schedule moves the rest of the plan from the real dates. The **Health** tab runs the DCMA 14-point check on the schedule against a **status date** you choose: missing logic, leads and lags, link types, constraints, high float, negative float, long tasks, dates that are already past, unassigned work, missed tasks, the critical path, CPLI and BEI. Each failing check lists the rows to fix. Save a baseline on the Schedule tab first for the last three. The MS Project XML export carries % done, actual dates and the baseline.\n\n## Resources and budget\n\n**Resources** shows each person\'s load per week against their capacity (allocations plus estimated work they own; Atlas team plans too). **Budget** holds planned lines and actual costs and works out **earned value**: CPI (cost efficiency), SPI (schedule efficiency) and the estimate at completion. Approved **change requests** add to the budget.\n\n## Templates and meeting notes\n\n**All projects → Templates** creates a project with tasks, dependencies, RACI roles and risks from a template (client onboarding, ATO package, software release, proposal response — or save your own). **Action items from meeting notes** reads a note, finds who committed to what, and creates the tasks and delegations.'});
   }}catch(_){}
 })();
