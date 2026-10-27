@@ -4503,7 +4503,7 @@ function renderTaskBoard(){
     const extInCol=extTasks.filter(et=>_extStatusToBoardCol(et.status)===col.status);
     const cards=colTasks.map(t=>{
       const isBlocked=(t.predecessorIds||[]).length>0&&(t.predecessorIds||[]).some(pid=>{const pred=D.tasks.find(x=>x.id===pid);return pred&&pred.status!=='Done';});
-      return `<div style="background:var(--s2);border:1px solid var(--bd2);border-radius:7px;padding:8px 10px;margin-bottom:6px;cursor:pointer;transition:box-shadow .15s" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.18)'" onmouseout="this.style.boxShadow=''" onclick="openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))">
+      return `<div data-drag="task" data-drag-id="${esc(String(t.id))}" title="Drag to another column to change its status" style="background:var(--s2);border:1px solid var(--bd2);border-radius:7px;padding:8px 10px;margin-bottom:6px;cursor:pointer;transition:box-shadow .15s" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.18)'" onmouseout="this.style.boxShadow=''" onclick="openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))">
         <div style="font-size:11px;font-weight:500;margin-bottom:4px;line-height:1.3;${t.titleColor?`color:${t.titleColor};font-weight:700`:''}">${esc(t.title)}</div>
         <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
           <span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span>
@@ -4546,7 +4546,7 @@ function renderTaskBoard(){
     }).join('');
     const totalInCol=colTasks.length+extInCol.length;
     const extCount=extInCol.length?`<span style="font-size:11px;color:var(--t3);margin-left:4px" title="${extInCol.length} from Smartsheet/Nifty">+${extInCol.length} ext</span>`:'';
-    return `<div style="flex:1;min-width:160px;max-width:280px">
+    return `<div data-drop="board" data-drop-v="${esc(col.status)}" style="flex:1;min-width:160px;max-width:280px;min-height:140px;border-radius:8px;padding:2px">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid ${col.color}">
         <span style="font-size:11px;font-weight:700;color:${col.color}">${col.label}</span>
         <span style="font-size:11px;color:var(--t3);background:var(--s3);border-radius:10px;padding:1px 6px">${totalInCol}</span>
@@ -4558,6 +4558,116 @@ function renderTaskBoard(){
   }).join('');
   list.innerHTML=`<div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;height:100%;align-items:flex-start">${colHtml}</div>`;
 }
+// ── Drag to move, mouse and touch (build -238) ──────────────────────────────
+// One pointer-based drag for the Board and the calendar (the browser's own
+// drag-and-drop doesn't work with a finger on iPhone/iPad). Markup only
+// carries data attributes — no handlers:
+//   data-drag="<kind>"  data-drag-id="<id>"     what can be picked up
+//   data-drop="<zone>"  data-drop-v="<value>"   where it can land
+// A drop calls _luDropRoutes[zone](kind, id, value). Mouse: starts after 6px
+// of movement. Touch: hold ~0.35s, then drag (a quick swipe still scrolls).
+// The click that ends a drag is swallowed so the card doesn't also open.
+// Keyboard and screen-reader users keep the existing controls (status pills,
+// ✓ Done / ▶ Start, the event dialog's date and time).
+const _luDropRoutes={};
+const _luDrag={el:null,kind:'',id:'',x:0,y:0,on:false,ghost:null,zone:null,timer:null,touch:false,swallow:false};
+function _luDragZoneAt(x,y){
+  const g=_luDrag.ghost;
+  if(g)g.style.display='none';
+  const el=document.elementFromPoint(x,y);
+  if(g)g.style.display='';
+  return el&&el.closest?el.closest('[data-drop]'):null;
+}
+function _luDragBegin(){
+  const d=_luDrag;
+  if(!d.el)return;
+  d.on=true;
+  const r=d.el.getBoundingClientRect();
+  const g=d.el.cloneNode(true);
+  g.removeAttribute('id');g.removeAttribute('data-drag');g.setAttribute('aria-hidden','true');
+  g.style.position='fixed';g.style.left=r.left+'px';g.style.top=r.top+'px';g.style.width=r.width+'px';g.style.margin='0';
+  g.style.pointerEvents='none';g.style.opacity='.9';g.style.zIndex='10050';g.style.boxShadow='0 8px 24px rgba(0,0,0,.25)';g.style.transform='rotate(1deg)';
+  g._dx=d.x-r.left;g._dy=d.y-r.top;
+  document.body.appendChild(g);d.ghost=g;
+  d.el.style.opacity='.4';
+  document.body.classList.add('lu-dragging');
+  if(d.touch&&navigator.vibrate)try{navigator.vibrate(10);}catch(_){}
+}
+function _luDragMove(x,y){
+  const d=_luDrag;
+  if(!d.on){
+    if(d.touch)return; // touch waits for the hold
+    if(Math.abs(x-d.x)+Math.abs(y-d.y)<6)return;
+    _luDragBegin();
+  }
+  const g=d.ghost;
+  if(g){g.style.left=(x-g._dx)+'px';g.style.top=(y-g._dy)+'px';}
+  const z=_luDragZoneAt(x,y);
+  if(z!==d.zone){if(d.zone)d.zone.classList.remove('lu-drop-over');d.zone=z;if(z)z.classList.add('lu-drop-over');}
+  // Scroll the page (or the scrolled list under the finger) near its edges.
+  const m=48;
+  if(y<m)window.scrollBy(0,-14);else if(y>innerHeight-m)window.scrollBy(0,14);
+  const sc=z&&z.closest?z.closest('#tasks-list>div,#cal-main [style*="overflow"]'):null;
+  if(sc){const sr=sc.getBoundingClientRect();if(x<sr.left+m)sc.scrollLeft-=14;else if(x>sr.right-m)sc.scrollLeft+=14;}
+}
+function _luDragEnd(x,y,cancel){
+  const d=_luDrag;
+  clearTimeout(d.timer);
+  const was=d.on,kind=d.kind,id=d.id;
+  const zone=was&&!cancel?_luDragZoneAt(x,y):null;
+  if(d.ghost)d.ghost.remove();
+  if(d.el)d.el.style.opacity='';
+  if(d.zone)d.zone.classList.remove('lu-drop-over');
+  document.body.classList.remove('lu-dragging');
+  Object.assign(d,{el:null,on:false,ghost:null,zone:null,timer:null});
+  if(!was)return;
+  d.swallow=true;setTimeout(()=>{d.swallow=false;},400);
+  if(!zone)return;
+  const fn=_luDropRoutes[zone.getAttribute('data-drop')];
+  if(typeof fn==='function'){try{fn(kind,id,zone.getAttribute('data-drop-v')||'',zone);}catch(e){console.error('[drop]',e);}}
+}
+document.addEventListener('pointerdown',e=>{
+  if(e.pointerType==='mouse'&&e.button!==0)return;
+  const el=e.target&&e.target.closest?e.target.closest('[data-drag]'):null;
+  if(!el||_luDrag.on)return;
+  if(e.target.closest('button,a,input,select,textarea,label,[contenteditable="true"],.cal-resize-handle'))return;
+  const d=_luDrag;
+  clearTimeout(d.timer);
+  Object.assign(d,{el,kind:el.getAttribute('data-drag'),id:el.getAttribute('data-drag-id')||'',x:e.clientX,y:e.clientY,on:false,touch:e.pointerType!=='mouse'});
+  if(d.touch)d.timer=setTimeout(()=>{if(d.el===el&&!d.on)_luDragBegin();},350);
+},true);
+document.addEventListener('pointermove',e=>{
+  const d=_luDrag;
+  if(!d.el)return;
+  if(d.touch&&!d.on){if(Math.abs(e.clientX-d.x)+Math.abs(e.clientY-d.y)>8){clearTimeout(d.timer);d.el=null;}return;}
+  _luDragMove(e.clientX,e.clientY);
+},true);
+document.addEventListener('pointerup',e=>{if(_luDrag.el)_luDragEnd(e.clientX,e.clientY,false);},true);
+document.addEventListener('pointercancel',()=>{const d=_luDrag;if(d.el&&!d.on){clearTimeout(d.timer);d.el=null;}},true);
+// Once a touch drag has started, the finger moves the card, not the page.
+document.addEventListener('touchmove',e=>{if(_luDrag.on){e.preventDefault();const t=e.touches[0];if(t)_luDragMove(t.clientX,t.clientY);}},{passive:false,capture:true});
+document.addEventListener('touchend',e=>{if(_luDrag.on){const t=e.changedTouches&&e.changedTouches[0];_luDragEnd(t?t.clientX:_luDrag.x,t?t.clientY:_luDrag.y,false);}},true);
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&_luDrag.on)_luDragEnd(0,0,true);},true);
+window.addEventListener('click',e=>{if(_luDrag.swallow){e.stopPropagation();e.preventDefault();_luDrag.swallow=false;}},true);
+(function(){
+  if(document.getElementById('lu-dnd-css'))return;
+  const s=document.createElement('style');s.id='lu-dnd-css';
+  s.textContent='[data-drag]{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;cursor:grab}'
+    +'body.lu-dragging,body.lu-dragging *{cursor:grabbing!important;-webkit-user-select:none!important;user-select:none!important}'
+    +'.lu-drop-over{outline:2px dashed var(--ac);outline-offset:-2px;background:var(--acs)!important}';
+  document.head.appendChild(s);
+})();
+// Board: drop a card on a column to set its status.
+_luDropRoutes.board=function(kind,id,status){
+  if(kind!=='task'||!status)return;
+  const t=(D.tasks||[]).find(x=>String(x.id)===String(id));
+  if(!t||t.status===status)return;
+  const prev=t.status||'Not Started';
+  setTaskStatus(t,status);
+  if(typeof renderCurrentTaskView==='function')renderCurrentTaskView();else renderTaskBoard();
+  const undo=status==='Done'?[]:[{label:'Undo',onClick:()=>{setTaskStatus(t,prev);if(typeof renderCurrentTaskView==='function')renderCurrentTaskView();}}];
+  toast({type:'success',title:'"'+String(t.title||'Task').slice(0,60)+'" → '+status,actions:undo,duration:3500});
+};
 function renderTaskMatrix(){
   const list=document.getElementById('tasks-list');
   if(!list)return;

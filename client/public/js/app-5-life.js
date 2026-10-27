@@ -1324,7 +1324,10 @@ function _calChip(e,opts){
   const done=task&&e._done?';opacity:.55;text-decoration:line-through':ghost?';opacity:.5':'';
   const series=e&&e._seriesId!=null;
   const tip=bill?'Bill due — click to open Money → Bills':ghost?`Repeats here${e.time?' · '+e.time:''} — click to open the task`:task?`${e._done?'Completed task':'Task'}${e.time?' · '+e.time:''} — click to open`:series?_calRuleText({rrule:e._rrule,dateStr:String(e.id).split('~')[1]||e.dateStr}):'';
-  return `<div class="${o.cls||'cal-ev'}${task?' cal-task':''}"${tip?` title="${esc(tip)}"`:''} style="background:${bg};border-left:${edge};color:var(--t1);cursor:pointer${done}${o.extra||''}" onclick="event.stopPropagation();${_calChipClick(e)}">${ghost||series?'🔁 ':task&&!e._done?'▢ ':''}${esc(e.title)}</div>`;
+  // Draggable (-238): grid events you may move, and your own scheduled tasks.
+  const ownTask=task&&!ghost&&(D.tasks||[]).some(x=>String(x.id)===String(e.id));
+  const drag=bill||ghost?'':ownTask?` data-drag="caltask" data-drag-id="${esc(String(e.id))}"`:(!task&&typeof _calCanMove==='function'&&_calCanMove(e)&&!e._synced?` data-drag="calev" data-drag-id="${esc(String(e.id))}"`:'');
+  return `<div class="${o.cls||'cal-ev'}${task?' cal-task':''}"${drag}${tip?` title="${esc(tip)}"`:''} style="background:${bg};border-left:${edge};color:var(--t1);cursor:pointer${done}${o.extra||''}" onclick="event.stopPropagation();${_calChipClick(e)}">${ghost||series?'🔁 ':task&&!e._done?'▢ ':''}${esc(e.title)}</div>`;
 }
 // Show/hide scheduled tasks. Default ON — the user asked for them — so only an
 // explicit false opts out.
@@ -2212,13 +2215,13 @@ function renderCalWeek(){
   const _hFrom=Math.min(7,..._hrs),_hTo=Math.max(19,..._hrs);
   const _hours=Array.from({length:_hTo-_hFrom+1},(_,i)=>_hFrom+i);
   const _hLabel=h=>h===0?'12 AM':h<12?`${h} AM`:h===12?'12 PM':`${h-12} PM`;
-  const _allDayRow=_allDay.some(l=>l.length)?`<div class="cal-tl" style="font-size:10px">All day</div>${_allDay.map(l=>`<div class="cal-c">${l.map(e=>_calChip(e)).join('')}</div>`).join('')}`:'';
+  const _allDayRow=_allDay.some(l=>l.length)?`<div class="cal-tl" style="font-size:10px">All day</div>${_allDay.map((l,d)=>`<div class="cal-c" data-drop="cal" data-drop-v="${weekDayStrs[d]}|allday">${l.map(e=>_calChip(e)).join('')}</div>`).join('')}`:'';
   $('cal-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('calendar',22,'var(--page-accent)')}Calendar</h1><p style="font-size:12px;color:var(--t2)">${weekRangeLabel}</p></div><div style="display:flex;gap:4px;align-items:center"><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calWeekOffset--;renderCal()" title="Previous week">‹</button><button class="btn btn-s" style="height:28px;font-size:11px" onclick="_calWeekOffset=0;renderCal()">Today</button><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calWeekOffset++;renderCal()" title="Next week">›</button>${_calAIMenu('cal-ai-week',[{label:'💬 NL Event',fn:'aiCalNLP()',c:'var(--ac)'},{label:'✨ Optimize',fn:'aiScheduleOptimize()',c:'var(--purp)'},{label:'📝 Prep Brief',fn:'aiMeetingPrepBrief()',c:'var(--grn)'}])}<button class="btn btn-s" id="cal-sync-btn-week" style="height:28px;font-size:11px" onclick="syncCalendarO365(this)" title="Sync Office 365 calendar">☁ Sync O365</button><button class="btn btn-p" onclick="openNewCalEventModal()">+ Event</button></div></div>
 ${_calViewTabs()}
 <div style="overflow-x:auto"><div class="cal-grid" style="min-width:600px"><div></div>${weekDays.map((wd,i)=>`<div class="cal-hd" style="${wd.isToday?'color:var(--ac);font-weight:700;background:var(--acs);border-radius:4px':''};padding:2px 4px">${wd.label}</div>`).join('')}
 ${_allDayRow}${_hours.map(h=>`<div class="cal-tl">${_hLabel(h)}</div>${weekDays.map((wd,d)=>{
   const evs=_timed[d].filter(e=>Number(e.hour)===h);
-  return`<div class="cal-c">${evs.map(e=>_calChip(e)).join('')}</div>`}).join('')}`).join('')}</div></div>`;
+  return`<div class="cal-c" data-drop="cal" data-drop-v="${weekDayStrs[d]}|${h}">${evs.map(e=>_calChip(e)).join('')}</div>`}).join('')}`).join('')}</div></div>`;
 }
 
 function renderCalDay(){
@@ -2269,7 +2272,7 @@ function renderCalDay(){
     }).join('');
     const isNowHour=isToday&&new Date().getHours()===h;
     return`<div
-      data-hour="${h}"
+      data-hour="${h}" data-drop="cal" data-drop-v="${dayStr}|${h}"
       style="display:grid;grid-template-columns:56px 1fr;border-top:1px solid var(--bd1);min-height:52px"
       ondragover="event.preventDefault();this.style.background='var(--acs)'"
       ondragleave="this.style.background=''"
@@ -2321,6 +2324,50 @@ function _calAfterMove(id){const hit=_calResolve(id);if(hit&&hit.occ==null&&hit.
 // attendees (moving it here would email them) — those move in Outlook.
 function _calCanMove(e){return !!e&&!e._task&&!e._finBill&&!(e.source==='microsoft'&&e.editable!==true);}
 function _calMoveBlocked(e){toast({type:'info',title:'Move it in Outlook',msg:'"'+(e&&e.title||'This meeting')+'" has other attendees, so changing it here would email them.',duration:4500});}
+// ── Drag on the Week and Month views (build -238) ──
+// Chips carry data-drag (calev = a grid event or one occurrence, caltask = a
+// scheduled task); Week cells are data-drop="cal" "<ymd>|<hour or allday>",
+// Day rows the same, Month cells data-drop="calday" "<ymd>". Moving keeps the
+// minutes and the length; dropping on All day or a Month cell keeps the time.
+function _calDropTo(kind,id,ymd,hour){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(ymd||'')))return;
+  const hm=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+  if(kind==='calev'){
+    const hit=_calResolve(id);
+    if(!hit)return;
+    if(!_calCanMove(hit.ev)){_calMoveBlocked(hit.ev);return;}
+    const {s,e}=_calEvMins(hit.ev);
+    const ns=hour==null?s:hour*60+(s%60);
+    if(ns===s&&hit.ev.dateStr===ymd)return;
+    _calMoveEvent(id,ymd,ns,ns+(e-s));
+    // A time block made for a task moves the task's time with it.
+    const lt=hit.row.linkedTaskId!=null&&hit.occ==null?(D.tasks||[]).find(t=>String(t.id)===String(hit.row.linkedTaskId)):null;
+    if(lt){lt.startTime=hm(ns);lt.endTime=hm(Math.min(ns+(e-s),1439));if(lt.startDate)lt.startDate=ymd;save('tasks');}
+    _calAfterMove(id);
+    renderCal();
+    toast(`📅 "${hit.ev.title}" → ${fmtDate(ymd)} ${hm(ns)}${hit.occ!=null?' (this occurrence)':''}`);
+    return;
+  }
+  if(kind==='caltask'||kind==='task'){
+    const t=(D.tasks||[]).find(x=>String(x.id)===String(id));
+    if(!t)return;
+    const sch=_taskSchedule(t);
+    const p=v=>{const m=/^(\d{1,2}):(\d{2})$/.exec(String(v||''));return m?(+m[1])*60+(+m[2]):null;};
+    const s0=sch?p(sch.time):null,e0=p(t.endTime);
+    const len=s0!=null&&e0!=null&&e0>s0?e0-s0:Math.max(15,Number(t.estimatedMins)||60);
+    const ns=hour!=null?hour*60+(s0!=null?s0%60:0):(s0!=null?s0:9*60);
+    // The calendar shows a task on startDate, else due: move whichever it uses.
+    if(t.startDate||!t.due)t.startDate=ymd;else t.due=ymd;
+    t.startTime=hm(ns);
+    if(t.endTime||t.estimatedMins)t.endTime=hm(Math.min(ns+len,1439));
+    t.updatedAt=new Date().toISOString();
+    save('tasks');
+    renderCal();
+    toast(`📋 "${String(t.title||'Task').slice(0,60)}" → ${fmtDate(ymd)} ${hm(ns)}`);
+  }
+}
+_luDropRoutes.cal=function(kind,id,v){const [ymd,h]=String(v).split('|');_calDropTo(kind,id,ymd,h==='allday'||h==null?null:Number(h));};
+_luDropRoutes.calday=function(kind,id,ymd){_calDropTo(kind,id,ymd,null);};
 let _calResizeNewEnd=null;
 function calResizeStart(event,evId){
   event.preventDefault();
@@ -2414,7 +2461,7 @@ function renderCalMonth(){
     const evs=[..._calLocalEventsOn(d),..._syncedEventsOn(d),..._tasksOnDate(d),...((typeof _finBillsOnDate==="function")?_finBillsOnDate(d):[])];
     const evDots=evs.slice(0,3).map(e=>_calChip(e,{cls:'',extra:';font-size:11px;padding:1px 4px;border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis'})).join('');
     const moreCount=evs.length>3?`<div style="font-size:9px;color:var(--t3);padding-left:4px">+${evs.length-3} more</div>`:'';
-    return`<div style="border:1px solid var(--bd1);min-height:80px;padding:4px;cursor:pointer;background:${isTodayCell?'var(--acs)':isThisMonth?'var(--s2)':'var(--s1)'};border-radius:4px" onclick="_calDayOffset=Math.round((new Date('${_jsAttr(dStr)}')-new Date(new Date().toDateString()))/(86400000));_calView='day';renderCal()">
+    return`<div data-drop="calday" data-drop-v="${dStr}" style="border:1px solid var(--bd1);min-height:80px;padding:4px;cursor:pointer;background:${isTodayCell?'var(--acs)':isThisMonth?'var(--s2)':'var(--s1)'};border-radius:4px" onclick="_calDayOffset=Math.round((new Date('${_jsAttr(dStr)}')-new Date(new Date().toDateString()))/(86400000));_calView='day';renderCal()">
       <div style="font-size:11px;font-weight:${isTodayCell?700:400};color:${isTodayCell?'var(--ac)':isThisMonth?'var(--t1)':'var(--t3)'};margin-bottom:3px">${d.getDate()}</div>
       ${evDots}${moreCount}
     </div>`;
