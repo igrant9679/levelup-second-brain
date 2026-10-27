@@ -634,22 +634,37 @@ function filterNotesByCategory(cat,el){
 function setNotesScope(my){_notesMyOnly=!!my;_persistPageState('notes',{myOnly:_notesMyOnly});if(typeof renderNotes==='function')renderNotes();}
 function setNotesSort(v){_notesSort=v||'newest';_persistPageState('notes',{sort:_notesSort});applyNotesFilters();}
 function setNotesGroupBy(v){_notesGroupBy=v||'';_persistPageState('notes',{groupBy:_notesGroupBy});applyNotesFilters();}
-function showNoteInEditor(id){
-  const n=D.notes.find(x=>x.id===id);
+// opts.quiet: don't switch the phone layout to the editor pane (used when the
+// page itself re-renders, not when the user picked a note).
+function showNoteInEditor(id,opts){
+  const n=D.notes.find(x=>String(x.id)===String(id));
   if(!n)return;
+  // Save the note being left (the editor saves itself, -242); a renamed
+  // note's links follow (-243).
+  _noteTitleCommit();
   // On phones, jump to the editor pane so the user actually SEES the note.
-  if(window.matchMedia&&window.matchMedia('(max-width:900px)').matches&&typeof setNotesMobilePane==='function'){setNotesMobilePane('editor');}
+  if(!(opts&&opts.quiet)&&window.matchMedia&&window.matchMedia('(max-width:900px)').matches&&typeof setNotesMobilePane==='function'){setNotesMobilePane('editor');}
   // Highlight selected
   document.querySelectorAll('.nc').forEach(el=>el.classList.remove('on'));
-  const el=document.querySelector(`.nc[data-nid="${id}"]`);
+  const el=document.querySelector(`.nc[data-nid="${CSS.escape(String(n.id))}"]`);
   if(el)el.classList.add('on');
-  // Render in editor pane
+  // Remember where the note being left was scrolled to; come back there.
   const ed=$('notes-editor-panel')||document.querySelector('.notes-editor');
-  if(ed)ed.innerHTML=renderNoteEditor(n);
-  // Hydrate the inline chip linker (read-mode only — edit-mode uses its own
-  // flow). Wraps _drInitLinks with a flag so add/remove auto-saves to the
-  // note instead of waiting for "Save Changes".
-  if(!_noteInlineEditId&&document.getElementById('note-inline-links')&&typeof _drInitLinks==='function'){
+  if(ed&&_noteInlineEditId!=null)_noteScrollMem[String(_noteInlineEditId)]=ed.scrollTop;
+  _noteInlineEditId=n.id;
+  _notesRememberOpen(n.id);
+  // Render in editor pane
+  if(ed){ed.innerHTML=renderNoteEditor(n);ed.scrollTop=_noteScrollMem[String(n.id)]||0;}
+  const body=document.getElementById('nie-body');
+  if(body){
+    body.dataset.nid=String(n.id);
+    body.addEventListener('click',_noteEditorClick);
+    body.addEventListener('blur',()=>{if(_noteAutosaveTimer)_noteAutosaveNow();});
+    _noteDecorateLinks(body); // chips are not editable text (the sanitizer drops that attribute)
+    _noteEditorBase={id:n.id,title:n.title||'',titleAtOpen:n.title||'',html:body.innerHTML};
+  }else _noteEditorBase=null;
+  // Hydrate the chip linker; add/remove auto-saves to the note.
+  if(document.getElementById('note-inline-links')&&typeof _drInitLinks==='function'){
     _drInitLinks({
       projects:n.linkedProjectIds||[],
       goals:n.linkedGoalIds||[],
@@ -665,9 +680,11 @@ function showNoteInEditor(id){
   }
   // Update backlink graph in rail
   const gc=document.getElementById('notes-graph-container');
-  if(gc)gc.innerHTML=renderNotesGraph(id);
+  if(gc)gc.innerHTML=renderNotesGraph(n.id);
   const bp=document.getElementById('notes-backlinks-panel');
-  if(bp)bp.innerHTML=_renderNotesBacklinkRail(id);
+  if(bp)bp.innerHTML=_renderNotesBacklinkRail(n.id);
+  // A search is on: show where it matched in this note (-244).
+  _noteHighlightOpen();
 }
 // When set, the chip linker writes through to D.notes[].linked*Ids on every
 // add/remove instead of waiting for a Save button. Used by the inline note
@@ -822,7 +839,7 @@ function setNoteStatus(id,status){
   const n=D.notes.find(x=>x.id===id);if(!n)return;
   n.status=status;n.updated=new Date().toISOString();save('notes');
   if(typeof applyNotesFilters==='function')applyNotesFilters();
-  if(typeof showNoteInEditor==='function'&&_noteInlineEditId!==id)showNoteInEditor(id);
+  _noteRefreshOpen(id);
   toast(_noteStatusMeta(status).icon+' Marked '+_noteStatusMeta(status).label);
 }
 function setNoteType(id,t){
@@ -830,7 +847,7 @@ function setNoteType(id,t){
   n.noteType=t||'';n.updated=new Date().toISOString();save('notes');
   // Type drives the Meeting Notes / Journal folders  refresh the list so the note moves immediately.
   if(typeof applyNotesFilters==='function')applyNotesFilters();
-  if(typeof showNoteInEditor==='function'&&_noteInlineEditId!==id)showNoteInEditor(id);
+  _noteRefreshOpen(id);
 }
 function _noteStatusPickerHTML(id,cur){
   return _NOTE_STATUSES.map(s=>`<div class="nsp-i" onclick="event.stopPropagation();setNoteStatus(${id},'${_jsAttr(s.id)}');closePopMenu('nsp-${id}')" style="display:flex;align-items:center;gap:8px;padding:6px 9px;cursor:pointer;border-radius:6px;font-size:11px;${cur===s.id?'background:var(--acs)':''}"><span style="font-size:13px">${s.icon}</span><div style="flex:1"><div style="font-weight:600;color:${s.color}">${s.label}</div><div style="font-size:11px;color:var(--t3)">${s.hint}</div></div>${cur===s.id?'<span style="color:var(--ac)">✓</span>':''}</div>`).join('');
@@ -934,6 +951,7 @@ function _quickToggleNoteStar(id){
   const n=D.notes.find(x=>x.id===id);if(!n)return;
   n.starred=!n.starred;save('notes');
   if(typeof applyNotesFilters==='function')applyNotesFilters();
+  _noteRefreshOpen(id);
   toast(n.starred?'⭐ Starred':'Unstarred');
 }
 function _quickToggleNotePin(id){
@@ -943,7 +961,7 @@ function toggleNotePinned(id){
   const n=D.notes.find(x=>x.id===id);if(!n)return;
   n.pinned=!n.pinned;save('notes');
   if(typeof applyNotesFilters==='function')applyNotesFilters();
-  if(typeof showNoteInEditor==='function'&&_noteInlineEditId!==id)showNoteInEditor(id);
+  _noteRefreshOpen(id);
   toast(n.pinned?'📌 Pinned to top':'Unpinned');
 }
 // Set a note's color tag and re-render.
@@ -951,7 +969,7 @@ function setNoteColor(id,hex){
   const n=D.notes.find(x=>x.id===id);if(!n)return;
   n.color=hex||'';save('notes');
   if(typeof applyNotesFilters==='function')applyNotesFilters();
-  if(typeof showNoteInEditor==='function'&&_noteInlineEditId!==id)showNoteInEditor(id);
+  _noteRefreshOpen(id);
 }
 
 // Creation time for a note, as a sortable number (newer = larger). Prefers the
@@ -1016,6 +1034,132 @@ function _parseNoteDate(n){
   }
   return new Date(0);
 }
+// ── Full-text search in Notes (build -244) ─────────────────────────────────
+// The Notes search box searches every word of every note (title, tags,
+// source and the full text — rich notes included, through the derived body)
+// across folders. Query syntax:
+//   two words        both must appear, anywhere
+//   "exact phrase"   that phrase
+//   -word            notes without it
+//   #tag / tag:x     notes with a tag starting with x
+//   title:x          x in the title
+// Accents and case are ignored. Results are ranked (title > tag > text,
+// whole-word and phrase bonuses) when the list is on its default sort; each
+// card shows the passage that matched, and the open note highlights matches.
+const _noteSearchCache=new WeakMap(); // note → {src, text, fold}
+function _noteFold(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');}
+// Plain text of a note's body for searching and snippets.
+function _noteSearchText(n){
+  const src=n.body||'';
+  const c=_noteSearchCache.get(n);
+  if(c&&c.src===src)return c;
+  const text=String(src)
+    .replace(/!\[[^\]]*\]\([^)]*\)/g,' ')
+    .replace(/\[([^\]]+)\]\((?:[^)]*)\)/g,'$1')
+    .replace(/\[\[([^\]]+)\]\]/g,'$1')
+    .replace(/^\s*- \[[ xX]\]\s*/gm,'')
+    .replace(/^\s*(?:#{1,6}|>|[-*+]|\d+\.)\s+/gm,'')
+    .replace(/[*_`~|]+/g,' ')
+    .replace(/\s+/g,' ').trim();
+  const v={src,text,fold:_noteFold(text)};
+  _noteSearchCache.set(n,v);
+  return v;
+}
+function _noteParseQuery(raw){
+  const q={terms:[],phrases:[],not:[],tags:[],title:[],raw:String(raw||'').trim()};
+  String(raw||'').replace(/"([^"]+)"|(\S+)/g,(m,ph,w)=>{
+    if(ph){const f=_noteFold(ph).trim();if(f)q.phrases.push(f);return m;}
+    let t=w;
+    if(/^-./.test(t)){q.not.push(_noteFold(t.slice(1)));return m;}
+    if(/^#./.test(t)){q.tags.push(_noteFold(t.slice(1)));return m;}
+    const mm=t.match(/^(tag|title):(.+)$/i);
+    if(mm){(mm[1].toLowerCase()==='tag'?q.tags:q.title).push(_noteFold(mm[2]));return m;}
+    q.terms.push(_noteFold(t));return m;
+  });
+  q.empty=!q.terms.length&&!q.phrases.length&&!q.not.length&&!q.tags.length&&!q.title.length;
+  return q;
+}
+// Score a note against a parsed query: 0 = not a match.
+function _noteSearchScore(n,q){
+  const title=_noteFold(n.title),tags=(n.tags||[]).map(_noteFold),src=_noteFold(n.source);
+  const body=_noteSearchText(n).fold;
+  const all=title+' '+tags.join(' ')+' '+src+' '+body;
+  for(const t of q.tags)if(!tags.some(x=>x.startsWith(t)))return 0;
+  for(const t of q.title)if(!title.includes(t))return 0;
+  for(const t of q.not)if(t&&all.includes(t))return 0;
+  let score=0.001;
+  const word=(hay,t)=>new RegExp('(^|[^\\p{L}\\p{N}])'+t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'u').test(hay);
+  for(const t of q.terms){
+    if(!all.includes(t))return 0;
+    if(title.includes(t))score+=title.startsWith(t)?15:10;
+    if(tags.some(x=>x===t))score+=6;else if(tags.some(x=>x.includes(t)))score+=3;
+    let k=0,i=body.indexOf(t);while(i>=0&&k<5){k++;i=body.indexOf(t,i+t.length);}
+    score+=k;
+    if(word(title,t)||word(body,t))score+=1;
+  }
+  for(const p of q.phrases){
+    if(!all.includes(p))return 0;
+    score+=title.includes(p)?15:4;
+  }
+  return score;
+}
+// The passage around the first match, escaped, with every term marked.
+function _noteSearchSnippet(n,q,len){
+  const text=_noteSearchText(n).text,fold=_noteFold(text);
+  const keys=[...q.phrases,...q.terms].filter(Boolean).sort((a,b)=>b.length-a.length);
+  let at=-1;for(const k of keys){const i=fold.indexOf(k);if(i>=0&&(at<0||i<at))at=i;}
+  const L=len||150;
+  if(at<0)return _noteMark(text.slice(0,L),q)+(text.length>L?'…':'');
+  const a=Math.max(0,at-50);
+  const s=text.slice(a,a+L);
+  return (a>0?'…':'')+_noteMark(s,q)+(a+L<text.length?'…':'');
+}
+// Escape `s` and wrap every query term in <mark>. Matching uses the folded
+// text, which has the same length as the original for Latin text.
+function _noteMark(s,q){
+  const raw=String(s||''),fold=_noteFold(raw);
+  const keys=[...q.phrases,...q.terms,...q.title].filter(Boolean);
+  if(!keys.length||fold.length!==raw.length)return esc(raw);
+  const hits=[];
+  keys.forEach(k=>{let i=fold.indexOf(k);while(i>=0){hits.push([i,i+k.length]);i=fold.indexOf(k,i+k.length);}});
+  if(!hits.length)return esc(raw);
+  hits.sort((x,y)=>x[0]-y[0]);
+  let out='',pos=0;
+  for(const [a,b] of hits){if(a<pos)continue;out+=esc(raw.slice(pos,a))+'<mark class="lu-mark">'+esc(raw.slice(a,b))+'</mark>';pos=b;}
+  return out+esc(raw.slice(pos));
+}
+// Highlight the query in the open note (CSS Custom Highlight API: nothing is
+// added to the note itself) and scroll to the first match.
+function _noteHighlightOpen(){
+  try{
+    if(!(window.CSS&&CSS.highlights&&typeof Highlight==='function'))return;
+    CSS.highlights.delete('lu-search');
+    const q=_noteParseQuery(_notesFilterText||'');
+    const keys=[...q.phrases,...q.terms,...q.title].filter(Boolean);
+    const root=document.getElementById('nie-body');
+    if(!keys.length||!root)return;
+    const ranges=[];
+    const w=document.createTreeWalker(root,4);
+    while(w.nextNode()){
+      const node=w.currentNode,raw=node.textContent,fold=_noteFold(raw);
+      if(fold.length!==raw.length)continue;
+      keys.forEach(k=>{let i=fold.indexOf(k);while(i>=0&&ranges.length<500){const r=new Range();r.setStart(node,i);r.setEnd(node,i+k.length);ranges.push(r);i=fold.indexOf(k,i+k.length);}});
+    }
+    if(!ranges.length)return;
+    CSS.highlights.set('lu-search',new Highlight(...ranges));
+    ranges.sort((a,b)=>a.compareBoundaryPoints(Range.START_TO_START,b));
+    const rect=ranges[0].getBoundingClientRect();
+    const pane=document.getElementById('notes-editor-panel');
+    if(pane&&rect&&rect.top){const pr=pane.getBoundingClientRect();if(rect.top<pr.top||rect.bottom>pr.bottom)pane.scrollTop+=rect.top-pr.top-120;}
+  }catch(e){console.warn('[notes] highlight failed',e);}
+}
+(function _noteSearchCSS(){
+  if(document.getElementById('lu-note-search-css'))return;
+  const s=document.createElement('style');s.id='lu-note-search-css';
+  s.textContent='mark.lu-mark{background:var(--acs);color:var(--ac);border-radius:3px;padding:0 1px}'+
+    '::highlight(lu-search){background-color:color-mix(in srgb,var(--warn) 45%,transparent);color:inherit}';
+  document.head.appendChild(s);
+})();
 function applyNotesFilters(){
   const me=D.creds.userName||'Idris Grant';
   let notes=_notesMyOnly?D.notes.filter(n=>!n.createdBy||n.createdBy===me):D.notes;
@@ -1027,6 +1171,8 @@ function applyNotesFilters(){
     const collect=p=>{_noteFoldersChildrenOf(p).forEach(c=>{ids.add(c.id);collect(c.id);});};
     collect(_notesFilterFolder);
     notes=notes.filter(n=>ids.has(n.folderId));
+  }else if(_notesFilterText.trim()){
+    // A search looks in every folder (-244): notes filed away must be findable.
   }else if(_notesFilterCategory==='Favorites'&&!_notesFilterSmart){
     // Favorites/starred is a cross-folder view: a starred note should show
     // here no matter which folder it lives in (this matches the "N starred"
@@ -1065,15 +1211,12 @@ function applyNotesFilters(){
   if(_notesFilterStatus){
     notes=notes.filter(n=>_noteStatus(n)===_notesFilterStatus);
   }
-  // Text search
+  // Text search: every word of every note (-244), ranked.
   const q=_notesFilterText.trim().toLowerCase();
-  if(q){
-    notes=notes.filter(n=>
-      (n.title||'').toLowerCase().includes(q)||
-      (n.body||'').toLowerCase().includes(q)||
-      (n.tags||[]).some(t=>t.toLowerCase().includes(q))||
-      (n.source||'').toLowerCase().includes(q)
-    );
+  const pq=_noteParseQuery(_notesFilterText);
+  const _score=new Map();
+  if(q&&!pq.empty){
+    notes=notes.filter(n=>{const s=_noteSearchScore(n,pq);if(s>0)_score.set(n,s);return s>0;});
   }
   // Tag facet (multi-select AND logic)
   if(_notesFilterTags.size>0){
@@ -1117,7 +1260,11 @@ function applyNotesFilters(){
   // sort. An explicit pick from the Sort dropdown always wins — 'Recent' is
   // the default category, so overriding it unconditionally made the whole
   // Sort control a no-op on the page's default view.
-  if(_notesFilterCategory==='Recent'&&!_notesFilterSmart&&!_notesFilterFolder&&_notesSort==='newest'){
+  // With a search on the default sort, best matches come first.
+  if(_score.size&&_notesSort==='newest'){
+    notes=[...notes].sort((a,b)=>(_score.get(b)-_score.get(a))||(_parseNoteDate(b)-_parseNoteDate(a)));
+  }
+  else if(_notesFilterCategory==='Recent'&&!_notesFilterSmart&&!_notesFilterFolder&&_notesSort==='newest'){
     // Recent = most recently CREATED first (by createdAt / id, not the
     // freeform 'updated' string which is unreliable to parse).
     notes=[...notes].sort((a,b)=>_noteCreatedTime(b)-_noteCreatedTime(a));
@@ -1130,11 +1277,7 @@ function applyNotesFilters(){
   else if(_notesSort==='tagged')notes=[...notes].sort((a,b)=>(b.tags||[]).length-(a.tags||[]).length);
   // Render note cards with optional text highlight
   // Render note cards with optional text highlight
-  const hiRe=q?new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'):null;
-  function hi(str){
-    if(!hiRe||!str)return esc(str||'');
-    return esc(str).replace(hiRe,m=>`<mark style="background:var(--acs);color:var(--ac);border-radius:3px;padding:0 2px">${m}</mark>`);
-  }
+  function hi(str){return q?_noteMark(str||'',pq):esc(str||'');}
   // Precompute backlink counts once (notes whose body [[links]] to a title).
   const _blCount={};
   D.notes.forEach(n=>{
@@ -1153,10 +1296,7 @@ function applyNotesFilters(){
     let snippet=_noteSnippet(n);
     const plain=snippet;
     if(q){
-      const idx=plain.toLowerCase().indexOf(q);
-      if(idx>=0){const a=Math.max(0,idx-32);snippet=(a>0?'…':'')+plain.slice(a,idx+q.length+90);}
-      else snippet=plain.slice(0,120);
-      snippet=hi(snippet);
+      snippet=_noteSearchSnippet(n,pq,140);
     } else {
       snippet=esc(plain.slice(0,130))+(plain.length>130?'…':'');
     }
@@ -1177,7 +1317,7 @@ function applyNotesFilters(){
     if(bl)metaBits.push(`<span title="${bl} note${bl===1?'':'s'} link here">⛓ ${bl}</span>`);
     if(mins)metaBits.push(`<span>⏱ ${mins}m</span>`);
     metaBits.push(`<span class="nc-dim">${fmtNoteDate(n.updated)}</span>`);
-    return `<div class="nc ${i===0&&!_notesBulkMode?'on':''} ${checked?'bulk-checked':''}" data-nid="${n.id}" draggable="${_notesBulkMode?'false':'true'}" ondragstart="_noteCardDragStart(event,${_tidLit(n.id)})" ondragend="_noteCardDragEnd()" ${clickAttr}>
+    return `<div class="nc ${String(n.id)===String(_noteInlineEditId)&&!_notesBulkMode?'on':''} ${checked?'bulk-checked':''}" data-nid="${n.id}" draggable="${_notesBulkMode?'false':'true'}" ondragstart="_noteCardDragStart(event,${_tidLit(n.id)})" ondragend="_noteCardDragEnd()" ${clickAttr}>
       <div class="nc-row">
         ${bulkCb}
         ${colorDot}
@@ -1256,6 +1396,7 @@ function applyNotesFilters(){
   const _sharedNotesHtml=(typeof _renderSharedNotesSection==='function')?_renderSharedNotesSection():'';
   el.innerHTML=_banner+_sharedNotesHtml+((pinnedHtml+(html||''))||(_sharedNotesHtml?'':renderEmptyState({icon:'search',title:'No matches',hint:'No notes match your current filters. Try a broader search or clear the active filters.',ctaLabel:'Clear filters',ctaFn:'clearNotesFilters()'})));
 
+  if(typeof curScreen!=='undefined'&&curScreen==='notes')_noteHighlightOpen(); // follow the search box in the open note
   // Update result count in filter bar
   const countEl=document.getElementById('notes-filter-count');
   if(countEl)countEl.textContent=`${notes.length} note${notes.length!==1?'s':''}`;
@@ -1714,11 +1855,15 @@ function bulkNotesPin(){
 }
 function bulkNotesDelete(){
   const arr=_bulkNotesArr();if(!arr.length){toast('Nothing selected');return;}
-  if(!confirm(`Permanently delete ${arr.length} note${arr.length===1?'':'s'}? This can't be undone.`))return;
+  if(!confirm(`Delete ${arr.length} note${arr.length===1?'':'s'}? They stay in the Trash for 30 days.`))return;
+  _noteAutosaveNow();
   const ids=new Set(arr.map(n=>n.id));
+  const gone=[];D.notes.forEach((n,i)=>{if(ids.has(n.id))gone.push({n,i});});
   D.notes=D.notes.filter(n=>!ids.has(n.id));
+  if(_notesOpenId!=null&&gone.some(g=>String(g.n.id)===_notesOpenId))_notesRememberOpen(null);
   save('notes');toggleNotesBulkMode();renderNotes();
-  toast(`🗑 Deleted ${ids.size} note${ids.size===1?'':'s'}`);
+  toast({type:'info',title:`🗑 Deleted ${ids.size} note${ids.size===1?'':'s'}`,msg:'They stay in the Trash for 30 days.',duration:8000,
+    actions:[{label:'Undo',primary:true,onClick:()=>_noteUndoDelete(gone)}]});
 }
 function bulkNotesExport(){
   const arr=_bulkNotesArr();if(!arr.length){toast('Nothing selected');return;}
@@ -1925,6 +2070,7 @@ function applyNoteTemplate(idx){
 function _nnc(k){return !!(D.prefs&&D.prefs.notesNavCollapsed&&D.prefs.notesNavCollapsed[k]);}
 function _toggleNotesNavSec(k){D.prefs=D.prefs||{};const c=D.prefs.notesNavCollapsed=D.prefs.notesNavCollapsed||{};c[k]=!c[k];save('prefs');renderNotes();}
 function renderNotes(){
+  _noteAutosaveNow(); // the page is about to be rebuilt: keep any typing
   // Update header subtitle with live counts (matches the .ph-r subtitle
   // pattern used on Tasks / Projects / Goals etc.)
   const subEl=document.getElementById('notes-page-sub');
@@ -1991,7 +2137,7 @@ function renderNotes(){
       {icon:'⭐',label:'Most-linked',count:mostLinked,filter:'smart_mostlinked'},
       {icon:'🧹',label:'Stale (>90d)',count:staleNotes,filter:'smart_stale'},
     ];
-    return smartFolders.map(sf=>`<div class="nn" onclick="filterNotesBySmart('${_jsAttr(sf.filter)}',this)" style="display:flex;align-items:center;gap:5px">${sf.icon} ${sf.label}<span style="margin-left:auto;font-size:11px;color:var(--t3)">${sf.count}</span></div>`).join('');
+    return `<div class="nn" role="button" tabindex="0" title="Notes deleted in the last 30 days"${_act('openNotesTrash',[])} style="display:flex;align-items:center;gap:5px">🗑 Trash</div>`+smartFolders.map(sf=>`<div class="nn" onclick="filterNotesBySmart('${_jsAttr(sf.filter)}',this)" style="display:flex;align-items:center;gap:5px">${sf.icon} ${sf.label}<span style="margin-left:auto;font-size:11px;color:var(--t3)">${sf.count}</span></div>`).join('');
   })()}
   <div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px;display:flex;align-items:center;justify-content:space-between">
     <span>${_icon('folder',12,'currentColor')} Folders</span>
@@ -2171,9 +2317,12 @@ function renderNotes(){
   // Trigger initial render via unified filter engine
   applyNotesFilters();
 
-  // Populate Notes editor panel
+  // Populate Notes editor panel: the note open last time on this device
+  // (showNoteInEditor fills it once the rail exists, below).
   const editor=$('notes-editor-panel');
-  editor.innerHTML=D.notes.length?renderNoteEditor(D.notes[0]):renderEmptyState({icon:'bookOpen',title:'Your second brain starts here',hint:'Capture an idea, drop a web clip, paste meeting notes, or import a document. Everything is searchable and linkable from day one.',ctaLabel:'+ Create your first note',ctaFn:"openFA('note')"});
+  const _openNote=_notesOpenNote();
+  if(_openNote)editor.innerHTML='';
+  else{_noteEditorBase=null;_noteInlineEditId=null;editor.innerHTML=renderEmptyState({icon:'bookOpen',title:'Your second brain starts here',hint:'Capture an idea, drop a web clip, paste meeting notes, or import a document. Everything is searchable and linkable from day one.',ctaLabel:'+ Create your first note',ctaFn:"openFA('note')"});}
 
   // Populate Notes rail panel
   const rail=$('notes-rail-panel');
@@ -2183,8 +2332,10 @@ function renderNotes(){
   <div style="font-size:11px;font-weight:600;margin-bottom:4px">⭐ Starred</div>
   ${D.notes.filter(n=>n.starred).slice(0,4).map(n=>`<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 6px;border-radius:5px" onclick="showNoteInEditor(${_tidLit(n.id)})" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='transparent'"><span class="rt" style="font-size:11px">${esc(n.title)}</span><span style="color:var(--warn);flex-shrink:0">★</span></div>`).join('')||'<div style="font-size:11px;color:var(--t3);margin-bottom:8px">No starred notes</div>'}
   <div style="font-size:11px;font-weight:600;margin:10px 0 4px">🕸 Link Graph</div>
-  <div id="notes-graph-container" style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:8px;margin-bottom:8px">${D.notes.length?renderNotesGraph(D.notes[0].id):'<div style="font-size:11px;color:var(--t3);text-align:center;padding:8px">Select a note</div>'}</div>
-  <div id="notes-backlinks-panel">${D.notes.length?_renderNotesBacklinkRail(D.notes[0].id):''}</div>`;
+  <div id="notes-graph-container" style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:8px;margin-bottom:8px"><div style="font-size:11px;color:var(--t3);text-align:center;padding:8px">Select a note</div></div>
+  <div id="notes-backlinks-panel"></div>`;
+  if(_openNote)showNoteInEditor(_openNote.id,{quiet:true});
+  _notesAddTrashMenuItem();
   // Apply persisted column widths + (re-)attach the resize handles. Each
   // panel's innerHTML wipe above destroys the previous handle children.
   if(typeof _notesApplyWidths==='function')_notesApplyWidths();
@@ -2192,29 +2343,222 @@ function renderNotes(){
   // Apply persisted mobile pane (no-op on desktop where the strip is hidden).
   if(typeof _applyNotesMobilePane==='function')_applyNotesMobilePane();
 }
+// ── Live note editor (build -242) ──────────────────────────────────────────
+// The open note is always editable and saves itself: no Edit / Save / Cancel,
+// so switching notes or closing the tab can't lose typing (the old inline
+// editor threw edits away without asking). _noteInlineEditId is the open
+// note (the wiki-link autocomplete, Ctrl+S and #tags key off it). The open
+// note is remembered per device (lu_notes_open), so Notes reopens where you
+// were instead of on the first note.
 let _noteInlineEditId=null;
+let _notesOpenId=(()=>{try{return localStorage.getItem('lu_notes_open')||null;}catch(_){return null;}})();
+function _notesRememberOpen(id){
+  _notesOpenId=id==null?null:String(id);
+  try{if(id==null)localStorage.removeItem('lu_notes_open');else localStorage.setItem('lu_notes_open',String(id));}catch(_){}
+}
+function _notesOpenNote(){
+  const list=D.notes||[];
+  return (_notesOpenId!=null&&list.find(n=>String(n.id)===_notesOpenId))||list[0]||null;
+}
+// What the editor showed when it opened (or last saved): a note is only
+// written when this changes, so opening a markdown note doesn't rewrite it.
+let _noteEditorBase=null; // {id, title, html}
+const _noteScrollMem={};  // note id → editor pane scroll position (this session)
+let _noteAutosaveTimer=null;
+function _noteSaveStatus(state){
+  const el=document.getElementById('note-save-status');if(!el)return;
+  el.dataset.state=state;
+  el.textContent=state==='dirty'?'Editing…':state==='error'?'Not saved':'Saved ✓';
+}
+function _noteEdited(){
+  _noteSaveStatus('dirty');
+  clearTimeout(_noteAutosaveTimer);
+  _noteAutosaveTimer=setTimeout(_noteAutosaveNow,900);
+}
+// Write the open editor into its note. Safe to call any time; returns true
+// when something was saved.
+function _noteAutosaveNow(){
+  clearTimeout(_noteAutosaveTimer);_noteAutosaveTimer=null;
+  const base=_noteEditorBase;if(!base)return false;
+  const b=document.getElementById('nie-body'),t=document.getElementById('nie-title');
+  if(!b||b.dataset.nid!==String(base.id))return false; // the editor shows another note now
+  const n=(D.notes||[]).find(x=>String(x.id)===String(base.id));
+  if(!n){_noteEditorBase=null;return false;}
+  let changed=false;
+  const title=t?t.value.trim():'';
+  if(t&&title&&title!==base.title){n.title=title;base.title=title;changed=true;}
+  const html=b.innerHTML;
+  if(html!==base.html){_noteSetHtml(n,html);base.html=html;changed=true;}
+  if(!changed){_noteSaveStatus('saved');return false;}
+  try{save('notes');_noteSaveStatus('saved');}
+  catch(e){console.warn('[notes] autosave failed',e);_noteSaveStatus('error');return false;}
+  _noteListTouched(n);
+  return true;
+}
+// Keep the list card in step without re-rendering the whole list on every
+// pause: title now, full list a little later.
+let _noteListTimer=null;
+function _noteListTouched(n){
+  const card=document.querySelector(`.nc[data-nid="${CSS.escape(String(n.id))}"] .nc-t`);
+  if(card){const pin=card.querySelector('.nc-pin');card.textContent=(n.icon?n.icon+' ':'')+(n.title||'Untitled');if(pin)card.prepend(pin);}
+  clearTimeout(_noteListTimer);
+  _noteListTimer=setTimeout(()=>{
+    if(typeof curScreen!=='undefined'&&curScreen!=='notes')return;
+    const list=document.getElementById('notes-list-inner');const top=list?list.scrollTop:0;
+    if(typeof applyNotesFilters==='function')applyNotesFilters();
+    if(list)list.scrollTop=top;
+  },4000);
+}
+// Re-render the open note after a property change (status, colour, pin…),
+// keeping the pane's scroll position. Other notes are left alone.
+function _noteRefreshOpen(id){
+  if(id==null||String(id)!==String(_noteInlineEditId))return;
+  _noteAutosaveNow();
+  const pane=document.getElementById('notes-editor-panel');const top=pane?pane.scrollTop:0;
+  showNoteInEditor(id,{quiet:true});
+  if(pane)pane.scrollTop=top;
+}
+// Old entry points: Ctrl+S, double-click, "Apply template" → now just save /
+// focus the always-open editor.
 function saveNoteInlineEdit(id){
-  const n=D.notes.find(x=>x.id===id);
-  if(!n)return;
-  const titleEl=document.getElementById('nie-title');
-  const bodyEl=document.getElementById('nie-body');
-  // The earlier text is kept by the server's note history (-241).
-  if(titleEl)n.title=titleEl.value.trim()||n.title;
-  if(bodyEl)_noteSetHtml(n,bodyEl.contentEditable==='true'?bodyEl.innerHTML:_noteMdToHtml(bodyEl.value));
-  _noteTouch(n);
-  save('notes');
-  _noteInlineEditId=null;
-  renderNotesList();
-  showNoteInEditor(id);
-  toast('✓ Note saved');
+  const saved=_noteAutosaveNow();
+  toast(saved?'✓ Saved':'✓ Already saved');
 }
 function toggleNoteInlineEdit(id){
-  _noteInlineEditId=_noteInlineEditId===id?null:id;
-  showNoteInEditor(id);
-  if(_noteInlineEditId===id){
-    setTimeout(()=>document.getElementById('nie-title')?.focus(),50);
+  if(String(_noteInlineEditId)!==String(id))showNoteInEditor(id);
+  setTimeout(()=>{const b=document.getElementById('nie-body');if(b){b.focus();try{const r=document.createRange();r.selectNodeContents(b);r.collapse(false);const s=window.getSelection();s.removeAllRanges();s.addRange(r);}catch(_){}}},50);
+}
+function _noteScrollToHeading(i){
+  const h=document.querySelectorAll('#nie-body h1,#nie-body h2,#nie-body h3')[i];
+  if(h)h.scrollIntoView({behavior:'smooth',block:'start'});
+}
+// Outline of the open note (3+ headings), linking into the editor.
+function _noteOutlineHtml(n){
+  const heads=luParseInert(_noteHtml(n)).querySelectorAll('h1,h2,h3');
+  if(heads.length<3)return '';
+  const items=[...heads].map((h,i)=>`<a class="lvl-${h.tagName.slice(1)}" href="#" ${_act('_noteScrollToHeading',[i])}>${esc(h.textContent.trim()||'(untitled section)')}</a>`).join('');
+  return `<div class="note-toc"><div class="note-toc-h">📑 Outline · ${heads.length} sections</div>${items}</div>`;
+}
+// Save, and if the title changed since the note was opened, update the links
+// other notes have to it.
+function _noteTitleCommit(){
+  const base=_noteEditorBase;
+  _noteAutosaveNow();
+  if(!base)return;
+  const n=(D.notes||[]).find(x=>String(x.id)===String(base.id));
+  if(n&&base.titleAtOpen&&n.title&&n.title!==base.titleAtOpen){
+    try{_noteRenameLinks(n,base.titleAtOpen);}catch(e){console.warn('[notes] link rename failed',e);}
+    base.titleAtOpen=n.title;
   }
 }
+// Ctrl/Cmd+click a link in the editor opens it (a plain click places the caret).
+function _noteEditorClick(e){
+  const a=e.target&&e.target.closest&&e.target.closest('a[href]');
+  if(!a||!(e.ctrlKey||e.metaKey))return;
+  e.preventDefault();
+  if(typeof _luOpenUrl==='function')_luOpenUrl(a.getAttribute('href'));
+}
+// ── Delete with Undo, and the Trash ──
+// A deleted note stays in the server's Trash for 30 days (-241).
+function deleteNoteWithUndo(id){
+  const i=(D.notes||[]).findIndex(x=>String(x.id)===String(id));if(i<0)return;
+  if(String(_noteInlineEditId)===String(id))_noteAutosaveNow();
+  const n=D.notes[i];
+  D.notes.splice(i,1);
+  if(String(_notesOpenId)===String(id)){const next=D.notes[Math.min(i,D.notes.length-1)];_notesRememberOpen(next?next.id:null);}
+  _noteInlineEditId=null;_noteEditorBase=null;
+  save('notes');
+  if(typeof curScreen!=='undefined'&&curScreen==='notes')renderNotes();
+  toast({type:'info',title:'Note deleted',msg:'“'+(n.title||'Untitled')+'” — it stays in the Trash for 30 days.',duration:8000,
+    actions:[{label:'Undo',primary:true,onClick:()=>_noteUndoDelete([{n,i}])}]});
+}
+function _noteUndoDelete(list){
+  let back=0;
+  list.slice().sort((a,b)=>a.i-b.i).forEach(({n,i})=>{
+    if((D.notes||[]).some(x=>String(x.id)===String(n.id)))return;
+    D.notes.splice(Math.min(i,D.notes.length),0,n);back++;
+  });
+  if(!back)return;
+  save('notes');
+  if(list.length===1)_notesRememberOpen(list[0].n.id);
+  if(typeof curScreen!=='undefined'&&curScreen==='notes')renderNotes();
+  toast('↩ Restored '+(back===1?'the note':back+' notes'));
+}
+// The header's ⋯ More menu lives in index.html; add "Trash" to it from here.
+function _notesAddTrashMenuItem(){
+  const m=document.getElementById('notes-more-menu');
+  if(!m||m.querySelector('[data-act="openNotesTrash"]'))return;
+  const first=m.querySelector('button');
+  const b=document.createElement('button');
+  b.className='btn btn-s';
+  if(first)b.setAttribute('style',first.getAttribute('style')||'');
+  b.dataset.act='openNotesTrash';b.dataset.a='[]';
+  b.textContent='🗑 Trash';
+  b.addEventListener('mousedown',()=>closePopMenu('notes-more-menu'));
+  m.appendChild(b);
+}
+async function openNotesTrash(){
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">🗑 Trash</h2>
+  <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Notes deleted in the last 30 days. Restoring brings back the note with its tags, folder and links.</div>
+  <div id="nt-list" style="max-height:380px;overflow-y:auto"><div style="font-size:12px;color:var(--t3);padding:10px">Loading…</div></div>
+  <button class="btn btn-s" onclick="closeModal()" style="margin-top:8px;font-size:11px">Close</button>`;
+  document.getElementById('modal-capture').classList.add('show');
+  let rows=null;try{rows=await _trpc('noteVersions.trash',undefined,'query');}catch(_){}
+  const box=document.getElementById('nt-list');if(!box)return;
+  if(!Array.isArray(rows)){box.innerHTML='<div style="font-size:12px;color:var(--t3);padding:10px">The Trash isn’t available right now. It needs a connection to LevelUp.</div>';return;}
+  if(!rows.length){box.innerHTML='<div style="font-size:12px;color:var(--t3);padding:10px">The Trash is empty.</div>';return;}
+  box.innerHTML=rows.map(r=>`<div style="display:flex;align-items:center;gap:8px;border:1px solid var(--bd1);border-radius:6px;padding:8px 10px;margin-bottom:6px;background:var(--s1)">
+    <div style="min-width:0;flex:1"><div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.title||'(untitled)')}</div>
+    <div style="font-size:11px;color:var(--t3)">Deleted ${_noteVerWhen(r.savedAt)} · ${(r.chars||0).toLocaleString()} characters</div></div>
+    <button class="btn btn-p" style="height:24px;font-size:11px"${_act('_notesTrashRestore',[r.id])}>↩ Restore</button>
+    <button class="btn btn-s" style="height:24px;font-size:11px" title="Delete forever"${_act('_notesTrashPurge',[r.id])}>✕</button>
+  </div>`).join('');
+}
+async function _notesTrashRestore(vid){
+  let v=null;try{v=await _trpc('noteVersions.get',{id:Number(vid)},'query');}catch(_){}
+  let n=null;try{n=v&&v.raw?JSON.parse(v.raw):null;}catch(_){}
+  if(!n||n.id==null){toast({type:'error',title:'Could not restore',msg:'That note could not be read.'});return;}
+  if((D.notes||[]).some(x=>String(x.id)===String(n.id))){toast('That note is already back.');openNotesTrash();return;}
+  D.notes.unshift(n);
+  save('notes');
+  _notesRememberOpen(n.id);
+  closeModal();
+  if(typeof curScreen!=='undefined'&&curScreen==='notes')renderNotes();else nav('notes');
+  toast('↩ “'+(n.title||'Untitled')+'” is back');
+}
+async function _notesTrashPurge(vid){
+  if(!confirm('Delete this note forever? It can’t be brought back.'))return;
+  try{await _trpc('noteVersions.purge',{ids:[Number(vid)]},'mutation');}catch(_){toast({type:'error',title:'Could not delete',msg:'Try again when you’re online.'});return;}
+  openNotesTrash();
+}
+// Never lose the last pause's typing to a closing tab or a sleeping phone.
+if(!window._noteAutosaveWired){
+  window._noteAutosaveWired=true;
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')_noteTitleCommit();});
+  window.addEventListener('pagehide',()=>_noteTitleCommit());
+}
+(function _noteLiveCSS(){
+  if(document.getElementById('lu-note-live-css'))return;
+  const s=document.createElement('style');s.id='lu-note-live-css';
+  s.textContent=
+    '.note-live .rte-wrap{border:none;background:transparent;overflow:visible}'+
+    '.note-live .rte-toolbar{position:sticky;top:0;z-index:5;border:1px solid var(--bd1);border-radius:10px;background:color-mix(in srgb,var(--s2) 94%,transparent);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);margin-bottom:12px}'+
+    '.note-live .rte-body.note-body{padding:2px 2px 40px;overflow:visible;font-size:15.5px;line-height:1.78}'+
+    '.note-live .rte-char-count{display:none}'+
+    // One text colour in the editor: when blocks differ, Chrome "keeps" the
+    // colour by wrapping new lines in <font color=…> (a fixed colour that is
+    // wrong in the other theme).
+    '.note-live .note-body p,.note-live .note-body ul,.note-live .note-body ol,.note-live .note-body li,.note-live .note-body blockquote,.note-live .note-body div{color:var(--t1)}'+
+    '.note-title-input{display:block;width:100%;border:none;outline:none;background:transparent;font:inherit;font-size:30px;font-weight:780;letter-spacing:-.5px;line-height:1.18;color:var(--t1);margin:14px 0 16px;padding:0}'+
+    '.note-title-input::placeholder{color:var(--t3)}'+
+    '.note-title-input:focus-visible{outline:2px solid var(--page-accent,var(--ac));outline-offset:4px;border-radius:4px}'+
+    '.note-save-status{font-size:11px;color:var(--t3);white-space:nowrap;min-width:56px;text-align:right}'+
+    '.note-save-status[data-state=dirty]{color:var(--warn)}'+
+    '.note-save-status[data-state=error]{color:var(--red)}'+
+    '@media (max-width:560px){.note-title-input{font-size:24px}}';
+  document.head.appendChild(s);
+})();
 // Note version timeline sparkline (#16). Renders a tiny SVG strip showing each
 // saved version as a clickable dot positioned by timestamp. Hover for the
 // timestamp; click to jump straight into the diff viewer for that version.
@@ -2441,95 +2785,353 @@ async function _noteDrainVersions(){
     if(moved)save('notes');
   }
 }
-// ====== WIKI-LINK AUTO-COMPLETE ======
-// ── [[ ]] note-link + #tag autocomplete for the contenteditable RTE ──────
-let _wikiAcIdx=-1;
-let _wikiAc=null; // {mode:'note'|'tag', node, triggerStart, caretOff, items:[{label,value}]}
-function _wikiAcHide(){const ac=document.getElementById('wiki-autocomplete');if(ac)ac.style.display='none';_wikiAc=null;_wikiAcIdx=-1;}
-function noteWikiInput(el){
-  const ac=document.getElementById('wiki-autocomplete');
-  if(!ac)return;
+// ====== [[LINKS]], #TAGS AND THE / MENU (build -243) ======
+// A [[link]] is a chip in the note's HTML:
+//   <span class="lu-wiki" data-nid="ID" contenteditable="false">Title</span>
+// luRTE_htmlToMd turns it back into [[Title]] in the derived body, so
+// backlinks, the graph, search and AI read links as before. Holding the
+// note's id lets a rename update every link (_noteRenameLinks). Plain
+// [[Title]] text (older notes, typed by hand, imports) becomes a chip when
+// the note opens in an editor (_noteDecorateHtml) — saved only if the note
+// is then edited. A link to a note that doesn't exist yet is a dashed chip;
+// clicking it creates the note.
+// The editors that hold a note body get the [[ / # autocomplete and the
+// / menu: the Notes editor, the note drawer and New Note.
+const _NOTE_RTE_IDS=new Set(['nie-body','dr-note-rte','fa-note-rte']);
+function _noteByTitle(t){
+  const k=String(t||'').trim().toLowerCase();
+  return k?(D.notes||[]).find(n=>(n.title||'').trim().toLowerCase()===k)||null:null;
+}
+function _noteWikiChip(doc,title,note){
+  const s=doc.createElement('span');
+  s.className='lu-wiki'+(note?'':' missing');
+  s.setAttribute('contenteditable','false');
+  if(note)s.dataset.nid=String(note.id);
+  s.textContent=note?(note.title||title):title;
+  return s;
+}
+// Chips for every [[Title]] in a DOM tree, and existing chips brought up to
+// date (renamed note, note created or deleted since). Returns the count.
+function _noteDecorateLinks(root){
+  if(!root)return 0;
+  const doc=root.ownerDocument||document;
+  let count=0;
+  root.querySelectorAll('span.lu-wiki').forEach(s=>{
+    s.setAttribute('contenteditable','false');
+    let note=s.dataset.nid?(D.notes||[]).find(x=>String(x.id)===s.dataset.nid):null;
+    if(!note){note=_noteByTitle(s.textContent);if(note)s.dataset.nid=String(note.id);else delete s.dataset.nid;}
+    if(note&&note.title&&s.textContent!==note.title)s.textContent=note.title;
+    s.classList.toggle('missing',!note);
+  });
+  const w=doc.createTreeWalker(root,4);const nodes=[];
+  while(w.nextNode())nodes.push(w.currentNode);
+  nodes.forEach(node=>{
+    const t=node.textContent;
+    if(t.indexOf('[[')<0||!node.parentNode)return;
+    if(node.parentNode.closest&&node.parentNode.closest('code,pre,a,.lu-wiki'))return;
+    const re=/\[\[([^\]\n]{1,200})\]\]/g;let m,last=0,hit=false;
+    const frag=doc.createDocumentFragment();
+    while((m=re.exec(t))){
+      const title=m[1].trim();if(!title)continue;
+      hit=true;count++;
+      frag.appendChild(doc.createTextNode(t.slice(last,m.index)));
+      frag.appendChild(_noteWikiChip(doc,title,_noteByTitle(title)));
+      last=m.index+m[0].length;
+    }
+    if(!hit)return;
+    frag.appendChild(doc.createTextNode(t.slice(last)));
+    node.parentNode.replaceChild(frag,node);
+  });
+  return count;
+}
+function _noteDecorateHtml(html){
+  const s=String(html||'');
+  if(s.indexOf('[[')<0&&s.indexOf('lu-wiki')<0)return s;
+  const root=luParseInert(s);
+  _noteDecorateLinks(root);
+  return root.innerHTML;
+}
+function _noteCreateStub(title){
+  const now=new Date().toISOString();
+  const n={id:nextId(D.notes),title:String(title).trim().slice(0,300),tags:[],source:'Link',createdAt:now,updated:now,updatedAt:now,starred:false,createdBy:(D.creds&&D.creds.userName)||''};
+  _noteSetHtml(n,'',{keepTime:true});
+  D.notes.unshift(n);
+  save('notes');
+  return n;
+}
+// Open the note a chip points at; a missing one is created first.
+function _noteOpenWiki(chip){
+  let n=chip.dataset.nid?(D.notes||[]).find(x=>String(x.id)===chip.dataset.nid):null;
+  if(!n)n=_noteByTitle(chip.textContent);
+  if(!n){
+    if(!confirm('Create a note called “'+chip.textContent+'”?'))return;
+    n=_noteCreateStub(chip.textContent);
+    chip.dataset.nid=String(n.id);chip.classList.remove('missing');
+    const host=chip.closest('[contenteditable="true"]');
+    if(host&&host.id==='nie-body')_noteEdited();
+  }
+  if(typeof closeDrawer==='function'&&chip.closest('#drawer-ov'))closeDrawer();
+  if(typeof curScreen!=='undefined'&&curScreen!=='notes'){nav('notes');setTimeout(()=>showNoteInEditor(n.id),120);}
+  else showNoteInEditor(n.id);
+}
+// One click handler for chips everywhere (editor, drawer, shared viewer,
+// history preview) and for checklist boxes inside editors.
+if(!window._noteChipWired){
+  window._noteChipWired=true;
+  // A click anywhere outside the popup closes it.
+  document.addEventListener('mousedown',e=>{if(_notePop&&!(e.target&&e.target.closest&&e.target.closest('#wiki-autocomplete')))_wikiAcHide();});
+  document.addEventListener('click',e=>{
+    const t=e.target;if(!t||!t.closest)return;
+    const chip=t.closest('.lu-wiki');
+    if(chip&&!(e.ctrlKey||e.metaKey||e.shiftKey)){e.preventDefault();e.stopPropagation();_noteOpenWiki(chip);return;}
+    const li=t.closest('ul.lu-check>li');
+    if(li&&li.closest('[contenteditable="true"]')){
+      const r=li.getBoundingClientRect();
+      if(e.clientX-r.left<24){
+        e.preventDefault();
+        li.dataset.checked=li.dataset.checked==='true'?'false':'true';
+        const host=li.closest('[contenteditable="true"]');
+        if(host&&host.id==='nie-body')_noteEdited();
+      }
+    }
+  });
+}
+// A note was renamed: links to it (chips by id, and any [[Old title]] text)
+// follow. Other notes keep their update time. Returns how many changed.
+function _noteRenameLinks(note,oldTitle){
+  const nt=(note&&note.title||'').trim(),ot=String(oldTitle||'').trim();
+  if(!note||!nt||!ot||nt===ot)return 0;
+  const idAttr='data-nid="'+String(note.id)+'"',tok=('[['+ot+']]').toLowerCase();
+  let changed=0;
+  (D.notes||[]).forEach(o=>{
+    if(o===note)return;
+    const h=_noteHtml(o);
+    if(h.indexOf(idAttr)<0&&h.toLowerCase().indexOf(tok)<0)return;
+    const root=luParseInert(h);let hit=false;
+    root.querySelectorAll('span.lu-wiki').forEach(s=>{if(s.dataset.nid===String(note.id)&&s.textContent!==nt){s.textContent=nt;hit=true;}});
+    const w=root.ownerDocument.createTreeWalker(root,4);const nodes=[];while(w.nextNode())nodes.push(w.currentNode);
+    const re=new RegExp('\\[\\['+ot.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\]\\]','gi');
+    nodes.forEach(n=>{if(re.test(n.textContent)){re.lastIndex=0;n.textContent=n.textContent.replace(re,'[['+nt+']]');hit=true;}re.lastIndex=0;});
+    if(hit){_noteSetHtml(o,root.innerHTML,{keepTime:true});changed++;}
+  });
+  if(changed){save('notes');toast({type:'info',title:'Links updated',msg:'“'+nt+'” is now the link text in '+changed+' other note'+(changed===1?'':'s')+'.',duration:4000});}
+  return changed;
+}
+// ── The popup shared by [[ links, #tags and the / menu ──
+let _notePop=null; // {mode:'note'|'tag'|'slash', id, node, triggerStart, caretOff, items:[], idx}
+function _notePopEl(){
+  let el=document.getElementById('wiki-autocomplete');
+  if(!el){
+    el=document.createElement('div');el.id='wiki-autocomplete';el.setAttribute('role','listbox');
+    el.style.cssText='display:none;position:fixed;z-index:4000;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.22);min-width:240px;max-width:320px;max-height:300px;overflow-y:auto';
+    document.body.appendChild(el);
+  }
+  return el;
+}
+function _wikiAcHide(){const el=document.getElementById('wiki-autocomplete');if(el)el.style.display='none';_notePop=null;}
+function _notePopShow(state,head){
+  const el=_notePopEl();
+  _notePop=state;state.idx=0;
+  el.innerHTML=`<div class="wac-h">${head}</div>`+state.items.map((it,i)=>`<div class="wac-i ${i===0?'on':''}" role="option" data-idx="${i}" onmousedown="event.preventDefault();_notePopPick(${i})">${it.label}</div>`).join('');
+  const sel=window.getSelection();
+  const r=sel.getRangeAt(0).cloneRange();r.collapse(true);
+  let rect=r.getClientRects()[0];
+  if(!rect){const sp=document.createElement('span');sp.textContent='​';r.insertNode(sp);rect=sp.getBoundingClientRect();sp.remove();}
+  el.style.display='block';
+  const h=el.offsetHeight||200;
+  el.style.left=Math.max(8,Math.min(rect.left,window.innerWidth-330))+'px';
+  el.style.top=(rect.bottom+4+h>window.innerHeight?Math.max(8,rect.top-h-4):rect.bottom+4)+'px';
+}
+// The / menu.
+const _NOTE_SLASH=[
+  {k:'text',icon:'¶',label:'Text',kw:'paragraph plain p',run:id=>luRTE_heading('p',id)},
+  {k:'h1',icon:'H1',label:'Heading 1',kw:'title big',run:id=>luRTE_heading('h1',id)},
+  {k:'h2',icon:'H2',label:'Heading 2',kw:'subtitle',run:id=>luRTE_heading('h2',id)},
+  {k:'h3',icon:'H3',label:'Heading 3',kw:'small heading',run:id=>luRTE_heading('h3',id)},
+  {k:'bullet',icon:'•',label:'Bulleted list',kw:'ul unordered dots',run:id=>luRTE_cmd('insertUnorderedList',id)},
+  {k:'number',icon:'1.',label:'Numbered list',kw:'ol ordered',run:id=>luRTE_cmd('insertOrderedList',id)},
+  {k:'check',icon:'☑',label:'Checklist',kw:'todo checkbox tick',run:id=>_noteInsertChecklist(id)},
+  {k:'quote',icon:'❝',label:'Quote',kw:'blockquote',run:id=>luRTE_heading('blockquote',id)},
+  {k:'code',icon:'‹›',label:'Code block',kw:'pre monospace',run:id=>luRTE_heading('pre',id)},
+  {k:'divider',icon:'—',label:'Divider',kw:'hr line rule separator',run:id=>luRTE_cmd('insertHorizontalRule',id)},
+  {k:'table',icon:'▦',label:'Table',kw:'grid columns rows',run:id=>_noteInsertTable(id)},
+  {k:'link',icon:'⛓',label:'Link to a note',kw:'wiki [[ note',run:id=>{document.execCommand('insertText',false,'[[');_noteRteInput(id);}},
+  {k:'image',icon:'🖼',label:'Image',kw:'picture photo upload',run:id=>luRTE_insertImage(id)},
+  {k:'date',icon:'📅',label:'Today’s date',kw:'now day today',run:id=>document.execCommand('insertText',false,new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}))},
+  {k:'task',icon:'✓',label:'Make this line a task',kw:'todo action item',only:'nie-body',run:id=>_noteLineToTask(id)},
+];
+// Called on every input in a note editor: opens, filters or closes the popup.
+function _noteRteInput(id){
+  if(!_NOTE_RTE_IDS.has(id))return;
+  const el=document.getElementById(id);if(!el)return;
   const sel=window.getSelection&&window.getSelection();
   if(!sel||!sel.rangeCount||!sel.isCollapsed){_wikiAcHide();return;}
   const node=sel.anchorNode;
   if(!node||node.nodeType!==3||!el.contains(node)){_wikiAcHide();return;}
+  if(node.parentNode&&node.parentNode.closest&&node.parentNode.closest('code,pre')){_wikiAcHide();return;}
   const off=sel.anchorOffset;
   const before=node.textContent.slice(0,off);
-  let mode=null,query='',triggerStart=-1;
-  let m=before.match(/\[\[([^\]\n]*)$/);
-  if(m){mode='note';query=m[1];triggerStart=off-m[0].length;}
-  else{
-    m=before.match(/(^|[\s(])#([\p{L}0-9_-]{0,30})$/u);
-    if(m){mode='tag';query=m[2];triggerStart=off-m[2].length-1;}
+  let m=before.match(/\[\[([^\]\n]{0,80})$/);
+  if(m){
+    const q=m[1].toLowerCase().trim(),openId=id==='nie-body'?_noteInlineEditId:null;
+    const items=(D.notes||[]).filter(n=>String(n.id)!==String(openId)&&(n.title||'').toLowerCase().includes(q))
+      .sort((a,b)=>((a.title||'').toLowerCase().startsWith(q)?0:1)-((b.title||'').toLowerCase().startsWith(q)?0:1))
+      .slice(0,8).map(n=>({label:'📄 '+esc(n.title||'Untitled'),note:n}));
+    if(m[1].trim()&&!_noteByTitle(m[1]))items.push({label:'＋ Create note “'+esc(m[1].trim())+'”',create:m[1].trim()});
+    if(!items.length){_wikiAcHide();return;}
+    _notePopShow({mode:'note',id,node,triggerStart:off-m[0].length,caretOff:off,items},'Link to a note · ↑↓ ↵');
+    return;
   }
-  if(!mode){_wikiAcHide();return;}
-  const q=query.toLowerCase();
-  let items=[];
-  if(mode==='note'){
-    const curId=_noteInlineEditId;
-    items=D.notes.filter(n=>n.id!==curId&&(n.title||'').toLowerCase().includes(q))
-      .slice(0,7).map(n=>({label:'📄 '+esc(n.title),value:n.title}));
-    if(query.trim())items.push({label:'＋ Create note “'+esc(query.trim())+'”',value:query.trim(),create:true});
-  }else{
-    const freq={};D.notes.forEach(n=>(n.tags||[]).forEach(t=>{freq[t]=(freq[t]||0)+1;}));
-    items=Object.keys(freq).filter(t=>t.toLowerCase().includes(q)).sort((a,b)=>freq[b]-freq[a])
-      .slice(0,7).map(t=>({label:'# '+esc(t)+'  ·  '+freq[t],value:t}));
-    if(query.trim()&&!items.some(i=>i.value.toLowerCase()===q))items.push({label:'＋ New tag “#'+esc(query.trim())+'”',value:query.trim(),create:true});
+  m=before.match(/(^|[\s( ])#([\p{L}0-9_-]{0,30})$/u);
+  if(m){
+    const q=m[2].toLowerCase();const freq={};
+    (D.notes||[]).forEach(n=>(n.tags||[]).forEach(t=>{freq[t]=(freq[t]||0)+1;}));
+    const items=Object.keys(freq).filter(t=>t.toLowerCase().includes(q)).sort((a,b)=>freq[b]-freq[a]).slice(0,7).map(t=>({label:'# '+esc(t)+'  ·  '+freq[t],tag:t}));
+    if(m[2]&&!items.some(i=>i.tag.toLowerCase()===q))items.push({label:'＋ New tag “#'+esc(m[2])+'”',tag:m[2]});
+    if(!items.length){_wikiAcHide();return;}
+    _notePopShow({mode:'tag',id,node,triggerStart:off-m[2].length-1,caretOff:off,items},'Tag · ↑↓ ↵');
+    return;
   }
-  if(!items.length){_wikiAcHide();return;}
-  _wikiAc={mode,node,triggerStart,caretOff:off,items};
-  _wikiAcIdx=0;
-  ac.innerHTML=`<div class="wac-h">${mode==='note'?'Link to note · ↑↓ ↵':'Tag · ↑↓ ↵'}</div>`+
-    items.map((it,i)=>`<div class="wac-i ${i===0?'on':''}" data-idx="${i}" onmousedown="event.preventDefault();_wikiAcPick(${i})">${it.label}</div>`).join('');
-  // Position at caret.
-  const r=sel.getRangeAt(0).cloneRange();r.collapse(true);
-  let rect=r.getClientRects()[0];
-  if(!rect){const sp=document.createElement('span');sp.textContent='​';r.insertNode(sp);rect=sp.getBoundingClientRect();sp.remove();}
-  ac.style.position='fixed';
-  ac.style.left=Math.min(rect.left,window.innerWidth-280)+'px';
-  ac.style.top=(rect.bottom+4)+'px';
-  ac.style.display='block';
-}
-function noteWikiKeydown(e){
-  const ac=document.getElementById('wiki-autocomplete');
-  if(!ac||ac.style.display==='none'||!_wikiAc)return;
-  const items=ac.querySelectorAll('.wac-i');
-  if(e.key==='ArrowDown'){e.preventDefault();_wikiAcIdx=Math.min(_wikiAcIdx+1,items.length-1);}
-  else if(e.key==='ArrowUp'){e.preventDefault();_wikiAcIdx=Math.max(_wikiAcIdx-1,0);}
-  else if(e.key==='Enter'||e.key==='Tab'){e.preventDefault();_wikiAcPick(_wikiAcIdx);return;}
-  else if(e.key==='Escape'){e.preventDefault();_wikiAcHide();return;}
-  else return;
-  items.forEach((el,i)=>el.classList.toggle('on',i===_wikiAcIdx));
-}
-function _wikiAcPick(i){
-  if(!_wikiAc||!_wikiAc.items[i])return;
-  const {mode,node,triggerStart,caretOff}=_wikiAc;
-  const it=_wikiAc.items[i];
-  const repl=mode==='note'?('[['+it.value+']]'):('#'+it.value+' ');
-  const txt=node.textContent;
-  node.textContent=txt.slice(0,triggerStart)+repl+txt.slice(caretOff);
-  // Restore caret after the inserted text.
-  try{
-    const sel=window.getSelection();const r=document.createRange();
-    r.setStart(node,Math.min(triggerStart+repl.length,node.textContent.length));
-    r.collapse(true);sel.removeAllRanges();sel.addRange(r);
-  }catch(_){}
-  // A #tag selection also adds a real tag to the note being edited.
-  if(mode==='tag'&&_noteInlineEditId){
-    const n=D.notes.find(x=>x.id===_noteInlineEditId);
-    if(n){n.tags=n.tags||[];if(!n.tags.some(t=>t.toLowerCase()===it.value.toLowerCase())){n.tags.push(it.value);save('notes');}}
+  m=before.match(/(^|[\s ])\/([a-z0-9’' ]{0,24})$/i);
+  if(m&&!/ {2}/.test(m[2])){
+    const q=m[2].toLowerCase().trim();
+    const items=_NOTE_SLASH.filter(c=>(!c.only||c.only===id)&&(!q||c.label.toLowerCase().includes(q)||c.kw.includes(q)))
+      .map(c=>({label:`<span style="display:inline-flex;width:24px;justify-content:center;font-weight:700;color:var(--t3)">${c.icon}</span>${esc(c.label)}`,cmd:c}));
+    if(!items.length){_wikiAcHide();return;}
+    _notePopShow({mode:'slash',id,node,triggerStart:off-m[2].length-1,caretOff:off,items},'Insert · ↑↓ ↵ · Esc');
+    return;
   }
-  const el=document.getElementById('nie-body');
   _wikiAcHide();
-  if(el){el.focus();luRTE_updateCharCount('nie-body');}
 }
-// Back-compat shim (older callers).
-function insertWikiLink(title){if(_wikiAc){const i=_wikiAc.items.findIndex(x=>x.value===title);_wikiAcPick(i>=0?i:0);}}
+// Keys while the popup is open, plus Tab between table cells and Enter in a
+// checklist. Returns true when the key was handled (the editor skips it).
+function _notePopKeydown(e,id){
+  if(_notePop&&_notePop.id===id){
+    const n=_notePop.items.length;
+    if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+      e.preventDefault();
+      _notePop.idx=(_notePop.idx+(e.key==='ArrowDown'?1:n-1))%n;
+      document.querySelectorAll('#wiki-autocomplete .wac-i').forEach((el,i)=>el.classList.toggle('on',i===_notePop.idx));
+      return true;
+    }
+    if(e.key==='Enter'||e.key==='Tab'){e.preventDefault();_notePopPick(_notePop.idx);return true;}
+    if(e.key==='Escape'){e.preventDefault();_wikiAcHide();return true;}
+  }
+  if(!_NOTE_RTE_IDS.has(id))return false;
+  const sel=window.getSelection();
+  const at=sel&&sel.anchorNode?(sel.anchorNode.nodeType===1?sel.anchorNode:sel.anchorNode.parentNode):null;
+  if(e.key==='Tab'&&at&&at.closest&&at.closest('table.lu-table td,table.lu-table th')){
+    e.preventDefault();
+    const cell=at.closest('td,th');const cells=[...cell.closest('table').querySelectorAll('td,th')];
+    const next=cells[cells.indexOf(cell)+(e.shiftKey?-1:1)];
+    if(next){const r=document.createRange();r.selectNodeContents(next);r.collapse(false);sel.removeAllRanges();sel.addRange(r);}
+    return true;
+  }
+  if(e.key==='Enter'&&!e.shiftKey&&at&&at.closest&&at.closest('ul.lu-check>li')){
+    // The browser copies the item it splits, ticked or not: start unticked.
+    setTimeout(()=>{const s=window.getSelection();const a=s&&s.anchorNode;const li=a&&(a.nodeType===1?a:a.parentNode).closest&&(a.nodeType===1?a:a.parentNode).closest('ul.lu-check>li');if(li)li.dataset.checked='false';},0);
+  }
+  return false;
+}
+function _notePopPick(i){
+  const p=_notePop;if(!p||!p.items[i])return;
+  const it=p.items[i];const node=p.node;
+  const el=document.getElementById(p.id);
+  _wikiAcHide();
+  if(!el||!node||!node.parentNode)return;
+  const txt=node.textContent;
+  // Take out what was typed to trigger the popup ("[[que", "#ta", "/hea").
+  node.textContent=txt.slice(0,p.triggerStart)+txt.slice(p.caretOff);
+  const sel=window.getSelection();const r=document.createRange();
+  const parent=node.parentNode;
+  if(!node.textContent&&parent&&!parent.textContent.trim()&&!parent.querySelector('br,img,.lu-wiki')){
+    // The line is empty now. An empty text node lets the browser move the
+    // caret into the line before (a / command then reformats that line), so
+    // leave a <br> and put the caret in front of it.
+    const br=document.createElement('br');
+    const at=[...parent.childNodes].indexOf(node);
+    parent.replaceChild(br,node);
+    r.setStart(parent,at);
+  }else r.setStart(node,Math.min(p.triggerStart,node.textContent.length));
+  r.collapse(true);
+  el.focus();
+  sel.removeAllRanges();sel.addRange(r);
+  if(p.mode==='note'){
+    const note=it.note||_noteCreateStub(it.create);
+    const chip=_noteWikiChip(document,note.title,note);
+    r.insertNode(chip);
+    const sp=document.createTextNode(' ');chip.after(sp);
+    const r2=document.createRange();r2.setStart(sp,1);r2.collapse(true);sel.removeAllRanges();sel.addRange(r2);
+  }else if(p.mode==='tag'){
+    document.execCommand('insertText',false,'#'+it.tag+' ');
+    if(p.id==='nie-body'&&_noteInlineEditId!=null){
+      const n=(D.notes||[]).find(x=>String(x.id)===String(_noteInlineEditId));
+      if(n){n.tags=n.tags||[];if(!n.tags.some(t=>t.toLowerCase()===it.tag.toLowerCase())){n.tags.push(it.tag);save('notes');}}
+    }
+  }else if(p.mode==='slash'){
+    try{it.cmd.run(p.id);}catch(err){console.warn('[notes] / command failed',err);}
+  }
+  luRTE_updateCharCount(p.id);
+  if(p.id==='nie-body')_noteEdited();
+  try{if(p.id.slice(0,3)==='fa-'&&typeof _faHasChanges!=='undefined')_faHasChanges=true;}catch(_){}
+}
+function _noteInsertChecklist(id){
+  luRTE_cmd('insertUnorderedList',id);
+  const s=window.getSelection();const a=s&&s.anchorNode;
+  const ul=a&&(a.nodeType===1?a:a.parentNode).closest&&(a.nodeType===1?a:a.parentNode).closest('ul');
+  if(ul){ul.classList.add('lu-check');ul.querySelectorAll(':scope>li').forEach(li=>{if(!li.dataset.checked)li.dataset.checked='false';});}
+}
+function _noteInsertTable(id){
+  const el=document.getElementById(id);if(!el)return;
+  const row='<tr><td><br></td><td><br></td><td><br></td></tr>';
+  document.execCommand('insertHTML',false,'<table class="lu-table" data-new="1"><tbody>'+row+row+row+'</tbody></table><p><br></p>');
+  // Put the caret in the first cell of the table just inserted.
+  const tb=el.querySelector('table.lu-table[data-new]');if(!tb)return;
+  tb.removeAttribute('data-new');
+  const td=tb.querySelector('td');
+  if(td){const s=window.getSelection();const r=document.createRange();r.selectNodeContents(td);r.collapse(true);s.removeAllRanges();s.addRange(r);}
+}
+// "Make this line a task": a task with the line's text, linked both ways.
+function _noteLineToTask(id){
+  const n=(D.notes||[]).find(x=>String(x.id)===String(_noteInlineEditId));if(!n)return;
+  const s=window.getSelection();const a=s&&s.anchorNode;
+  const block=a&&(a.nodeType===1?a:a.parentNode).closest&&(a.nodeType===1?a:a.parentNode).closest('li,p,div:not(.rte-body),h1,h2,h3,blockquote');
+  let title=(block&&block.closest('#'+id)?block.textContent:'').replace(/ /g,' ').trim();
+  if(!title)title=(prompt('Task title:')||'').trim();
+  if(!title)return;
+  const t={id:nextId(D.tasks),title:title.slice(0,300),assignedTo:null,due:'',status:'Not Started',priority:'Medium',notes:'From the note: '+(n.title||'Untitled'),createdBy:(D.creds&&D.creds.userName)||'',tags:[],linkedNoteIds:[n.id],subtasks:[],comments:[],createdAt:new Date().toISOString()};
+  D.tasks.push(t);save('tasks');
+  n.linkedTaskIds=Array.from(new Set([...(n.linkedTaskIds||[]),t.id]));
+  _noteAutosaveNow();save('notes');
+  toast({type:'success',title:'Task created',msg:'“'+t.title.slice(0,60)+'” — linked to this note.',duration:5000,actions:[{label:'Open task',onClick:()=>{try{openDrawer('task',t);}catch(_){}}}]});
+}
+// Back-compat names (older callers).
+function noteWikiInput(el){if(el&&el.id)_noteRteInput(el.id);}
+function noteWikiKeydown(e){return _notePop?_notePopKeydown(e,_notePop.id):false;}
+function insertWikiLink(title){if(_notePop&&_notePop.mode==='note'){const i=_notePop.items.findIndex(x=>x.note&&x.note.title===title);_notePopPick(i>=0?i:0);}}
+(function _noteLinkCSS(){
+  if(document.getElementById('lu-note-link-css'))return;
+  const s=document.createElement('style');s.id='lu-note-link-css';
+  s.textContent=
+    '.lu-wiki{color:var(--ac);background:color-mix(in srgb,var(--ac) 11%,transparent);border-radius:5px;padding:0 4px;cursor:pointer;white-space:nowrap;font-weight:550;text-decoration:none}'+
+    '.lu-wiki:hover{background:color-mix(in srgb,var(--ac) 20%,transparent)}'+
+    '.lu-wiki.missing{color:var(--t2);background:transparent;border:1px dashed var(--bd2)}'+
+    'ul.lu-check{list-style:none!important;padding-left:2px!important;margin-left:0!important}'+
+    'ul.lu-check>li{list-style:none!important;position:relative;padding-left:26px}'+
+    'ul.lu-check>li::before{content:"";position:absolute;left:2px;top:.32em;width:15px;height:15px;box-sizing:border-box;border:1.5px solid var(--bd2);border-radius:4px;background:var(--s1)}'+
+    '[contenteditable="true"] ul.lu-check>li::before{cursor:pointer}'+
+    'ul.lu-check>li[data-checked="true"]::before{background:var(--ac);border-color:var(--ac)}'+
+    'ul.lu-check>li[data-checked="true"]::after{content:"✓";position:absolute;left:4.5px;top:.05em;font-size:12px;font-weight:700;color:#fff;pointer-events:none}'+
+    'ul.lu-check>li[data-checked="true"]{opacity:.6;text-decoration:line-through}'+
+    'table.lu-table{border-collapse:collapse;margin:8px 0 14px;width:100%;font-size:.95em}'+
+    'table.lu-table td,table.lu-table th{border:1px solid var(--bd2);padding:6px 8px;min-width:60px;vertical-align:top}';
+  document.head.appendChild(s);
+})();
 // Display path for a note body, shared by the editor pane AND the
 // shared-note viewer so a recipient reads exactly what the owner sees.
 // Prefer rich-HTML body (from RTE saves or document imports) when present;
 // fall back to markdown-style rendering of n.body for older / plain notes.
-function _noteBodyDisplayHtml(n){return luSanitizeHtml(_noteBodyDisplayHtmlRaw(n));}
+function _noteBodyDisplayHtml(n){return luSanitizeHtml(_noteDecorateHtml(_noteBodyDisplayHtmlRaw(n)));}
 function _noteBodyDisplayHtmlRaw(n){
   if(n.bodyHtml&&n.bodyHtml.trim()){
     // Run through mdToHtml: real-HTML bodies (starting with '<') pass through
@@ -2541,23 +3143,6 @@ function _noteBodyDisplayHtmlRaw(n){
   return _noteMdToHtml(n.body||'');
 }
 function renderNoteEditor(n){
-  let bodyHtml=_noteBodyDisplayHtml(n);
-  const isEditing=_noteInlineEditId===n.id;
-  if(isEditing){
-    return `<button class="btn notes-mobile-back" onclick="setNotesMobilePane('list')" title="Back to notes list">← All Notes</button><div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--bd1)">
-  <div style="display:flex;gap:6px">
-    <button class="btn btn-p" style="height:26px;font-size:11px" onclick="saveNoteInlineEdit(${_tidLit(n.id)})">💾 Save</button>
-    <button class="btn btn-s" style="height:26px;font-size:11px" onclick="_noteInlineEditId=null;showNoteInEditor(${_tidLit(n.id)})">✕ Cancel</button>
-    <button class="btn btn-s" style="height:26px;font-size:11px" onclick="openDrawer('note',D.notes.find(x=>x.id==${_tidLit(n.id)}))">⚙ Full Edit</button>
-  </div>
-  <span style="font-size:11px;color:var(--ac)">Editing</span>
-  </div>
-  <input id="nie-title" class="inp" style="font-size:16px;font-weight:600;margin-bottom:8px;width:100%" value="${esc(n.title)}" placeholder="Note title...">
-  <div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:8px">${(n.tags||[]).map(t=>`<span style="font-size:11px;color:var(--ac);background:var(--acs);padding:2px 6px;border-radius:3px">#${t}</span>`).join('')}</div>
-  <div style="font-size:11px;color:var(--t3);margin-bottom:8px">Source: ${n.source||'Manual'} · Rich text editor — Ctrl/Cmd+S to save</div>
-  ${luRTE_render({id:'nie-body', placeholder:'Write your note...', value:_noteHtml(n), height:'300px'})}
-  <div id="wiki-autocomplete" style="display:none;position:absolute;z-index:200;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.18);min-width:220px;max-height:200px;overflow-y:auto"></div>`;
-  }
   const {wc,mins}=_readingTime(n.body||n.bodyHtml||'');
   const st=_noteStatusMeta(_noteStatus(n));
   const created=n.createdAt?fmtNoteDate(n.createdAt):(typeof n.id==='number'&&n.id>1e9?fmtNoteDate(_pd(n.id).toISOString()):'');
@@ -2565,11 +3150,11 @@ function renderNoteEditor(n){
     const sel=(n.color||'')===c.value;
     return `<span class="ncp-dot ${c.value?'':'ncp-none'} ${sel?'selected':''}" style="${c.value?`background:${c.value}`:''}" title="${esc(c.name)}" onclick="setNoteColor(${_tidLit(n.id)},'${_jsAttr(c.value)}')"></span>`;
   }).join('');
-  return `<div class="note-doc"><button class="btn notes-mobile-back" onclick="setNotesMobilePane('list')" title="Back to notes list">← All Notes</button>
+  const hideBody=_noteOrigMode(n)==='original';
+  return `<div class="note-doc note-live"><button class="btn notes-mobile-back" onclick="setNotesMobilePane('list')" title="Back to notes list">← All Notes</button>
   <div class="note-toolbar" style="margin-bottom:14px">
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-      <button class="btn btn-p" style="height:26px;font-size:11px" onclick="toggleNoteInlineEdit(${_tidLit(n.id)})">✏ Edit</button>
-      <button class="btn btn-s" style="height:26px;font-size:11px" onclick="openDrawer('note',D.notes.find(x=>x.id==${_tidLit(n.id)}))">⚙ Full</button>
+      <button class="btn btn-s" style="height:26px;font-size:11px" onclick="openDrawer('note',D.notes.find(x=>x.id==${_tidLit(n.id)}))" title="Tags, source, icon, folder and links">⚙ Details</button>
       <button class="btn btn-s" style="height:26px;font-size:11px${n.pinned?';color:var(--page-accent);font-weight:600':''}" onclick="toggleNotePinned(${_tidLit(n.id)})" title="${n.pinned?'Unpin':'Pin to top'}">📌</button>
       <button class="btn btn-s" style="height:26px;font-size:11px" onclick="toggleNoteFocusMode()" title="Focus mode (Esc to exit)">⛶</button>
       <button class="btn btn-s" style="height:26px;font-size:11px;color:var(--ac)" onclick="moveNoteToFolder(${_tidLit(n.id)})" title="${n.folderId?'Move folder':'Move to a folder'}">📁 ${n.folderId?esc((_noteFolderById(n.folderId)?.name||'?').slice(0,12)):'Move'}</button>
@@ -2587,11 +3172,16 @@ function renderNoteEditor(n){
         </div>
       </div>
       <button class="btn btn-s" style="height:26px;font-size:11px;${(n.assignedTo||(n.assignees||[]).length)?'color:var(--purp)':''}" onclick="_openNoteAssign(${_tidLit(n.id)})" title="Assign to team members">👥</button>
-      <button class="btn btn-s" style="height:26px;font-size:11px" onclick="if(confirm('Delete this note?')){D.notes=D.notes.filter(x=>x.id!==${n.id});save('notes');renderNotes();}">🗑</button>
+      <button class="btn btn-s" style="height:26px;font-size:11px" title="Delete — it stays in the Trash for 30 days" aria-label="Delete note"${_act('deleteNoteWithUndo',[n.id])}>🗑</button>
     </div>
-    <span style="font-size:18px;cursor:pointer;color:${n.starred?'var(--warn)':'var(--t3)'}" onclick="D.notes.find(x=>x.id==${_tidLit(n.id)}).starred=!D.notes.find(x=>x.id==${_tidLit(n.id)}).starred;save('notes');showNoteInEditor(${_tidLit(n.id)})" title="${n.starred?'Unstar':'Star'}">★</span>
+    <div style="display:flex;align-items:center;gap:10px">
+      <span id="note-save-status" class="note-save-status" data-state="saved" aria-live="polite">Saved ✓</span>
+      <span role="button" tabindex="0" style="font-size:18px;cursor:pointer;color:${n.starred?'var(--warn)':'var(--t3)'}" aria-label="${n.starred?'Unstar':'Star'}" title="${n.starred?'Unstar':'Star'}"${_act('_quickToggleNoteStar',[n.id])}>★</span>
+    </div>
   </div>
-  <div class="note-title" ondblclick="toggleNoteInlineEdit(${_tidLit(n.id)})">${n.color?`<span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${esc(n.color)};margin-right:10px;vertical-align:middle"></span>`:''}${n.icon?esc(n.icon)+' ':''}${esc(n.title||'Untitled')}</div>
+  <div style="display:flex;align-items:center;gap:10px">${n.color?`<span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${esc(n.color)};flex-shrink:0"></span>`:''}${n.icon?`<span style="font-size:26px;line-height:1">${esc(n.icon)}</span>`:''}
+    <input id="nie-title" class="note-title-input" value="${esc(n.title||'')}" placeholder="Untitled" aria-label="Note title" autocomplete="off" oninput="_noteEdited()" onblur="_noteTitleCommit()" onkeydown="if(event.key==='Enter'){event.preventDefault();_noteTitleCommit();toggleNoteInlineEdit(_noteInlineEditId);}else if((event.ctrlKey||event.metaKey)&&event.key==='s'){event.preventDefault();saveNoteInlineEdit(_noteInlineEditId);}">
+  </div>
   <div class="note-props">
     <div class="k">◇ Status</div>
     <div class="v"><div style="position:relative;display:inline-block">
@@ -2599,11 +3189,11 @@ function renderNoteEditor(n){
       <div id="nsp-${n.id}" data-pop-menu="1" class="nsp" style="display:none;top:30px;left:0">${_noteStatusPickerHTML(n.id,_noteStatus(n))}</div>
     </div></div>
     <div class="k">⬡ Type</div>
-    <div class="v"><select class="chip" style="border:1px solid var(--bd2);background:var(--s2);color:var(--t2);height:24px;padding:0 6px" onchange="setNoteType(${_tidLit(n.id)},this.value)"><option value="">— none —</option>${_NOTE_TYPES.map(t=>`<option ${n.noteType===t?'selected':''}>${t}</option>`).join('')}</select></div>
+    <div class="v"><select class="chip" aria-label="Note type" style="border:1px solid var(--bd2);background:var(--s2);color:var(--t2);height:24px;padding:0 6px" onchange="setNoteType(${_tidLit(n.id)},this.value)"><option value="">— none —</option>${_NOTE_TYPES.map(t=>`<option ${n.noteType===t?'selected':''}>${t}</option>`).join('')}</select></div>
     <div class="k">⛓ Source</div>
     <div class="v" style="color:var(--t2)">${esc(n.source||'Manual')}</div>
     <div class="k">🏷 Tags</div>
-    <div class="v">${(n.tags||[]).length?(n.tags||[]).map(t=>`<span class="chip" onclick="filterNotesByTag('${_jsAttr(t)}')">#${esc(t)}</span>`).join(''):'<span style="color:var(--t3)">No tags</span>'}</div>
+    <div class="v">${(n.tags||[]).length?(n.tags||[]).map(t=>`<span class="chip" onclick="filterNotesByTag('${_jsAttr(t)}')">#${esc(t)}</span>`).join(''):'<span style="color:var(--t3)">No tags — type # in the note to add one</span>'}</div>
     <div class="k">📅 Meetings</div>
     <div class="v">${_noteMeetings(n).map(mm=>`<span class="chip" title="Open this meeting on the calendar" onclick="openMeetingFromNote('${_jsAttr(String(mm.id))}')">📅 ${esc(mm.title)} · ${esc(mm.date)} <span style="cursor:pointer;opacity:.65" title="Unlink this meeting" onclick="event.stopPropagation();unlinkNoteMeeting(${_tidLit(n.id)},'${_jsAttr(String(mm.id))}')">✕</span></span>`).join('')}<span class="chip" style="color:var(--ac);cursor:pointer" title="Link this note to a calendar event" onclick="openMeetingPicker(${_tidLit(n.id)})">＋ Link meeting</span></div>
     <div class="k">🎨 Colour</div>
@@ -2611,9 +3201,9 @@ function renderNoteEditor(n){
     <div class="k">📅 Dates</div>
     <div class="v" style="color:var(--t3);font-size:12px">Updated ${fmtNoteDate(n.updated)}${created?` · created ${created}`:''}${n.createdBy?` · ${esc(n.createdBy)}`:''} · ${wc} word${wc===1?'':'s'} · ${mins} min</div>
   </div>
-  ${(()=>{const o=_renderNoteOutline(n,bodyHtml);bodyHtml=o.htmlWithIds;return o.toc;})()}
+  ${_noteOutlineHtml(n)}
   ${_noteOriginalHtml(n)}
-  ${_noteOrigMode(n)==='original'?'':`<div class="note-body" ondblclick="toggleNoteInlineEdit(${_tidLit(n.id)})" title="Double-click to edit inline">${bodyHtml||'<em style="color:var(--t3)">No content yet. Click ✏ Edit to add.</em>'}</div>`}
+  <div${hideBody?' style="display:none"':''}>${luRTE_render({id:'nie-body',placeholder:'Start writing… type / for headings, lists and more, [[ to link a note',value:_noteDecorateHtml(_noteHtml(n)),height:'260px',bodyClass:'note-body',showCharCount:false})}</div>
   <!-- Chip-based linker — Projects / Goals / Tasks / Other Notes / Bookmarks /
        Journal. Hydrated by showNoteInEditor() so it persists across re-renders. -->
   <div style="margin-top:18px;padding-top:12px;border-top:1px solid var(--bd1)">

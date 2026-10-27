@@ -88,7 +88,7 @@ function luRTE_render(opts={}){
   ${_rteFontTools()}
   ${extraToolbar}
 </div>
-<div class="rte-body" id="${id}" contenteditable="true" data-placeholder="${ph}" style="min-height:${h}"
+<div class="rte-body${opts.bodyClass?' '+opts.bodyClass:''}" id="${id}" contenteditable="true" data-placeholder="${ph}" style="min-height:${h}"
   onkeydown="luRTE_keydown(event,'${_jsAttr(id)}')"
   oninput="luRTE_onInput('${_jsAttr(id)}')"
   onpaste="luRTE_onPaste(event,'${id}')">${initHtml}</div>
@@ -417,6 +417,9 @@ function luRTE_keydown(e,id){
   else if((e.ctrlKey||e.metaKey)&&e.key==='i'){e.preventDefault();luRTE_cmd('italic',id);}
   else if((e.ctrlKey||e.metaKey)&&e.key==='u'){e.preventDefault();luRTE_cmd('underline',id);}
   // Tab key for indent
+  // Note editors: the [[ / # / slash popup, Tab between table cells, Enter in
+  // a checklist (build -243) get the key first.
+  else if(typeof _notePopKeydown==='function'&&_notePopKeydown(e,id))return;
   else if(e.key==='Tab'){e.preventDefault();luRTE_cmd(e.shiftKey?'outdent':'indent',id);}
   // Space after "-", "*", "1.", or "#"-"###" at line start → auto-format
   else if(e.key===' '){if(luRTE_autoFormat(e,id))return;}
@@ -431,16 +434,14 @@ function luRTE_keydown(e,id){
     }
   }
   // Note wiki-link support: delegate to noteWikiKeydown if available
-  if(typeof noteWikiKeydown==='function' && id==='nie-body'){noteWikiKeydown(e);}
 }
 
 function luRTE_onInput(id){
   luRTE_updateCharCount(id);
-  // Note wiki-link support
-  if(id==='nie-body' && typeof noteWikiInput==='function'){
-    const el=document.getElementById(id);
-    if(el)noteWikiInput(el);
-  }
+  // The Notes editor saves itself (build -242).
+  if(id==='nie-body'&&typeof _noteEdited==='function')_noteEdited();
+  // Note editors: [[ links, #tags and the / menu.
+  if(typeof _noteRteInput==='function')_noteRteInput(id);
   // FA modals track a dirty flag for their unsaved-changes guard.
   try{ if(id&&id.slice(0,3)==='fa-'&&typeof _faHasChanges!=='undefined')_faHasChanges=true; }catch(_){}
 }
@@ -602,9 +603,13 @@ function _renderMdRaw(text){
      .replace(/^#\s+(.+)$/gm,'<h1 style="font-size:18px;font-weight:700;margin:14px 0 6px">$1</h1>')
      .replace(/^---+$/gm,'<hr style="border:none;border-top:1px solid var(--bd1);margin:10px 0">')
      .replace(/^\s*&gt;\s+(.+)$/gm,'<blockquote style="border-left:3px solid var(--ac);padding:2px 8px;margin:6px 0;color:var(--t2);font-style:italic">$1</blockquote>');
-  // 6. Lists — group consecutive items into a single <ul>/<ol>
+  // 6. Lists — group consecutive items into a single <ul>/<ol>. A list whose
+  // items all start "[ ]" / "[x]" is a checklist (build -243).
   s=s.replace(/(?:^[-*+]\s+.+(?:\n|$))+/gm,(block)=>{
-    const items=block.trim().split(/\n/).map(l=>l.replace(/^[-*+]\s+/,'')).map(it=>`<li style="margin:2px 0">${it}</li>`).join('');
+    const lines=block.trim().split(/\n/).map(l=>l.replace(/^[-*+]\s+/,''));
+    if(lines.every(l=>/^\[[ xX]\]\s/.test(l)))
+      return `<ul class="lu-check">${lines.map(l=>`<li data-checked="${/^\[[xX]\]/.test(l)?'true':'false'}">${l.replace(/^\[[ xX]\]\s+/,'')}</li>`).join('')}</ul>`;
+    const items=lines.map(it=>`<li style="margin:2px 0">${it}</li>`).join('');
     return `<ul style="margin:6px 0 6px 18px;padding:0">${items}</ul>`;
   });
   s=s.replace(/(?:^\d+\.\s+.+(?:\n|$))+/gm,(block)=>{
@@ -689,6 +694,10 @@ function _aiLengthChip(){
 function luRTE_htmlToMd(html){
   if(!html)return'';
   return html
+    // Note links, checklists and tables (build -243) — before the generic rules.
+    .replace(/<span[^>]*class="[^"]*\blu-wiki\b[^"]*"[^>]*>([\s\S]*?)<\/span>/gi,(m,t)=>'[['+t.replace(/<[^>]+>/g,'').trim()+']]')
+    .replace(/<ul[^>]*class="[^"]*\blu-check\b[^"]*"[^>]*>([\s\S]*?)<\/ul>/gi,(m,inner)=>inner.replace(/<li([^>]*)>([\s\S]*?)<\/li>/gi,(mm,a,c)=>'- ['+(/data-checked="true"/.test(a)?'x':' ')+'] '+c+'\n'))
+    .replace(/<table[^>]*class="[^"]*\blu-table\b[^"]*"[^>]*>([\s\S]*?)<\/table>/gi,(m,inner)=>inner.replace(/<\/t[dh]>/gi,' | ').replace(/<\/tr>/gi,'\n'))
     .replace(/<h1[^>]*>(.*?)<\/h1>/gi,'# $1\n')
     .replace(/<h2[^>]*>(.*?)<\/h2>/gi,'## $1\n')
     .replace(/<h3[^>]*>(.*?)<\/h3>/gi,'### $1\n')
@@ -4294,6 +4303,8 @@ function openDrawer(type,item){
   ov.classList.add('show');
   // Load related bookmarks for note drawers
   if(type==='note' && item?.id) setTimeout(()=>loadRelatedBookmarks('note', item.id), 0);
+  // [[link]] chips in the note body are not editable text (build -243).
+  if(type==='note'&&typeof _noteDecorateLinks==='function'){const b=document.getElementById('dr-note-rte');if(b)_noteDecorateLinks(b);}
   // Hydrate "Estimated X / Actual Y" line for task drawer from time_entries.
   // Fire-and-forget: failure leaves the line blank, never blocks the drawer.
   if(type==='task' && item?.id){
@@ -4453,7 +4464,7 @@ function renderDrawer(type,item){
     </div>
     <div class="field" style="margin-top:8px">
       <label><span>Content <span style="font-size:11px;font-weight:400;color:var(--t3);text-transform:none;letter-spacing:0">Type - or 1. and a space for a list, # for a heading, [[ to link a note</span></span></label>
-      ${luRTE_render({id:'dr-note-rte', placeholder:'Continue your note here…', value:_noteHtml(item), height:'240px'})}
+      ${luRTE_render({id:'dr-note-rte', placeholder:'Continue your note here…', value:_noteDecorateHtml(_noteHtml(item)), height:'240px'})}
       <!-- AI Assistance in Note Drawer -->
       <div style="margin-top:6px;padding:7px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
         <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:5px">✨ AI Assistance</div>
@@ -5136,7 +5147,7 @@ function saveItem(type,id){
     setTaskStatus(t,_drNewStatus,{noSave:true});
     save('tasks');
   }}
-  if(type==='note'){const n=D.notes.find(x=>x.id===id);if(n){n.title=$('#dr-title').value;n.icon=document.getElementById('dr-note-icon')?.value||'';n.titleColor=document.getElementById('dr-note-title-color')?.value||'';n.tags=$('#dr-tags').value.split(',').map(s=>s.trim()).filter(Boolean);n.source=$('#dr-source').value;const drNoteRte=document.getElementById('dr-note-rte');if(drNoteRte)_noteSetHtml(n,drNoteRte.innerHTML);
+  if(type==='note'){const n=D.notes.find(x=>x.id===id);if(n){const _oldTitle=n.title;n.title=$('#dr-title').value;if(_oldTitle&&n.title&&_oldTitle!==n.title&&typeof _noteRenameLinks==='function')setTimeout(()=>_noteRenameLinks(n,_oldTitle),0);n.icon=document.getElementById('dr-note-icon')?.value||'';n.titleColor=document.getElementById('dr-note-title-color')?.value||'';n.tags=$('#dr-tags').value.split(',').map(s=>s.trim()).filter(Boolean);n.source=$('#dr-source').value;const drNoteRte=document.getElementById('dr-note-rte');if(drNoteRte)_noteSetHtml(n,drNoteRte.innerHTML);
     // Persist linked items from the chip-based picker state (_drLinks),
     // only when the picker host matches this note (mirrors the task save).
     if(_drLinksHostId===id){

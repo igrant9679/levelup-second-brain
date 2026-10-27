@@ -1,4 +1,4 @@
 {
-  "interpolatingHandlers": 990,
+  "interpolatingHandlers": 982,
   "note": "Inline on*= handlers that interpolate ${…}. May only go down — new markup uses _act(). node scripts/check-handlers.mjs --update-baseline after lowering it."
 }
