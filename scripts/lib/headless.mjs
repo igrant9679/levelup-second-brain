@@ -66,8 +66,12 @@ export async function openBrowser() {
     if (out.exceptionDetails) throw new Error(out.exceptionDetails.exception?.description || out.exceptionDetails.text);
     return out.result.value;
   }
-  /** Navigate and wait until the app's globals exist. */
-  async function loadApp(url, readyExpr = `typeof nav==='function'&&typeof SM==='object'&&!!document.querySelector('.scr')`) {
+  /** Navigate and wait until the app's globals exist — from EVERY bundle: nav/SM
+   *  come from the first one, so waiting on them alone let checks start while
+   *  app-part2 was still loading ("buildNotifs is not defined", "openFA names
+   *  undefined" — an intermittent false failure). The loader keeps execution
+   *  order, so pmRender (app-pm.js, last) means all of them have run. */
+  async function loadApp(url, readyExpr = `typeof nav==='function'&&typeof SM==='object'&&!!document.querySelector('.scr')&&typeof doLogout==='function'&&typeof buildNotifs==='function'&&typeof pmRender==='function'`) {
     await send('Page.navigate', { url });
     for (let i = 0; i < 80; i++) {
       await new Promise(r => setTimeout(r, 250));

@@ -1471,16 +1471,8 @@ function pmCpm(key){
   while(q.length){var k=q.shift();order.push(k);succ[k].forEach(function(s){if(--indeg[s.key]===0)q.push(s.key);});}
   var cyc=leaves.filter(function(n){return order.indexOf(n.key)<0;}).map(function(n){return n.key;});
   order=order.concat(cyc);
-  var R={};
-  order.forEach(function(k){var n=by[k];var es=n.sne?Math.max(0,idx(n.sne)):0;
-    predEdges[k].forEach(function(e){var p=R[e.key];if(!p)return;var lag=e.lag||0;
-      var c=e.type==='SS'?p.es+lag:e.type==='FF'?p.ef+lag-n.dur:e.type==='SF'?p.es+lag-n.dur:p.ef+lag;es=Math.max(es,c);});
-    // Actual dates (-249) are facts: an actual start pins the start, an
-    // actual finish pins the end, whatever the logic says.
-    var dur=n.dur;
-    if(n.actualStart)es=Math.max(0,idx(n.actualStart));
-    if(n.actualFinish)dur=Math.max(n.milestone?0:1,idx(n.actualFinish)-es+1);
-    R[k]={es:es,ef:es+dur};});
+  var M={order:order,predEdges:predEdges,by:by,idx:idx,leaves:leaves,p0:p0,ww:ww};
+  var R=_pmForward(M,function(n){return n.dur;});
   var finish=leaves.reduce(function(m,n){return Math.max(m,R[n.key]?R[n.key].ef:0);},0);
   order.slice().reverse().forEach(function(k){var n=by[k],r=R[k];var lf=finish;
     succ[k].forEach(function(s){var sr=R[s.key];if(!sr||sr.ls==null)return;var lag=s.lag||0,sn=by[s.key];
@@ -1496,7 +1488,22 @@ function pmCpm(key){
     n.start=date(r.es);n.finish=n.dur===0&&!n.summary?date(r.es):_pmAddWork(date(r.es),Math.max(0,(r.ef-r.es)-1),ww);});
   // the last day anything happens (a zero-length milestone finishes ON its day)
   var lastDay=leaves.reduce(function(m,n){var r=R[n.key];return r?Math.max(m,n.dur===0?r.es:r.ef-1):m;},0);
-  return {mode:S.mode,nodes:nodes,start:p0,finish:date(Math.max(0,lastDay)),ww:ww,cycles:cyc.length,undated:S.mode==='items'?nodes.filter(function(n){return !n.dated&&!n.children.length;}).length:0};
+  return {mode:S.mode,nodes:nodes,start:p0,finish:date(Math.max(0,lastDay)),ww:ww,cycles:cyc.length,undated:S.mode==='items'?nodes.filter(function(n){return !n.dated&&!n.children.length;}).length:0,model:M};
+}
+/** Forward pass over the leaves in topological order with durations from
+ *  durOf(node) — pmCpm uses the planned durations, the Monte Carlo (-251)
+ *  sampled ones. R[key] = {es, ef, drv (the predecessor that set es)}. */
+function _pmForward(M,durOf){
+  var R={};
+  M.order.forEach(function(k){var n=M.by[k],dur=durOf(n),es=n.sne?Math.max(0,M.idx(n.sne)):0,drv=null;
+    M.predEdges[k].forEach(function(e){var p=R[e.key];if(!p)return;var lag=e.lag||0;
+      var c=e.type==='SS'?p.es+lag:e.type==='FF'?p.ef+lag-dur:e.type==='SF'?p.es+lag-dur:p.ef+lag;if(c>es||(c===es&&!drv&&c>0)){es=c;drv=e.key;}});
+    // Actual dates (-249) are facts: an actual start pins the start, an
+    // actual finish pins the end, whatever the logic says.
+    if(n.actualStart){es=Math.max(0,M.idx(n.actualStart));drv=null;}
+    if(n.actualFinish)dur=Math.max(n.milestone?0:1,M.idx(n.actualFinish)-es+1);
+    R[k]={es:es,ef:es+dur,drv:drv};});
+  return R;
 }
 
 // ─── baselines + milestones ─────────────────────────────────────────────────
@@ -1891,6 +1898,73 @@ function pmDcma(key){
   add(14,'BEI',bei,bei==null||bei>=0.95,base?'Baseline execution index (≥0.95): tasks finished ÷ tasks the baseline had due by the status date.':'Needs a baseline.',[]);
   return {checks:out,statusDate:sd,open:open.length,links:links.length,base:base,mode:c.mode};
 }
+// ═══ SCHEDULE RISK — Monte Carlo (build -251) ══════════════════════════════
+// Every open task's duration is drawn from a triangular range around its plan
+// (project setting: optimistic mcLow %, pessimistic mcHigh %; default −10% /
+// +50%), the forward pass runs again, and the finish dates are counted.
+// Done tasks, actual finishes and milestones keep their length. Seeded, so
+// the same plan gives the same answer. Criticality = share of runs in which a
+// task is on the chain that drives the finish (walked back through `drv`).
+function _pmRng(seed){var a=seed>>>0;return function(){a=(a+0x6D2B79F5)>>>0;var t=a;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return ((t^(t>>>14))>>>0)/4294967296;};}
+function _pmTri(u,a,m,b){if(b<=a)return m;var c=(m-a)/(b-a);return u<c?a+Math.sqrt(u*(b-a)*(m-a)):b-Math.sqrt((1-u)*(b-a)*(b-m));}
+function pmMonteCarlo(key,opts){
+  opts=opts||{};var c=pmCpm(key),M=c.model,s=pmSettings(key);
+  var lo=1+(opts.low!=null?opts.low:(s.mcLow!=null?s.mcLow:-10))/100,hi=1+(opts.high!=null?opts.high:(s.mcHigh!=null?s.mcHigh:50))/100,N=opts.runs||1000;
+  if(lo>1)lo=1;if(hi<1)hi=1;
+  var leaves=M.leaves,rnd=_pmRng(opts.seed||20261027),fin=[],hits={};
+  var fixed=function(n){return n.done||n.milestone||n.actualFinish||!n.dur;};
+  for(var it=0;it<N;it++){
+    var draw={};leaves.forEach(function(n){draw[n.key]=fixed(n)?n.dur:_pmTri(rnd(),n.dur*lo,n.dur,n.dur*hi);});
+    var R=_pmForward(M,function(n){return draw[n.key];});
+    // the last work day anything happens (a zero-length milestone happens ON its day), as in pmCpm
+    var last=-1,lastK=null;leaves.forEach(function(n){var r=R[n.key];if(!r)return;var e=Math.ceil((draw[n.key]===0?r.es:r.ef-1)-1e-9);if(e>last){last=e;lastK=n.key;}});
+    fin.push(Math.max(0,last));
+    var k=lastK,g=0;while(k&&g++<5000){hits[k]=(hits[k]||0)+1;k=R[k]&&R[k].drv;}
+  }
+  fin.sort(function(a,b){return a-b;});
+  var date=function(i){return _pmAddWork(M.p0,i,M.ww);};
+  var pct=function(p){return date(fin[Math.min(fin.length-1,Math.max(0,Math.ceil(p/100*fin.length)-1))]);};
+  var probBy=function(ymd){if(!_pmIsYmd(ymd))return null;var lim=_pmWorkBetween(M.p0,_pmPrevWork(ymd,M.ww),M.ww);return Math.round(fin.filter(function(f){return f<=lim;}).length/fin.length*100);};
+  var hist={};fin.forEach(function(f){hist[f]=(hist[f]||0)+1;});
+  var base=_pmActiveBaseline(key);
+  var crit=Object.keys(hits).map(function(k){return {key:k,name:(M.by[k]||{}).name,pct:Math.round(hits[k]/N*100)};}).filter(function(x){var n=M.by[x.key];return n&&!n.done;}).sort(function(a,b){return b.pct-a.pct;});
+  return {runs:N,low:Math.round((lo-1)*100),high:Math.round((hi-1)*100),plan:c.finish,p10:pct(10),p50:pct(50),p80:pct(80),p90:pct(90),
+    pPlan:probBy(c.finish),pBase:base?probBy(base.data.finish):null,baseFinish:base?base.data.finish:null,target:_pmIsYmd(s.mcTarget)?s.mcTarget:null,pTarget:probBy(s.mcTarget),
+    hist:Object.keys(hist).map(function(k){return {i:Number(k),date:date(Number(k)),n:hist[k]};}).sort(function(a,b){return a.i-b.i;}),crit:crit.slice(0,10),open:leaves.filter(function(n){return !fixed(n);}).length};
+}
+var _pmMC={};
+function _pmMCSig(key){var c=pmCpm(key),s=pmSettings(key);return JSON.stringify([c.nodes.map(function(n){return [n.key,n.dur,n.sne,n.done,n.actualStart,n.actualFinish,(n.preds||[]).map(function(p){return p.key+p.type+p.lag;})];}),s.mcLow,s.mcHigh,s.mcTarget,s.startDate,(_pmActiveBaseline(key)||{})._lk]);}
+function pmRunMC(key){var t=Date.now();_pmMC[key]={sig:_pmMCSig(key),res:pmMonteCarlo(key),ms:Date.now()-t};pmRender();}
+function _pmMCCard(key){
+  var s=pmSettings(key),m=_pmMC[key],stale=m&&m.sig!==_pmMCSig(key),K=_pmJ(key);
+  var html='<div class="pm-card" style="margin-top:14px"><div class="pm-bar" style="margin-bottom:6px"><b style="font-size:14px">Schedule risk — how likely is the finish date?</b><span class="sp"></span>'+
+    '<label class="pm-muted" for="pm-mc-lo">Optimistic</label><input class="inp" id="pm-mc-lo" type="number" max="0" min="-90" style="width:70px" value="'+_pmE(String(s.mcLow!=null?s.mcLow:-10))+'" onchange="pmSetSettings(\''+K+'\',{mcLow:Math.min(0,Number(this.value)||0)});pmRender()"><span class="pm-muted">%</span>'+
+    '<label class="pm-muted" for="pm-mc-hi">Pessimistic</label><input class="inp" id="pm-mc-hi" type="number" min="0" max="500" style="width:70px" value="'+_pmE(String(s.mcHigh!=null?s.mcHigh:50))+'" onchange="pmSetSettings(\''+K+'\',{mcHigh:Math.max(0,Number(this.value)||0)});pmRender()"><span class="pm-muted">%</span>'+
+    '<label class="pm-muted" for="pm-mc-t">Target</label><input class="inp" id="pm-mc-t" type="date" style="width:150px" value="'+_pmE(s.mcTarget||'')+'" onchange="pmSetSettings(\''+K+'\',{mcTarget:this.value||null});pmRender()">'+
+    '<button class="btn btn-p" onclick="pmRunMC(\''+K+'\')">'+(m?'↻ Run again':'Run 1,000 simulations')+'</button></div>'+
+    '<div class="pm-muted" style="font-size:12px">Each open task’s length is drawn between its optimistic and pessimistic share of the plan (most likely = the plan), 1,000 times, and the finish dates are counted. Done tasks and milestones keep their dates.</div>';
+  if(!m)return html+'</div>';
+  var r=m.res,maxN=Math.max.apply(null,r.hist.map(function(h){return h.n;}).concat([1]));
+  var pc=function(p){return p==null?'—':p+'%';};
+  var tile=function(label,val,sub,col){return '<div style="flex:1;min-width:120px;padding:8px 10px;border:1px solid var(--bd1);border-radius:8px"><div class="pm-muted" style="font-size:11px;text-transform:uppercase;font-weight:700">'+label+'</div><div style="font-size:17px;font-weight:700;'+(col?'color:'+col:'')+'">'+val+'</div><div class="pm-muted" style="font-size:11.5px">'+sub+'</div></div>';};
+  html+=(stale?'<div style="color:#d97706;font-size:12px;margin-top:6px">The plan or settings changed since this run — run it again.</div>':'')+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">'+
+      tile('Planned finish',_pmDate(r.plan),'Chance of making it: <b>'+pc(r.pPlan)+'</b>',r.pPlan!=null&&r.pPlan<50?'#dc2626':null)+
+      tile('P50',_pmDate(r.p50),'Half the runs finish by this date')+
+      tile('P80',_pmDate(r.p80),'Commit to this date for 80% confidence','var(--page-accent,#0891b2)')+
+      tile('P90',_pmDate(r.p90),'P10 '+_pmDate(r.p10))+
+      (r.baseFinish?tile('Baseline finish',_pmDate(r.baseFinish),'Chance: <b>'+pc(r.pBase)+'</b>',r.pBase!=null&&r.pBase<50?'#dc2626':null):'')+
+      (r.target?tile('Target',_pmDate(r.target),'Chance: <b>'+pc(r.pTarget)+'</b>',r.pTarget!=null&&r.pTarget<50?'#dc2626':null):'')+
+    '</div>';
+  // finish-date histogram with the P50 / P80 marks
+  var W=Math.max(r.hist.length*14,280),bw=Math.max(4,Math.floor(W/Math.max(1,r.hist.length))-2);
+  html+='<div class="pm-scroll" style="margin-top:12px"><svg width="'+W+'" height="120" role="img" aria-label="Finish dates across 1,000 runs">'+r.hist.map(function(h,i){var hh=Math.round(h.n/maxN*90),xx=i*(bw+2);var col=h.date<=r.p50?'#16a34a':h.date<=r.p80?'var(--page-accent,#0891b2)':'#dc2626';
+      return '<rect x="'+xx+'" y="'+(96-hh)+'" width="'+bw+'" height="'+hh+'" rx="2" fill="'+col+'" opacity=".85"><title>'+_pmDate(h.date)+': '+h.n+' runs</title></rect>'+(i===0||i===r.hist.length-1||h.date===r.p50||h.date===r.p80?'<text x="'+(xx+bw/2)+'" y="112" font-size="10" text-anchor="middle" fill="var(--t3)">'+_pmDate(h.date)+'</text>':'');}).join('')+'</svg></div>'+
+    '<div class="pm-muted" style="font-size:11.5px">Green: by P50 · blue: by P80 · red: later. '+r.open+' open task'+(r.open===1?'':'s')+' varied, '+r.low+'% / +'+r.high+'%'+(m.ms!=null?' · '+m.ms+' ms':'')+'.</div>';
+  if(r.crit.length)html+='<div style="margin-top:12px;font-weight:650;font-size:13px">Tasks that most often drive the finish</div><table class="pm-table" style="margin-top:4px"><thead><tr><th>Task</th><th style="width:220px">Criticality</th></tr></thead><tbody>'+
+    r.crit.map(function(x){return '<tr><td>'+_pmE(x.name||'')+'</td><td><div style="display:flex;align-items:center;gap:6px"><div style="flex:1;height:7px;background:var(--s2);border-radius:4px"><div style="height:100%;width:'+x.pct+'%;background:'+(x.pct>=80?'#dc2626':x.pct>=40?'#d97706':'#94a3b8')+';border-radius:4px"></div></div><span style="font-size:12px;width:36px;text-align:right">'+x.pct+'%</span></div></td></tr>';}).join('')+'</tbody></table>';
+  return html+'</div>';
+}
 function pmTab_health(key){
   var R=pmDcma(key);
   var passN=R.checks.filter(function(x){return x.pass;}).length;
@@ -1905,7 +1979,7 @@ function pmTab_health(key){
       '<td>'+(x.value==null?'<span class="pm-muted">n/a</span>':x.pass?'<span style="color:#16a34a;font-weight:700">✓ pass</span>':'<span style="color:#dc2626;font-weight:700">✗ fix</span>')+'</td>'+
       '<td style="font-size:12px">'+_pmE(x.detail)+(x.rows.length&&(!x.pass||x.id===5||x.id===10)?'<div class="pm-muted" style="margin-top:3px">'+x.rows.map(_pmE).join(' · ')+'</div>':'')+'</td></tr>';}).join('')+
     '</tbody></table></div><div class="pm-muted" style="margin-top:6px">The DCMA 14-point assessment. Set % done and actual dates on the <a href="javascript:void(0)" onclick="pmGo(null,\'ims\')">WBS / IMS</a> tab; save a baseline on the Schedule tab for checks 11, 13 and 14.</div>';
-  return html;
+  return html+_pmMCCard(key);
 }
 function pmTab_ims(key){
   var style=pmImsStyle(key),ord=_pmWbsOrdered(key),codes=pmWbsCodes(key),c=pmCpm(key);
@@ -1915,7 +1989,7 @@ function pmTab_ims(key){
   var html='<div class="pm-bar"><span class="pm-muted">Style</span><button class="pm-chip'+(style==='msp'?' on':'')+'" onclick="pmSetSettings(\''+_pmJ(key)+'\',{imsStyle:\'msp\'});pmRender()">MS Project-style WBS</button><button class="pm-chip'+(style==='dod'?' on':'')+'" onclick="pmSetSettings(\''+_pmJ(key)+'\',{imsStyle:\'dod\'});pmRender()">DoD IMS (event → accomplishment → criteria)</button>'+
     '<span class="sp"></span><button class="btn btn-s" onclick="pmImsGenerate(\''+_pmJ(key)+'\',\'tasks\')">Build from tasks</button><button class="btn btn-s" onclick="pmImsGenerate(\''+_pmJ(key)+'\',\'dod\')">Build DoD IMS</button><button class="btn btn-s" onclick="pmImsAI(\''+_pmJ(key)+'\')">'+_pmIcon('sparkles',14)+' Draft with AI</button></div>'+
     '<div class="pm-bar"><button class="btn btn-p" onclick="pmWbsAdd(\''+_pmJ(key)+'\',null)">＋ Row</button><span class="pm-muted">Durations are in work days. Predecessors use row numbers: “3”, “3SS”, “3FS+2”, “4FF-1”.</span><span class="sp"></span>'+
-    '<button class="btn btn-s" onclick="pmImsExport(\''+_pmJ(key)+'\',\'xlsx\')">Excel</button><button class="btn btn-s" onclick="pmImsExport(\''+_pmJ(key)+'\',\'msp\')">MS Project XML</button><button class="btn btn-s" onclick="pmImsExport(\''+_pmJ(key)+'\',\'csv\')">CSV</button><button class="btn btn-s" onclick="pmImsPrint(\''+_pmJ(key)+'\')">Print</button>'+(ord.length?'<button class="btn btn-s" style="color:#dc2626" onclick="pmWbsClear(\''+_pmJ(key)+'\')">Clear</button>':'')+'</div>';
+    '<button class="btn btn-s" onclick="pmImsExport(\''+_pmJ(key)+'\',\'xlsx\')">Excel</button><button class="btn btn-s" onclick="pmImsExport(\''+_pmJ(key)+'\',\'msp\')">MS Project XML</button><button class="btn btn-s" onclick="pmImsImport(\''+_pmJ(key)+'\')" title="Import a schedule saved from Microsoft Project as XML">Import XML</button><button class="btn btn-s" onclick="pmImsExport(\''+_pmJ(key)+'\',\'csv\')">CSV</button><button class="btn btn-s" onclick="pmImsPrint(\''+_pmJ(key)+'\')">Print</button>'+(ord.length?'<button class="btn btn-s" style="color:#dc2626" onclick="pmWbsClear(\''+_pmJ(key)+'\')">Clear</button>':'')+'</div>';
   if(!ord.length)return html+'<div class="pm-card pm-empty"><b>No WBS / IMS yet</b>“Build from tasks” turns this project’s tasks into an outline you can give durations and dependencies. “Build DoD IMS” groups the work under events (your milestones), significant accomplishments and accomplishment criteria. Or add rows yourself.</div>';
   var typeSel=function(r){var d=r.data||{};return '<select class="inp" style="width:240px" title="'+_pmE(PM_IMS_TYPES[d.imsType||'task'])+'" onchange="pmWbsSet(\''+_pmJ(r._lk)+'\',\'imsType\',this.value)">'+Object.keys(PM_IMS_TYPES).map(function(k){return '<option value="'+k+'"'+((d.imsType||'task')===k?' selected':'')+'>'+PM_IMS_TYPES[k]+'</option>';}).join('')+'</select>';};
   var itemSel=function(r){var d=r.data||{};var cur=(d.refs||[])[0]||'';var curIt=cur?items.find(function(i){return i.ref===cur;}):null;return '<select class="inp" style="width:220px" title="'+_pmE(curIt?curIt.title:'Link a task')+'" onchange="pmWbsSet(\''+_pmJ(r._lk)+'\',\'refs\',this.value?[this.value]:[])"><option value="">—</option>'+items.map(function(i){return '<option value="'+_pmE(i.ref)+'"'+(i.ref===cur?' selected':'')+'>'+_pmE(String(i.title).slice(0,50))+'</option>';}).join('')+'</select>';};
@@ -1994,7 +2068,10 @@ async function _pmWbsCreate(key,rows){
   if(existing.length&&!confirm('Replace the current WBS / IMS ('+existing.length+' rows)?'))return false;
   if(existing.length){await pmDel(existing,'Old WBS replaced');}
   var base=Date.now()%1e6;
-  var payload=rows.map(function(r,i){return {projectKey:key,kind:'wbs',title:String(r.title||'Row').slice(0,500),status:r.done?'done':null,sortOrder:(i+1)*10,data:{duration:r.milestone?0:(r.duration!=null?r.duration:1),sne:r.sne||null,milestone:!!r.milestone,imsType:r.imsType||'',refs:r.refs||[],preds:[],parentId:null}};});
+  var payload=rows.map(function(r,i){var d={duration:r.milestone?0:(r.duration!=null?r.duration:1),sne:r.sne||null,milestone:!!r.milestone,imsType:r.imsType||'',refs:r.refs||[],preds:[],parentId:null};
+    // progress (MS Project import, -251)
+    if(r.pct!=null)d.pct=r.pct;if(_pmIsYmd(r.actualStart))d.actualStart=r.actualStart;if(_pmIsYmd(r.actualFinish))d.actualFinish=r.actualFinish;
+    return {projectKey:key,kind:'wbs',title:String(r.title||'Row').slice(0,500),status:r.done?'done':null,sortOrder:(i+1)*10,data:d};});
   _pmToast('Building '+rows.length+' rows…');
   var saved=[];for(var s=0;s<payload.length;s+=200){var part=await _trpc('pm.recordUpsertMany',{records:payload.slice(s,s+200)},'mutation');saved=saved.concat(part);}
   saved.forEach(_pmTagRec);
@@ -2005,7 +2082,7 @@ async function _pmWbsCreate(key,rows){
     rec.data=d;if(ch)upd.push({id:rec.id,projectKey:key,kind:'wbs',title:rec.title,status:rec.status,sortOrder:rec.sortOrder,data:d});});
   for(var u=0;u<upd.length;u+=200)await _trpc('pm.recordUpsertMany',{records:upd.slice(u,u+200)},'mutation');
   saved.forEach(function(r){PM.records.push(r);});
-  void base;return true;
+  void base;return saved;
 }
 async function pmImsGenerate(key,mode){
   var items=pmItems(key),ww=_pmWorkWeekends(key);
@@ -2123,6 +2200,96 @@ function pmMspdiXml(key,X){
   });
   out.push('</Tasks></Project>');
   return out.join('\n');
+}
+// ─── MS Project XML import (build -251) ─────────────────────────────────────
+// Reads MSPDI (Project → File → Save As → XML; .mpp is a closed binary format).
+// Tasks → WBS rows: outline levels → parents, Duration → work days (the
+// file's MinutesPerDay, default 480), PredecessorLink → FS/SS/FF/SF + lag,
+// Start-no-earlier-than / Must-start-on and manually scheduled tasks → "start
+// no earlier than", % complete + actual dates, milestones, the project start,
+// a 7-day calendar, and Baseline 0 → a saved baseline. Other hard constraints
+// are dropped (and counted). The project summary (UID 0), inactive and null
+// tasks are skipped.
+function pmMspdiParse(text){
+  var doc;try{doc=new DOMParser().parseFromString(String(text||''),'application/xml');}catch(e){return {error:'That file could not be read as XML.'};}
+  if(!doc||doc.getElementsByTagName('parsererror').length)return {error:'That file is not valid XML.'};
+  var root=doc.documentElement;if(!root||root.localName!=='Project')return {error:'That XML is not a Microsoft Project file (no <Project> root).'};
+  var kids=function(el,name){var o=[];for(var i=0;i<el.childNodes.length;i++){var c=el.childNodes[i];if(c.nodeType===1&&c.localName===name)o.push(c);}return o;};
+  var val=function(el,name){var k=kids(el,name)[0];return k?String(k.textContent||'').trim():'';};
+  var ymd=function(s){s=String(s||'').slice(0,10);return _pmIsYmd(s)?s:null;};
+  var mpd=Number(val(root,'MinutesPerDay'))||480;
+  var dur=function(s){var m=String(s||'').match(/^P(?:(\d+(?:\.\d+)?)D)?(?:T(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?)?$/);if(!m)return null;
+    return ((Number(m[1])||0)*mpd+(Number(m[2])||0)*60+(Number(m[3])||0)+(Number(m[4])||0)/60)/mpd;};
+  // 7-day week? (the project's calendar, else the first base calendar)
+  var ww=false,calUid=val(root,'CalendarUID'),cals=kids(root,'Calendars')[0];
+  if(cals){var cal=kids(cals,'Calendar').find(function(c){return val(c,'UID')===calUid;})||kids(cals,'Calendar').find(function(c){return val(c,'IsBaseCalendar')==='1';});
+    var wd=cal&&kids(cal,'WeekDays')[0];if(wd)ww=kids(wd,'WeekDay').some(function(d){var t=val(d,'DayType');return (t==='1'||t==='7')&&val(d,'DayWorking')==='1';});}
+  var tasksEl=kids(root,'Tasks')[0];if(!tasksEl)return {error:'The file has no tasks.'};
+  var list=kids(tasksEl,'Task').filter(function(t){return val(t,'UID')!=='0'&&val(t,'OutlineLevel')!=='0'&&val(t,'IsNull')!=='1'&&val(t,'Active')!=='0'&&val(t,'Name');});
+  if(!list.length)return {error:'The file has no tasks.'};
+  if(list.length>2000)return {error:'That schedule has '+list.length+' tasks — the limit is 2,000.'};
+  var TYPE={'0':'FF','1':'FS','2':'SF','3':'SS'},rowOfUid={},rows=[],stack=[],dropped=0,baseline={},hasBase=false,links=0;
+  list.forEach(function(t,i){
+    var lvl=Math.max(1,Number(val(t,'OutlineLevel'))||1);stack.length=lvl;stack[lvl-1]=i;
+    var ms=val(t,'Milestone')==='1',d=dur(val(t,'Duration')),ct=val(t,'ConstraintType'),start=ymd(val(t,'Start'));
+    var sne=null;if(ct==='4'||ct==='2')sne=ymd(val(t,'ConstraintDate'));else if(ct&&ct!=='0'&&ct!=='1')dropped++;
+    if(!sne&&val(t,'Manual')==='1'&&val(t,'Summary')!=='1')sne=start;
+    var pct=Number(val(t,'PercentComplete'))||0,af=ymd(val(t,'ActualFinish'));
+    rowOfUid[val(t,'UID')]=i;
+    rows.push({title:val(t,'Name'),parent:lvl>1&&stack[lvl-2]!=null?stack[lvl-2]:null,milestone:ms,duration:ms?0:Math.max(1,Math.round(d==null?1:d)),sne:sne,
+      pct:pct||null,actualStart:ymd(val(t,'ActualStart')),actualFinish:af,done:pct>=100||!!af,summary:val(t,'Summary')==='1',_links:kids(t,'PredecessorLink'),_uid:val(t,'UID')});
+    kids(t,'Baseline').forEach(function(b){if(val(b,'Number')!=='0'&&val(b,'Number')!=='')return;var bs=ymd(val(b,'Start')),bf=ymd(val(b,'Finish'));if(bs&&bf){baseline[i]={start:bs,finish:bf,dur:Math.round(dur(val(b,'Duration'))||0)};hasBase=true;}});
+  });
+  rows.forEach(function(r){
+    r.preds=r._links.map(function(l){var pi=rowOfUid[val(l,'PredecessorUID')];if(pi==null)return null;links++;
+      var lag=Number(val(l,'LinkLag'))||0,fmt=val(l,'LagFormat');
+      // lag is in tenths of a minute; percentage formats (19, 20, 35, 36, 51–54) can't be carried
+      var days=/^(19|20|35|36|51|52|53|54)$/.test(fmt)?0:Math.round(lag/10/mpd);
+      return {i:pi,type:TYPE[val(l,'Type')]||'FS',lag:days};}).filter(Boolean);
+    delete r._links;
+  });
+  var starts=rows.map(function(r){return r.sne;}).filter(Boolean).sort();
+  return {rows:rows,name:val(root,'Title')||val(root,'Name'),start:ymd(val(root,'StartDate'))||starts[0]||null,finish:ymd(val(root,'FinishDate')),ww:ww,
+    links:links,dropped:dropped,baseline:hasBase?baseline:null,summaries:rows.filter(function(r){return r.summary;}).length,milestones:rows.filter(function(r){return r.milestone;}).length,done:rows.filter(function(r){return r.done&&!r.summary;}).length};
+}
+function pmImsImport(key){
+  var inp=document.createElement('input');inp.type='file';inp.accept='.xml,application/xml,text/xml,.mpp';
+  inp.onchange=function(){var f=inp.files&&inp.files[0];if(!f)return;
+    if(/\.mpp$/i.test(f.name)){_pmToast('.mpp is Microsoft’s closed format — in Project choose File → Save As → XML, then import that file','warn');return;}
+    if(f.size>25*1024*1024){_pmToast('That file is over 25 MB','warn');return;}
+    var rd=new FileReader();rd.onload=function(){pmImsImportPreview(key,String(rd.result||''),f.name);};rd.onerror=function(){_pmToast('Could not read the file','error');};rd.readAsText(f);};
+  inp.click();
+}
+var _pmImport=null;
+function pmImsImportPreview(key,text,fileName){
+  var P=pmMspdiParse(text);if(P.error){_pmToast(P.error,'error');return;}
+  _pmImport={key:key,P:P};
+  var cur=_pmWbsRecs(key).length,leafN=P.rows.length-P.summaries;
+  pmModal('<h3>'+_pmIcon('calendar',18)+' Import from Microsoft Project<button class="x" onclick="pmCloseModal()">×</button></h3>'+
+    '<div style="font-size:13px;margin-bottom:8px"><b>'+_pmE(P.name||fileName||'Schedule')+'</b></div>'+
+    '<ul style="margin:0 0 10px 18px;font-size:13px;line-height:1.6">'+
+      '<li>'+leafN+' task'+(leafN===1?'':'s')+(P.summaries?' under '+P.summaries+' summary row'+(P.summaries===1?'':'s'):'')+(P.milestones?', '+P.milestones+' milestone'+(P.milestones===1?'':'s'):'')+'</li>'+
+      '<li>'+P.links+' link'+(P.links===1?'':'s')+'</li>'+
+      (P.start?'<li>Starts '+_pmDate(P.start)+(P.finish?', finishes '+_pmDate(P.finish)+' in Project':'')+'</li>':'')+
+      (P.done?'<li>'+P.done+' task'+(P.done===1?'':'s')+' already done; % complete and actual dates come across</li>':'')+
+      (P.baseline?'<li>Its baseline is saved as “Imported baseline”</li>':'')+
+      '<li>'+(P.ww?'Weekends are working days':'Work days Mon–Fri')+'</li>'+
+      (P.dropped?'<li style="color:#d97706">'+P.dropped+' hard constraint'+(P.dropped===1?'':'s')+' (must finish on, finish no later than…) can’t be carried — those tasks follow their links</li>':'')+
+    '</ul>'+(cur?'<div style="color:#dc2626;font-size:12.5px;margin-bottom:6px">This replaces the current WBS / IMS ('+cur+' rows). You can undo the delete right after.</div>':'')+
+    '<div class="pm-muted" style="font-size:12px">Resources, costs and calendars’ holidays are not imported.</div>'+
+    '<div class="pm-acts"><button class="btn btn-s" onclick="pmCloseModal()">Cancel</button><button class="btn btn-p" id="pm-imp-go">Import</button></div>');
+  document.getElementById('pm-imp-go').onclick=function(){pmCloseModal(true);pmImsImportRun();};
+}
+async function pmImsImportRun(){
+  var I=_pmImport;_pmImport=null;if(!I)return;var key=I.key,P=I.P;
+  var saved=await _pmWbsCreate(key,P.rows.map(function(r){return {title:r.title,parent:r.parent,milestone:r.milestone,duration:r.duration,sne:r.sne,pct:r.pct,actualStart:r.actualStart,actualFinish:r.actualFinish,done:r.done&&!r.summary,preds:r.preds};}));
+  if(!saved)return;
+  var st={imsStyle:'msp',workWeekends:!!P.ww};if(P.start)st.startDate=P.start;pmSetSettings(key,st);
+  if(P.baseline&&Array.isArray(saved)){var snap={};Object.keys(P.baseline).forEach(function(i){var r=saved[i];if(r)snap['wbs:'+r.id]=P.baseline[i];});
+    var bs=Object.keys(P.baseline).map(function(i){return P.baseline[i];});
+    var rec=pmNew('baseline',key,{title:'Imported baseline',data:{at:new Date().toISOString(),nodes:snap,start:bs.map(function(b){return b.start;}).sort()[0],finish:bs.map(function(b){return b.finish;}).sort().pop()}});
+    await pmPut(rec);pmSetSettings(key,{baselineLk:rec._lk});}
+  _pmToast('Imported '+P.rows.length+' rows from Microsoft Project');pmRender();
 }
 function pmImsPrint(key){
   var X=_pmImsRows(key);
@@ -2610,7 +2777,7 @@ async function pmExportAll(key){
   try{if(typeof HC_ARTICLES!=='undefined'&&Array.isArray(HC_ARTICLES)&&!HC_ARTICLES.some(function(a){return a.slug==='project-management';})){
     HC_ARTICLES.push({id:65,slug:'project-management',catId:10,title:'Project management — delegation, RACI, schedule, risks and budget',
       summary:'The PM Workspace: track work you hand to others (even people without LevelUp), RACI, RAID log and risk matrix, stakeholders and status reports, Gantt with critical path and baselines, WBS / DoD IMS with MS Project export, resources, budget with earned value, change requests, lessons, templates and meeting notes → action items.',
-      tags:['project','projects','pm','project management','program','delegate','delegated','delegation','waiting','raci','raid','risk','risks','issue','stakeholder','status report','gantt','drag','schedule','critical path','baseline','ims','wbs','ms project','dod','dcma','schedule health','14 point','status date','actual start','actual finish','percent complete','cpli','bei','resource','resources','budget','evm','earned value','cpi','spi','change request','lessons','template','meeting notes','action items'],
-      body:'## Project management\n\nOpen **PM Workspace** in the sidebar (under Work), or **💼 PM workspace** in a project\'s details. Pick a project at the top — LevelUp projects and **Atlas (CommunityForce)** projects are both listed — or **All projects** for the portfolio.\n\n## Delegate and track (Waiting on)\n\nIn any task press **🤝 Delegate** (or **Delegate something** on the Waiting on tab). Choose the person — a team member, someone from your Contacts, or anyone you add with an email address; they do **not** need LevelUp. Set when you expect it back and when to follow up. Tick **Email them now** to send the details.\n\n**Waiting on** lists everything you have handed off, grouped by person or project, with what is late and what is due a follow-up. **Follow up** emails the person; they just **reply** ("done", "Friday", "blocked on the client") and LevelUp reads the reply, updates the delegation and tells you. A "done" marks the task done. Turn on **Automatic follow-up emails** in the project\'s Settings tab to have LevelUp send follow-ups on the date for you. Your coach mentions late delegated work in its check-ins.\n\n## RACI\n\nAdd people as columns, then click a cell to mark **R**esponsible, **A**ccountable (exactly one), **C**onsulted, **I**nformed. The Check column flags rows with no or several Accountables. **Fill from assignments** starts it from task assignees and delegations. Export to Excel or print.\n\n## RAID log\n\nRisks (with a 5×5 probability × impact matrix), Issues, Assumptions and Decisions. A risk that happens becomes an issue in one click.\n\n## Stakeholders and reports\n\nPlace stakeholders on the influence/interest grid and plan who hears what and how often. **Reports → New status report** drafts a red/amber/green report from live data with AI; edit it, then **Email** it, save a **PDF**, or turn it into a **Slides** deck.\n\n## Schedule, WBS and IMS\n\n**Schedule** is a Gantt with dependency arrows, the **critical path** in red, float, milestones and **baselines** (save one, then see how far each item has slipped). Drag a bar to move it, drag its right edge to change its length, and drag its ● onto another bar to make that one follow it; click an arrow to change or remove a link. Arrow keys move a selected bar (Shift changes its length), and each drag can be undone. **WBS / IMS** holds the outline with durations in work days and predecessors ("3", "3SS", "3FS+2"). Two styles: **MS Project-style WBS** or **DoD IMS** (event → significant accomplishment → accomplishment criteria → task). Build it from the project\'s tasks, from your milestones, or draft it with AI. Export to **Excel** or **MS Project XML** (open it in Microsoft Project).\n\n## Progress and schedule health\n\nOn **WBS / IMS** set each row\'s **% done**, **Actual start** and **Actual finish** — an actual finish marks the row done, and the schedule moves the rest of the plan from the real dates. The **Health** tab runs the DCMA 14-point check on the schedule against a **status date** you choose: missing logic, leads and lags, link types, constraints, high float, negative float, long tasks, dates that are already past, unassigned work, missed tasks, the critical path, CPLI and BEI. Each failing check lists the rows to fix. Save a baseline on the Schedule tab first for the last three. The MS Project XML export carries % done, actual dates and the baseline.\n\n## Resources and budget\n\n**Resources** shows each person\'s load per week against their capacity (allocations plus estimated work they own; Atlas team plans too). **Budget** holds planned lines and actual costs and works out **earned value**: CPI (cost efficiency), SPI (schedule efficiency) and the estimate at completion. Approved **change requests** add to the budget.\n\n## Templates and meeting notes\n\n**All projects → Templates** creates a project with tasks, dependencies, RACI roles and risks from a template (client onboarding, ATO package, software release, proposal response — or save your own). **Action items from meeting notes** reads a note, finds who committed to what, and creates the tasks and delegations.'});
+      tags:['project','projects','pm','project management','program','delegate','delegated','delegation','waiting','raci','raid','risk','risks','issue','stakeholder','status report','gantt','drag','schedule','critical path','baseline','ims','wbs','ms project','dod','dcma','schedule health','monte carlo','p80','p50','schedule risk','import','mpp','14 point','status date','actual start','actual finish','percent complete','cpli','bei','resource','resources','budget','evm','earned value','cpi','spi','change request','lessons','template','meeting notes','action items'],
+      body:'## Project management\n\nOpen **PM Workspace** in the sidebar (under Work), or **💼 PM workspace** in a project\'s details. Pick a project at the top — LevelUp projects and **Atlas (CommunityForce)** projects are both listed — or **All projects** for the portfolio.\n\n## Delegate and track (Waiting on)\n\nIn any task press **🤝 Delegate** (or **Delegate something** on the Waiting on tab). Choose the person — a team member, someone from your Contacts, or anyone you add with an email address; they do **not** need LevelUp. Set when you expect it back and when to follow up. Tick **Email them now** to send the details.\n\n**Waiting on** lists everything you have handed off, grouped by person or project, with what is late and what is due a follow-up. **Follow up** emails the person; they just **reply** ("done", "Friday", "blocked on the client") and LevelUp reads the reply, updates the delegation and tells you. A "done" marks the task done. Turn on **Automatic follow-up emails** in the project\'s Settings tab to have LevelUp send follow-ups on the date for you. Your coach mentions late delegated work in its check-ins.\n\n## RACI\n\nAdd people as columns, then click a cell to mark **R**esponsible, **A**ccountable (exactly one), **C**onsulted, **I**nformed. The Check column flags rows with no or several Accountables. **Fill from assignments** starts it from task assignees and delegations. Export to Excel or print.\n\n## RAID log\n\nRisks (with a 5×5 probability × impact matrix), Issues, Assumptions and Decisions. A risk that happens becomes an issue in one click.\n\n## Stakeholders and reports\n\nPlace stakeholders on the influence/interest grid and plan who hears what and how often. **Reports → New status report** drafts a red/amber/green report from live data with AI; edit it, then **Email** it, save a **PDF**, or turn it into a **Slides** deck.\n\n## Schedule, WBS and IMS\n\n**Schedule** is a Gantt with dependency arrows, the **critical path** in red, float, milestones and **baselines** (save one, then see how far each item has slipped). Drag a bar to move it, drag its right edge to change its length, and drag its ● onto another bar to make that one follow it; click an arrow to change or remove a link. Arrow keys move a selected bar (Shift changes its length), and each drag can be undone. **WBS / IMS** holds the outline with durations in work days and predecessors ("3", "3SS", "3FS+2"). Two styles: **MS Project-style WBS** or **DoD IMS** (event → significant accomplishment → accomplishment criteria → task). Build it from the project\'s tasks, from your milestones, or draft it with AI. Export to **Excel** or **MS Project XML** (open it in Microsoft Project). **Import XML** brings a schedule in from Microsoft Project (save it there with File → Save As → XML): the outline, durations, links and lags, % complete, actual dates and its baseline.\n\n## Progress and schedule health\n\nOn **WBS / IMS** set each row\'s **% done**, **Actual start** and **Actual finish** — an actual finish marks the row done, and the schedule moves the rest of the plan from the real dates. The **Health** tab runs the DCMA 14-point check on the schedule against a **status date** you choose: missing logic, leads and lags, link types, constraints, high float, negative float, long tasks, dates that are already past, unassigned work, missed tasks, the critical path, CPLI and BEI. Each failing check lists the rows to fix. Save a baseline on the Schedule tab first for the last three. The MS Project XML export carries % done, actual dates and the baseline. **Schedule risk** (also on Health) runs 1,000 simulations with each open task somewhere between its optimistic and pessimistic length, and shows the P50 and P80 finish dates, the chance of making the planned, baseline or a target date, and which tasks most often drive the finish.\n\n## Resources and budget\n\n**Resources** shows each person\'s load per week against their capacity (allocations plus estimated work they own; Atlas team plans too). **Budget** holds planned lines and actual costs and works out **earned value**: CPI (cost efficiency), SPI (schedule efficiency) and the estimate at completion. Approved **change requests** add to the budget.\n\n## Templates and meeting notes\n\n**All projects → Templates** creates a project with tasks, dependencies, RACI roles and risks from a template (client onboarding, ATO package, software release, proposal response — or save your own). **Action items from meeting notes** reads a note, finds who committed to what, and creates the tasks and delegations.'});
   }}catch(_){}
 })();
