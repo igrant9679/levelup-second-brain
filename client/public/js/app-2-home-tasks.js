@@ -37,7 +37,7 @@ function aiDecomposeGoal(){
     if(!checks.length){toast('Select at least one task');return;}
     const titles=[...checks].map(c=>c.closest('label').textContent.trim());
     titles.forEach(title=>{
-      D.tasks.push({id:Date.now()+Math.random(),title,priority:'Medium',due:'${dueDate}',status:'Not Started',context:'Deep Work',project:'',tags:['ai-generated'],notes:'Generated from goal: ${esc(g)}',myDay:false,energy:'medium',subtasks:[],comments:[],createdBy:D.creds.userName||'Idris Grant'});
+      D.tasks.push({id:Date.now()+Math.random(),title,priority:'Medium',due:'${_jsAttr(dueDate)}',status:'Not Started',context:'Deep Work',project:'',tags:['ai-generated'],notes:'Generated from goal: ${_jsAttr(g)}',myDay:false,energy:'medium',subtasks:[],comments:[],createdBy:D.creds.userName||'Idris Grant'});
     });
     save('tasks');renderScreen('tasks');closeModal();
     toast('✓ '+titles.length+' tasks added!');
@@ -271,8 +271,8 @@ function _aiComposePreview(entityType,entityId,text,targetTextareaId,regenFnName
     <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Review the rendered output, then choose to insert it into the description field. Markdown formatting will display correctly when the ${entityType} is viewed.</div>
     <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;font-size:12px;line-height:1.65;max-height:380px;overflow-y:auto;margin-bottom:10px">${html}</div>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-      <button class="btn btn-p" onclick="_aiComposeInsert('${targetTextareaId}',${argText})">⬇ Insert</button>
-      <button class="btn btn-s" onclick="closeModal();${esc(regenFnName)}(${entityId})">🔄 Regenerate</button>
+      <button class="btn btn-p" onclick="_aiComposeInsert('${_jsAttr(targetTextareaId)}',${argText})">⬇ Insert</button>
+      <button class="btn btn-s" onclick="closeModal();${_jsAttr(regenFnName)}(${entityId})">🔄 Regenerate</button>
       ${typeof _aiLengthChip==='function'?_aiLengthChip():''}
       <button class="btn btn-s" onclick="navigator.clipboard.writeText(${argText});toast('📋 Copied')">📋 Copy</button>
       <button class="btn btn-s" onclick="closeModal()" style="margin-left:auto">Cancel</button>
@@ -385,7 +385,7 @@ function aiSuggestDelegate(id){
   ${top.map(({m:member,score,workload,matches})=>`<div style="padding:8px;margin-bottom:6px;border-radius:6px;background:var(--s2);display:flex;align-items:center;gap:10px">
     <div style="width:32px;height:32px;border-radius:50%;background:var(--ac);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">${member.name.split(' ').map(w=>w[0]).join('').slice(0,2)}</div>
     <div style="flex:1"><div style="font-size:12px;font-weight:600">${esc(member.name)}</div><div style="font-size:11px;color:var(--t3)">${esc(member.role)} · ${workload} active task${workload!==1?'s':''} · ${matches} keyword match${matches!==1?'es':''}</div></div>
-    <button class="btn btn-p" style="height:26px;font-size:11px" onclick="D.tasks.find(x=>x.id===${id}).assignedTo='${member.name}';save('tasks');renderScreen(curScreen);closeModal();toast('✓ Delegated to ${member.name}')">Assign</button>
+    <button class="btn btn-p" style="height:26px;font-size:11px" onclick="D.tasks.find(x=>x.id===${id}).assignedTo='${_jsAttr(member.name)}';save('tasks');renderScreen(curScreen);closeModal();toast('✓ Delegated to ${member.name}')">Assign</button>
   </div>`).join('')}
   <button class="btn btn-s" style="margin-top:8px" onclick="closeModal()">Cancel</button>`;
   document.getElementById('modal-capture').classList.add('show');
@@ -2053,16 +2053,16 @@ function openHomeDashCustomize(){
     const def=_homeCardDefs.find(c=>c.id===p.id);
     const modes=_homeCardModes[p.id];
     const cur=modes?getHomeCardMode(p.id):'';
-    const modeRow=modes?`<div style="display:flex;align-items:center;gap:6px;margin-top:6px;padding-left:24px"><span style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;flex-shrink:0">Show</span><select class="inp" style="font-size:11px;height:22px;padding:0 4px;flex:1" onchange="setHomeCardMode('${p.id}',this.value)">${modes.map(m=>`<option value="${esc(m.id)}" ${m.id===cur?'selected':''}>${esc(m.label)}</option>`).join('')}</select></div>`:'';
+    const modeRow=modes?`<div style="display:flex;align-items:center;gap:6px;margin-top:6px;padding-left:24px"><span style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;flex-shrink:0">Show</span><select class="inp" style="font-size:11px;height:22px;padding:0 4px;flex:1" onchange="setHomeCardMode('${_jsAttr(p.id)}',this.value)">${modes.map(m=>`<option value="${esc(m.id)}" ${m.id===cur?'selected':''}>${esc(m.label)}</option>`).join('')}</select></div>`:'';
     return `<div style="padding:7px 8px;border-radius:6px;border:1px solid var(--bd1);margin-bottom:5px;background:var(--s2)" data-card-id="${p.id}">
       <div style="display:flex;align-items:center;gap:8px">
         <div style="display:flex;flex-direction:column;gap:1px">
-          <button class="btn btn-s" style="height:16px;width:20px;padding:0;font-size:10px" onclick="homeCardMove('${p.id}',-1)">↑</button>
-          <button class="btn btn-s" style="height:16px;width:20px;padding:0;font-size:10px" onclick="homeCardMove('${p.id}',1)">↓</button>
+          <button class="btn btn-s" style="height:16px;width:20px;padding:0;font-size:10px" onclick="homeCardMove('${_jsAttr(p.id)}',-1)">↑</button>
+          <button class="btn btn-s" style="height:16px;width:20px;padding:0;font-size:10px" onclick="homeCardMove('${_jsAttr(p.id)}',1)">↓</button>
         </div>
         <span style="flex:1;font-size:12px;display:inline-flex;align-items:center;gap:6px">${def?`${_icon(def.icon,14,'currentColor')} ${esc(def.label)}`:esc(p.id)}</span>
         <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px">
-          <input type="checkbox" id="hc-${p.id}" ${p.visible?'checked':''} onchange="homeCardToggle('${p.id}',this.checked)">
+          <input type="checkbox" id="hc-${p.id}" ${p.visible?'checked':''} onchange="homeCardToggle('${_jsAttr(p.id)}',this.checked)">
           Show
         </label>
       </div>
@@ -2143,16 +2143,16 @@ function homeCardMove(id,dir){
       const def=_homeCardDefs.find(c=>c.id===p.id);
       const modes=_homeCardModes[p.id];
       const cur=modes?getHomeCardMode(p.id):'';
-      const modeRow=modes?`<div style="display:flex;align-items:center;gap:6px;margin-top:6px;padding-left:24px"><span style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;flex-shrink:0">Show</span><select class="inp" style="font-size:11px;height:22px;padding:0 4px;flex:1" onchange="setHomeCardMode('${p.id}',this.value)">${modes.map(m=>`<option value="${esc(m.id)}" ${m.id===cur?'selected':''}>${esc(m.label)}</option>`).join('')}</select></div>`:'';
+      const modeRow=modes?`<div style="display:flex;align-items:center;gap:6px;margin-top:6px;padding-left:24px"><span style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;flex-shrink:0">Show</span><select class="inp" style="font-size:11px;height:22px;padding:0 4px;flex:1" onchange="setHomeCardMode('${_jsAttr(p.id)}',this.value)">${modes.map(m=>`<option value="${esc(m.id)}" ${m.id===cur?'selected':''}>${esc(m.label)}</option>`).join('')}</select></div>`:'';
       return `<div style="padding:7px 8px;border-radius:6px;border:1px solid var(--bd1);margin-bottom:5px;background:var(--s2)" data-card-id="${p.id}">
         <div style="display:flex;align-items:center;gap:8px">
           <div style="display:flex;flex-direction:column;gap:1px">
-            <button class="btn btn-s" style="height:16px;width:20px;padding:0;font-size:10px" onclick="homeCardMove('${p.id}',-1)">↑</button>
-            <button class="btn btn-s" style="height:16px;width:20px;padding:0;font-size:10px" onclick="homeCardMove('${p.id}',1)">↓</button>
+            <button class="btn btn-s" style="height:16px;width:20px;padding:0;font-size:10px" onclick="homeCardMove('${_jsAttr(p.id)}',-1)">↑</button>
+            <button class="btn btn-s" style="height:16px;width:20px;padding:0;font-size:10px" onclick="homeCardMove('${_jsAttr(p.id)}',1)">↓</button>
           </div>
           <span style="flex:1;font-size:12px;display:inline-flex;align-items:center;gap:6px">${def?`${_icon(def.icon,14,'currentColor')} ${esc(def.label)}`:esc(p.id)}</span>
           <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px">
-            <input type="checkbox" id="hc-${p.id}" ${p.visible?'checked':''} onchange="homeCardToggle('${p.id}',this.checked)">
+            <input type="checkbox" id="hc-${p.id}" ${p.visible?'checked':''} onchange="homeCardToggle('${_jsAttr(p.id)}',this.checked)">
             Show
           </label>
         </div>
@@ -2301,7 +2301,7 @@ function renderHome(){
     </div>
     <!-- Compressed stat strip with click-through (#5) and hover popovers (#7) -->
     <div style="position:relative;display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:12px">
-      ${_tiles.map((s,i)=>`<div class="home-hero-tile" data-tile-idx="${i}" onclick="nav('${s.navTo}')" onmouseenter="_heroTilePopShow(event)" onmouseleave="_heroTilePopHide()" style="display:flex;align-items:center;gap:9px;padding:8px 11px;background:rgba(10,14,28,.72);border:1px solid color-mix(in srgb,${s.color} 50%,transparent);border-radius:10px;backdrop-filter:blur(14px);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)">
+      ${_tiles.map((s,i)=>`<div class="home-hero-tile" data-tile-idx="${i}" onclick="nav('${_jsAttr(s.navTo)}')" onmouseenter="_heroTilePopShow(event)" onmouseleave="_heroTilePopHide()" style="display:flex;align-items:center;gap:9px;padding:8px 11px;background:rgba(10,14,28,.72);border:1px solid color-mix(in srgb,${s.color} 50%,transparent);border-radius:10px;backdrop-filter:blur(14px);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)">
         <div style="width:30px;height:30px;border-radius:8px;background:color-mix(in srgb,${s.color} 28%,rgba(0,0,0,.25));display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;border:1px solid color-mix(in srgb,${s.color} 35%,transparent)">${s.icon}</div>
         <div style="min-width:0;flex:1">
           <div style="font-size:18px;font-weight:800;color:${s.color};line-height:1;text-shadow:0 1px 8px color-mix(in srgb,${s.color} 35%,transparent)">${s.val}</div>
@@ -2321,7 +2321,7 @@ function renderHome(){
     const col=(icon,title,navRoute,inner)=>`<div class="cd" style="padding:12px;min-width:0">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <span style="font-size:12px;font-weight:700">${icon} ${title}</span>
-        <span style="font-size:11px;color:var(--ac);cursor:pointer" onclick="nav('${navRoute}')">Open →</span>
+        <span style="font-size:11px;color:var(--ac);cursor:pointer" onclick="nav('${_jsAttr(navRoute)}')">Open →</span>
       </div>${inner}</div>`;
     const taskRows=myday.length?myday.map(t=>`<div class="lr" style="padding:3px 0">
         <div class="chk" onclick="event.stopPropagation();toggleTask(${_tidLit(t.id)});setTimeout(renderHome,80)" title="Mark done"></div>
@@ -2534,7 +2534,7 @@ function renderHome(){
         }else{ // 'recent' default
           bks=(D.bookmarks||[]).slice().sort((a,b)=>(Date.parse(b.createdAt||0)||b.id||0)-(Date.parse(a.createdAt||0)||a.id||0)).slice(0,5);
         }
-        const body=bks.length?bks.map(b=>`<div class="lr" style="cursor:pointer" onclick="window.open('${esc(b.url||'')}','_blank')" title="${esc(b.url||'')}"><span style="font-size:14px;flex-shrink:0">🔖</span><span class="rt" style="font-size:11px">${esc(b.title||b.url||'(untitled)')}</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No bookmarks yet.<br><span style="color:var(--ac);cursor:pointer" onclick="nav(\'bookmarks\')">Add one →</span></div>';
+        const body=bks.length?bks.map(b=>`<div class="lr" style="cursor:pointer" onclick="_luOpenUrl('${_jsAttr(b.url||'')}')" title="${esc(b.url||'')}"><span style="font-size:14px;flex-shrink:0">🔖</span><span class="rt" style="font-size:11px">${esc(b.title||b.url||'(untitled)')}</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No bookmarks yet.<br><span style="color:var(--ac);cursor:pointer" onclick="nav(\'bookmarks\')">Add one →</span></div>';
         return `<div class="cd"><div class="cd-h"><div class="cd-t">🔖 Bookmarks</div><span class="cd-a" onclick="nav('bookmarks')">View all</span></div>${body}</div>`;
       })(),
       // ── Upcoming Deadlines (horizon configurable per-card mode) ──
@@ -2552,7 +2552,7 @@ function renderHome(){
         }
         items.sort((a,b)=>a.date.localeCompare(b.date));
         const top=items.slice(0,8);
-        const body=top.length?top.map(it=>{const d=new Date(it.date+'T00:00');const days=Math.round((d-new Date(today+'T00:00'))/(1000*60*60*24));const rel=days===0?'Today':days===1?'Tomorrow':`In ${days}d`;const colorMap={High:'var(--red)',Medium:'var(--warn)',Low:'var(--ok)'};const dot=it.priority?`<span style="width:6px;height:6px;border-radius:50%;background:${colorMap[it.priority]||'var(--t3)'};flex-shrink:0"></span>`:'<span style="width:6px"></span>';const drawerType=it.type;return `<div class="lr" style="cursor:pointer" onclick="openDrawer('${drawerType}',D.${drawerType==='project'?'projects':drawerType+'s'}.find(x=>x.id==${_tidLit(it.id)}))">${dot}<span class="rt" style="font-size:11px">${esc(it.title)}</span><span style="font-size:11px;color:${days<=2?'var(--red)':'var(--t3)'}">${rel}</span></div>`;}).join(''):`<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No deadlines in the next ${horizonDays} days 🎉</div>`;
+        const body=top.length?top.map(it=>{const d=new Date(it.date+'T00:00');const days=Math.round((d-new Date(today+'T00:00'))/(1000*60*60*24));const rel=days===0?'Today':days===1?'Tomorrow':`In ${days}d`;const colorMap={High:'var(--red)',Medium:'var(--warn)',Low:'var(--ok)'};const dot=it.priority?`<span style="width:6px;height:6px;border-radius:50%;background:${colorMap[it.priority]||'var(--t3)'};flex-shrink:0"></span>`:'<span style="width:6px"></span>';const drawerType=it.type;return `<div class="lr" style="cursor:pointer" onclick="openDrawer('${_jsAttr(drawerType)}',D.${drawerType==='project'?'projects':drawerType+'s'}.find(x=>x.id==${_tidLit(it.id)}))">${dot}<span class="rt" style="font-size:11px">${esc(it.title)}</span><span style="font-size:11px;color:${days<=2?'var(--red)':'var(--t3)'}">${rel}</span></div>`;}).join(''):`<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No deadlines in the next ${horizonDays} days 🎉</div>`;
         const subLabel=tasksOnly?`Tasks · next ${horizonDays} days`:`Next ${horizonDays} days`;
         return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('clock',15,'currentColor')} Upcoming Deadlines</div><span class="cd-a">${subLabel}</span></div>${body}</div>`;
       })(),
@@ -2776,11 +2776,11 @@ function renderHome(){
         stale.sort((a,b)=>stMode==='newest'?a.ago-b.ago:b.ago-a.ago);
         if(!stale.length)return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('trash',15,'#f59e0b')} Stale Content</div></div><div style="padding:18px 4px;font-size:11px;color:var(--t3);text-align:center">Nothing stale — your workspace is fresh. ✨</div></div>`;
         const top=stale.slice(0,8);
-        const rows=top.map(it=>`<div class="lr" style="cursor:pointer;align-items:center;gap:6px" onclick="_staleOpen('${it.type}',${it.id})" title="Open ${it.type}">
+        const rows=top.map(it=>`<div class="lr" style="cursor:pointer;align-items:center;gap:6px" onclick="_staleOpen('${_jsAttr(it.type)}',${it.id})" title="Open ${it.type}">
           <span style="font-size:13px;flex-shrink:0">${it.icon}</span>
           <span class="rt" style="font-size:11px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.title)}</span>
           <span style="font-size:11px;color:var(--t3);flex-shrink:0">${it.ago}d</span>
-          <button class="btn btn-s" style="height:18px;width:22px;padding:0;font-size:10px;flex-shrink:0" onclick="event.stopPropagation();_staleTouch('${it.type}',${it.id})" title="Mark as still relevant — hide for 30 more days">✓</button>
+          <button class="btn btn-s" style="height:18px;width:22px;padding:0;font-size:10px;flex-shrink:0" onclick="event.stopPropagation();_staleTouch('${_jsAttr(it.type)}',${it.id})" title="Mark as still relevant — hide for 30 more days">✓</button>
         </div>`).join('');
         return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('trash',15,'#f59e0b')} Stale Content</div><span class="cd-a">${stale.length} item${stale.length===1?'':'s'} >30d old</span></div>${rows}</div>`;
       })()
@@ -2845,7 +2845,7 @@ function renderHome(){
     const top=recent.slice(0,7);
     if(!top.length)return '';
     const fmtTs=ts=>{const d=_pd(ts);const now=new Date();const diff=Math.floor((now-d)/60000);if(diff<1)return 'just now';if(diff<60)return diff+'m ago';if(diff<1440)return Math.floor(diff/60)+'h ago';return Math.floor(diff/1440)+'d ago';};
-    return `<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-size:12px;font-weight:600">🕐 Recently Added</span></div>${top.map(r=>`<div class="lr" onclick="openDrawer('${r.type}',D.${r.type==='project'?'projects':r.type==='habit'?'habits':r.type+'s'}.find(x=>x.id==${_tidLit(r.id)}))" style="cursor:pointer" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''"><span style="width:18px;height:18px;border-radius:4px;background:${typeColor[r.type]}22;color:${typeColor[r.type]};font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0">${typeIcon[r.type]}</span><span class="rt" style="font-size:11px">${esc(r.title)}</span><span style="font-size:11px;color:var(--t3);flex-shrink:0">${fmtTs(r.ts)}</span></div>`).join('')}</div>`;
+    return `<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-size:12px;font-weight:600">🕐 Recently Added</span></div>${top.map(r=>`<div class="lr" onclick="openDrawer('${_jsAttr(r.type)}',D.${r.type==='project'?'projects':r.type==='habit'?'habits':r.type+'s'}.find(x=>x.id==${_tidLit(r.id)}))" style="cursor:pointer" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''"><span style="width:18px;height:18px;border-radius:4px;background:${typeColor[r.type]}22;color:${typeColor[r.type]};font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0">${typeIcon[r.type]}</span><span class="rt" style="font-size:11px">${esc(r.title)}</span><span style="font-size:11px;color:var(--t3);flex-shrink:0">${fmtTs(r.ts)}</span></div>`).join('')}</div>`;
   })()}
   ${(()=>{
     if(!_homeVisible.has('pinned')||!D.prefs.pinned||!D.prefs.pinned.length)return '';
@@ -2856,7 +2856,7 @@ function renderHome(){
       const item=arr&&arr.find(x=>x.id===p.id);
       if(!item)return '';
       const label=item.title||item.name||'Untitled';
-      return `<div class="lr" onclick="openDrawer('${p.type}',D.${p.type==='project'?'projects':p.type==='habit'?'habits':p.type+'s'}.find(x=>x.id==${_tidLit(p.id)}))" style="cursor:pointer" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''"><span style="width:18px;height:18px;border-radius:4px;background:${typeColor[p.type]}22;color:${typeColor[p.type]};font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0">${typeIcon[p.type]}</span><span class="rt" style="font-size:11px">${esc(label)}</span><span style="font-size:11px;color:var(--t3);cursor:pointer" onclick="event.stopPropagation();togglePin('${p.type}',${p.id})" title="Unpin">📌</span></div>`;
+      return `<div class="lr" onclick="openDrawer('${_jsAttr(p.type)}',D.${p.type==='project'?'projects':p.type==='habit'?'habits':p.type+'s'}.find(x=>x.id==${_tidLit(p.id)}))" style="cursor:pointer" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''"><span style="width:18px;height:18px;border-radius:4px;background:${typeColor[p.type]}22;color:${typeColor[p.type]};font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0">${typeIcon[p.type]}</span><span class="rt" style="font-size:11px">${esc(label)}</span><span style="font-size:11px;color:var(--t3);cursor:pointer" onclick="event.stopPropagation();togglePin('${_jsAttr(p.type)}',${p.id})" title="Unpin">📌</span></div>`;
     }).filter(Boolean).join('');
     if(!rows)return '';
     return `<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-size:12px;font-weight:600">📌 Pinned</span></div>${rows}</div>`;
@@ -3517,7 +3517,7 @@ function _renderRealSubtasksSection(parent){
     const done=c.status==='Done';
     const od=!done&&c.due&&c.due<_todayStr;
     return `<div class="lr" style="padding:5px 0;border-bottom:1px solid var(--bd1);cursor:pointer" onclick="closeDrawer();setTimeout(()=>openDrawer('task',D.tasks.find(x=>String(x.taskId||x.id)===String(${_jsArg(c.taskId||c.id)}))),120)">
-      <div class="chk ${done?'on':''}" onclick="event.stopPropagation();toggleTask(${typeof c.id==='number'?c.id:`'${esc(c.id)}'`});setTimeout(()=>openDrawer('task',D.tasks.find(x=>String(x.taskId||x.id)===String(${_jsArg(parent.taskId||parent.id)}))),120)"></div>
+      <div class="chk ${done?'on':''}" onclick="event.stopPropagation();toggleTask(${typeof c.id==='number'?c.id:`'${_jsAttr(c.id)}'`});setTimeout(()=>openDrawer('task',D.tasks.find(x=>String(x.taskId||x.id)===String(${_jsArg(parent.taskId||parent.id)}))),120)"></div>
       <span class="rt" style="font-size:12px;${done?'text-decoration:line-through;color:var(--t3)':''}">${esc(c.title||'(untitled)')}</span>
       ${c.priority?`<span class="pill ${pillClass(c.priority)}" style="font-size:11px">${c.priority}</span>`:''}
       ${c.due?`<span style="font-size:11px;color:${od?'var(--red)':'var(--t3)'}">${esc(c.due)}</span>`:''}
@@ -3625,7 +3625,7 @@ function _renderSourceFilterChips(){
   const lsiCount=ext.filter(t=>t.source==='nifty'&&!(t.override&&t.override.tombstoned)).length;
   // Hide CF/LSI chips when those sources have no data — keeps the UI clean
   // for users who haven't connected them.
-  const chip=(on,active,color,label,count,key)=>`<button class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;background:${active?color:'transparent'};color:${active?'#fff':'var(--t2)'};border:1px solid ${active?color:'var(--bd2)'};border-radius:11px" onclick="toggleSourceFilter('${key}')" title="${active?'Click to hide':'Click to show'} ${label}">${label}${count?` <span style="opacity:.85">${count}</span>`:''}</button>`;
+  const chip=(on,active,color,label,count,key)=>`<button class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;background:${active?color:'transparent'};color:${active?'#fff':'var(--t2)'};border:1px solid ${active?color:'var(--bd2)'};border-radius:11px" onclick="toggleSourceFilter('${_jsAttr(key)}')" title="${active?'Click to hide':'Click to show'} ${label}">${label}${count?` <span style="opacity:.85">${count}</span>`:''}</button>`;
   const personalCount=(D.tasks||[]).filter(t=>t.status!=='Done'&&t.status!=='Someday').length;
   // CF fold-all chip — only appears when there's at least one CF
   // project group on the Tasks list (i.e. at least one orphan-subtask
@@ -3936,7 +3936,7 @@ function renderTaskList(){
   // J: group toolbar
   const groupBar=`<div style="display:flex;align-items:center;gap:6px;padding:6px 0;margin-bottom:4px;font-size:11px;color:var(--t3)">
     <span style="font-weight:600;text-transform:uppercase;letter-spacing:.05em">Group:</span>
-    ${[['none','None'],['project','Project'],['due','Due'],['assignee','Assignee'],['status','Status']].map(([k,l])=>`<button class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;background:${_taskListGroupBy===k?'var(--ac)':'transparent'};color:${_taskListGroupBy===k?'#fff':'var(--t2)'}" onclick="setTaskListGroupBy('${k}')">${l}</button>`).join('')}
+    ${[['none','None'],['project','Project'],['due','Due'],['assignee','Assignee'],['status','Status']].map(([k,l])=>`<button class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;background:${_taskListGroupBy===k?'var(--ac)':'transparent'};color:${_taskListGroupBy===k?'#fff':'var(--t2)'}" onclick="setTaskListGroupBy('${_jsAttr(k)}')">${l}</button>`).join('')}
     <span style="margin-left:auto;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Sort:</span>
     <select class="inp" style="height:22px;font-size:11px;padding:0 4px" onchange="setTaskListSortValue(this.value)">
       ${[['','Manual (drag)'],['title','Title'],['priority','Priority'],['status','Status'],['start','Start date'],['end','Due date'],['created','Created'],['source','Source']].map(([v,l])=>`<option value="${v}" ${_taskListSortBy===v?'selected':''}>${l}</option>`).join('')}
@@ -3960,7 +3960,7 @@ function renderTaskList(){
   const headCell=c=>{
     if(c.fixed)return '<div></div>';
     const active=_taskListSortBy===c.sort;
-    return `<div class="tl-hc" style="position:relative;cursor:pointer;user-select:none;color:${active?'var(--ac)':'var(--t2)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap" onclick="setTaskListSort('${c.sort}')" title="Click to sort · drag right edge to resize">${c.label}${arrow(c.sort)}<span class="tl-resizer" title="Drag to resize column" onpointerdown="_tlResizeStart(event,'${c.k}')" onclick="event.stopPropagation()"></span></div>`;
+    return `<div class="tl-hc" style="position:relative;cursor:pointer;user-select:none;color:${active?'var(--ac)':'var(--t2)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap" onclick="setTaskListSort('${_jsAttr(c.sort)}')" title="Click to sort · drag right edge to resize">${c.label}${arrow(c.sort)}<span class="tl-resizer" title="Drag to resize column" onpointerdown="_tlResizeStart(event,'${c.k}')" onclick="event.stopPropagation()"></span></div>`;
   };
   const header=`<div class="tl-row tl-head" style="display:grid;grid-template-columns:${colTpl};gap:8px;padding:8px 12px;min-width:${rowMinW}px;background:var(--s2);border:1px solid var(--bd1);border-radius:6px 6px 0 0;font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;align-items:center;position:sticky;top:0;z-index:5">
     ${_TASK_COLS.map(headCell).join('')}
@@ -4054,7 +4054,7 @@ function renderTaskList(){
       const indent=isSubtask?'margin-left:24px;border-left:2px dotted var(--bd2);padding-left:8px':'';
       let breadcrumb='';
       if(isSubtaskByParent){
-        breadcrumb=`<span style="font-size:11px;color:var(--t3);background:var(--s3);padding:1px 5px;border-radius:8px;cursor:pointer" title="Open parent task" onclick="event.stopPropagation();_openExternalAnnotateModal('${esc(t._source)}','${esc(pid)}')">↳ ${esc((parentRow.title||'').slice(0,40))}</span>`;
+        breadcrumb=`<span style="font-size:11px;color:var(--t3);background:var(--s3);padding:1px 5px;border-radius:8px;cursor:pointer" title="Open parent task" onclick="event.stopPropagation();_openExternalAnnotateModal('${_jsAttr(t._source)}','${_jsAttr(pid)}')">↳ ${esc((parentRow.title||'').slice(0,40))}</span>`;
       } else if(isCfSubtaskByKind){
         // Find the LevelUp project (auto-created from this projectLabel) so
         // the breadcrumb clicks open that project's drawer.
@@ -4062,9 +4062,9 @@ function renderTaskList(){
         const clickHandler=projMatch?`openDrawer('project',D.projects.find(x=>x.id==${_tidLit(projMatch.id)}))`:`nav('projects')`;
         breadcrumb=`<span style="font-size:11px;color:var(--t3);background:rgba(31,111,235,.12);border:1px solid color-mix(in srgb,#1f6feb 25%,transparent);padding:1px 5px;border-radius:8px;cursor:pointer" title="Open parent project in LevelUp" onclick="event.stopPropagation();${clickHandler}">${_icon('folder',12,'currentColor')} ${esc((t._projectLabel||'').slice(0,48))}</span>`;
       }
-      return `<div class="tlc ${isOverdueE?'tlc-od':''} ${isSubtask?'tlc-subtask':''}" style="border:1px dashed var(--bd2);cursor:pointer;${indent};${doneExt?'opacity:.6':''}" data-ext-id="${esc(t._externalId)}" data-source="${esc(t._source)}" ${pid?`data-parent-ext-id="${esc(pid)}"`:''} onclick="_openExternalAnnotateModal('${esc(t._source)}','${esc(t._externalId)}')" title="Click row for actions (mark done, hide, annotate)">
+      return `<div class="tlc ${isOverdueE?'tlc-od':''} ${isSubtask?'tlc-subtask':''}" style="border:1px dashed var(--bd2);cursor:pointer;${indent};${doneExt?'opacity:.6':''}" data-ext-id="${esc(t._externalId)}" data-source="${esc(t._source)}" ${pid?`data-parent-ext-id="${esc(pid)}"`:''} onclick="_openExternalAnnotateModal('${_jsAttr(t._source)}','${_jsAttr(t._externalId)}')" title="Click row for actions (mark done, hide, annotate)">
         <div style="width:18px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:2px">
-          <div class="tlc-chk ${doneExt?'on':''}" style="cursor:pointer" onclick="event.stopPropagation();_extToggleCompleted('${esc(t._source)}','${esc(t._externalId)}',${doneExt?'false':'true'})" title="${doneExt?'Reopen in source':'Mark complete in source'}"></div>
+          <div class="tlc-chk ${doneExt?'on':''}" style="cursor:pointer" onclick="event.stopPropagation();_extToggleCompleted('${_jsAttr(t._source)}','${_jsAttr(t._externalId)}',${doneExt?'false':'true'})" title="${doneExt?'Reopen in source':'Mark complete in source'}"></div>
           <div style="font-size:11px">${_extSourceBadge(t._source)}</div>
         </div>
         <div class="tlc-body">
@@ -4072,7 +4072,7 @@ function renderTaskList(){
           ${(t.tags||[]).length?`<div class="tlc-tags">${(t.tags||[]).slice(0,4).map(tg=>`<span>#${esc(tg)}</span>`).join('')}</div>`:''}
           <div class="tlc-m">
             ${doneExt?'':`<span class="lu-pill-clickable" style="background:${priColors[t.priority]||priColors.Medium};color:${priText[t.priority]||priText.Medium}">${t.priority||'Medium'}</span>`}
-            ${statusLabel?`<span class="lu-pill-clickable" style="background:${doneExt?'rgba(34,197,94,0.15)':'var(--s3)'};color:${doneExt?'var(--ok)':'var(--t2)'};cursor:pointer" title="Click to change status in source" onclick="event.stopPropagation();_externalSetStatus('${t._source}','${esc(t._externalId)}',event)">${esc(statusLabel)}</span>`:''}
+            ${statusLabel?`<span class="lu-pill-clickable" style="background:${doneExt?'rgba(34,197,94,0.15)':'var(--s3)'};color:${doneExt?'var(--ok)':'var(--t2)'};cursor:pointer" title="Click to change status in source" onclick="event.stopPropagation();_externalSetStatus('${_jsAttr(t._source)}','${_jsAttr(t._externalId)}',event)">${esc(statusLabel)}</span>`:''}
             ${due?`<span class="${isOverdueE?'tlc-odt':''}">📅 ${fmtDate(due)}</span>`:''}
             ${t.completedAt?`<span style="color:var(--ok)">✓ ${fmtDate(_dayOf(t.completedAt))}</span>`:''}
             ${t.project?`<span>${_icon('folder',12,'currentColor')} ${esc(t.project)}</span>`:''}
@@ -4080,9 +4080,9 @@ function renderTaskList(){
           </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0">
-          <button class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px" title="Snooze…" onclick="event.stopPropagation();_externalSnoozeMenu('${t._source}','${esc(t._externalId)}',event)">⏰</button>
-          <button class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px" title="Annotate" onclick="event.stopPropagation();_openExternalAnnotateModal('${t._source}','${esc(t._externalId)}')">✎</button>
-          <button class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="event.stopPropagation();_toggleExternalMyDay('${t._source}','${esc(t._externalId)}',${myDay?0:1})">${myDay?'☀':'+☀'}</button>
+          <button class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px" title="Snooze…" onclick="event.stopPropagation();_externalSnoozeMenu('${_jsAttr(t._source)}','${_jsAttr(t._externalId)}',event)">⏰</button>
+          <button class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px" title="Annotate" onclick="event.stopPropagation();_openExternalAnnotateModal('${_jsAttr(t._source)}','${_jsAttr(t._externalId)}')">✎</button>
+          <button class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="event.stopPropagation();_toggleExternalMyDay('${_jsAttr(t._source)}','${_jsAttr(t._externalId)}',${myDay?0:1})">${myDay?'☀':'+☀'}</button>
         </div>
         <a ${_extOpenAttrs(url)} class="tlc-go" onclick="event.stopPropagation()" style="color:var(--t3);text-decoration:none" title="Open in source">↗</a>
       </div>`;
@@ -4132,9 +4132,9 @@ function renderTaskList(){
   // Helper kept inline — emitProjectHeaderHtml(label, projectId, count, collapsed)
   // returns the header div markup.
   const _emitCfHeader=(label,projectId,count,collapsed,doneCount)=>{
-    const safe=_jsAttr?_jsAttr(label):String(label).replace(/'/g,"\\'");
+    const safe=label; // escaped where it is used (_jsAttr)
     const projName=esc(label);
-    return `<div class="cf-proj-header" data-cf-project="${esc(label)}" style="display:flex;align-items:center;gap:8px;padding:8px 10px;margin:10px 0 4px;background:linear-gradient(to right,rgba(31,111,235,.10),rgba(31,111,235,.02));border:1px solid color-mix(in srgb,#1f6feb 25%,transparent);border-left:3px solid #1f6feb;border-radius:6px;cursor:pointer;user-select:none" onclick="_toggleCfProjectCollapsed('${safe}')" title="Click to ${collapsed?'expand':'collapse'} this project">
+    return `<div class="cf-proj-header" data-cf-project="${esc(label)}" style="display:flex;align-items:center;gap:8px;padding:8px 10px;margin:10px 0 4px;background:linear-gradient(to right,rgba(31,111,235,.10),rgba(31,111,235,.02));border:1px solid color-mix(in srgb,#1f6feb 25%,transparent);border-left:3px solid #1f6feb;border-radius:6px;cursor:pointer;user-select:none" onclick="_toggleCfProjectCollapsed('${_jsAttr(safe)}')" title="Click to ${collapsed?'expand':'collapse'} this project">
       <span style="font-size:13px;color:#1f6feb;width:14px;display:inline-flex;align-items:center;justify-content:center">${collapsed?'▸':'▾'}</span>
       <span style="font-size:12px;font-weight:600;color:var(--t1);flex:1">${_icon('folder',12,'currentColor')} ${projName}</span>
       <span style="font-size:11px;color:var(--t3)">${count} task${count===1?'':'s'}${doneCount?` · ${doneCount} done`:''}</span>
@@ -4427,9 +4427,9 @@ function renderTaskCards(){
     const pri=c.priority||'Medium';const pc=priColors[pri]||priColors.Medium;
     const status=c.status;const sourceLabel=et.source==='smartsheet'?'CF':(et.source==='nifty'?'LSI':et.source.toUpperCase());
     const sourceColor=et.source==='smartsheet'?'#1f6feb':'#8b5cf6';
-    return `<div class="lu-task-card" data-ext-id="${esc(et.externalId)}" data-source="${esc(et.source)}" onclick="_openExternalAnnotateModal('${esc(et.source)}','${esc(et.externalId)}')" style="background:var(--s2);border:1px dashed var(--bd2);border-left:3px solid ${pc};border-radius:10px;padding:12px 14px;cursor:pointer;display:flex;flex-direction:column;gap:8px;${done?'opacity:.62':''}" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 14px rgba(0,0,0,.18)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+    return `<div class="lu-task-card" data-ext-id="${esc(et.externalId)}" data-source="${esc(et.source)}" onclick="_openExternalAnnotateModal('${_jsAttr(et.source)}','${_jsAttr(et.externalId)}')" style="background:var(--s2);border:1px dashed var(--bd2);border-left:3px solid ${pc};border-radius:10px;padding:12px 14px;cursor:pointer;display:flex;flex-direction:column;gap:8px;${done?'opacity:.62':''}" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 14px rgba(0,0,0,.18)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
       <div style="display:flex;align-items:flex-start;gap:8px">
-        <div class="tlc-chk ${done?'on':''}" style="margin-top:2px;flex-shrink:0" onclick="event.stopPropagation();_extToggleCompleted('${esc(et.source)}','${esc(et.externalId)}',${done?'false':'true'})" title="${done?'Reopen in source':'Mark complete in source'}"></div>
+        <div class="tlc-chk ${done?'on':''}" style="margin-top:2px;flex-shrink:0" onclick="event.stopPropagation();_extToggleCompleted('${_jsAttr(et.source)}','${_jsAttr(et.externalId)}',${done?'false':'true'})" title="${done?'Reopen in source':'Mark complete in source'}"></div>
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:600;line-height:1.35;${done?'text-decoration:line-through;color:var(--t3)':'color:var(--t1)'}">${esc(c.title||'Untitled')}</div>
           <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;align-items:center">
@@ -4534,10 +4534,10 @@ function renderTaskBoard(){
           ${_extAnnotationChips(et.override)}
         </div>
         <div style="display:flex;gap:4px;margin-top:5px;flex-wrap:wrap">
-          <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="_toggleExternalMyDay('${et.source}','${esc(et.externalId)}',${myDay?0:1})">${myDay?'☀ Remove':'+☀ My Day'}</button>
-          <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" title="Set status in source" onclick="_externalSetStatus('${et.source}','${esc(et.externalId)}',event)">⚙ Status</button>
-          <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" title="Snooze…" onclick="_externalSnoozeMenu('${et.source}','${esc(et.externalId)}',event)">⏰</button>
-          <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" title="Annotate (note, tags, override priority/due)" onclick="_openExternalAnnotateModal('${et.source}','${esc(et.externalId)}')">✎</button>
+          <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="_toggleExternalMyDay('${_jsAttr(et.source)}','${_jsAttr(et.externalId)}',${myDay?0:1})">${myDay?'☀ Remove':'+☀ My Day'}</button>
+          <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" title="Set status in source" onclick="_externalSetStatus('${_jsAttr(et.source)}','${_jsAttr(et.externalId)}',event)">⚙ Status</button>
+          <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" title="Snooze…" onclick="_externalSnoozeMenu('${_jsAttr(et.source)}','${_jsAttr(et.externalId)}',event)">⏰</button>
+          <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" title="Annotate (note, tags, override priority/due)" onclick="_openExternalAnnotateModal('${_jsAttr(et.source)}','${_jsAttr(et.externalId)}')">✎</button>
           <a ${_extOpenAttrs(url)} class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px;display:inline-flex;align-items:center;text-decoration:none">↗ Open</a>
         </div>
       </div>`;
@@ -4611,8 +4611,8 @@ function renderTaskMatrix(){
             ${t.status?`<span style="font-size:11px;color:var(--t3)">${esc(t.status)}</span>`:''}
             ${t.projectLabel?`<span style="font-size:11px;color:var(--t3)">${_icon('folder',12,'currentColor')} ${esc(t.projectLabel)}</span>`:''}
             ${_extAnnotationChips(t.override)}
-            <button class="btn btn-s" style="height:16px;font-size:9px;padding:0 4px;margin-left:auto" title="Annotate" onclick="_openExternalAnnotateModal('${t.source}','${esc(t.externalId)}')">✎</button>
-            <button class="btn btn-s" style="height:16px;font-size:9px;padding:0 4px" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="_toggleExternalMyDay('${t.source}','${esc(t.externalId)}',${myDay?0:1})">${myDay?'☀':'+☀'}</button>
+            <button class="btn btn-s" style="height:16px;font-size:9px;padding:0 4px;margin-left:auto" title="Annotate" onclick="_openExternalAnnotateModal('${_jsAttr(t.source)}','${_jsAttr(t.externalId)}')">✎</button>
+            <button class="btn btn-s" style="height:16px;font-size:9px;padding:0 4px" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="_toggleExternalMyDay('${_jsAttr(t.source)}','${_jsAttr(t.externalId)}',${myDay?0:1})">${myDay?'☀':'+☀'}</button>
           </div>
         </div>`;
       }
@@ -4635,8 +4635,8 @@ function renderTaskMatrix(){
       </div>
       <div style="max-height:340px;overflow-y:auto;min-height:60px">${cards||`<div style="font-size:11px;color:var(--t3);text-align:center;padding:18px;border:1px dashed var(--bd1);border-radius:6px">Drop tasks here</div>`}</div>
       <div class="mtx-add" style="display:flex;gap:4px;margin-top:8px">
-        <input class="inp" data-mtx-add="${k}" placeholder="＋ Add a task to ${esc(q.label)}…" style="flex:1;height:26px;font-size:11px" onkeydown="if(event.key==='Enter'){event.preventDefault();_mtxAddTask('${k}',this)}" onclick="event.stopPropagation()">
-        <button class="btn btn-s" style="height:26px;font-size:11px;padding:0 8px;white-space:nowrap" title="Add a task that lands in this quadrant" onclick="event.stopPropagation();_mtxAddTask('${k}',this.previousElementSibling)">Add</button>
+        <input class="inp" data-mtx-add="${k}" placeholder="＋ Add a task to ${esc(q.label)}…" style="flex:1;height:26px;font-size:11px" onkeydown="if(event.key==='Enter'){event.preventDefault();_mtxAddTask('${_jsAttr(k)}',this)}" onclick="event.stopPropagation()">
+        <button class="btn btn-s" style="height:26px;font-size:11px;padding:0 8px;white-space:nowrap" title="Add a task that lands in this quadrant" onclick="event.stopPropagation();_mtxAddTask('${_jsAttr(k)}',this.previousElementSibling)">Add</button>
       </div>
     </div>`;
   }).join('');
@@ -4778,7 +4778,7 @@ function renderTaskGantt(){
     // Today marker offset
     const todayOffset=Math.round((today-minDate)/(1000*60*60*24));
     const isExt=t._source&&t._source!=='local';
-    const titleClickHandler=isExt?(t._url&&/^https?:\/\//i.test(t._url)?`window.open('${esc(t._url)}','_blank','noopener')`:`_openExternalAnnotateModal('${esc(t._source)}','${esc(t._externalId)}')`):`openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))`;
+    const titleClickHandler=isExt?(t._url&&/^https?:\/\//i.test(t._url)?`_luOpenUrl('${_jsAttr(t._url)}')`:`_openExternalAnnotateModal('${_jsAttr(t._source)}','${_jsAttr(t._externalId)}')`):`openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))`;
     const barStyle=isExt?`background:transparent;border:2px dashed ${barColor};color:${barColor}`:`background:${barColor};color:#fff`;
     return `<div style="display:flex;align-items:center;border-bottom:1px solid var(--bd1);min-height:32px">
       <div style="width:200px;min-width:200px;padding:0 8px;font-size:11px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer" onclick="${titleClickHandler}" title="${esc(t.title)}${isExt?' (opens in source)':''}">
@@ -4995,7 +4995,7 @@ function renderTaskCalendar(){
     const items=byDay[k]||[];
     const dim=c.inMonth?1:.4;
     const bg=isToday?'rgba(99,102,241,0.10)':'transparent';
-    return `<div style="border-right:1px solid var(--bd1);border-bottom:1px solid var(--bd1);padding:4px 6px;opacity:${dim};background:${bg};min-height:96px;cursor:pointer" onclick="openFA('task');setTimeout(()=>{const i=document.getElementById('fa-due');if(i)i.value='${k}';},50)">
+    return `<div style="border-right:1px solid var(--bd1);border-bottom:1px solid var(--bd1);padding:4px 6px;opacity:${dim};background:${bg};min-height:96px;cursor:pointer" onclick="openFA('task');setTimeout(()=>{const i=document.getElementById('fa-due');if(i)i.value='${_jsAttr(k)}';},50)">
       <div style="font-size:11px;color:${isToday?'var(--ac)':'var(--t2)'};font-weight:${isToday?'700':'500'};margin-bottom:2px">${c.date.getDate()}</div>
       ${items.slice(0,4).map(t=>{
         if(t._source&&t._source!=='local'){
@@ -5218,7 +5218,7 @@ function renderTaskClusters(){
     const progressTextColor=pct===100?'#22c55e':'var(--t3)';
     // #6 fix — left accent stripe + drop target for #5 drag-to-reassign
     return `<div class="cl-card" data-cluster-id="${cl.id}" style="background:var(--s2);border:1px solid var(--bd1);border-left:4px solid ${accent};border-radius:10px;margin-bottom:10px;overflow:hidden;transition:box-shadow .12s,background .12s" ondragover="_clusterDragOver(event,${cl.id})" ondragleave="_clusterDragLeave(event)" ondrop="_clusterDrop(event,${cl.id})">
-      <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;user-select:none" onclick="_clusterCollapsed['${cl.id}']=!_clusterCollapsed['${cl.id}'];renderTaskClusters()">
+      <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;user-select:none" onclick="_clusterCollapsed['${_jsAttr(cl.id)}']=!_clusterCollapsed['${_jsAttr(cl.id)}'];renderTaskClusters()">
         <span style="font-size:14px;color:var(--t2);transition:transform .2s;display:inline-block;transform:rotate(${collapsed?'-90':'0'}deg);width:14px;text-align:center;flex-shrink:0">▾</span>
         <div style="width:28px;height:28px;border-radius:6px;background:${accent}22;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${cl.icon||'📁'}</div>
         <div style="flex:1;min-width:0">
@@ -5321,16 +5321,16 @@ function _renderExternalClusterCards(){
         ${hierBadge}<span style="flex:0 0 auto">${_extSourceBadge(t.source)}</span>
         <a ${_extOpenAttrs(url)} title="Open in ${src.key==='smartsheet'?'Smartsheet':'NiftyPM'}" style="flex:1;font-size:12px;font-weight:${depth?400:500};color:var(--t1);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</a>
         ${_extAnnotationChips(t.override)}
-        ${t.status?`<span style="font-size:11px;padding:2px 6px;border-radius:3px;background:var(--s3);color:var(--t2);font-weight:600;flex-shrink:0;cursor:pointer" title="Click to change status in source" onclick="_externalSetStatus('${t.source}','${esc(t.externalId)}',event)">${esc(t.status)}</span>`:`<button class="btn btn-s" style="height:20px;font-size:10px;padding:0 6px;flex-shrink:0" title="Set status…" onclick="_externalSetStatus('${t.source}','${esc(t.externalId)}',event)">⚙ Status</button>`}
-        <button class="btn btn-s" style="height:20px;font-size:10px;padding:0 6px;flex-shrink:0" title="Snooze…" onclick="_externalSnoozeMenu('${t.source}','${esc(t.externalId)}',event)">⏰</button>
-        <button class="btn btn-s" style="height:20px;font-size:10px;padding:0 6px;flex-shrink:0" title="Annotate" onclick="_openExternalAnnotateModal('${t.source}','${esc(t.externalId)}')">✎</button>
-        <button class="btn btn-s" style="height:20px;font-size:10px;padding:0 6px;flex-shrink:0" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="_toggleExternalMyDay('${t.source}','${esc(t.externalId)}',${myDay?0:1})">${myDay?'☀':'+☀'}</button>
+        ${t.status?`<span style="font-size:11px;padding:2px 6px;border-radius:3px;background:var(--s3);color:var(--t2);font-weight:600;flex-shrink:0;cursor:pointer" title="Click to change status in source" onclick="_externalSetStatus('${_jsAttr(t.source)}','${_jsAttr(t.externalId)}',event)">${esc(t.status)}</span>`:`<button class="btn btn-s" style="height:20px;font-size:10px;padding:0 6px;flex-shrink:0" title="Set status…" onclick="_externalSetStatus('${_jsAttr(t.source)}','${_jsAttr(t.externalId)}',event)">⚙ Status</button>`}
+        <button class="btn btn-s" style="height:20px;font-size:10px;padding:0 6px;flex-shrink:0" title="Snooze…" onclick="_externalSnoozeMenu('${_jsAttr(t.source)}','${_jsAttr(t.externalId)}',event)">⏰</button>
+        <button class="btn btn-s" style="height:20px;font-size:10px;padding:0 6px;flex-shrink:0" title="Annotate" onclick="_openExternalAnnotateModal('${_jsAttr(t.source)}','${_jsAttr(t.externalId)}')">✎</button>
+        <button class="btn btn-s" style="height:20px;font-size:10px;padding:0 6px;flex-shrink:0" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="_toggleExternalMyDay('${_jsAttr(t.source)}','${_jsAttr(t.externalId)}',${myDay?0:1})">${myDay?'☀':'+☀'}</button>
         <span style="font-size:11px;${overdueRow?'color:var(--red);font-weight:600':'color:var(--t3)'};min-width:64px;text-align:right;flex-shrink:0">${dueLabel}</span>
       </div>`;
     }).join('');
     const tooMany=open.length>40?`<div style="padding:8px 14px 8px 56px;font-size:11px;color:var(--t3);border-top:1px solid var(--bd1);font-style:italic">… and ${open.length-40} more. Open the source to see all.</div>`:'';
     return `<div class="cl-card" style="background:var(--s2);border:1px solid var(--bd1);border-left:4px solid ${src.accent};border-radius:10px;margin-bottom:10px;overflow:hidden">
-      <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;user-select:none" onclick="_clusterCollapsed['${collapseKey}']=!_clusterCollapsed['${collapseKey}'];renderTaskClusters()">
+      <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;user-select:none" onclick="_clusterCollapsed['${_jsAttr(collapseKey)}']=!_clusterCollapsed['${_jsAttr(collapseKey)}'];renderTaskClusters()">
         <span style="font-size:14px;color:var(--t2);transition:transform .2s;display:inline-block;transform:rotate(${collapsed?'-90':'0'}deg);width:14px;text-align:center;flex-shrink:0">▾</span>
         <div style="width:28px;height:28px;border-radius:6px;background:${src.accent}22;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${src.icon}</div>
         <div style="flex:1;min-width:0">
@@ -5618,12 +5618,12 @@ function openTaskRailCustomize(){
     <p style="font-size:11px;color:var(--t3);margin-bottom:14px">Toggle visibility and reorder widgets. Saves automatically.</p>
     ${prefs.map(p=>{const def=_taskRailDefs.find(d=>d.id===p.id);return def?`<div style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--s2);border:1px solid var(--bd1);border-radius:6px;margin-bottom:4px">
       <div style="display:flex;flex-direction:column;gap:1px">
-        <button class="btn btn-s" style="height:16px;width:20px;padding:0;font-size:10px" onclick="taskRailMove('${p.id}',-1)">↑</button>
-        <button class="btn btn-s" style="height:16px;width:20px;padding:0;font-size:10px" onclick="taskRailMove('${p.id}',1)">↓</button>
+        <button class="btn btn-s" style="height:16px;width:20px;padding:0;font-size:10px" onclick="taskRailMove('${_jsAttr(p.id)}',-1)">↑</button>
+        <button class="btn btn-s" style="height:16px;width:20px;padding:0;font-size:10px" onclick="taskRailMove('${_jsAttr(p.id)}',1)">↓</button>
       </div>
       <span style="flex:1;font-size:12px">${def.label}</span>
       <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px">
-        <input type="checkbox" ${p.visible?'checked':''} onchange="taskRailToggle('${p.id}',this.checked)">Show
+        <input type="checkbox" ${p.visible?'checked':''} onchange="taskRailToggle('${_jsAttr(p.id)}',this.checked)">Show
       </label>
     </div>`:'';}).join('')}
     <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn btn-s" onclick="closeModal()">Done</button></div>
@@ -5707,7 +5707,7 @@ function renderTaskRailHTML(){
       const freq={};allTasks.forEach(t=>(t.tags||[]).forEach(tag=>{freq[tag]=(freq[tag]||0)+1;}));
       const arr=Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,15);
       const max=arr.length?arr[0][1]:1;const min=arr.length?arr[arr.length-1][1]:1;const range=Math.max(max-min,1);
-      const body=arr.length?arr.map(([t,c])=>{const sz=Math.round(9+(c-min)/range*4);return `<span style="display:inline-block;padding:2px 7px;margin:2px 3px 2px 0;background:var(--s3);border-radius:10px;font-size:${sz}px;color:var(--ac);cursor:pointer" onclick="toast('Tag: ${esc(t)} (${c})')">#${esc(t)}</span>`;}).join(''):'<div style="font-size:11px;color:var(--t3)">No tags yet.</div>';
+      const body=arr.length?arr.map(([t,c])=>{const sz=Math.round(9+(c-min)/range*4);return `<span style="display:inline-block;padding:2px 7px;margin:2px 3px 2px 0;background:var(--s3);border-radius:10px;font-size:${sz}px;color:var(--ac);cursor:pointer" onclick="toast('Tag: ${_jsAttr(t)} (${c})')">#${esc(t)}</span>`;}).join(''):'<div style="font-size:11px;color:var(--t3)">No tags yet.</div>';
       return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:6px">${_icon('tag',14,'currentColor')} Top Tags</div>${body}</div>`;
     })(),
     recentActivity:(()=>{
@@ -5790,10 +5790,10 @@ function _renderExternalTasksRailWidget(){
       <a ${_extOpenAttrs(url)} title="Open in ${t.source==='smartsheet'?'Smartsheet':'NiftyPM'}" style="flex:1;color:var(--t1);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</a>
       ${_extAnnotationChips(t.override)}
       <span style="color:${overdue?'var(--red)':'var(--t3)'};white-space:nowrap;font-size:11px">${dueLabel}</span>
-      <button class="btn btn-s" style="height:18px;font-size:10px;padding:0 4px" title="Set status in source" onclick="_externalSetStatus('${t.source}','${esc(t.externalId)}',event)">⚙</button>
-      <button class="btn btn-s" style="height:18px;font-size:10px;padding:0 4px" title="Snooze…" onclick="_externalSnoozeMenu('${t.source}','${esc(t.externalId)}',event)">⏰</button>
-      <button class="btn btn-s" style="height:18px;font-size:10px;padding:0 4px" title="Annotate" onclick="_openExternalAnnotateModal('${t.source}','${esc(t.externalId)}')">✎</button>
-      <button class="btn btn-s" style="height:18px;font-size:10px;padding:0 4px" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="_toggleExternalMyDay('${t.source}','${esc(t.externalId)}',${myDay?0:1})">${myDay?'☀':'+☀'}</button>
+      <button class="btn btn-s" style="height:18px;font-size:10px;padding:0 4px" title="Set status in source" onclick="_externalSetStatus('${_jsAttr(t.source)}','${_jsAttr(t.externalId)}',event)">⚙</button>
+      <button class="btn btn-s" style="height:18px;font-size:10px;padding:0 4px" title="Snooze…" onclick="_externalSnoozeMenu('${_jsAttr(t.source)}','${_jsAttr(t.externalId)}',event)">⏰</button>
+      <button class="btn btn-s" style="height:18px;font-size:10px;padding:0 4px" title="Annotate" onclick="_openExternalAnnotateModal('${_jsAttr(t.source)}','${_jsAttr(t.externalId)}')">✎</button>
+      <button class="btn btn-s" style="height:18px;font-size:10px;padding:0 4px" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="_toggleExternalMyDay('${_jsAttr(t.source)}','${_jsAttr(t.externalId)}',${myDay?0:1})">${myDay?'☀':'+☀'}</button>
     </div>`;
   }).join('');
   const counts={
@@ -6209,7 +6209,7 @@ function _openExternalAnnotateModal(source,externalId){
       const parent=(D.externalTasks||[]).find(x=>x.externalId===pid&&x.source===source);
       if(!parent)return '';
       return `<div style="padding:6px 8px;background:rgba(99,102,241,.10);border:1px solid rgba(99,102,241,.30);border-radius:4px;margin-bottom:8px;font-size:11px">
-        ↳ <strong>Subtask</strong> of <a href="javascript:void(0)" onclick="closeModal();setTimeout(()=>_openExternalAnnotateModal('${source}','${esc(pid)}'),50)" style="color:var(--ac);text-decoration:none">${esc(parent.title||'(untitled parent)')}</a>
+        ↳ <strong>Subtask</strong> of <a href="javascript:void(0)" onclick="closeModal();setTimeout(()=>_openExternalAnnotateModal('${_jsAttr(source)}','${_jsAttr(pid)}'),50)" style="color:var(--ac);text-decoration:none">${esc(parent.title||'(untitled parent)')}</a>
       </div>`;
     })()}
     <!-- Top action row: completion toggle pushes to source; Hide in
@@ -6217,8 +6217,8 @@ function _openExternalAnnotateModal(source,externalId){
          source rejects or doesn't accept the change). -->
     <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
       ${et.status==='Done'
-        ?`<button class="btn" style="font-size:11px;height:28px;background:#1e40af;color:#fff;border-color:#1e3a8a" onclick="_extToggleCompleted('${source}','${esc(externalId)}',false)" title="Reopen this task in ${sourceLabel}.">↺ Reopen in ${sourceLabel}</button>`
-        :`<button class="btn btn-p" style="font-size:11px;height:28px;background:#16a34a;border-color:#15803d" onclick="_extToggleCompleted('${source}','${esc(externalId)}',true)" title="Mark this task done in ${sourceLabel}.">✓ Mark Done in ${sourceLabel}</button>`}
+        ?`<button class="btn" style="font-size:11px;height:28px;background:#1e40af;color:#fff;border-color:#1e3a8a" onclick="_extToggleCompleted('${_jsAttr(source)}','${_jsAttr(externalId)}',false)" title="Reopen this task in ${sourceLabel}.">↺ Reopen in ${sourceLabel}</button>`
+        :`<button class="btn btn-p" style="font-size:11px;height:28px;background:#16a34a;border-color:#15803d" onclick="_extToggleCompleted('${_jsAttr(source)}','${_jsAttr(externalId)}',true)" title="Mark this task done in ${sourceLabel}.">✓ Mark Done in ${sourceLabel}</button>`}
       <button class="btn" style="font-size:11px;height:28px;background:#7c2d12;color:#fff;border-color:#5b2010" onclick="_extHideFromModal(${et.id||'null'})" title="Hide this row in LevelUp without touching the source.">🚫 Hide in LevelUp</button>
     </div>
     <div style="font-size:11px;color:var(--t3);margin-bottom:8px;padding:6px;background:var(--s3);border-radius:4px">Local annotations below are <strong>your personal overlay</strong> — they don't write back to ${sourceLabel}. Source fields (title, status, due, assignee) stay authoritative.</div>
@@ -6251,10 +6251,10 @@ function _openExternalAnnotateModal(source,externalId){
       <textarea id="ext-ann-note" class="inp" style="width:100%;font-size:11px;min-height:80px;resize:vertical;font-family:inherit" placeholder="Why this matters, what you're waiting on, who you talked to…">${esc(ov.localNote||'')}</textarea>
     </div>
     <div style="display:flex;gap:6px;justify-content:space-between;align-items:center">
-      <button class="btn" style="font-size:11px" onclick="_clearExternalAnnotations('${source}','${esc(externalId)}')" title="Clear all overrides (keeps My Day flag)">Clear overrides</button>
+      <button class="btn" style="font-size:11px" onclick="_clearExternalAnnotations('${_jsAttr(source)}','${_jsAttr(externalId)}')" title="Clear all overrides (keeps My Day flag)">Clear overrides</button>
       <div style="display:flex;gap:6px">
         <button class="btn" onclick="closeModal()">Cancel</button>
-        <button class="btn btn-p" onclick="_saveExternalAnnotations('${source}','${esc(externalId)}')">Save</button>
+        <button class="btn btn-p" onclick="_saveExternalAnnotations('${_jsAttr(source)}','${_jsAttr(externalId)}')">Save</button>
       </div>
     </div>
   </div>`;
@@ -6421,9 +6421,9 @@ function renderTasks(){
     // If the current view is in overflow, surface it inline so the user sees it active
     const cur=[...visible,...overflow].find(v=>v.k===_taskView);
     const inOverflow=overflow.some(v=>v.k===_taskView);
-    const seg=visible.map(v=>{const isOn=_taskView===v.k;return `<button id="tasks-view-${v.k}" class="btn" title="${v.label} view" style="border-radius:0;height:28px;width:36px;padding:0;font-size:14px;background:${isOn?'var(--ac)':'transparent'};color:${isOn?'#fff':'var(--t2)'};border:none" onclick="setTaskView('${v.k}')">${v.icon}</button>`;}).join('');
+    const seg=visible.map(v=>{const isOn=_taskView===v.k;return `<button id="tasks-view-${v.k}" class="btn" title="${v.label} view" style="border-radius:0;height:28px;width:36px;padding:0;font-size:14px;background:${isOn?'var(--ac)':'transparent'};color:${isOn?'#fff':'var(--t2)'};border:none" onclick="setTaskView('${_jsAttr(v.k)}')">${v.icon}</button>`;}).join('');
     const moreLabel=inOverflow?`${cur.icon} ${cur.label} ▾`:'⋯ More ▾';
-    return `<div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden">${seg}</div><div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:11px;padding:0 8px;background:${inOverflow?'var(--ac)':''};color:${inOverflow?'#fff':''}" onclick="event.stopPropagation();togglePopMenu('tasks-more-views')">${moreLabel}</button><div id="tasks-more-views" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:140px;box-shadow:0 4px 16px rgba(0,0,0,.35)">${overflow.map(v=>`<button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;background:transparent;border:none;text-align:left;color:${_taskView===v.k?'var(--ac)':'var(--t1)'}" onclick="closePopMenu('tasks-more-views');setTaskView('${v.k}')">${v.icon} ${v.label}${_taskView===v.k?' ✓':''}</button>`).join('')}</div></div>`;
+    return `<div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden">${seg}</div><div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:11px;padding:0 8px;background:${inOverflow?'var(--ac)':''};color:${inOverflow?'#fff':''}" onclick="event.stopPropagation();togglePopMenu('tasks-more-views')">${moreLabel}</button><div id="tasks-more-views" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:140px;box-shadow:0 4px 16px rgba(0,0,0,.35)">${overflow.map(v=>`<button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;background:transparent;border:none;text-align:left;color:${_taskView===v.k?'var(--ac)':'var(--t1)'}" onclick="closePopMenu('tasks-more-views');setTaskView('${_jsAttr(v.k)}')">${v.icon} ${v.label}${_taskView===v.k?' ✓':''}</button>`).join('')}</div></div>`;
   })()}<div style="position:relative;display:inline-block"><button id="bulk-toggle-btn" class="btn btn-s" style="height:28px;font-size:11px" onclick="event.stopPropagation();toggleTaskAIMenu(event)" title="Tools menu">🛠 Tools ▾</button><div id="task-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();toggleBulkMode()">☑ Bulk Select Mode</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();window._syncDiagnose&&window._syncDiagnose()">🩺 Diagnose sync</button><div style="height:1px;background:var(--bd1);margin:4px 2px"></div><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();aiDecomposeGoal()">🧩 Decompose Goal</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--red);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();aiDeadlineRisk()">⚠️ Risk Check</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();aiAutoPriority()">✨ Auto-Priority</button><div style="height:1px;background:var(--bd1);margin:4px 2px"></div><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();exportTasks('csv')">⬇ Export CSV</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();exportTasks('html')">📄 Export HTML (Word-ready)</button></div></div><button class="btn btn-p" onclick="openFA('task')">+ Full Add Task</button></div></div>
   <div id="bulk-action-bar" style="display:none;align-items:center;gap:6px;padding:6px 0;margin-bottom:6px;background:var(--acs);border:1px solid var(--ac);border-radius:6px;padding:6px 10px">
     <span id="bulk-count" style="font-size:11px;color:var(--ac);font-weight:600;flex:1">0 selected</span>

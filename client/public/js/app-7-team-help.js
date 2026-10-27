@@ -110,9 +110,9 @@ function renderTeam(){
       ${dailyHabits.length?`<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:600;margin-bottom:4px">✅ Habits Today: ${habitsDone}/${dailyHabits.length}</div><div style="background:var(--s3);border-radius:3px;height:5px"><div style="background:var(--ok);height:100%;width:${dailyHabits.length?Math.round(habitsDone/dailyHabits.length*100):0}%;border-radius:3px"></div></div></div>`:''}
       ${avgGoalPct!==null?`<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:600;margin-bottom:4px">🎯 Goals Avg: ${avgGoalPct}%</div><div class="pb"><div class="f" style="width:${avgGoalPct}%;background:var(--ac)"></div></div></div>`:''}
       <div style="font-size:11px;font-weight:600;margin-bottom:4px">📋 Active Tasks</div>
-      ${tasks.filter(t=>t.status!=='Done').slice(0,3).map(t=>`<div class="lr" style="padding:2px 0;font-size:11px" onclick="${t._shared?`_openSharedTaskView(${Number(t._idx)||0})`:`openDrawer('task',D.tasks.find(x=>x.id===${typeof t.id==='number'?t.id:JSON.stringify(String(t.id))}))`}"><div class="chk ${t.status==='Done'?'on':''}"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span></div>`).join('') || '<div style="font-size:11px;color:var(--t3);padding:4px 0">No active tasks</div>'}
+      ${tasks.filter(t=>t.status!=='Done').slice(0,3).map(t=>`<div class="lr" style="padding:2px 0;font-size:11px" onclick="${t._shared?`_openSharedTaskView(${Number(t._idx)||0})`:`openDrawer('task',D.tasks.find(x=>String(x.id)===String(${_tidLit(t.id)})))`}"><div class="chk ${t.status==='Done'?'on':''}"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span></div>`).join('') || '<div style="font-size:11px;color:var(--t3);padding:4px 0">No active tasks</div>'}
       ${memberFeedData.length?`<div style="margin-top:10px"><div style="font-size:11px;font-weight:600;margin-bottom:4px">🕐 Recent Activity</div>${memberFeedData.slice(0,3).map(a=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11px;color:var(--t2)"><span>${getActionIcon(a.action)}</span><span style="flex:1">${getActionLabel(a.action)}${a.entityTitle?' — '+esc(a.entityTitle):''}</span><span style="font-size:11px;color:var(--t3);white-space:nowrap">${timeAgo(a.createdAt)}</span></div>`).join('')}</div>`:''}
-      ${isAdminOrOwner&&m.userId?`<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd1);display:flex;justify-content:flex-end"><button class="btn btn-s" style="height:24px;font-size:11px;color:var(--red);border-color:var(--red)" onclick="deleteTeamMember(${m.userId},'${esc(m.name||'this member')}')">🗑 Remove</button></div>`:''}
+      ${isAdminOrOwner&&m.userId?`<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd1);display:flex;justify-content:flex-end"><button class="btn btn-s" style="height:24px;font-size:11px;color:var(--red);border-color:var(--red)" onclick="deleteTeamMember(${m.userId},'${_jsAttr(m.name||'this member')}')">🗑 Remove</button></div>`:''}
     </div>`;
   }
   const teamName=D.teams[0]?D.teams[0].name:'Team';
@@ -325,7 +325,7 @@ async function loadInviteList(){
         :'<span class="pill" style="background:var(--acs);color:var(--ac);font-size:11px">Pending</span>';
       const inviteUrl=inv.inviteUrl||(window.location.origin+'/invite/'+inv.token);
       const actions=inv.accepted?''
-        :`<button class="btn btn-s" style="height:22px;font-size:11px" onclick="copyInviteLink('${inv.token}')" title="Copy invite link">📋 Copy Link</button>
+        :`<button class="btn btn-s" style="height:22px;font-size:11px" onclick="copyInviteLink('${_jsAttr(inv.token)}')" title="Copy invite link">📋 Copy Link</button>
           <button class="btn btn-s" style="height:22px;font-size:11px" onclick="resendInvite(${inv.id})" title="Regenerate token and extend expiry">🔄 Resend</button>
           <button class="btn btn-s" style="height:22px;font-size:11px;color:var(--red)" onclick="revokeInvite(${inv.id})" title="Revoke invite">🗑️ Revoke</button>`;
       return`<div class="lr" style="padding:8px 0;border-bottom:1px solid var(--bd1);gap:8px;flex-wrap:wrap">
@@ -1075,7 +1075,7 @@ function renderHelp(){
 
   <!-- Tabs -->
   <div style="display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--br);padding-bottom:0">
-    ${['browse','ask','tours','builder','insights'].map(t=>`<button onclick="_helpTab='${t}';renderHelp()" style="padding:8px 16px;border:none;background:none;cursor:pointer;font-size:12px;font-weight:600;color:${_helpTab===t?'var(--ac)':'var(--t3)'};border-bottom:2px solid ${_helpTab===t?'var(--ac)':'transparent'};margin-bottom:-1px">${t==='browse'?'📚 Browse':t==='ask'?'🤖 Ask AI':t==='tours'?'🎯 Guided Tours':t==='builder'?'🔧 Tour Builder':'📊 Insights'}</button>`).join('')}
+    ${['browse','ask','tours','builder','insights'].map(t=>`<button onclick="_helpTab='${_jsAttr(t)}';renderHelp()" style="padding:8px 16px;border:none;background:none;cursor:pointer;font-size:12px;font-weight:600;color:${_helpTab===t?'var(--ac)':'var(--t3)'};border-bottom:2px solid ${_helpTab===t?'var(--ac)':'transparent'};margin-bottom:-1px">${t==='browse'?'📚 Browse':t==='ask'?'🤖 Ask AI':t==='tours'?'🎯 Guided Tours':t==='builder'?'🔧 Tour Builder':'📊 Insights'}</button>`).join('')}
   </div>
 
   ${_helpTab==='browse'?renderHelpBrowseTab(articles,q):

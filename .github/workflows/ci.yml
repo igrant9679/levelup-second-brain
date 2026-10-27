@@ -70,6 +70,7 @@ jobs:
 
       - name: Guards
         run: |
+          pnpm check:handlers
           pnpm check:mobile-nav
           pnpm check:ai-prompt
           pnpm check:ai-knowledge

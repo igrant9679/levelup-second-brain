@@ -476,9 +476,9 @@ function _renderNotesBacklinkRail(id){
   h+=`<div style="height:1px;background:var(--bd1);margin:18px 0"></div>
   <div class="rail-sec">✦ Unlinked mentions <span class="n ${um.length?'':'dim'}">${um.length}</span></div>
   <div class="rail-note">Notes that name this one without linking.</div>`;
-  const tt=((D.notes.find(n=>n.id===id)||{}).title||'').replace(/'/g,"\\'");
+  const tt=((D.notes.find(n=>n.id===id)||{}).title||''); // escaped where it is used (_jsAttr)
   h+= um.length
-    ? um.map(u=>`<div class="bl-um"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📄 ${esc(u.title)}</span><span class="lk" onclick="event.stopPropagation();linkUnlinkedMention(${u.id},'${tt}')">+ Link</span></div>`).join('')
+    ? um.map(u=>`<div class="bl-um"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📄 ${esc(u.title)}</span><span class="lk" onclick="event.stopPropagation();linkUnlinkedMention(${u.id},'${_jsAttr(tt)}')">+ Link</span></div>`).join('')
     : `<div class="rail-note" style="font-style:italic">No unlinked mentions.</div>`;
   return h;
 }
@@ -724,7 +724,7 @@ function setNoteType(id,t){
   if(typeof showNoteInEditor==='function'&&_noteInlineEditId!==id)showNoteInEditor(id);
 }
 function _noteStatusPickerHTML(id,cur){
-  return _NOTE_STATUSES.map(s=>`<div class="nsp-i" onclick="event.stopPropagation();setNoteStatus(${id},'${s.id}');closePopMenu('nsp-${id}')" style="display:flex;align-items:center;gap:8px;padding:6px 9px;cursor:pointer;border-radius:6px;font-size:11px;${cur===s.id?'background:var(--acs)':''}"><span style="font-size:13px">${s.icon}</span><div style="flex:1"><div style="font-weight:600;color:${s.color}">${s.label}</div><div style="font-size:11px;color:var(--t3)">${s.hint}</div></div>${cur===s.id?'<span style="color:var(--ac)">✓</span>':''}</div>`).join('');
+  return _NOTE_STATUSES.map(s=>`<div class="nsp-i" onclick="event.stopPropagation();setNoteStatus(${id},'${_jsAttr(s.id)}');closePopMenu('nsp-${id}')" style="display:flex;align-items:center;gap:8px;padding:6px 9px;cursor:pointer;border-radius:6px;font-size:11px;${cur===s.id?'background:var(--acs)':''}"><span style="font-size:13px">${s.icon}</span><div style="flex:1"><div style="font-weight:600;color:${s.color}">${s.label}</div><div style="font-size:11px;color:var(--t3)">${s.hint}</div></div>${cur===s.id?'<span style="color:var(--ac)">✓</span>':''}</div>`).join('');
 }
 // Extract the first inline image URL from a note's body (markdown or HTML).
 // Returns '' if no image is present.
@@ -1835,16 +1835,16 @@ function renderNotes(){
   // Populate Notes nav panel
   const nav=$('notes-nav-panel');
   // Collapsible section headings (state persists in D.prefs.notesNavCollapsed)
-  const _nnHead=(key,label)=>`<div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px;cursor:pointer;user-select:none;display:flex;align-items:center;gap:4px" onclick="_toggleNotesNavSec('${key}')" title="Click to ${_nnc(key)?'expand':'collapse'}"><span style="font-size:11px">${_nnc(key)?'▸':'▾'}</span>${label}</div>`;
+  const _nnHead=(key,label)=>`<div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px;cursor:pointer;user-select:none;display:flex;align-items:center;gap:4px" onclick="_toggleNotesNavSec('${_jsAttr(key)}')" title="Click to ${_nnc(key)?'expand':'collapse'}"><span style="font-size:11px">${_nnc(key)?'▸':'▾'}</span>${label}</div>`;
   nav.innerHTML=`<div style="font-size:13px;font-weight:600;margin-bottom:10px;padding:0 4px">Notes</div>
-  ${['Recent','Favorites','Web Clips','Meeting Notes','Journal','Resources'].map((n,i)=>`<div class="nn ${i===0&&!_notesFilterStatus?'on':''}" onclick="filterNotesByCategory('${n}',this)">${n}</div>`).join('')}
+  ${['Recent','Favorites','Web Clips','Meeting Notes','Journal','Resources'].map((n,i)=>`<div class="nn ${i===0&&!_notesFilterStatus?'on':''}" onclick="filterNotesByCategory('${_jsAttr(n)}',this)">${n}</div>`).join('')}
   ${_nnHead('lifecycle','Lifecycle')}
   ${_nnc('lifecycle')?'':(()=>{
     const _u=D.notes.filter(n=>!n.folderId);
     return _NOTE_STATUSES.map(s=>{
       const c=_u.filter(n=>_noteStatus(n)===s.id).length;
       const on=_notesFilterStatus===s.id;
-      return `<div class="nn ${on?'on':''}" onclick="filterNotesByStatus('${s.id}')" style="display:flex;align-items:center;gap:6px" title="${esc(s.hint)}"><span style="color:${s.color}">${s.icon}</span> ${s.label}<span style="margin-left:auto;font-size:11px;color:var(--t3)">${c}</span></div>`;
+      return `<div class="nn ${on?'on':''}" onclick="filterNotesByStatus('${_jsAttr(s.id)}')" style="display:flex;align-items:center;gap:6px" title="${esc(s.hint)}"><span style="color:${s.color}">${s.icon}</span> ${s.label}<span style="margin-left:auto;font-size:11px;color:var(--t3)">${c}</span></div>`;
     }).join('');
   })()}
   ${_nnHead('smart','Smart Folders')}
@@ -1882,7 +1882,7 @@ function renderNotes(){
       {icon:'⭐',label:'Most-linked',count:mostLinked,filter:'smart_mostlinked'},
       {icon:'🧹',label:'Stale (>90d)',count:staleNotes,filter:'smart_stale'},
     ];
-    return smartFolders.map(sf=>`<div class="nn" onclick="filterNotesBySmart('${sf.filter}',this)" style="display:flex;align-items:center;gap:5px">${sf.icon} ${sf.label}<span style="margin-left:auto;font-size:11px;color:var(--t3)">${sf.count}</span></div>`).join('');
+    return smartFolders.map(sf=>`<div class="nn" onclick="filterNotesBySmart('${_jsAttr(sf.filter)}',this)" style="display:flex;align-items:center;gap:5px">${sf.icon} ${sf.label}<span style="margin-left:auto;font-size:11px;color:var(--t3)">${sf.count}</span></div>`).join('');
   })()}
   <div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px;display:flex;align-items:center;justify-content:space-between">
     <span>${_icon('folder',12,'currentColor')} Folders</span>
@@ -2035,7 +2035,7 @@ function renderNotes(){
           const icons={'Manual':'✍','Meeting Notes':'📋','Web Clipper':'🔗','Template':'📄','OneNote Import':'📓','Markdown Import':'📥','Quick Capture':'⚡','AI':'🤖','PDF Import':'📕','Word Import':'📘','Document Import':'📄','Text Import':'📃'};
           const icon=icons[src]||'📝';
           const _on=_notesFilterSources.has(String(src).toLowerCase());
-          return `<span class="nf-src-chip" data-active="${_on?'1':''}" style="font-size:11px;padding:2px 7px;border-radius:10px;background:${_on?'var(--ac)':'var(--s3)'};color:${_on?'#fff':'var(--t2)'};cursor:pointer;border:1px solid var(--bd2)" onclick="toggleNotesFilterSource('${esc(src)}',this)">${icon} ${esc(src)}</span>`;
+          return `<span class="nf-src-chip" data-active="${_on?'1':''}" style="font-size:11px;padding:2px 7px;border-radius:10px;background:${_on?'var(--ac)':'var(--s3)'};color:${_on?'#fff':'var(--t2)'};cursor:pointer;border:1px solid var(--bd2)" onclick="toggleNotesFilterSource('${_jsAttr(src)}',this)">${icon} ${esc(src)}</span>`;
         }).join('')}
       </div>
     </div>
@@ -2046,7 +2046,7 @@ function renderNotes(){
         ${['today','week','month','year','custom'].map(p=>{
           const labels={today:'Today',week:'This week',month:'This month',year:'This year',custom:'Custom…'};
           const _on=_notesFilterDatePreset===p;
-          return `<button class="nf-date-btn btn btn-s" data-active="${_on?'1':''}" style="height:20px;font-size:10px;padding:0 7px;background:${_on?'var(--ac)':'var(--s3)'};color:${_on?'#fff':'var(--t2)'}" onclick="setNotesDatePreset('${p}',this)">${labels[p]}</button>`;
+          return `<button class="nf-date-btn btn btn-s" data-active="${_on?'1':''}" style="height:20px;font-size:10px;padding:0 7px;background:${_on?'var(--ac)':'var(--s3)'};color:${_on?'#fff':'var(--t2)'}" onclick="setNotesDatePreset('${_jsAttr(p)}',this)">${labels[p]}</button>`;
         }).join('')}
       </div>
       <div id="nf-custom-date-row" style="display:${_notesFilterDatePreset==='custom'?'flex':'none'};gap:4px;align-items:center">
@@ -2167,7 +2167,7 @@ function _renderNoteOutline(n,bodyHtml){
     const lvl=Number(h.tagName.slice(1));
     items.push({id,text:h.textContent.trim(),lvl});
   });
-  const tocLinks=items.map(it=>`<a class="lvl-${it.lvl}" onclick="document.getElementById('${it.id}')?.scrollIntoView({behavior:'smooth',block:'start'})">${esc(it.text||'(untitled section)')}</a>`).join('');
+  const tocLinks=items.map(it=>`<a class="lvl-${it.lvl}" onclick="document.getElementById('${_jsAttr(it.id)}')?.scrollIntoView({behavior:'smooth',block:'start'})">${esc(it.text||'(untitled section)')}</a>`).join('');
   return {
     toc:`<div class="note-toc"><div class="note-toc-h">📑 Outline · ${items.length} sections</div>${tocLinks}</div>`,
     htmlWithIds:luSanitizeHtml(tmp.innerHTML),
@@ -2428,7 +2428,7 @@ function renderNoteEditor(n){
   const created=n.createdAt?fmtNoteDate(n.createdAt):(typeof n.id==='number'&&n.id>1e9?fmtNoteDate(_pd(n.id).toISOString()):'');
   const colorDots=NOTE_COLOR_PALETTE.map(c=>{
     const sel=(n.color||'')===c.value;
-    return `<span class="ncp-dot ${c.value?'':'ncp-none'} ${sel?'selected':''}" style="${c.value?`background:${c.value}`:''}" title="${esc(c.name)}" onclick="setNoteColor(${_tidLit(n.id)},'${c.value}')"></span>`;
+    return `<span class="ncp-dot ${c.value?'':'ncp-none'} ${sel?'selected':''}" style="${c.value?`background:${c.value}`:''}" title="${esc(c.name)}" onclick="setNoteColor(${_tidLit(n.id)},'${_jsAttr(c.value)}')"></span>`;
   }).join('');
   return `<div class="note-doc"><button class="btn notes-mobile-back" onclick="setNotesMobilePane('list')" title="Back to notes list">← All Notes</button>
   <div class="note-toolbar" style="margin-bottom:14px">

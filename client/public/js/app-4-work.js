@@ -66,7 +66,7 @@ function renderCommandCenter(){
     const srcBadge=t.source==='smartsheet'?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#1f6feb;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">CF</span>':t.source==='nifty'?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#9333ea;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">LSI</span>':'';
     // Badge is clickable — drills into Tasks filtered to that kind + current hat.
     const kindMeta=kind==='overdue'?{e:'⚠',l:'overdue',c:'var(--red)'}:kind==='today'?{e:'📅',l:'today',c:'var(--warn)'}:{e:'💤',l:'stalled',c:'var(--t3)'};
-    const kindBadge=`<span style="color:${kindMeta.c};font-size:11px;font-weight:${kind==='stalled'?'400':'600'};cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px" onclick="event.stopPropagation();_ccDrillIntoKind('${kind}')" title="Click to see all ${kindMeta.l} tasks in the current hat">${kindMeta.e} ${kindMeta.l}</span>`;
+    const kindBadge=`<span style="color:${kindMeta.c};font-size:11px;font-weight:${kind==='stalled'?'400':'600'};cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px" onclick="event.stopPropagation();_ccDrillIntoKind('${_jsAttr(kind)}')" title="Click to see all ${kindMeta.l} tasks in the current hat">${kindMeta.e} ${kindMeta.l}</span>`;
     const dueDays=t.due?_daysUntil(t.due):null;
     const dueLabel=t.due?(dueDays===0?'today':dueDays<0?`${-dueDays}d ago`:`${dueDays}d`):'—';
     const extId=t._ext?t._ext.externalId:'';
@@ -128,7 +128,7 @@ function renderCommandCenter(){
   // Chip switcher
   const chip=(key,label,color)=>{
     const on=hat===key;
-    return `<button class="btn btn-s" onclick="setCcContext('${key}')" style="height:26px;padding:0 12px;font-size:11px;border:1px solid ${on?color:'var(--bd2)'};background:${on?color:'transparent'};color:${on?'#fff':'var(--t2)'};border-radius:13px;font-weight:${on?600:500}">${label}</button>`;
+    return `<button class="btn btn-s" onclick="setCcContext('${_jsAttr(key)}')" style="height:26px;padding:0 12px;font-size:11px;border:1px solid ${on?color:'var(--bd2)'};background:${on?color:'transparent'};color:${on?'#fff':'var(--t2)'};border-radius:13px;font-weight:${on?600:500}">${label}</button>`;
   };
 
   const cfCount=(Array.isArray(D.externalTasks)?D.externalTasks:[]).filter(t=>t.source==='smartsheet'&&!(t.override&&t.override.tombstoned)).length;
@@ -305,7 +305,7 @@ function renderStandup(){
     return lines.join('\n');
   };
   const hat=_ccHat();
-  const chip=(key,label,color)=>{const on=hat===key;return `<button class="btn btn-s" onclick="setCcContext('${key}');renderStandup()" style="height:24px;padding:0 10px;font-size:11px;border:1px solid ${on?color:'var(--bd2)'};background:${on?color:'transparent'};color:${on?'#fff':'var(--t2)'};border-radius:12px;font-weight:${on?600:500}">${label}</button>`;};
+  const chip=(key,label,color)=>{const on=hat===key;return `<button class="btn btn-s" onclick="setCcContext('${_jsAttr(key)}');renderStandup()" style="height:24px;padding:0 10px;font-size:11px;border:1px solid ${on?color:'var(--bd2)'};background:${on?color:'transparent'};color:${on?'#fff':'var(--t2)'};border-radius:12px;font-weight:${on?600:500}">${label}</button>`;};
   m.innerHTML=`<div class="ph-r" style="margin-bottom:14px;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap">
     <div>
       <h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('list',22,'var(--page-accent)')}Daily Standup</h1>
@@ -383,7 +383,7 @@ function renderPipeline(){
   const wonValue=won.reduce((s,o)=>s+(Number(o.value)||0),0);
   const winRate=(won.length+lost.length)?Math.round(won.length/(won.length+lost.length)*100):0;
   // View switcher
-  const viewBtn=(key,label)=>`<button class="btn btn-s" onclick="_pipelineView='${key}';renderPipeline()" style="${_pipelineView===key?'background:var(--ac);color:#fff;border-color:var(--ac)':''}">${label}</button>`;
+  const viewBtn=(key,label)=>`<button class="btn btn-s" onclick="_pipelineView='${_jsAttr(key)}';renderPipeline()" style="${_pipelineView===key?'background:var(--ac);color:#fff;border-color:var(--ac)':''}">${label}</button>`;
   const reportBtn=viewBtn('reports','📊 Reports');
   const header=`<div class="ph-r" style="margin-bottom:14px;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap">
     <div>
@@ -831,7 +831,7 @@ function openOpportunityDetail(oppId,opts){
   // Stage progression buttons — quick-advance through non-terminal stages.
   const stageButtons=_PIPELINE_STAGES.map(s=>{
     const active=s.key===o.stage;
-    return `<button class="btn btn-s" style="height:24px;font-size:11px;padding:0 9px;background:${active?s.color:'transparent'};color:${active?'#fff':s.color};border-color:${s.color}" onclick="_setOpportunityStage(${o.id},'${s.key}')">${esc(s.label)}</button>`;
+    return `<button class="btn btn-s" style="height:24px;font-size:11px;padding:0 9px;background:${active?s.color:'transparent'};color:${active?'#fff':s.color};border-color:${s.color}" onclick="_setOpportunityStage(${o.id},'${_jsAttr(s.key)}')">${esc(s.label)}</button>`;
   }).join('');
   // Form fields — always editable inline.
   const field=(label,id,type,value,extra)=>{
@@ -1805,7 +1805,7 @@ function renderProjectsList(header){
   // P5: group-by toolbar
   const groupBar=`<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t3);margin-bottom:8px">
     <span style="font-weight:600;text-transform:uppercase;letter-spacing:.05em">Group:</span>
-    ${[['none','None'],['status','Status'],['owner','Owner'],['quarter','Quarter'],['health','Health']].map(([k,l])=>`<button class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;background:${_projGroupBy===k?'var(--ac)':'transparent'};color:${_projGroupBy===k?'#fff':'var(--t2)'}" onclick="setProjFilter('groupBy','${k}')">${l}</button>`).join('')}
+    ${[['none','None'],['status','Status'],['owner','Owner'],['quarter','Quarter'],['health','Health']].map(([k,l])=>`<button class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;background:${_projGroupBy===k?'var(--ac)':'transparent'};color:${_projGroupBy===k?'#fff':'var(--t2)'}" onclick="setProjFilter('groupBy','${_jsAttr(k)}')">${l}</button>`).join('')}
     <span style="margin-left:auto;font-size:11px;color:var(--t3)">Drag the ⋮⋮ handle to reorder · 📌 to pin</span>
   </div>`;
   function projCard(p){
@@ -2354,7 +2354,7 @@ function _renderProjectEditTasksSection(pid){
       ${_extSourceBadge(t.source)}
       <a ${_extOpenAttrs(url)} style="flex:1;color:var(--t1);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</a>
       ${t.status?`<span style="font-size:11px;color:var(--t3)">${esc(t.status)}</span>`:''}
-      <button class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px" title="Unlink from project" onclick="_unlinkExternalFromProjectFromEdit('${t.source}','${esc(t.externalId)}',${pid})">✕</button>
+      <button class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px" title="Unlink from project" onclick="_unlinkExternalFromProjectFromEdit('${_jsAttr(t.source)}','${_jsAttr(t.externalId)}',${pid})">✕</button>
     </div>`;
   }).join('');
   const total=native.length+ext.length;
@@ -2447,7 +2447,7 @@ function _renderLinkedExternalTasksSection(pid){
       <a ${_extOpenAttrs(url)} title="Open in source" style="flex:1;font-size:12px;color:var(--t1);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</a>
       ${t.status?`<span style="font-size:11px;color:var(--t3)">${esc(t.status)}</span>`:''}
       ${due?`<span style="font-size:11px;color:var(--t3);flex-shrink:0">${due}</span>`:''}
-      <button class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px" onclick="_unlinkExternalFromProject('${t.source}','${esc(t.externalId)}',${pid})" title="Unlink from this project">✕</button>
+      <button class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px" onclick="_unlinkExternalFromProject('${_jsAttr(t.source)}','${_jsAttr(t.externalId)}',${pid})" title="Unlink from this project">✕</button>
     </div>`;
   }).join('');
   return `<div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 5px">🔗 External tasks (${ext.length})</div>${rows}`;
@@ -2508,7 +2508,7 @@ function _renderExtPickerHTML(){
     <div style="font-size:13px;font-weight:600;margin-bottom:4px">Link external tasks to <em>${esc(p?p.name:'project')}</em></div>
     <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Check tasks to include them on this project's page. Unchecking removes the link (the task itself stays in its source).</div>
     <div style="display:flex;gap:6px;margin-bottom:6px">
-      ${['all','smartsheet','nifty'].map(s=>`<button class="btn btn-s" style="font-size:11px;background:${_extPickerSourceFilter===s?'var(--ac)':'transparent'};color:${_extPickerSourceFilter===s?'#fff':'var(--t2)'}" onclick="_extPickerSourceFilter='${s}';document.getElementById('modal-content').innerHTML=_renderExtPickerHTML()">${s==='all'?'All':(s==='smartsheet'?'CF only':'LSI only')}</button>`).join('')}
+      ${['all','smartsheet','nifty'].map(s=>`<button class="btn btn-s" style="font-size:11px;background:${_extPickerSourceFilter===s?'var(--ac)':'transparent'};color:${_extPickerSourceFilter===s?'#fff':'var(--t2)'}" onclick="_extPickerSourceFilter='${_jsAttr(s)}';document.getElementById('modal-content').innerHTML=_renderExtPickerHTML()">${s==='all'?'All':(s==='smartsheet'?'CF only':'LSI only')}</button>`).join('')}
       <input id="ext-pick-search" class="inp" placeholder="Search title…" style="flex:1;font-size:11px;height:26px" value="${esc(_extPickerSearch)}" oninput="_extPickerSearch=this.value;document.getElementById('ext-pick-results').innerHTML=_renderExtPickerRows();setTimeout(()=>document.getElementById('ext-pick-search').focus(),0)">
     </div>
     <div id="ext-pick-results" style="flex:1;overflow-y:auto;border:1px solid var(--bd1);border-radius:6px;margin-bottom:10px">${rows||'<div style="padding:14px;text-align:center;color:var(--t3);font-size:11px">No matching external tasks.</div>'}${tooMany}</div>
@@ -2650,6 +2650,6 @@ function renderProjectsGantt(header){
       </div>
       <div style="width:70px;flex-shrink:0;font-size:11px;color:${due&&p.due<_todayStr?'var(--red)':'var(--t3)'};text-align:right">${p.due||'—'}</div>
     </div>`}).join('');
-  $('proj-main').innerHTML=header+`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font-size:11px;color:var(--t3)">Zoom:</span>${['week','month','quarter'].map(z=>`<button class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;background:${zoom===z?'var(--ac)':'transparent'};color:${zoom===z?'#fff':'var(--t2)'}" onclick="setProjFilter('ganttZoom','${z}')">${z[0].toUpperCase()+z.slice(1)}</button>`).join('')}<span style="margin-left:auto;font-size:11px;color:var(--t3)">Yellow line = today · circles = milestones (filled = done)</span></div><div style="padding-top:22px">${rows||'<p style="font-size:11px;color:var(--t3);padding:16px">No projects match your filters.</p>'}</div>`;
+  $('proj-main').innerHTML=header+`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font-size:11px;color:var(--t3)">Zoom:</span>${['week','month','quarter'].map(z=>`<button class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;background:${zoom===z?'var(--ac)':'transparent'};color:${zoom===z?'#fff':'var(--t2)'}" onclick="setProjFilter('ganttZoom','${_jsAttr(z)}')">${z[0].toUpperCase()+z.slice(1)}</button>`).join('')}<span style="margin-left:auto;font-size:11px;color:var(--t3)">Yellow line = today · circles = milestones (filled = done)</span></div><div style="padding-top:22px">${rows||'<p style="font-size:11px;color:var(--t3);padding:16px">No projects match your filters.</p>'}</div>`;
 }
 

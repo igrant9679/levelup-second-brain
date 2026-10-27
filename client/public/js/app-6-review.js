@@ -555,7 +555,7 @@ function openAIWidgetBuilder(){
     <p style="font-size:11px;color:var(--t2);margin-bottom:10px">Describe what you want to see — the AI will pick the right source, group, metric, viz and filter for you.</p>
     <textarea id="aiwb-prompt" class="inp" style="min-height:80px;font-size:12px;line-height:1.5" placeholder="e.g. &quot;Overdue tasks by project from the last 30 days, as a donut&quot;&#10;&quot;Daily focus minutes this week as a line chart&quot;&#10;&quot;Top 10 open High-priority tasks as a table&quot;&#10;&quot;Habit streaks longer than 5 days&quot;"></textarea>
     <div id="aiwb-examples" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:8px">
-      ${['Overdue tasks count','Tasks done last 7 days line chart','Goals progress as bars','Top 10 open tasks','Journal mood trend','Focus minutes heatmap','Ideas by stage donut','Habits completed today'].map(s=>`<button class="btn btn-s" style="height:22px;font-size:11px" onclick="document.getElementById('aiwb-prompt').value='${esc(s)}'">${esc(s)}</button>`).join('')}
+      ${['Overdue tasks count','Tasks done last 7 days line chart','Goals progress as bars','Top 10 open tasks','Journal mood trend','Focus minutes heatmap','Ideas by stage donut','Habits completed today'].map(s=>`<button class="btn btn-s" style="height:22px;font-size:11px" onclick="document.getElementById('aiwb-prompt').value='${_jsAttr(s)}'">${esc(s)}</button>`).join('')}
     </div>
     <div id="aiwb-result" style="display:none;margin-top:10px;padding:10px;background:var(--s3);border-radius:6px;font-size:11px;font-family:ui-monospace,monospace;max-height:160px;overflow-y:auto"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
@@ -667,7 +667,7 @@ function _renderWidgetEditor(){
     ${isNew?`<div style="margin-bottom:14px;padding:10px;background:var(--s3);border-radius:8px">
       <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:6px">📚 Start from a template</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;max-height:160px;overflow-y:auto">
-        ${WIDGET_TEMPLATES.map(t=>`<button class="btn btn-s" style="height:auto;padding:6px 10px;font-size:11px;text-align:left;justify-content:flex-start" onclick="applyWidgetTemplate('${t.id}')">${esc(t.label)}</button>`).join('')}
+        ${WIDGET_TEMPLATES.map(t=>`<button class="btn btn-s" style="height:auto;padding:6px 10px;font-size:11px;text-align:left;justify-content:flex-start" onclick="applyWidgetTemplate('${_jsAttr(t.id)}')">${esc(t.label)}</button>`).join('')}
       </div>
       <div style="font-size:11px;color:var(--t3);text-align:center;margin-top:8px">— or configure manually below —</div>
     </div>`:''}
@@ -1375,7 +1375,7 @@ function renderReports(){
   const barStep=Math.max(1,Math.ceil(dayKeys.length/30));
   const barData=[];for(let i=0;i<dayKeys.length;i+=barStep){let sum=0;for(let j=i;j<Math.min(i+barStep,dayKeys.length);j++)sum+=completionByDay[j];barData.push({key:dayKeys[i],count:sum});}
   const barMax=Math.max(...barData.map(b=>b.count),1);
-  const tasksBars=barData.map(b=>{const h=Math.round(b.count/barMax*60)+2;return `<div class="lu-bar-wrap" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:6px;height:64px;justify-content:flex-end;position:relative;cursor:${b.count?'pointer':'default'}" ${b.count?`onclick="reportDrillDown('taskday','${b.key}')"`:''}><div class="lu-bar" style="width:80%;background:linear-gradient(180deg,var(--ac),color-mix(in srgb,var(--ac) 35%,transparent));border-radius:3px 3px 0 0;height:${h}px;min-height:2px"></div><div class="lu-bar-tip">${b.key}: ${b.count} task${b.count===1?'':'s'}</div></div>`;}).join('');
+  const tasksBars=barData.map(b=>{const h=Math.round(b.count/barMax*60)+2;return `<div class="lu-bar-wrap" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:6px;height:64px;justify-content:flex-end;position:relative;cursor:${b.count?'pointer':'default'}" ${b.count?`onclick="reportDrillDown('taskday','${_jsAttr(b.key)}')"`:''}><div class="lu-bar" style="width:80%;background:linear-gradient(180deg,var(--ac),color-mix(in srgb,var(--ac) 35%,transparent));border-radius:3px 3px 0 0;height:${h}px;min-height:2px"></div><div class="lu-bar-tip">${b.key}: ${b.count} task${b.count===1?'':'s'}</div></div>`;}).join('');
   // R11: x-axis labels for the bars
   const tasksBarLabels=barData.map((b,i)=>{const showLabel=barData.length<=14||i===0||i===barData.length-1||i%Math.ceil(barData.length/7)===0;return `<div style="flex:1;text-align:center;font-size:9px;color:var(--t3);min-width:6px">${showLabel?esc(b.key.slice(5)):''}</div>`;}).join('');
   const tasksByPriority={High:tasks.filter(t=>t.priority==='High'&&t.status!=='Done').length,Medium:tasks.filter(t=>t.priority==='Medium'&&t.status!=='Done').length,Low:tasks.filter(t=>t.priority==='Low'&&t.status!=='Done').length};
@@ -1550,12 +1550,12 @@ function renderReports(){
           <div style="font-size:11px;color:var(--t3);margin-bottom:6px">Status breakdown (${sTotal} total)</div>
           <div style="display:flex;gap:10px;align-items:center">
             <div style="background:conic-gradient(${donutStops});width:70px;height:70px;border-radius:50%;flex-shrink:0"></div>
-            <div style="flex:1;display:flex;flex-direction:column;gap:3px;font-size:11px">${Object.entries(tasksByStatus).map(([k,v])=>`<div style="display:flex;align-items:center;gap:4px;cursor:${v?'pointer':'default'}" ${v?`onclick="reportDrillDown('taskstatus','${k}')"`:''}><span style="width:8px;height:8px;background:${sColors[k]};border-radius:2px"></span><span style="flex:1;color:var(--t2)">${k}</span><strong>${v}</strong></div>`).join('')}</div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:3px;font-size:11px">${Object.entries(tasksByStatus).map(([k,v])=>`<div style="display:flex;align-items:center;gap:4px;cursor:${v?'pointer':'default'}" ${v?`onclick="reportDrillDown('taskstatus','${_jsAttr(k)}')"`:''}><span style="width:8px;height:8px;background:${sColors[k]};border-radius:2px"></span><span style="flex:1;color:var(--t2)">${k}</span><strong>${v}</strong></div>`).join('')}</div>
           </div>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px">
-        ${Object.entries(tasksByPriority).map(([k,v])=>{const c={High:'var(--red)',Medium:'var(--warn)',Low:'var(--ok)'}[k];return `<div style="border:1px solid var(--bd1);border-radius:6px;padding:10px;text-align:center;cursor:${v?'pointer':'default'}" ${v?`onclick="reportDrillDown('taskpriority','${k}')"`:''}><div style="font-size:18px;font-weight:700;color:${c}">${v}</div><div style="font-size:11px;color:var(--t3)">Active ${k}</div></div>`;}).join('')}
+        ${Object.entries(tasksByPriority).map(([k,v])=>{const c={High:'var(--red)',Medium:'var(--warn)',Low:'var(--ok)'}[k];return `<div style="border:1px solid var(--bd1);border-radius:6px;padding:10px;text-align:center;cursor:${v?'pointer':'default'}" ${v?`onclick="reportDrillDown('taskpriority','${_jsAttr(k)}')"`:''}><div style="font-size:18px;font-weight:700;color:${c}">${v}</div><div style="font-size:11px;color:var(--t3)">Active ${k}</div></div>`;}).join('')}
       </div>
     </div>`:''}
 
@@ -1619,7 +1619,7 @@ function openReportCustomize(){
   const html=`<div style="padding:18px;min-width:320px">
     <h3 style="font-size:14px;font-weight:700;margin-bottom:12px">⚙ Customize Report</h3>
     <p style="font-size:11px;color:var(--t3);margin-bottom:12px">Toggle sections to include in your report. Saves automatically.</p>
-    ${sections.map(s=>`<div class="lr" style="padding:6px 0"><label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;flex:1"><input type="checkbox" ${_reportSections[s.k]?'checked':''} onchange="toggleReportSection('${s.k}')">${s.label}</label></div>`).join('')}
+    ${sections.map(s=>`<div class="lr" style="padding:6px 0"><label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;flex:1"><input type="checkbox" ${_reportSections[s.k]?'checked':''} onchange="toggleReportSection('${_jsAttr(s.k)}')">${s.label}</label></div>`).join('')}
     <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn btn-s" onclick="closeModal()">Done</button></div>
   </div>`;
   const mc=document.getElementById('modal-content');if(mc)mc.innerHTML=html;
@@ -1660,12 +1660,12 @@ function renderArchive(){
   const typeColors={Task:'var(--ac)',Project:'var(--purp)',Goal:'var(--red)',Note:'var(--ok)'};
   const rows=items.length?items.map(i=>`<div class="lr">
     <span style="font-size:11px;font-weight:700;padding:2px 6px;border-radius:4px;background:var(--s3);color:${typeColors[i.type]||'var(--t3)'}">${i.type}</span>
-    <span class="rt" style="cursor:pointer" onclick="archiveRestore('${i.restore}',${i.id})" title="Open / restore">${esc(i.title)}</span>
+    <span class="rt" style="cursor:pointer" onclick="archiveRestore('${_jsAttr(i.restore)}',${i.id})" title="Open / restore">${esc(i.title)}</span>
     <span class="rm">${fmt(i.date)||'<span style="color:var(--t3)">—</span>'}</span>
-    <span class="acts"><button class="btn btn-s" style="height:20px;font-size:10px;padding:0 8px" onclick="archiveRestore('${i.restore}',${i.id})">${i.type==='Goal'?'Open':'↩ Restore'}</button></span>
+    <span class="acts"><button class="btn btn-s" style="height:20px;font-size:10px;padding:0 8px" onclick="archiveRestore('${_jsAttr(i.restore)}',${i.id})">${i.type==='Goal'?'Open':'↩ Restore'}</button></span>
   </div>`).join(''):`<div style="text-align:center;padding:36px 16px;color:var(--t3);font-size:12px">Nothing archived${_archiveTab!=='All'?` in ${_archiveTab}s`:''}${_archiveSearch?' matching your search':''}. Completed tasks, archived projects, finished goals and archived notes appear here.</div>`;
   $('arch-main').innerHTML=`<div class="pg-h"><h1>🗄 Archive</h1><p style="font-size:12px;color:var(--t2)">${counts.All} item${counts.All===1?'':'s'} · completed &amp; archived</p></div>
-<div class="tabs">${tabs.map(t=>`<div class="tab ${_archiveTab===t?'on':''}" onclick="setArchiveTab('${t}')">${t==='All'?'All':t+'s'}${counts[t]?` <span class="tc">${counts[t]}</span>`:''}</div>`).join('')}</div>
+<div class="tabs">${tabs.map(t=>`<div class="tab ${_archiveTab===t?'on':''}" onclick="setArchiveTab('${_jsAttr(t)}')">${t==='All'?'All':t+'s'}${counts[t]?` <span class="tc">${counts[t]}</span>`:''}</div>`).join('')}</div>
 <input class="inp" style="margin-bottom:10px" placeholder="🔍 Search archive..." value="${esc(_archiveSearch)}" oninput="_keepFocus(()=>archiveSearchInput(this.value))">
 <div class="cd">${rows}</div>`;
 }
@@ -2071,7 +2071,7 @@ function renderMyWeek(){
       <div id="wkday-${ds}" style="min-height:60px">
         ${pts.map(t=>weekTaskChip(t)).join('')}
       </div>
-      <div style="font-size:11px;color:var(--t3);text-align:center;margin-top:4px;cursor:pointer" onclick="quickAddToDay('${ds}')">+ Add</div>
+      <div style="font-size:11px;color:var(--t3);text-align:center;margin-top:4px;cursor:pointer" onclick="quickAddToDay('${_jsAttr(ds)}')">+ Add</div>
     </div>`;
   }).join('');
   $('myweek-main').innerHTML=`
@@ -2895,7 +2895,7 @@ function renderIdeas(){
   <div style="display:flex;gap:0;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden;margin-bottom:16px;width:fit-content">
     ${viewTabs.map(v=>{
       const cnt=filterIdeas(v).length;
-      return `<button class="btn" style="border-radius:0;height:28px;font-size:11px;border:none;${_ideasView===v?'background:var(--ac);color:#fff':'background:transparent;color:var(--t2)'}" onclick="_ideasView='${v}';renderIdeas()">${viewLabels[v]}${cnt?` (${cnt})`:''}</button>`;
+      return `<button class="btn" style="border-radius:0;height:28px;font-size:11px;border:none;${_ideasView===v?'background:var(--ac);color:#fff':'background:transparent;color:var(--t2)'}" onclick="_ideasView='${_jsAttr(v)}';renderIdeas()">${viewLabels[v]}${cnt?` (${cnt})`:''}</button>`;
     }).join('')}
   </div>
   ${_ideasView==='leaderboard'?renderIdeasLeaderboard():filtered.length===0?renderEmptyState({icon:'lightbulb',title:_ideasSearch?'No matches for your search':_ideasView==='active'?'No ideas in flight':_ideasView==='parked'?'No parked ideas':_ideasView==='graveyard'?'Graveyard is empty':_ideasView==='promoted'?'No promoted ideas yet':'No ideas captured',hint:_ideasSearch?'Try the ✨ Semantic button for an AI-powered intent search.':_ideasView==='active'?'Every project starts as a spark. Capture one and develop it.':_ideasView==='all'?'Capture ideas the moment they appear — develop them later.':'Switch to another view or capture a new idea.',ctaLabel:_ideasSearch?'Clear search':'+ Capture an idea',ctaFn:_ideasSearch?"setIdeasSearch('')":'openNewIdeaModal()'}):`
@@ -3058,7 +3058,7 @@ function renderIdeaDetail(idea){
         const past=i<stageIdx;
         const color=active?'var(--ac)':past?'var(--ok)':'var(--t3)';
         const bg=active?'var(--ac)22':past?'var(--ok)11':'transparent';
-        return `<div style="flex:1;padding:8px 4px;text-align:center;background:${bg};cursor:pointer;border-right:1px solid var(--bd1)" onclick="moveIdeaToStage(${idea.id},'${s}')">
+        return `<div style="flex:1;padding:8px 4px;text-align:center;background:${bg};cursor:pointer;border-right:1px solid var(--bd1)" onclick="moveIdeaToStage(${idea.id},'${_jsAttr(s)}')">
           <div style="font-size:11px;font-weight:600;color:${color}">${IDEA_STAGE_LABELS[s]}</div>
           ${active?`<div style="width:6px;height:6px;background:var(--ac);border-radius:50%;margin:3px auto 0"></div>`:''}
         </div>`;
@@ -3128,13 +3128,13 @@ function renderIdeaDetail(idea){
             return `<div style="margin-bottom:16px">
               <div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:4px">
                 <label style="font-size:12px;font-weight:600;flex:1">${esc(q.prompt)}</label>
-                <button class="btn btn-s" style="font-size:11px;padding:2px 6px;white-space:nowrap" onclick="ideaAISparkle(${idea.id},'${s}','${q.key}',this)">✨ AI</button>
+                <button class="btn btn-s" style="font-size:11px;padding:2px 6px;white-space:nowrap" onclick="ideaAISparkle(${idea.id},'${_jsAttr(s)}','${_jsAttr(q.key)}',this)">✨ AI</button>
               </div>
               ${q.help?`<div style="font-size:11px;color:var(--t3);margin-bottom:6px;font-style:italic">${esc(q.help)}</div>`:''}
-              <textarea class="inp" style="width:100%;min-height:80px;font-size:12px;resize:vertical" placeholder="Your answer…" onblur="saveIdeaAnswer(${idea.id},'${s}','${q.key}',this.value)">${esc(ans?.body||'')}</textarea>
+              <textarea class="inp" style="width:100%;min-height:80px;font-size:12px;resize:vertical" placeholder="Your answer…" onblur="saveIdeaAnswer(${idea.id},'${_jsAttr(s)}','${_jsAttr(q.key)}',this.value)">${esc(ans?.body||'')}</textarea>
             </div>`;
           }).join('')}
-          <button class="btn btn-s" style="font-size:11px;margin-top:4px" onclick="ideaWhyStuck(${idea.id},'${s}')">🤔 Why I'm stuck</button>
+          <button class="btn btn-s" style="font-size:11px;margin-top:4px" onclick="ideaWhyStuck(${idea.id},'${_jsAttr(s)}')">🤔 Why I'm stuck</button>
         </div>
       </div>`;
     }).join('')}
@@ -3168,7 +3168,7 @@ function renderIdeaDetail(idea){
         ${[['ice_impact','Impact'],['ice_confidence','Confidence'],['ice_ease','Ease']].map(([k,l])=>`
         <div style="margin-bottom:8px">
           <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px"><span>${l}</span><span style="font-weight:700;color:var(--ac)">${idea[k]||5}</span></div>
-          <input type="range" min="1" max="10" value="${idea[k]||5}" style="width:100%" oninput="updateIdeaICE(${idea.id},'${k}',parseInt(this.value));this.previousElementSibling.querySelector('span:last-child').textContent=this.value">
+          <input type="range" min="1" max="10" value="${idea[k]||5}" style="width:100%" oninput="updateIdeaICE(${idea.id},'${_jsAttr(k)}',parseInt(this.value));this.previousElementSibling.querySelector('span:last-child').textContent=this.value">
         </div>`).join('')}
         <div style="text-align:center;margin:8px 0">
           <div style="font-size:20px;font-weight:700;color:var(--ac)">${ice}</div>
@@ -3189,7 +3189,7 @@ function renderIdeaDetail(idea){
       <!-- Collaborators -->
       <div style="margin-bottom:16px">
         <div style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Collaborators</div>
-        ${(idea.collaborators||[]).map(c=>`<div style="display:flex;align-items:center;gap:6px;padding:4px 0"><div style="width:24px;height:24px;border-radius:50%;background:var(--ac);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">${c.email[0].toUpperCase()}</div><div style="flex:1"><div style="font-size:11px">${esc(c.email)}</div><div style="font-size:11px;color:var(--t3)">${c.role}</div></div><button class="btn btn-s" style="font-size:11px;color:var(--red)" onclick="revokeIdeaCollaborator(${idea.id},'${c.email}')">✕</button></div>`).join('')}
+        ${(idea.collaborators||[]).map(c=>`<div style="display:flex;align-items:center;gap:6px;padding:4px 0"><div style="width:24px;height:24px;border-radius:50%;background:var(--ac);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">${c.email[0].toUpperCase()}</div><div style="flex:1"><div style="font-size:11px">${esc(c.email)}</div><div style="font-size:11px;color:var(--t3)">${c.role}</div></div><button class="btn btn-s" style="font-size:11px;color:var(--red)" onclick="revokeIdeaCollaborator(${idea.id},'${_jsAttr(c.email)}')">✕</button></div>`).join('')}
         <button class="btn btn-s" style="width:100%;font-size:11px;margin-top:6px" onclick="openIdeaInvite(${idea.id})">+ Invite</button>
       </div>
 
@@ -3863,7 +3863,7 @@ function openJournalExportModal(fmt){
     </label>
   </div>
   <div style="display:flex;gap:8px">
-    <button class="btn btn-p" onclick="doJournalExport('${currentFilter}')">Export</button>
+    <button class="btn btn-p" onclick="doJournalExport('${_jsAttr(currentFilter)}')">Export</button>
     <button class="btn btn-s" onclick="closeModal()">Cancel</button>
   </div>`;
   document.getElementById('modal-capture').classList.add('show');
@@ -4112,8 +4112,8 @@ function openIdeaShare(id){
     <div style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Public Read-Only Link</div>
     <div style="font-size:11px;color:var(--t1);word-break:break-all;background:var(--s3);border-radius:4px;padding:8px;margin-bottom:8px;font-family:monospace">${publicUrl}</div>
     <div style="display:flex;gap:6px">
-      <button class="btn btn-p" style="font-size:11px" onclick="navigator.clipboard.writeText('${publicUrl}').then(()=>toast('✓ Link copied to clipboard!'))">📋 Copy Link</button>
-      <button class="btn btn-s" style="font-size:11px" onclick="window.open('${publicUrl}','_blank')">👁 Preview</button>
+      <button class="btn btn-p" style="font-size:11px" onclick="navigator.clipboard.writeText('${_jsAttr(publicUrl)}').then(()=>toast('✓ Link copied to clipboard!'))">📋 Copy Link</button>
+      <button class="btn btn-s" style="font-size:11px" onclick="_luOpenUrl('${_jsAttr(publicUrl)}')">👁 Preview</button>
       <button class="btn btn-s" style="font-size:11px;color:var(--red)" onclick="D.ideas.find(x=>x.id===${id}).public_token=null;save('ideas');closeModal();toast('Link revoked.')">🚫 Revoke</button>
     </div>
   </div>

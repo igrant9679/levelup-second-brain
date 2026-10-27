@@ -53,18 +53,18 @@ function luRTE_render(opts={}){
   // align buttons here.
   const extraToolbar=opts.allowHtmlPaste?`
   <div class="rte-sep"></div>
-  <button class="rte-btn" title="Align Left" onmousedown="event.preventDefault();document.execCommand('justifyLeft');document.getElementById('${id}').focus()">⇐</button>
-  <button class="rte-btn" title="Align Center" onmousedown="event.preventDefault();document.execCommand('justifyCenter');document.getElementById('${id}').focus()">☰</button>
-  <button class="rte-btn" title="Align Right" onmousedown="event.preventDefault();document.execCommand('justifyRight');document.getElementById('${id}').focus()">⇒</button>`
+  <button class="rte-btn" title="Align Left" onmousedown="event.preventDefault();document.execCommand('justifyLeft');document.getElementById('${_jsAttr(id)}').focus()">⇐</button>
+  <button class="rte-btn" title="Align Center" onmousedown="event.preventDefault();document.execCommand('justifyCenter');document.getElementById('${_jsAttr(id)}').focus()">☰</button>
+  <button class="rte-btn" title="Align Right" onmousedown="event.preventDefault();document.execCommand('justifyRight');document.getElementById('${_jsAttr(id)}').focus()">⇒</button>`
   :'';
   return `<div class="rte-wrap" id="${id}-wrap" data-allow-html-paste="${allowHtmlPaste}">
 <div class="rte-toolbar" id="${id}-tb">
-  <button class="rte-btn" title="Bold (Ctrl+B)" onmousedown="event.preventDefault();luRTE_cmd('bold','${id}')"><b>B</b></button>
-  <button class="rte-btn" title="Italic (Ctrl+I)" onmousedown="event.preventDefault();luRTE_cmd('italic','${id}')"><i>I</i></button>
-  <button class="rte-btn" title="Underline (Ctrl+U)" onmousedown="event.preventDefault();luRTE_cmd('underline','${id}')"><u>U</u></button>
-  <button class="rte-btn" title="Strikethrough" onmousedown="event.preventDefault();luRTE_cmd('strikeThrough','${id}')"><s>S</s></button>
+  <button class="rte-btn" title="Bold (Ctrl+B)" onmousedown="event.preventDefault();luRTE_cmd('bold','${_jsAttr(id)}')"><b>B</b></button>
+  <button class="rte-btn" title="Italic (Ctrl+I)" onmousedown="event.preventDefault();luRTE_cmd('italic','${_jsAttr(id)}')"><i>I</i></button>
+  <button class="rte-btn" title="Underline (Ctrl+U)" onmousedown="event.preventDefault();luRTE_cmd('underline','${_jsAttr(id)}')"><u>U</u></button>
+  <button class="rte-btn" title="Strikethrough" onmousedown="event.preventDefault();luRTE_cmd('strikeThrough','${_jsAttr(id)}')"><s>S</s></button>
   <div class="rte-sep"></div>
-  <select class="rte-sel" title="Heading" onchange="luRTE_heading(this.value,'${id}');this.value=''">
+  <select class="rte-sel" title="Heading" onchange="luRTE_heading(this.value,'${_jsAttr(id)}');this.value=''">
     <option value="">Paragraph</option>
     <option value="h1">Heading 1</option>
     <option value="h2">Heading 2</option>
@@ -73,24 +73,24 @@ function luRTE_render(opts={}){
     <option value="blockquote">Quote</option>
   </select>
   <div class="rte-sep"></div>
-  <button class="rte-btn" title="Bullet list (dots)" onmousedown="event.preventDefault();luRTE_cmd('insertUnorderedList','${id}')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1.5" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1.5" fill="currentColor" stroke="none"/></svg></button>
-  <button class="rte-btn" title="Numbered list" onmousedown="event.preventDefault();luRTE_cmd('insertOrderedList','${id}')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="10" y1="6" x2="20" y2="6"/><line x1="10" y1="12" x2="20" y2="12"/><line x1="10" y1="18" x2="20" y2="18"/><text x="1.5" y="8.5" font-size="8" font-weight="700" fill="currentColor" stroke="none">1</text><text x="1.5" y="20.5" font-size="8" font-weight="700" fill="currentColor" stroke="none">2</text></svg></button>
-  <button class="rte-btn" title="Outdent" onmousedown="event.preventDefault();luRTE_cmd('outdent','${id}')">⇤</button>
-  <button class="rte-btn" title="Indent" onmousedown="event.preventDefault();luRTE_cmd('indent','${id}')">⇥</button>
+  <button class="rte-btn" title="Bullet list (dots)" onmousedown="event.preventDefault();luRTE_cmd('insertUnorderedList','${_jsAttr(id)}')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1.5" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1.5" fill="currentColor" stroke="none"/></svg></button>
+  <button class="rte-btn" title="Numbered list" onmousedown="event.preventDefault();luRTE_cmd('insertOrderedList','${_jsAttr(id)}')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="10" y1="6" x2="20" y2="6"/><line x1="10" y1="12" x2="20" y2="12"/><line x1="10" y1="18" x2="20" y2="18"/><text x="1.5" y="8.5" font-size="8" font-weight="700" fill="currentColor" stroke="none">1</text><text x="1.5" y="20.5" font-size="8" font-weight="700" fill="currentColor" stroke="none">2</text></svg></button>
+  <button class="rte-btn" title="Outdent" onmousedown="event.preventDefault();luRTE_cmd('outdent','${_jsAttr(id)}')">⇤</button>
+  <button class="rte-btn" title="Indent" onmousedown="event.preventDefault();luRTE_cmd('indent','${_jsAttr(id)}')">⇥</button>
   <div class="rte-sep"></div>
-  <button class="rte-btn" title="Insert Link" onmousedown="event.preventDefault();luRTE_insertLink('${id}')">🔗</button>
-  <button class="rte-btn" title="Insert Image (file or URL)" onmousedown="event.preventDefault();luRTE_insertImage('${id}')">🖼</button>
-  <button class="rte-btn" title="Insert Horizontal Rule" onmousedown="event.preventDefault();luRTE_cmd('insertHorizontalRule','${id}')">—</button>
-  <button class="rte-btn" title="Clear Formatting" onmousedown="event.preventDefault();luRTE_cmd('removeFormat','${id}')">Tx</button>
+  <button class="rte-btn" title="Insert Link" onmousedown="event.preventDefault();luRTE_insertLink('${_jsAttr(id)}')">🔗</button>
+  <button class="rte-btn" title="Insert Image (file or URL)" onmousedown="event.preventDefault();luRTE_insertImage('${_jsAttr(id)}')">🖼</button>
+  <button class="rte-btn" title="Insert Horizontal Rule" onmousedown="event.preventDefault();luRTE_cmd('insertHorizontalRule','${_jsAttr(id)}')">—</button>
+  <button class="rte-btn" title="Clear Formatting" onmousedown="event.preventDefault();luRTE_cmd('removeFormat','${_jsAttr(id)}')">Tx</button>
   <div class="rte-sep"></div>
-  <button class="rte-btn" title="Undo (Ctrl+Z)" onmousedown="event.preventDefault();luRTE_cmd('undo','${id}')">↩</button>
-  <button class="rte-btn" title="Redo (Ctrl+Y)" onmousedown="event.preventDefault();luRTE_cmd('redo','${id}')">↪</button>
+  <button class="rte-btn" title="Undo (Ctrl+Z)" onmousedown="event.preventDefault();luRTE_cmd('undo','${_jsAttr(id)}')">↩</button>
+  <button class="rte-btn" title="Redo (Ctrl+Y)" onmousedown="event.preventDefault();luRTE_cmd('redo','${_jsAttr(id)}')">↪</button>
   ${_rteFontTools()}
   ${extraToolbar}
 </div>
 <div class="rte-body" id="${id}" contenteditable="true" data-placeholder="${ph}" style="min-height:${h}"
-  onkeydown="luRTE_keydown(event,'${id}')"
-  oninput="luRTE_onInput('${id}')"
+  onkeydown="luRTE_keydown(event,'${_jsAttr(id)}')"
+  oninput="luRTE_onInput('${_jsAttr(id)}')"
   onpaste="luRTE_onPaste(event,'${id}')">${initHtml}</div>
 ${opts.showCharCount!==false?`<div class="rte-char-count" id="${id}-cc">0 chars</div>`:''}
 </div>`;
@@ -813,7 +813,7 @@ const _LU_NATIVE=/^(A|BUTTON|INPUT|SELECT|TEXTAREA|SUMMARY|OPTION|LABEL|DETAILS|
 const _luTxt=el=>String(el&&el.textContent||'').replace(/\s+/g,' ').trim();
 function _luKbdFix(el){
   if(!el||el.nodeType!==1||_LU_NATIVE.test(el.tagName)||el.hasAttribute('tabindex')||el.isContentEditable)return;
-  const oc=el.getAttribute('onclick');
+  const oc=el.getAttribute('onclick')||(el.hasAttribute('data-act')?'data-act':'');
   if(!oc||/^\s*(event\.stopPropagation\(\);?\s*)?$/.test(oc)||/event\.target\s*===?\s*this/.test(oc))return;
   el.setAttribute('tabindex','0');
   // Task / habit completion boxes are checkboxes, with their state and the
@@ -826,7 +826,7 @@ function _luKbdFix(el){
     if(t&&!el.getAttribute('aria-label'))el.setAttribute('aria-label','Complete '+t);
     return;
   }
-  if(!el.hasAttribute('role')&&!el.querySelector('a,button,input,select,textarea,[onclick],[contenteditable="true"]'))el.setAttribute('role','button');
+  if(!el.hasAttribute('role')&&!el.querySelector('a,button,input,select,textarea,[onclick],[data-act],[contenteditable="true"]'))el.setAttribute('role','button');
 }
 // Accessible names for form controls rendered without one. A screen reader
 // announced most selects and checkboxes as just "combo box" / "checkbox":
@@ -867,18 +867,18 @@ function _luNameFix(c){
 }
 function _luKbdScan(root){
   if(!root||root.nodeType!==1)return;
-  if(root.hasAttribute('onclick'))_luKbdFix(root);
-  root.querySelectorAll('[onclick]').forEach(_luKbdFix);
+  if(root.hasAttribute('onclick')||root.hasAttribute('data-act'))_luKbdFix(root);
+  root.querySelectorAll('[onclick],[data-act]').forEach(_luKbdFix);
   if(root.matches('input,select,textarea'))_luNameFix(root);
   root.querySelectorAll('input,select,textarea').forEach(_luNameFix);
 }
 new MutationObserver(ms=>{for(const m of ms){if(m.type==='attributes')_luKbdFix(m.target);else m.addedNodes.forEach(_luKbdScan);}})
-  .observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['onclick']});
+  .observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['onclick','data-act']});
 if(document.body)_luKbdScan(document.body);else document.addEventListener('DOMContentLoaded',()=>_luKbdScan(document.body));
 document.addEventListener('keydown',e=>{
   if(e.key!=='Enter'&&e.key!==' ')return;
   const el=e.target;
-  if(!el||el.nodeType!==1||_LU_NATIVE.test(el.tagName)||el.isContentEditable||!el.hasAttribute('onclick')||el.getAttribute('tabindex')!=='0')return;
+  if(!el||el.nodeType!==1||_LU_NATIVE.test(el.tagName)||el.isContentEditable||!(el.hasAttribute('onclick')||el.hasAttribute('data-act'))||el.getAttribute('tabindex')!=='0')return;
   if(e.altKey||e.ctrlKey||e.metaKey)return;
   e.preventDefault();
   el.click();
@@ -2145,7 +2145,7 @@ function _emojiPickGrid(){
   const g=document.getElementById('lu-emoji-grid');if(!g)return;
   const list=_emojiPickList();
   g.innerHTML=list.length
-    ? list.map(em=>`<button type="button" title="${esc(em)}" onclick="_emojiPickChoose('${em}')" style="font-size:22px;line-height:1;height:42px;width:42px;border:1px solid transparent;border-radius:8px;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s,transform .1s" onmouseover="this.style.background='var(--s3)';this.style.transform='scale(1.12)'" onmouseout="this.style.background='transparent';this.style.transform='scale(1)'">${em}</button>`).join('')
+    ? list.map(em=>`<button type="button" title="${esc(em)}" onclick="_emojiPickChoose('${_jsAttr(em)}')" style="font-size:22px;line-height:1;height:42px;width:42px;border:1px solid transparent;border-radius:8px;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s,transform .1s" onmouseover="this.style.background='var(--s3)';this.style.transform='scale(1.12)'" onmouseout="this.style.background='transparent';this.style.transform='scale(1)'">${em}</button>`).join('')
     : `<div style="grid-column:1/-1;padding:24px;text-align:center;font-size:12px;color:var(--t3)">No matches. Try another word, or browse a category above.</div>`;
 }
 function _emojiPickPaintTabs(){
@@ -2158,7 +2158,7 @@ function _emojiPickPaintTabs(){
 }
 function _emojiPickRender(){
   const ov=_emojiOv();
-  const tabs=EMOJI_CATALOG.map(c=>`<button type="button" data-cat="${c.id}" onclick="_emojiPickSetCat('${c.id}')" style="flex:0 0 auto;height:30px;padding:0 10px;font-size:11px;border:1px solid var(--bd2);background:transparent;color:var(--t2);border-radius:7px;cursor:pointer;white-space:nowrap">${c.label}</button>`).join('');
+  const tabs=EMOJI_CATALOG.map(c=>`<button type="button" data-cat="${c.id}" onclick="_emojiPickSetCat('${_jsAttr(c.id)}')" style="flex:0 0 auto;height:30px;padding:0 10px;font-size:11px;border:1px solid var(--bd2);background:transparent;color:var(--t2);border-radius:7px;cursor:pointer;white-space:nowrap">${c.label}</button>`).join('');
   ov.innerHTML=`<div style="background:var(--s1);border:1px solid var(--bd2);border-radius:14px;width:min(580px,96vw);max-height:86dvh;display:flex;flex-direction:column;box-shadow:0 24px 70px rgba(0,0,0,.55);overflow:hidden">
     <div style="display:flex;align-items:center;gap:8px;padding:13px 16px;border-bottom:1px solid var(--bd1)">
       <span style="font-size:14px;font-weight:700;flex:1">${esc(ov.dataset.title||'Pick an icon')}</span>
@@ -2177,7 +2177,7 @@ function _iconPickBtn(inputId,current,placeholder){
   current=current||'';
   const safe=esc(current);
   return `<input type="hidden" id="${inputId}" value="${safe}">`+
-  `<button type="button" id="${inputId}-btn" class="btn btn-s" onclick="openEmojiPicker({title:'Choose an icon',current:document.getElementById('${inputId}').value,onPick:function(e){var i=document.getElementById('${inputId}');if(i)i.value=e;var b=document.getElementById('${inputId}-btn');if(b){var c=b.querySelector('.lu-ip-cur'),p=b.querySelector('.lu-ip-ph');if(c)c.textContent=e||'';if(p)p.style.display=e?'none':'';}}})" style="display:inline-flex;align-items:center;gap:7px;height:36px;min-width:64px;padding:0 12px;font-size:20px;justify-content:center;cursor:pointer">`+
+  `<button type="button" id="${inputId}-btn" class="btn btn-s" onclick="openEmojiPicker({title:'Choose an icon',current:document.getElementById('${_jsAttr(inputId)}').value,onPick:function(e){var i=document.getElementById('${_jsAttr(inputId)}');if(i)i.value=e;var b=document.getElementById('${inputId}-btn');if(b){var c=b.querySelector('.lu-ip-cur'),p=b.querySelector('.lu-ip-ph');if(c)c.textContent=e||'';if(p)p.style.display=e?'none':'';}}})" style="display:inline-flex;align-items:center;gap:7px;height:36px;min-width:64px;padding:0 12px;font-size:20px;justify-content:center;cursor:pointer">`+
   `<span class="lu-ip-cur">${safe}</span><span class="lu-ip-ph" style="font-size:11px;color:var(--t3);${current?'display:none':''}">${esc(placeholder||'Pick…')}</span></button>`;
 }
 function saveThemeAsProfile(){
@@ -2463,7 +2463,7 @@ function _renderMiniWeekStrip(){
     const dots=[];
     if(taskCount)dots.push(`<span class="lu-mini-week-dot" title="${taskCount} task${taskCount===1?'':'s'}"></span>`);
     if(evtCount)dots.push(`<span class="lu-mini-week-dot evt" title="${evtCount} event${evtCount===1?'':'s'}"></span>`);
-    return `<div class="lu-mini-week-cell ${isToday?'today':''}" role="button" tabindex="0" onclick="_openCalDay('${k}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();_openCalDay('${k}')}" title="${d.toDateString()}${taskCount?` · ${taskCount} task${taskCount===1?'':'s'}`:''}${evtCount?` · ${evtCount} event${evtCount===1?'':'s'}`:''}">
+    return `<div class="lu-mini-week-cell ${isToday?'today':''}" role="button" tabindex="0" onclick="_openCalDay('${_jsAttr(k)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();_openCalDay('${_jsAttr(k)}')}" title="${d.toDateString()}${taskCount?` · ${taskCount} task${taskCount===1?'':'s'}`:''}${evtCount?` · ${evtCount} event${evtCount===1?'':'s'}`:''}">
       <span class="lu-mini-week-dow">${dayLetters[d.getDay()]}</span>
       <span class="lu-mini-week-num">${d.getDate()}</span>
       <span class="lu-mini-week-dots">${dots.join('')}</span>
@@ -2800,7 +2800,7 @@ function renderKnowledgeGraph(){
         <button class="btn btn-s" style="height:28px;font-size:11px" onclick="_kgToggleGuide()" title="What am I looking at?">❔ Guide</button>
         <div id="kg-settings-pop" style="display:none;position:absolute;top:34px;right:0;width:248px;background:var(--s1);border:1px solid var(--bd2);border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.45);z-index:30;padding:12px;font-size:11.5px;color:var(--t2)">
           <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Connection types</div>
-          ${KG_TYPE_ORDER.map(t=>{const s=KG_EDGE_STYLE[t];return `<label style="display:flex;align-items:center;gap:7px;cursor:pointer;padding:3px 0"><input type="checkbox" ${cfg.edges[t]?'checked':''} onchange="_kgSetEdge('${t}',this.checked)"><svg width="26" height="8" style="flex-shrink:0"><line x1="0" y1="4" x2="26" y2="4" stroke="rgba(${s.c},.9)" stroke-width="${s.w}" ${s.dash?`stroke-dasharray="${s.dash}"`:''}/></svg><span style="flex:1">${esc(s.label)}</span><span style="color:var(--t3);font-size:11px">${typeCounts[t]||0}</span></label>`;}).join('')}
+          ${KG_TYPE_ORDER.map(t=>{const s=KG_EDGE_STYLE[t];return `<label style="display:flex;align-items:center;gap:7px;cursor:pointer;padding:3px 0"><input type="checkbox" ${cfg.edges[t]?'checked':''} onchange="_kgSetEdge('${_jsAttr(t)}',this.checked)"><svg width="26" height="8" style="flex-shrink:0"><line x1="0" y1="4" x2="26" y2="4" stroke="rgba(${s.c},.9)" stroke-width="${s.w}" ${s.dash?`stroke-dasharray="${s.dash}"`:''}/></svg><span style="flex:1">${esc(s.label)}</span><span style="color:var(--t3);font-size:11px">${typeCounts[t]||0}</span></label>`;}).join('')}
           <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:10px 0 4px">Colour nodes by</div>
           <select onchange="_kgSetColorBy(this.value)" class="inp" style="width:100%;height:26px;font-size:11px;padding:0 6px">
             ${[['palette','Note colour / auto'],['tag','First tag'],['folder','Folder'],['color','Manual colour tag']].map(([v,l])=>`<option value="${v}" ${cfg.colorBy===v?'selected':''}>${l}</option>`).join('')}
@@ -3842,8 +3842,8 @@ function _renderDailyFocusAISection(){
   const rows=picks.map((p,i)=>{
     const badge=p.source==='smartsheet'?_extSourceBadge('smartsheet'):(p.source==='nifty'?_extSourceBadge('nifty'):'');
     const clickHandler=p.source==='local'
-      ?`(()=>{const t=D.tasks.find(x=>String(x.id)===${JSON.stringify(p.id)});if(t)openDrawer('task',t);})()`
-      :(p.url?`window.open('${esc(p.url)}','_blank','noopener')`:'void 0');
+      ?`(()=>{const t=D.tasks.find(x=>String(x.id)===String(${_tidLit(p.id)}));if(t)openDrawer('task',t);})()`
+      :(p.url?`_luOpenUrl('${_jsAttr(p.url)}')`:'void 0');
     return `<div style="display:flex;align-items:flex-start;gap:6px;padding:6px 0;${i<picks.length-1?'border-bottom:1px solid var(--bd1);':''}cursor:pointer" onclick="${clickHandler}">
       <span style="font-size:11px;font-weight:700;color:var(--ac);min-width:14px;flex-shrink:0">${i+1}.</span>
       <div style="flex:1;min-width:0">
@@ -3996,11 +3996,11 @@ function _hydrateSidebarGroupsCollapsed(){
 // Collapses a calendar header's AI actions into one "✨ AI ▾" dropdown
 // (matches the Goals/Projects AI menus) so the header isn't a long button row.
 function _calAIMenu(id,items){
-  return `<div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:11px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('${id}')" title="AI calendar tools">✨ AI ▾</button><div id="${id}" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:190px;box-shadow:0 4px 16px rgba(0,0,0,.35)">${items.map(it=>`<button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:${it.c};background:transparent;border:none;text-align:left" onclick="closePopMenu('${id}');${it.fn}">${it.label}</button>`).join('')}</div></div>`;
+  return `<div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:11px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('${_jsAttr(id)}')" title="AI calendar tools">✨ AI ▾</button><div id="${id}" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:190px;box-shadow:0 4px 16px rgba(0,0,0,.35)">${items.map(it=>`<button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:${it.c};background:transparent;border:none;text-align:left" onclick="closePopMenu('${_jsAttr(id)}');${it.fn}">${it.label}</button>`).join('')}</div></div>`;
 }
 function _focusViewTabs(active){
   const tabs=[['myday','Day'],['myweek','Week'],['myyear','Year']];
-  return `<div style="display:inline-flex;margin-top:8px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;overflow:hidden">${tabs.map(([r,l])=>`<button class="btn" style="border-radius:0;height:26px;font-size:11px;border:none;padding:0 12px;background:${active===r?'var(--ac)':'transparent'};color:${active===r?'#fff':'var(--t2)'}" onclick="nav('${r}')">${l}</button>`).join('')}</div>`;
+  return `<div style="display:inline-flex;margin-top:8px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;overflow:hidden">${tabs.map(([r,l])=>`<button class="btn" style="border-radius:0;height:26px;font-size:11px;border:none;padding:0 12px;background:${active===r?'var(--ac)':'transparent'};color:${active===r?'#fff':'var(--t2)'}" onclick="nav('${_jsAttr(r)}')">${l}</button>`).join('')}</div>`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -4331,7 +4331,7 @@ function openDrawer(type,item){
 }
 function closeDrawer(){document.getElementById('drawer-ov').classList.remove('show')}
 function renderDrawer(type,item){
-  const pinBtn=(t,id)=>{const pinned=D.prefs.pinned&&D.prefs.pinned.some(p=>p.type===t&&p.id===id);return `<button class="btn btn-s" style="height:22px;padding:0 7px;font-size:11px;margin-right:4px" onclick="togglePin('${t}',${id})" title="${pinned?'Unpin from Home':'Pin to Home'}">${pinned?'📌 Pinned':'📌 Pin'}</button>`;};
+  const pinBtn=(t,id)=>{const pinned=D.prefs.pinned&&D.prefs.pinned.some(p=>p.type===t&&p.id===id);return `<button class="btn btn-s" style="height:22px;padding:0 7px;font-size:11px;margin-right:4px" onclick="togglePin('${_jsAttr(t)}',${id})" title="${pinned?'Unpin from Home':'Pin to Home'}">${pinned?'📌 Pinned':'📌 Pin'}</button>`;};
   const cb=`<button class="close" onclick="closeDrawer()">✕</button>`;
   if(type==='task'){
     const subs=item.subtasks||[];
@@ -4342,7 +4342,7 @@ function renderDrawer(type,item){
         <div class="lr" style="padding:4px 6px;background:var(--s2)">
           <div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${_tidLit(item.id)},${si})"></div>
           <span class="rt" style="flex:1;font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span>
-          <button type="button" class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px;margin-left:4px" onclick="(function(){const d=document.getElementById('${descId}');if(d)d.style.display=d.style.display==='none'?'block':'none'})()" title="Toggle description">${hasDesc?'📝':'+ desc'}</button>
+          <button type="button" class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px;margin-left:4px" onclick="(function(){const d=document.getElementById('${_jsAttr(descId)}');if(d)d.style.display=d.style.display==='none'?'block':'none'})()" title="Toggle description">${hasDesc?'📝':'+ desc'}</button>
           <span onclick="deleteSubtask(${_tidLit(item.id)},${si})" style="cursor:pointer;color:var(--t3);font-size:11px;margin-left:4px" title="Delete subtask">✕</span>
         </div>
         <div id="${descId}" style="display:${hasDesc?'block':'none'};padding:6px;background:var(--s1);border-top:1px solid var(--bd1)">
@@ -4366,7 +4366,7 @@ function renderDrawer(type,item){
       <div class="field" style="flex:1"><label>Title</label><input class="inp" value="${esc(item.title)}" id="dr-title"></div>
       <div class="field" style="flex:0 0 auto"><label style="font-size:11px;color:var(--t2)">Title Color</label>
         <div style="display:flex;gap:4px;align-items:center;margin-top:4px">
-          ${['','#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899','#06b6d4'].map(c=>c?`<span onclick="document.getElementById('dr-title-color').value='${c}';this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';this.style.outlineOffset='1px'" style="display:inline-block;width:16px;height:16px;border-radius:50%;background:${c};cursor:pointer;${(item.titleColor||'')=== c?'outline:2px solid var(--ac);outline-offset:1px':''}"></span>`:`<span onclick="document.getElementById('dr-title-color').value='';this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';this.style.outlineOffset='1px'" style="display:inline-block;width:16px;height:16px;border-radius:50%;background:var(--s3);cursor:pointer;border:1px dashed var(--bd2);${!(item.titleColor)?'outline:2px solid var(--ac);outline-offset:1px':''}" title="Default"></span>`).join('')}
+          ${['','#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899','#06b6d4'].map(c=>c?`<span onclick="document.getElementById('dr-title-color').value='${_jsAttr(c)}';this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';this.style.outlineOffset='1px'" style="display:inline-block;width:16px;height:16px;border-radius:50%;background:${c};cursor:pointer;${(item.titleColor||'')=== c?'outline:2px solid var(--ac);outline-offset:1px':''}"></span>`:`<span onclick="document.getElementById('dr-title-color').value='';this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';this.style.outlineOffset='1px'" style="display:inline-block;width:16px;height:16px;border-radius:50%;background:var(--s3);cursor:pointer;border:1px dashed var(--bd2);${!(item.titleColor)?'outline:2px solid var(--ac);outline-offset:1px':''}" title="Default"></span>`).join('')}
           <input type="color" id="dr-title-color" value="${item.titleColor||'#4f46e5'}" style="width:22px;height:22px;border:none;background:none;cursor:pointer;padding:0" title="Custom color">
           <input type="hidden" id="dr-title-color-val" value="${item.titleColor||''}">
         </div>
@@ -4436,7 +4436,7 @@ function renderDrawer(type,item){
     </div>
     <div class="dr-actions">
     <button class="btn btn-p" onclick="saveItem('task',${_tidLit(item.id)})">Save Changes</button>
-    <button class="btn btn-s" title="${item.pushedTo&&item.pushedTo.source==='nifty'?'Already pushed to Nifty · click to open it':'Create this task in NiftyPM (project, assignee, dates, status)'}" onclick="${item.pushedTo&&item.pushedTo.url?`window.open('${esc(item.pushedTo.url)}','_blank','noopener')`:`openPushToNiftyModal(${_tidLit(item.id)})`}">↗ ${item.pushedTo&&item.pushedTo.source==='nifty'?'Open in Nifty':'Push to Nifty'}</button>
+    <button class="btn btn-s" title="${item.pushedTo&&item.pushedTo.source==='nifty'?'Already pushed to Nifty · click to open it':'Create this task in NiftyPM (project, assignee, dates, status)'}" onclick="${item.pushedTo&&item.pushedTo.url?`_luOpenUrl('${_jsAttr(item.pushedTo.url)}')`:`openPushToNiftyModal(${_tidLit(item.id)})`}">↗ ${item.pushedTo&&item.pushedTo.source==='nifty'?'Open in Nifty':'Push to Nifty'}</button>
     <button class="btn btn-d" onclick="deleteItem('task',${_tidLit(item.id)})">Delete</button>
     <button class="btn btn-s" onclick="closeDrawer()">Cancel</button></div>`;
   }
@@ -4447,7 +4447,7 @@ function renderDrawer(type,item){
       <div class="field" style="flex:1"><label>Title</label><input class="inp" value="${esc(item.title)}" id="dr-title"></div>
       <div class="field" style="flex:0 0 auto"><label style="font-size:11px;color:var(--t2)">Title Color</label>
         <div style="display:flex;gap:4px;align-items:center;margin-top:4px">
-          ${['','#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899','#06b6d4'].map(c=>c?`<span onclick="document.getElementById('dr-note-title-color').value='${c}';this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';this.style.outlineOffset='1px'" style="display:inline-block;width:16px;height:16px;border-radius:50%;background:${c};cursor:pointer;${(item.titleColor||'')=== c?'outline:2px solid var(--ac);outline-offset:1px':''}"></span>`:`<span onclick="document.getElementById('dr-note-title-color').value='';this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';this.style.outlineOffset='1px'" style="display:inline-block;width:16px;height:16px;border-radius:50%;background:var(--s3);cursor:pointer;border:1px dashed var(--bd2);${!(item.titleColor)?'outline:2px solid var(--ac);outline-offset:1px':''}" title="Default"></span>`).join('')}
+          ${['','#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899','#06b6d4'].map(c=>c?`<span onclick="document.getElementById('dr-note-title-color').value='${_jsAttr(c)}';this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';this.style.outlineOffset='1px'" style="display:inline-block;width:16px;height:16px;border-radius:50%;background:${c};cursor:pointer;${(item.titleColor||'')=== c?'outline:2px solid var(--ac);outline-offset:1px':''}"></span>`:`<span onclick="document.getElementById('dr-note-title-color').value='';this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';this.style.outlineOffset='1px'" style="display:inline-block;width:16px;height:16px;border-radius:50%;background:var(--s3);cursor:pointer;border:1px dashed var(--bd2);${!(item.titleColor)?'outline:2px solid var(--ac);outline-offset:1px':''}" title="Default"></span>`).join('')}
           <input type="color" id="dr-note-title-color" value="${item.titleColor||'#4f46e5'}" style="width:22px;height:22px;border:none;background:none;cursor:pointer;padding:0" title="Custom color">
         </div>
       </div>
@@ -4578,7 +4578,7 @@ function renderDrawer(type,item){
     return `<h2>${_icon('edit',18,'currentColor')} Edit Journal Entry ${cb}</h2>
     <div class="field"><label>Title</label><input class="inp" value="${esc(item.title)}" id="dr-title"></div>
     ${(()=>{const iso=typeof _faJournalISO==='function'?_faJournalISO(item):'';const legacy=item.date&&!/^\d{4}-\d{2}-\d{2}$/.test(String(item.date))?`<div style="font-size:11px;color:var(--t3);margin-top:3px">Saved as &ldquo;${esc(item.date)}&rdquo;</div>`:'';return `<div class="field"><label>Date</label><input type="date" class="inp" value="${iso}" data-orig="${iso}" id="dr-date">${legacy}</div>`;})()}
-    <div class="field"><label>Mood</label><div style="display:flex;gap:6px">${['😊','🙂','😐','😫','😰'].map(m=>`<span style="font-size:20px;cursor:pointer;${item.mood===m?'outline:2px solid var(--ac);border-radius:6px':''}" onclick="this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';this.style.borderRadius='6px';document.getElementById('dr-mood').value='${m}'">${m}</span>`).join('')}</div><input type="hidden" id="dr-mood" value="${item.mood}"></div>
+    <div class="field"><label>Mood</label><div style="display:flex;gap:6px">${['😊','🙂','😐','😫','😰'].map(m=>`<span style="font-size:20px;cursor:pointer;${item.mood===m?'outline:2px solid var(--ac);border-radius:6px':''}" onclick="this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';this.style.borderRadius='6px';document.getElementById('dr-mood').value='${_jsAttr(m)}'">${m}</span>`).join('')}</div><input type="hidden" id="dr-mood" value="${item.mood}"></div>
     <div class="field"><label>Content</label><textarea class="inp" style="min-height:150px" id="dr-body">${esc(item.body||'')}</textarea></div>
     <div class="field" style="margin-top:10px">
       <label><span>📓 Diary Entry <span style="font-size:11px;font-weight:400;color:var(--t3)">Rich text — edit freely</span></span></label>
@@ -4651,6 +4651,41 @@ function _jsArg(v){
   return JSON.stringify(v===undefined?null:v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 function _jsAttr(s){return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+// Open a stored link (bookmark, meeting, news, pushed task) in a new tab —
+// web and mail links only: a javascript: or data: URL saved in a record must
+// never run in the app's window (build -235).
+function _luOpenUrl(u){
+  u=String(u==null?'':u).trim();
+  if(!/^(https?:|mailto:)/i.test(u)){if(typeof toast==='function')toast({type:'warning',title:'Link not opened',msg:'Only web (http/https) and email links can be opened.'});return null;}
+  return window.open(u,'_blank','noopener');
+}
+// ── Delegated actions (build -235) ─────────────────────────────────────────
+// Inline handlers built from text (onclick="fn('${...}')") break — or run
+// the text as code — when the text holds a quote; esc() is NOT enough there
+// because the browser decodes the attribute before running it. New markup
+// should use _act() instead: the function name and its arguments ride in
+// data- attributes as JSON, so no value is ever parsed as code.
+//   `<button${_act('openThing',[id,title])}>`        → openThing(id,title)
+//   _act('fn',[a],{stop:true})  stops the click reaching parent handlers
+//   _act('fn',[a],{ev:true})    passes the click event as the last argument
+// `this` inside the function is the clicked element. Keyboard (Enter/Space)
+// works through _luKbdFix like inline handlers. pnpm check:handlers keeps the
+// number of text-built inline handlers from growing.
+function _act(fn,args,opts){
+  return ' data-act="'+esc(fn)+'" data-a="'+esc(JSON.stringify(args==null?[]:args))+'"'+(opts&&opts.stop?' data-stop="1"':'')+(opts&&opts.ev?' data-ev="1"':'');
+}
+document.addEventListener('click',e=>{
+  const el=e.target&&e.target.closest?e.target.closest('[data-act]'):null;
+  if(!el)return;
+  const fn=el.getAttribute('data-act');
+  if(!/^[A-Za-z_$][\w$]*$/.test(fn||'')||typeof window[fn]!=='function'){console.warn('[act] unknown action',fn);return;}
+  // Capture phase, so stopping here also keeps parents' inline handlers from firing.
+  if(el.hasAttribute('data-stop'))e.stopPropagation();
+  let a=[];try{a=JSON.parse(el.getAttribute('data-a')||'[]');}catch(_){}
+  if(!Array.isArray(a))a=[a];
+  if(el.hasAttribute('data-ev'))a.push(e);
+  window[fn].apply(el,a);
+},true);
 // ── CSV / HTML EXPORT HELPERS ────────────────────────────────────────────────
 // Convert a JS value into a CSV-safe cell. Quotes if needed; escapes embedded quotes.
 function _csvCell(v){
@@ -4834,15 +4869,15 @@ function _maRender(id){
     return `<span style="display:inline-flex;align-items:center;gap:5px;background:var(--s2);border:1px solid ${s.primary?'var(--warn)':'var(--bd2)'};border-radius:999px;padding:2px 7px 2px 2px;margin:2px;font-size:11px">
       <span style="width:18px;height:18px;border-radius:50%;background:${col};color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0">${ini}</span>
       <span>${esc(s.name)}</span>
-      <span title="${s.primary?'Primary Responsible':'Make Primary'}" onclick="_maSetPrimary('${id}',${s.userId})" style="cursor:pointer;color:${s.primary?'var(--warn)':'var(--t3)'}">★</span>
-      <span title="Remove" onclick="_maRemove('${id}',${s.userId})" style="cursor:pointer;color:var(--t3);font-weight:700;font-size:13px;line-height:1">×</span>
+      <span title="${s.primary?'Primary Responsible':'Make Primary'}" onclick="_maSetPrimary('${_jsAttr(id)}',${s.userId})" style="cursor:pointer;color:${s.primary?'var(--warn)':'var(--t3)'}">★</span>
+      <span title="Remove" onclick="_maRemove('${_jsAttr(id)}',${s.userId})" style="cursor:pointer;color:var(--t3);font-weight:700;font-size:13px;line-height:1">×</span>
     </span>`;
   }).join('');
   const avail=members.filter(m=>!st.list.some(s=>s.userId===m.userId));
   const opts=['<option value="">+ Add member…</option>'].concat(avail.map(m=>`<option value="${m.userId}">${esc(m.name)}</option>`)).join('');
   return `<div id="${id}-ma">
     <div style="display:flex;flex-wrap:wrap;align-items:center;min-height:24px">${chips||'<span style="font-size:11px;color:var(--t3)">No one assigned</span>'}</div>
-    <select class="inp" style="margin-top:4px;font-size:11px" onchange="_maAdd('${id}',this.value);this.value=''">${opts}</select>
+    <select class="inp" style="margin-top:4px;font-size:11px" onchange="_maAdd('${_jsAttr(id)}',this.value);this.value=''">${opts}</select>
   </div>`;
 }
 function _maAdd(id,uidStr){ const uid=Number(uidStr); if(!uid)return; const st=_maState[id]; if(!st)return; if(st.list.some(s=>s.userId===uid))return; const m=_assigneeMembers().find(x=>x.userId===uid); const first=st.list.length===0; st.list.push({userId:uid,name:(m&&m.name)||('user '+uid),primary:first}); _maRefresh(id); }
@@ -4861,18 +4896,18 @@ function buildAssigneeDropdown(id,currentValue){
         ?`<img src="${esc(sel.avatar)}" class="ca-avatar" style="object-fit:cover">`
         :`<div class="ca-avatar" style="background:${selColor}">${selInitials}</div>`)
     :`<div class="ca-avatar" style="background:var(--s3);color:var(--t3)">—</div>`;
-  const items=[`<div class="ca-item ${!currentValue?'selected':''}" onclick="_caSelect('${id}','')"><div class="ca-avatar" style="background:var(--s3);color:var(--t3)">—</div><span>Unassigned</span></div>`]
+  const items=[`<div class="ca-item ${!currentValue?'selected':''}" onclick="_caSelect('${_jsAttr(id)}','')"><div class="ca-avatar" style="background:var(--s3);color:var(--t3)">—</div><span>Unassigned</span></div>`]
     .concat(members.map(m=>{
       const ini=m.name.split(' ').map(w=>w[0]||'').join('').substring(0,2).toUpperCase();
       const col=m.color||'var(--ac)';
       const avatarEl=m.avatar
         ?`<img src="${esc(m.avatar)}" class="ca-avatar" style="object-fit:cover">`
         :`<div class="ca-avatar" style="background:${col}">${ini}</div>`;
-      return `<div class="ca-item ${currentValue===m.name?'selected':''}" onclick="_caSelect('${id}','${esc(m.name)}')">${avatarEl}<span>${esc(m.name)}<span style="font-size:11px;color:var(--t3);margin-left:4px">${esc(m.role)}</span></span></div>`;
+      return `<div class="ca-item ${currentValue===m.name?'selected':''}" onclick="_caSelect('${_jsAttr(id)}','${_jsAttr(m.name)}')">${avatarEl}<span>${esc(m.name)}<span style="font-size:11px;color:var(--t3);margin-left:4px">${esc(m.role)}</span></span></div>`;
     }));
   return `<div class="ca-wrap" id="${id}-wrap">
     <input type="hidden" id="${id}-val" value="${esc(currentValue||'')}">
-    <div class="ca-trigger" onclick="_caToggle('${id}')">${triggerAvatar}<span class="ca-label">${sel?esc(sel.name):'Unassigned'}</span><span class="ca-caret">▾</span></div>
+    <div class="ca-trigger" onclick="_caToggle('${_jsAttr(id)}')">${triggerAvatar}<span class="ca-label">${sel?esc(sel.name):'Unassigned'}</span><span class="ca-caret">▾</span></div>
     <div class="ca-menu" id="${id}-menu" style="display:none">${items.join('')}</div>
   </div>`;
 }
@@ -5034,10 +5069,10 @@ function _drRenderTaskLinks(containerId){
     const linkedItems=linkedIds.map(id=>all.find(x=>x.id===id)).filter(Boolean);
     const available=all.filter(x=>!linkedIds.includes(x.id)).slice(0,200);
     const chips=linkedItems.length
-      ?linkedItems.map(x=>`<span style="display:inline-flex;align-items:center;gap:4px;background:var(--acs);color:var(--ac);border:1px solid color-mix(in srgb,var(--ac) 35%,var(--bd2));border-radius:12px;padding:2px 4px 2px 8px;font-size:11px;margin:2px 3px 2px 0;max-width:100%"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px">${esc(c.labelOf(x))}</span><span style="cursor:pointer;padding:0 4px;border-radius:8px;line-height:1;font-weight:600" title="Unlink" onclick="_drRemoveLink('${c.key}',${x.id})">✕</span></span>`).join('')
+      ?linkedItems.map(x=>`<span style="display:inline-flex;align-items:center;gap:4px;background:var(--acs);color:var(--ac);border:1px solid color-mix(in srgb,var(--ac) 35%,var(--bd2));border-radius:12px;padding:2px 4px 2px 8px;font-size:11px;margin:2px 3px 2px 0;max-width:100%"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px">${esc(c.labelOf(x))}</span><span style="cursor:pointer;padding:0 4px;border-radius:8px;line-height:1;font-weight:600" title="Unlink" onclick="_drRemoveLink('${_jsAttr(c.key)}',${x.id})">✕</span></span>`).join('')
       :`<span style="font-size:11px;color:var(--t3);font-style:italic">None linked</span>`;
     const dropdown=available.length
-      ?`<select class="inp" style="height:26px;font-size:11px;padding:0 6px;margin-top:6px;width:100%" onchange="_drAddLink('${c.key}',this.value);this.value=''"><option value="">+ Add ${esc(c.label.toLowerCase())}…</option>${available.map(x=>`<option value="${x.id}">${esc(c.labelOf(x))}</option>`).join('')}</select>`
+      ?`<select class="inp" style="height:26px;font-size:11px;padding:0 6px;margin-top:6px;width:100%" onchange="_drAddLink('${_jsAttr(c.key)}',this.value);this.value=''"><option value="">+ Add ${esc(c.label.toLowerCase())}…</option>${available.map(x=>`<option value="${x.id}">${esc(c.labelOf(x))}</option>`).join('')}</select>`
       :`<div style="font-size:11px;color:var(--t3);margin-top:6px">No more ${esc(c.label.toLowerCase())} to add.</div>`;
     return `<div><label style="font-size:11px;color:var(--t3);font-weight:600;text-transform:uppercase;display:flex;align-items:center;gap:4px">${c.icon} ${esc(c.label)}<span style="margin-left:auto;font-size:11px;color:${linkedItems.length?'var(--ac)':'var(--t3)'}">${linkedItems.length?linkedItems.length+' linked':''}</span></label><div style="margin-top:4px;display:flex;flex-wrap:wrap;align-items:center;min-height:22px">${chips}</div>${dropdown}</div>`;
   }).join('');
@@ -5206,7 +5241,7 @@ function addSubtask(taskId){
   const list=document.getElementById('subtask-list');
   if(list){
     const subs=t.subtasks;
-    list.innerHTML=subs.map((s,si)=>{const descId=`st-desc-${taskId}-${si}`;const hasDesc=!!(s.descHtml&&s.descHtml.trim());return `<div style="border:1px solid var(--bd1);border-radius:6px;margin-bottom:4px;overflow:hidden"><div class="lr" style="padding:4px 6px;background:var(--s2)"><div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${taskId},${si})"></div><span class="rt" style="flex:1;font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span><button type="button" class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px;margin-left:4px" onclick="(function(){const d=document.getElementById('${descId}');if(d)d.style.display=d.style.display==='none'?'block':'none'})()">${hasDesc?'📝':'+ desc'}</button><span onclick="deleteSubtask(${taskId},${si})" style="cursor:pointer;color:var(--t3);font-size:11px;margin-left:4px">✕</span></div><div id="${descId}" style="display:${hasDesc?'block':'none'};padding:6px;background:var(--s1);border-top:1px solid var(--bd1)"><div id="st-rte-${taskId}-${si}" contenteditable="true" spellcheck="true" style="min-height:40px;max-height:150px;overflow-y:auto;padding:6px;background:var(--s1);border:1px solid var(--bd1);border-radius:4px;font-size:11px;line-height:1.6;color:var(--t1);outline:none" oninput="(function(el){const t=D.tasks.find(x=>x.id===${taskId});if(t&&t.subtasks[${si}])t.subtasks[${si}].descHtml=el.innerHTML;save('tasks');})(this)">${s.descHtml||''}</div></div></div>`;}).join('');
+    list.innerHTML=subs.map((s,si)=>{const descId=`st-desc-${taskId}-${si}`;const hasDesc=!!(s.descHtml&&s.descHtml.trim());return `<div style="border:1px solid var(--bd1);border-radius:6px;margin-bottom:4px;overflow:hidden"><div class="lr" style="padding:4px 6px;background:var(--s2)"><div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${taskId},${si})"></div><span class="rt" style="flex:1;font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span><button type="button" class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px;margin-left:4px" onclick="(function(){const d=document.getElementById('${_jsAttr(descId)}');if(d)d.style.display=d.style.display==='none'?'block':'none'})()">${hasDesc?'📝':'+ desc'}</button><span onclick="deleteSubtask(${taskId},${si})" style="cursor:pointer;color:var(--t3);font-size:11px;margin-left:4px">✕</span></div><div id="${descId}" style="display:${hasDesc?'block':'none'};padding:6px;background:var(--s1);border-top:1px solid var(--bd1)"><div id="st-rte-${taskId}-${si}" contenteditable="true" spellcheck="true" style="min-height:40px;max-height:150px;overflow-y:auto;padding:6px;background:var(--s1);border:1px solid var(--bd1);border-radius:4px;font-size:11px;line-height:1.6;color:var(--t1);outline:none" oninput="(function(el){const t=D.tasks.find(x=>x.id===${taskId});if(t&&t.subtasks[${si}])t.subtasks[${si}].descHtml=el.innerHTML;save('tasks');})(this)">${s.descHtml||''}</div></div></div>`;}).join('');
   }
   inp.value='';
   inp.focus();
@@ -5219,7 +5254,7 @@ function toggleSubtask(taskId,idx){
   save('tasks');
   // Update drawer subtask list if open
   const list=document.getElementById('subtask-list');
-  if(list){const subs=t.subtasks;list.innerHTML=subs.map((s,si)=>{const descId=`st-desc-${taskId}-${si}`;const hasDesc=!!(s.descHtml&&s.descHtml.trim());return `<div style="border:1px solid var(--bd1);border-radius:6px;margin-bottom:4px;overflow:hidden"><div class="lr" style="padding:4px 6px;background:var(--s2)"><div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${taskId},${si})"></div><span class="rt" style="flex:1;font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span><button type="button" class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px;margin-left:4px" onclick="(function(){const d=document.getElementById('${descId}');if(d)d.style.display=d.style.display==='none'?'block':'none'})()">${hasDesc?'📝':'+ desc'}</button><span onclick="deleteSubtask(${taskId},${si})" style="cursor:pointer;color:var(--t3);font-size:11px;margin-left:4px">✕</span></div><div id="${descId}" style="display:${hasDesc?'block':'none'};padding:6px;background:var(--s1);border-top:1px solid var(--bd1)"><div id="st-rte-${taskId}-${si}" contenteditable="true" spellcheck="true" style="min-height:40px;max-height:150px;overflow-y:auto;padding:6px;background:var(--s1);border:1px solid var(--bd1);border-radius:4px;font-size:11px;line-height:1.6;color:var(--t1);outline:none" oninput="(function(el){const t=D.tasks.find(x=>x.id===${taskId});if(t&&t.subtasks[${si}])t.subtasks[${si}].descHtml=el.innerHTML;save('tasks');})(this)">${s.descHtml||''}</div></div></div>`;}).join('');}
+  if(list){const subs=t.subtasks;list.innerHTML=subs.map((s,si)=>{const descId=`st-desc-${taskId}-${si}`;const hasDesc=!!(s.descHtml&&s.descHtml.trim());return `<div style="border:1px solid var(--bd1);border-radius:6px;margin-bottom:4px;overflow:hidden"><div class="lr" style="padding:4px 6px;background:var(--s2)"><div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${taskId},${si})"></div><span class="rt" style="flex:1;font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span><button type="button" class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px;margin-left:4px" onclick="(function(){const d=document.getElementById('${_jsAttr(descId)}');if(d)d.style.display=d.style.display==='none'?'block':'none'})()">${hasDesc?'📝':'+ desc'}</button><span onclick="deleteSubtask(${taskId},${si})" style="cursor:pointer;color:var(--t3);font-size:11px;margin-left:4px">✕</span></div><div id="${descId}" style="display:${hasDesc?'block':'none'};padding:6px;background:var(--s1);border-top:1px solid var(--bd1)"><div id="st-rte-${taskId}-${si}" contenteditable="true" spellcheck="true" style="min-height:40px;max-height:150px;overflow-y:auto;padding:6px;background:var(--s1);border:1px solid var(--bd1);border-radius:4px;font-size:11px;line-height:1.6;color:var(--t1);outline:none" oninput="(function(el){const t=D.tasks.find(x=>x.id===${taskId});if(t&&t.subtasks[${si}])t.subtasks[${si}].descHtml=el.innerHTML;save('tasks');})(this)">${s.descHtml||''}</div></div></div>`;}).join('');}
   // Update exec list if on My Day
   const execList=document.getElementById('md-exec-list');
   if(execList){const activeTab=document.querySelector('#md-e .tab.on');const filter=activeTab?activeTab.textContent.toLowerCase().replace(' priority','').replace(' ',''):'all';execList.innerHTML=renderMdExecList(filter==='highpriority'?'high':filter);}
@@ -5232,7 +5267,7 @@ function deleteSubtask(taskId,idx){
   const list=document.getElementById('subtask-list');
   if(list){
     const subs=t.subtasks;
-    list.innerHTML=subs.map((s,si)=>{const descId=`st-desc-${taskId}-${si}`;const hasDesc=!!(s.descHtml&&s.descHtml.trim());return `<div style="border:1px solid var(--bd1);border-radius:6px;margin-bottom:4px;overflow:hidden"><div class="lr" style="padding:4px 6px;background:var(--s2)"><div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${taskId},${si})"></div><span class="rt" style="flex:1;font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span><button type="button" class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px;margin-left:4px" onclick="(function(){const d=document.getElementById('${descId}');if(d)d.style.display=d.style.display==='none'?'block':'none'})()">${hasDesc?'📝':'+ desc'}</button><span onclick="deleteSubtask(${taskId},${si})" style="cursor:pointer;color:var(--t3);font-size:11px;margin-left:4px">✕</span></div><div id="${descId}" style="display:${hasDesc?'block':'none'};padding:6px;background:var(--s1);border-top:1px solid var(--bd1)"><div id="st-rte-${taskId}-${si}" contenteditable="true" spellcheck="true" style="min-height:40px;max-height:150px;overflow-y:auto;padding:6px;background:var(--s1);border:1px solid var(--bd1);border-radius:4px;font-size:11px;line-height:1.6;color:var(--t1);outline:none" oninput="(function(el){const t=D.tasks.find(x=>x.id===${taskId});if(t&&t.subtasks[${si}])t.subtasks[${si}].descHtml=el.innerHTML;save('tasks');})(this)">${s.descHtml||''}</div></div></div>`;}).join('');
+    list.innerHTML=subs.map((s,si)=>{const descId=`st-desc-${taskId}-${si}`;const hasDesc=!!(s.descHtml&&s.descHtml.trim());return `<div style="border:1px solid var(--bd1);border-radius:6px;margin-bottom:4px;overflow:hidden"><div class="lr" style="padding:4px 6px;background:var(--s2)"><div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${taskId},${si})"></div><span class="rt" style="flex:1;font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span><button type="button" class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px;margin-left:4px" onclick="(function(){const d=document.getElementById('${_jsAttr(descId)}');if(d)d.style.display=d.style.display==='none'?'block':'none'})()">${hasDesc?'📝':'+ desc'}</button><span onclick="deleteSubtask(${taskId},${si})" style="cursor:pointer;color:var(--t3);font-size:11px;margin-left:4px">✕</span></div><div id="${descId}" style="display:${hasDesc?'block':'none'};padding:6px;background:var(--s1);border-top:1px solid var(--bd1)"><div id="st-rte-${taskId}-${si}" contenteditable="true" spellcheck="true" style="min-height:40px;max-height:150px;overflow-y:auto;padding:6px;background:var(--s1);border:1px solid var(--bd1);border-radius:4px;font-size:11px;line-height:1.6;color:var(--t1);outline:none" oninput="(function(el){const t=D.tasks.find(x=>x.id===${taskId});if(t&&t.subtasks[${si}])t.subtasks[${si}].descHtml=el.innerHTML;save('tasks');})(this)">${s.descHtml||''}</div></div></div>`;}).join('');
   }
 }
 
@@ -5250,7 +5285,7 @@ function openModal(type,preType){
   const ti=document.getElementById('cap-title');if(ti)setTimeout(()=>ti.focus(),80);
 }
 function renderCaptureModal(active){
-  const tabs=CAP_TYPES.map(t=>`<div class="tab ${t===active?'on':''}" onclick="capType='${t}';document.getElementById('modal-content').innerHTML=renderCaptureModal('${t}')" style="flex:1;text-align:center;padding:5px;font-size:11px">${t}</div>`).join('');
+  const tabs=CAP_TYPES.map(t=>`<div class="tab ${t===active?'on':''}" onclick="capType='${_jsAttr(t)}';document.getElementById('modal-content').innerHTML=renderCaptureModal('${_jsAttr(t)}')" style="flex:1;text-align:center;padding:5px;font-size:11px">${t}</div>`).join('');
   const tabBar=`<div style="display:flex;gap:2px;background:var(--s3);border-radius:6px;padding:2px;margin-bottom:12px">${tabs}</div>`;
   const footer=`<div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end"><button class="btn btn-s" onclick="closeModal()">Cancel</button><button class="btn btn-p" onclick="doCapture()">Save ${active}</button></div>`;
   const titleField=`<div class="field"><label>Title</label><input class="inp" placeholder="${active==='Task'?'What needs to be done?':active==='Note'?'Note title...':active==='Project'?'Project name...':active==='Goal'?'Goal title...':'Journal entry title...'}" id="cap-title"></div>`;
@@ -5287,7 +5322,7 @@ function renderCaptureModal(active){
   if(active==='Journal'){
     return `<h2>✏️ Quick Capture <button class="close" onclick="closeModal()">✕</button></h2>${tabBar}${titleField}
     <div class="field"><label>Content</label>${luRTE_render({id:'cap-body', placeholder:"What's on your mind?", height:'160px'})}</div>
-    <div class="field"><label>Mood</label><div style="display:flex;gap:8px;margin-top:4px">${['😊','🙂','😐','😫','😰'].map(mo=>`<span style="font-size:22px;cursor:pointer;padding:3px;border-radius:6px" onclick="this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';document.getElementById('cap-mood').value='${mo}'">${mo}</span>`).join('')}</div><input type="hidden" id="cap-mood" value="😊"></div>${footer}`;
+    <div class="field"><label>Mood</label><div style="display:flex;gap:8px;margin-top:4px">${['😊','🙂','😐','😫','😰'].map(mo=>`<span style="font-size:22px;cursor:pointer;padding:3px;border-radius:6px" onclick="this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';document.getElementById('cap-mood').value='${_jsAttr(mo)}'">${mo}</span>`).join('')}</div><input type="hidden" id="cap-mood" value="😊"></div>${footer}`;
   }
   if(active==='Idea'){
     return `<h2>${_icon('lightbulb',18,'currentColor')} Quick Capture <button class="close" onclick="closeModal()">✕</button></h2>${tabBar}${titleField}

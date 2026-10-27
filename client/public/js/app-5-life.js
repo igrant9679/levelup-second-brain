@@ -332,7 +332,7 @@ function renderGoals(){
     if(_goalsView!=='grid')return '';
     const cats=['All',...[...new Set(D.goals.map(g=>g.category||'').filter(Boolean))].sort()];
     if(cats.length<=2)return '';
-    return `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px">${cats.map(c=>`<button class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;background:${_goalsCategory===c?'var(--ac)':'var(--s2)'};color:${_goalsCategory===c?'#fff':'var(--t2)'};border-color:var(--bd2)" onclick="setGoalsFilter('category','${esc(c).replace(/'/g,'&#39;')}')">${esc(c)}</button>`).join('')}</div>`;
+    return `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px">${cats.map(c=>`<button class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;background:${_goalsCategory===c?'var(--ac)':'var(--s2)'};color:${_goalsCategory===c?'#fff':'var(--t2)'};border-color:var(--bd2)" onclick="setGoalsFilter('category','${_jsAttr(c).replace(/'/g,'&#39;')}')">${esc(c)}</button>`).join('')}</div>`;
   })()}
   ${(()=>{
     // G3: stale goals strip
@@ -691,7 +691,7 @@ function renderJournal(){
   </div></div>
   ${sparkHtml}
   <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center"><input id="jrnl-search" class="inp" placeholder="🔍 Search entries…" value="${esc(_jrnlSearch)}" style="flex:1;height:28px;font-size:11px" oninput="setJournalSearch(this.value)"></div>
-  <div class="tabs" id="jrnl-tabs">${['All',...JOURNAL_CATEGORIES].map(t=>`<div class="tab ${(_jrnlFilter||'All')===t?'on':''}" onclick="setJournalCategoryFilter('${t}')">${t}</div>`).join('')}</div>
+  <div class="tabs" id="jrnl-tabs">${['All',...JOURNAL_CATEGORIES].map(t=>`<div class="tab ${(_jrnlFilter||'All')===t?'on':''}" onclick="setJournalCategoryFilter('${_jsAttr(t)}')">${t}</div>`).join('')}</div>
   <div id="jrnl-entries"></div>`;
   if(_jrnlView==='calendar')renderJournalCalendar();
   else renderJournalList();
@@ -709,7 +709,7 @@ function renderJournal(){
   ${onThisDay.length?`<div style="margin-bottom:12px;padding:10px;background:var(--s2);border:1px solid var(--bd1);border-radius:8px"><div style="font-size:11px;font-weight:600;margin-bottom:6px">📅 On this day</div>${onThisDay.slice(0,4).map(j=>{const d=_parseJournalDate(j);const yr=d?d.getFullYear():'';return `<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 0" onclick="openDrawer('journal',D.journal.find(x=>x.id==${_tidLit(j.id)}))"><span style="font-size:11px;color:var(--t3);width:36px;flex-shrink:0">${yr}</span><span class="rt" style="font-size:11px">${esc(j.title||'(untitled)')}</span><span style="font-size:12px;flex-shrink:0">${j.mood||''}</span></div>`;}).join('')}</div>`:''}
   <div style="margin-bottom:12px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px"><div style="font-size:12px;font-weight:600">Prompts</div><button class="btn btn-s" style="font-size:10px;padding:0 6px;height:20px;color:var(--ac)" onclick="refreshJournalPromptsAI()" title="Generate fresh AI prompts based on your recent entries">✨ Refresh</button></div>
   <p style="font-size:11px;color:var(--t3);margin-bottom:6px">${useCached?'AI-generated for today':'Rotates daily'}</p>
-  ${prompts.map(p=>`<div style="background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:8px 10px;margin-bottom:5px;cursor:pointer;transition:all .15s;display:flex;align-items:flex-start;gap:7px" onmouseover="this.style.borderColor='var(--ac)';this.style.background='var(--acs)'" onmouseout="this.style.borderColor='var(--bd2)';this.style.background='var(--s2)'" onclick="openJournalPrompt('${esc(p.title).replace(/'/g,'&#39;')}','${esc(p.text).replace(/'/g,'&#39;')}')"><span style="font-size:14px;flex-shrink:0">${p.icon||'✏'}</span><div><div style="font-size:11px;font-weight:500;color:var(--t1);margin-bottom:1px">${esc(p.title||'')}</div><div style="font-size:11px;color:var(--t2);line-height:1.3">${esc(p.text||'')}</div></div></div>`).join('')}</div>`;
+  ${prompts.map(p=>`<div style="background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:8px 10px;margin-bottom:5px;cursor:pointer;transition:all .15s;display:flex;align-items:flex-start;gap:7px" onmouseover="this.style.borderColor='var(--ac)';this.style.background='var(--acs)'" onmouseout="this.style.borderColor='var(--bd2)';this.style.background='var(--s2)'" onclick="openJournalPrompt('${_jsAttr(p.title).replace(/'/g,'&#39;')}','${_jsAttr(p.text).replace(/'/g,'&#39;')}')"><span style="font-size:14px;flex-shrink:0">${p.icon||'✏'}</span><div><div style="font-size:11px;font-weight:500;color:var(--t1);margin-bottom:1px">${esc(p.title||'')}</div><div style="font-size:11px;color:var(--t2);line-height:1.3">${esc(p.text||'')}</div></div></div>`).join('')}</div>`;
 }
 
 function _getMailItems(){
@@ -792,22 +792,22 @@ function openMailItem(id){
   const dateStr=_fmtMailDate(mail.date||mail.sentDateTime||mail.receivedDateTime);
   det.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
   <div><div style="font-size:14px;font-weight:600">${esc(mail.subject||'(no subject)')}</div>${fromLine}<div style="font-size:11px;color:var(--t3)">${dateStr}</div></div>
-   <div style="display:flex;gap:4px">${_mailTab!=='sent'?`<button class="btn btn-p" style="height:24px;font-size:11px" onclick="openInlineReply('${id}')">↩ Reply</button><button class="btn btn-s" style="height:24px;font-size:11px" onclick="aiSmartReply('${id}')">✨ Smart Reply</button><button class="btn btn-s" style="height:24px;font-size:11px" onclick="openComposeModal({to:'${_jsAttr(mail.fromEmail||mail.email||'')}',subject:'Fwd: ${_jsAttr(mail.subject||'')}'})">Forward</button>`:''}</div>
+   <div style="display:flex;gap:4px">${_mailTab!=='sent'?`<button class="btn btn-p" style="height:24px;font-size:11px" onclick="openInlineReply('${_jsAttr(id)}')">↩ Reply</button><button class="btn btn-s" style="height:24px;font-size:11px" onclick="aiSmartReply('${_jsAttr(id)}')">✨ Smart Reply</button><button class="btn btn-s" style="height:24px;font-size:11px" onclick="openComposeModal({to:'${_jsAttr(mail.fromEmail||mail.email||'')}',subject:'Fwd: ${_jsAttr(mail.subject||'')}'})">Forward</button>`:''}</div>
   </div>
   <div style="font-size:12px;color:var(--t2);line-height:1.7;border-top:1px solid var(--bd1);padding-top:12px">${mail.body?(mail.body.includes('<')?luSanitizeHtml(mail.body):esc(mail.body)):esc(mail.preview||'(no preview)')}</div>
   ${_mailTab!=='sent'?`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bd1);display:flex;gap:6px">
   <button class="btn btn-s" style="height:24px;font-size:11px" onclick="toast('Archived')">Archive</button>
   <button class="btn btn-s" style="height:24px;font-size:11px" onclick="toast('Flagged')">Flag</button>
   <button class="btn btn-s" style="height:24px;font-size:11px" onclick="openFA('task')">Create Task</button>
-  <button class="btn btn-s" style="height:24px;font-size:11px;color:var(--purp)" onclick="aiSummarizeThread('${id}')">✨ Summarize</button>
-  <button class="btn btn-s" style="height:24px;font-size:11px;color:var(--grn)" onclick="aiFollowUpReminder('${id}')">⏰ Follow-up</button>
+  <button class="btn btn-s" style="height:24px;font-size:11px;color:var(--purp)" onclick="aiSummarizeThread('${_jsAttr(id)}')">✨ Summarize</button>
+  <button class="btn btn-s" style="height:24px;font-size:11px;color:var(--grn)" onclick="aiFollowUpReminder('${_jsAttr(id)}')">⏰ Follow-up</button>
   </div>
   <div id="inline-reply-${id}" style="display:none;margin-top:12px;border:1px solid var(--bd1);border-radius:8px;padding:12px;background:var(--s2)">
     <div style="font-size:11px;font-weight:600;margin-bottom:8px">↩ Reply to ${esc(mail.from||mail.fromEmail||'')}</div>
     <div id="inline-reply-rte-${id}" style="min-height:100px;border:1px solid var(--bd1);border-radius:6px;background:var(--s1);padding:8px;font-size:12px;outline:none" contenteditable="true" placeholder="Write your reply..."></div>
     <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end">
       <button class="btn btn-s" style="height:26px;font-size:11px" onclick="document.getElementById('inline-reply-${id}').style.display='none'">Cancel</button>
-      <button class="btn btn-p" style="height:26px;font-size:11px" onclick="sendInlineReply('${id}')">Send Reply</button>
+      <button class="btn btn-p" style="height:26px;font-size:11px" onclick="sendInlineReply('${_jsAttr(id)}')">Send Reply</button>
     </div>
   </div>`:''}`;
 }
@@ -818,7 +818,7 @@ function renderMailInboxList(q=''){
   return items.map(m=>{
     const sel=_selectedMail===m.id;
     const dt=_fmtMailDate(m.date||m.receivedDateTime);
-    return `<div class="lr" style="cursor:pointer;background:${sel?'var(--s3)':'transparent'};border-radius:6px;padding:6px 8px" onclick="openMailItem('${m.id}')" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='${sel?'var(--s3)':'transparent'}'"><span style="width:6px;height:6px;border-radius:50%;background:${m.read?'transparent':'var(--ac)'};flex-shrink:0;margin-top:2px"></span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:${m.read?400:600}">${esc(m.from||'')}</div><div style="font-size:11px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.subject||'(no subject)')}</div></div><span style="font-size:11px;color:var(--t3);white-space:nowrap">${dt}</span></div>`;
+    return `<div class="lr" style="cursor:pointer;background:${sel?'var(--s3)':'transparent'};border-radius:6px;padding:6px 8px" onclick="openMailItem('${_jsAttr(m.id)}')" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='${sel?'var(--s3)':'transparent'}'"><span style="width:6px;height:6px;border-radius:50%;background:${m.read?'transparent':'var(--ac)'};flex-shrink:0;margin-top:2px"></span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:${m.read?400:600}">${esc(m.from||'')}</div><div style="font-size:11px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.subject||'(no subject)')}</div></div><span style="font-size:11px;color:var(--t3);white-space:nowrap">${dt}</span></div>`;
   }).join('');
 }
 function renderMailSentList(q=''){
@@ -828,7 +828,7 @@ function renderMailSentList(q=''){
   return items.map(m=>{
     const sel=_selectedMail===m.id;
     const dt=_fmtMailDate(m.date||m.sentDateTime);
-    return `<div class="lr" style="cursor:pointer;background:${sel?'var(--s3)':'transparent'};border-radius:6px;padding:6px 8px" onclick="openMailItem('${m.id}')" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='${sel?'var(--s3)':'transparent'}'"><span style="width:6px;height:6px;border-radius:50%;background:transparent;flex-shrink:0;margin-top:2px"></span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:400">To: ${esc(m.to||m.toEmail||'')}</div><div style="font-size:11px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.subject||'(no subject)')}</div></div><span style="font-size:11px;color:var(--t3);white-space:nowrap">${dt}</span></div>`;
+    return `<div class="lr" style="cursor:pointer;background:${sel?'var(--s3)':'transparent'};border-radius:6px;padding:6px 8px" onclick="openMailItem('${_jsAttr(m.id)}')" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='${sel?'var(--s3)':'transparent'}'"><span style="width:6px;height:6px;border-radius:50%;background:transparent;flex-shrink:0;margin-top:2px"></span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:400">To: ${esc(m.to||m.toEmail||'')}</div><div style="font-size:11px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.subject||'(no subject)')}</div></div><span style="font-size:11px;color:var(--t3);white-space:nowrap">${dt}</span></div>`;
   }).join('');
 }
 async function syncSentMail(){
@@ -932,7 +932,7 @@ function aiTriageMail(){
   const m=document.getElementById('modal-content');
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">✨ AI Inbox Triage</h2>
   <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Classified ${_getMailItems().length} emails:</div>
-  ${Object.entries(groups).map(([cat,mails])=>`<div style="margin-bottom:10px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span style="font-size:11px;font-weight:700;color:${catColors[cat]}">${cat}</span><span style="font-size:11px;color:var(--t3)">(${mails.length})</span></div>${mails.length?mails.map(ml=>`<div style="font-size:11px;padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:2px;cursor:pointer" onclick="closeModal();openMailItem('${ml.id}')">${esc(ml.from)} · ${esc(ml.subject)}</div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:2px 8px">None</div>'}</div>`).join('')}
+  ${Object.entries(groups).map(([cat,mails])=>`<div style="margin-bottom:10px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span style="font-size:11px;font-weight:700;color:${catColors[cat]}">${cat}</span><span style="font-size:11px;color:var(--t3)">(${mails.length})</span></div>${mails.length?mails.map(ml=>`<div style="font-size:11px;padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:2px;cursor:pointer" onclick="closeModal();openMailItem('${_jsAttr(ml.id)}')">${esc(ml.from)} · ${esc(ml.subject)}</div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:2px 8px">None</div>'}</div>`).join('')}
   <button class="btn btn-p" style="margin-top:8px" onclick="closeModal()">Close</button>`;
   document.getElementById('modal-capture').classList.add('show');
 }
@@ -1555,7 +1555,7 @@ function openCalEvent(id){
   ${ev.attendees&&ev.attendees.length?`<div style="display:flex;gap:8px;align-items:flex-start"><span style="font-size:16px">👥</span><div><div style="font-size:11px;color:var(--t3);margin-bottom:4px">Attendees</div><div style="display:flex;flex-wrap:wrap;gap:4px">${ev.attendees.map(a=>`<span style="font-size:11px;background:var(--s3);padding:2px 6px;border-radius:10px">${esc(a)}</span>`).join('')}</div></div></div>`:''}
   </div>
   <div style="display:flex;gap:6px;margin-top:14px;justify-content:flex-end">
-  ${ev.meetingUrl||ev.onlineMeeting?`<button class="btn btn-p" style="height:28px;font-size:11px" onclick="window.open('${esc(ev.meetingUrl||ev.onlineMeeting||'')}','_blank')">Join Meeting</button>`:''}
+  ${ev.meetingUrl||ev.onlineMeeting?`<button class="btn btn-p" style="height:28px;font-size:11px" onclick="_luOpenUrl('${_jsAttr(ev.meetingUrl||ev.onlineMeeting||'')}')">Join Meeting</button>`:''}
   <button class="btn btn-s" style="height:28px;font-size:11px" onclick="closeModal()">Close</button>
   </div>`;
   document.getElementById('modal-capture').classList.add('show');
@@ -2060,7 +2060,7 @@ function renderCalMonth(){
     const evs=[..._calEvents.filter(e=>_calLocalOn(e,d)),..._syncedEventsOn(d),..._tasksOnDate(d),...((typeof _finBillsOnDate==="function")?_finBillsOnDate(d):[])];
     const evDots=evs.slice(0,3).map(e=>_calChip(e,{cls:'',extra:';font-size:11px;padding:1px 4px;border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis'})).join('');
     const moreCount=evs.length>3?`<div style="font-size:9px;color:var(--t3);padding-left:4px">+${evs.length-3} more</div>`:'';
-    return`<div style="border:1px solid var(--bd1);min-height:80px;padding:4px;cursor:pointer;background:${isTodayCell?'var(--acs)':isThisMonth?'var(--s2)':'var(--s1)'};border-radius:4px" onclick="_calDayOffset=Math.round((new Date('${dStr}')-new Date(new Date().toDateString()))/(86400000));_calView='day';renderCal()">
+    return`<div style="border:1px solid var(--bd1);min-height:80px;padding:4px;cursor:pointer;background:${isTodayCell?'var(--acs)':isThisMonth?'var(--s2)':'var(--s1)'};border-radius:4px" onclick="_calDayOffset=Math.round((new Date('${_jsAttr(dStr)}')-new Date(new Date().toDateString()))/(86400000));_calView='day';renderCal()">
       <div style="font-size:11px;font-weight:${isTodayCell?700:400};color:${isTodayCell?'var(--ac)':isThisMonth?'var(--t1)':'var(--t3)'};margin-bottom:3px">${d.getDate()}</div>
       ${evDots}${moreCount}
     </div>`;
@@ -2249,7 +2249,7 @@ function aiExtractActions(){
     if(!checks.length){toast('Select at least one action');return;}
     const titles=[...checks].map(c=>c.closest('label').textContent.trim());
     titles.forEach(title=>{
-      D.tasks.push({id:Date.now()+Math.random(),title,priority:'Medium',due:'${dueDateStr}',status:'Not Started',context:'Admin',project:'',tags:['meeting-action'],notes:'Extracted from meeting notes',myDay:true,energy:'medium',subtasks:[],comments:[],createdBy:D.creds.userName||'Idris Grant'});
+      D.tasks.push({id:Date.now()+Math.random(),title,priority:'Medium',due:'${_jsAttr(dueDateStr)}',status:'Not Started',context:'Admin',project:'',tags:['meeting-action'],notes:'Extracted from meeting notes',myDay:true,energy:'medium',subtasks:[],comments:[],createdBy:D.creds.userName||'Idris Grant'});
     });
     save('tasks');closeModal();
     toast('✓ '+titles.length+' action item'+( titles.length!==1?'s':'')+' added to Tasks!');

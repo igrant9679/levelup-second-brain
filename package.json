@@ -10,6 +10,7 @@
     "check": "tsc --noEmit",
     "check:mobile-nav": "node scripts/check-mobile-nav.mjs",
     "check:bundles": "node scripts/check-bundles.mjs",
+    "check:handlers": "node scripts/check-handlers.mjs",
     "format": "prettier --write .",
     "test": "vitest run",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
@@ -20,7 +21,7 @@
     "check:screens": "node scripts/check-screens.mjs",
     "check:dates": "node scripts/check-dates.mjs",
     "check:a11y": "node scripts/check-a11y.mjs",
-    "check:all": "pnpm check:bundles && pnpm check:mobile-nav && pnpm check:ai-prompt && pnpm check:ai-knowledge && pnpm check:ai-agent && pnpm check:account-switch && node scripts/check-electric-contrast.mjs && pnpm check:dates && pnpm check:screens && pnpm check:a11y"
+    "check:all": "pnpm check:bundles && pnpm check:handlers && pnpm check:mobile-nav && pnpm check:ai-prompt && pnpm check:ai-knowledge && pnpm check:ai-agent && pnpm check:account-switch && node scripts/check-electric-contrast.mjs && pnpm check:dates && pnpm check:screens && pnpm check:a11y"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",

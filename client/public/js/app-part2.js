@@ -35,7 +35,7 @@ function renderSettingsHTML(){
   const initials=name.split(' ').map(w=>w[0]||'').join('').substring(0,2).toUpperCase();
   return `<div class="pg-h"><h1 style="display:inline-flex;align-items:center;gap:8px">${_icon('settings',22,'var(--page-accent)')}Settings</h1><p style="font-size:12px;color:var(--t2)">Configure your LevelUp experience.</p></div>
   <div style="display:grid;grid-template-columns:160px 1fr;gap:16px">
-  <div>${setNav.map((n,i)=>{const sl=setSections[i]?`<div class="sl" style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.6px;padding:10px 8px 3px">${setSections[i]}</div>`:'';return `${sl}<div class="si ${i===0?'on':''}" onclick="showSetTab(this,'${n.id}')" style="margin:0 0 1px;padding:5px 8px;font-size:11px">${_icon(n.ic,15,'currentColor')} ${n.lb}</div>`;}).join('')}</div>
+  <div>${setNav.map((n,i)=>{const sl=setSections[i]?`<div class="sl" style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.6px;padding:10px 8px 3px">${setSections[i]}</div>`:'';return `${sl}<div class="si ${i===0?'on':''}" onclick="showSetTab(this,'${_jsAttr(n.id)}')" style="margin:0 0 1px;padding:5px 8px;font-size:11px">${_icon(n.ic,15,'currentColor')} ${n.lb}</div>`;}).join('')}</div>
   <div>
   <!-- Profile --><div id="sp-0" class="sp">
   <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">\ud83d\udc64 Profile</h3>
@@ -222,7 +222,7 @@ function renderSettingsHTML(){
     <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">🌅 Daybreak Pop</div><div style="font-size:11px;color:var(--t3)">Light mode only — porcelain ground with accent-tinted card shadows.</div></div><div class="tog ${D.prefs&&D.prefs.daybreakPop!==false?'on':''}" id="tog-daybreak" onclick="toggleDaybreakPop(this)"></div></div>
     <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">🎨 Colour tiles</div><div style="font-size:11px;color:var(--t3)">Home widgets tinted by what they show, so you find a card by its colour.</div></div><div class="tog ${D.prefs&&D.prefs.chromaticBento!==false?'on':''}" id="tog-bento" onclick="toggleChromaticBento(this)"></div></div>
     <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">⚡ Electric Ink</div><div style="font-size:11px;color:var(--t3)">Dark mode only — near-black ground with voltage accents in glows, borders and numerals.${D.prefs&&D.prefs.darkMode===false?' <b style="color:var(--warn)">You are in light mode; switch to dark to see it.</b>':''}</div></div><div class="tog ${D.prefs&&D.prefs.electricInk===true?'on':''}" id="tog-electric" onclick="toggleElectricInk(this)"></div></div>
-    <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Density</div><div style="font-size:11px;color:var(--t3)">Sizing for rows, padding, and labels</div></div>${(()=>{const cur=(D.prefs&&D.prefs.density)||(D.prefs&&D.prefs.compact?'compact':'normal');const opts=[{k:'compact',l:'Compact'},{k:'normal',l:'Normal'},{k:'dense',l:'Dense'}];return `<div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden">${opts.map(o=>`<button class="btn" style="border-radius:0;height:26px;padding:0 10px;font-size:11px;background:${cur===o.k?'var(--ac)':'transparent'};color:${cur===o.k?'#fff':'var(--t2)'};border:none;cursor:pointer" onclick="setDensity('${o.k}')">${o.l}</button>`).join('')}</div>`;})()}</div>
+    <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Density</div><div style="font-size:11px;color:var(--t3)">Sizing for rows, padding, and labels</div></div>${(()=>{const cur=(D.prefs&&D.prefs.density)||(D.prefs&&D.prefs.compact?'compact':'normal');const opts=[{k:'compact',l:'Compact'},{k:'normal',l:'Normal'},{k:'dense',l:'Dense'}];return `<div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden">${opts.map(o=>`<button class="btn" style="border-radius:0;height:26px;padding:0 10px;font-size:11px;background:${cur===o.k?'var(--ac)':'transparent'};color:${cur===o.k?'#fff':'var(--t2)'};border:none;cursor:pointer" onclick="setDensity('${_jsAttr(o.k)}')">${o.l}</button>`).join('')}</div>`;})()}</div>
     <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">🌅 Time-aware accent drift</div><div style="font-size:11px;color:var(--t3)">Subtly nudges accent hue across the day — warm at sunrise, cool at dusk</div></div><div class="tog ${D.prefs&&D.prefs.accentDrift?'on':''}" id="tog-accent-drift" onclick="toggleAccentDrift(this)"></div></div>
   </div>
 
@@ -231,7 +231,7 @@ function renderSettingsHTML(){
     <div style="font-size:12px;font-weight:600;margin-bottom:8px">🌌 Quick Presets</div>
     <p style="font-size:11px;color:var(--t3);margin-bottom:10px">Apply a curated theme as a starting point. You can then customise any colour below.</p>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px">
-      ${THEME_PRESETS.map(p=>`<button class="btn btn-s" style="height:auto;padding:8px 10px;font-size:11px;display:flex;align-items:center;gap:6px;text-align:left;justify-content:flex-start;border:1px solid ${p.theme.ac?`color-mix(in srgb,${p.theme.ac} 40%,var(--bd2))`:'var(--bd2)'};background:linear-gradient(135deg,${p.theme.bg||'var(--s2)'} 0%,${p.theme.s2||'var(--s3)'} 100%)" onclick="applyThemePreset(${JSON.stringify(p).replace(/"/g,'&quot;')})"><span style="font-size:16px;flex-shrink:0">${p.emoji}</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;color:${p.theme.t1||'var(--t1)'}">${esc(p.name)}</span></button>`).join('')}
+      ${THEME_PRESETS.map(p=>`<button class="btn btn-s" style="height:auto;padding:8px 10px;font-size:11px;display:flex;align-items:center;gap:6px;text-align:left;justify-content:flex-start;border:1px solid ${p.theme.ac?`color-mix(in srgb,${p.theme.ac} 40%,var(--bd2))`:'var(--bd2)'};background:linear-gradient(135deg,${p.theme.bg||'var(--s2)'} 0%,${p.theme.s2||'var(--s3)'} 100%)" onclick="applyThemePreset(${_jsArg(p)})"><span style="font-size:16px;flex-shrink:0">${p.emoji}</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;color:${p.theme.t1||'var(--t1)'}">${esc(p.name)}</span></button>`).join('')}
     </div>
   </div>
 
@@ -246,7 +246,7 @@ function renderSettingsHTML(){
         <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">${esc(g.label)}</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px">
           ${g.keys.map(kk=>`<label style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--s1);border:1px solid var(--bd1);border-radius:6px;cursor:pointer">
-            <input type="color" value="${_themeColorAsHex(eff[kk.k])}" style="width:28px;height:24px;border:none;padding:0;background:transparent;cursor:pointer" oninput="setThemeVar('${kk.k}',this.value)">
+            <input type="color" value="${_themeColorAsHex(eff[kk.k])}" style="width:28px;height:24px;border:none;padding:0;background:transparent;cursor:pointer" oninput="setThemeVar('${_jsAttr(kk.k)}',this.value)">
             <div style="flex:1;min-width:0">
               <div style="font-size:11px;color:var(--t1);font-weight:500">${esc(kk.name)}</div>
               <div style="font-size:11px;color:var(--t3);font-family:ui-monospace,monospace">--${kk.k}</div>
@@ -261,7 +261,7 @@ function renderSettingsHTML(){
   <details class="cd" style="padding:12px 14px;margin-bottom:14px">
     <summary style="font-size:12px;font-weight:600;cursor:pointer;list-style:none">📄 Per-Page Accent Colours <span style="font-size:11px;color:var(--t3);font-weight:400">— controls each route's banner hue</span></summary>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;margin-top:10px">
-      ${(()=>{const cur=Object.assign({},PAGE_ACCENT_DEFAULTS,D.prefs.pageAccents||{});return Object.entries(cur).map(([screen,color])=>`<label style="display:flex;align-items:center;gap:6px;padding:5px 7px;background:var(--s1);border:1px solid var(--bd1);border-radius:6px;cursor:pointer"><input type="color" value="${color}" style="width:24px;height:20px;border:none;padding:0;background:transparent;cursor:pointer" oninput="setPageAccent('${screen}',this.value)"><span style="font-size:11px;color:var(--t1);text-transform:capitalize">${screen}</span></label>`).join('');})()}
+      ${(()=>{const cur=Object.assign({},PAGE_ACCENT_DEFAULTS,D.prefs.pageAccents||{});return Object.entries(cur).map(([screen,color])=>`<label style="display:flex;align-items:center;gap:6px;padding:5px 7px;background:var(--s1);border:1px solid var(--bd1);border-radius:6px;cursor:pointer"><input type="color" value="${color}" style="width:24px;height:20px;border:none;padding:0;background:transparent;cursor:pointer" oninput="setPageAccent('${_jsAttr(screen)}',this.value)"><span style="font-size:11px;color:var(--t1);text-transform:capitalize">${screen}</span></label>`).join('');})()}
     </div>
   </details>
 
@@ -344,7 +344,7 @@ function renderSettingsHTML(){
   ${(()=>{const p=_aiBubblePrefs();
     const row=(key,label,hint)=>`<div class="lr" style="padding:6px 0">
       <div style="flex:1"><div style="font-size:12px;font-weight:500">${label}</div><div style="font-size:11px;color:var(--t3)">${hint}</div></div>
-      <div class="tog ${p[key]!==false?'on':''}" onclick="_setAiBubblePref('${key}',!this.classList.contains('on'));this.classList.toggle('on')"></div>
+      <div class="tog ${p[key]!==false?'on':''}" onclick="_setAiBubblePref('${_jsAttr(key)}',!this.classList.contains('on'));this.classList.toggle('on')"></div>
     </div>`;
     return `<div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--brd)">
     <div style="font-size:12px;font-weight:600;margin-bottom:10px">💬 Assistant Bubble <span style="font-size:10px;font-weight:400;color:var(--t3)">the rotating popups at the bottom-left</span></div>
@@ -752,7 +752,7 @@ function renderSettingsHTML(){
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       ${[['short','📏 Short','~80 words · 3-5 sentences'],['medium','📐 Medium','~200 words · default'],['long','📋 Long','~500 words · formatted'] ].map(([v,l,h])=>{
         const active=((D.prefs&&D.prefs.aiOutputLength)||'medium')===v;
-        return `<button class="btn ${active?'btn-p':'btn-s'}" style="font-size:11px;height:auto;padding:8px 10px;text-align:left;flex:1;min-width:140px" onclick="_aiSetLength('${v}');renderScreen('settings')"><div style="font-weight:600">${l}</div><div style="font-size:11px;color:${active?'rgba(255,255,255,.85)':'var(--t3)'};margin-top:2px">${h}</div></button>`;
+        return `<button class="btn ${active?'btn-p':'btn-s'}" style="font-size:11px;height:auto;padding:8px 10px;text-align:left;flex:1;min-width:140px" onclick="_aiSetLength('${_jsAttr(v)}');renderScreen('settings')"><div style="font-weight:600">${l}</div><div style="font-size:11px;color:${active?'rgba(255,255,255,.85)':'var(--t3)'};margin-top:2px">${h}</div></button>`;
       }).join('')}
     </div>
   </div>
@@ -768,7 +768,7 @@ function renderSettingsHTML(){
           const labels={openai:'OpenAI',claude:'Anthropic Claude',gemini:'Google Gemini'};
           const active=_sharedAI.provider||'openai';
           const canEdit=!!_sharedAI.canEdit;
-          return `<button class="btn ${active===p?'btn-p':'btn-s'}" style="font-size:11px;height:26px${canEdit?'':';opacity:.6;pointer-events:none'}" ${canEdit?`onclick="setAIProvider('${p}')"`:''}>${{openai:'🟢',claude:'🟠',gemini:'🔵'}[p]} ${labels[p]}</button>`;
+          return `<button class="btn ${active===p?'btn-p':'btn-s'}" style="font-size:11px;height:26px${canEdit?'':';opacity:.6;pointer-events:none'}" ${canEdit?`onclick="setAIProvider('${_jsAttr(p)}')"`:''}>${{openai:'🟢',claude:'🟠',gemini:'🔵'}[p]} ${labels[p]}</button>`;
         }).join('')}
       </div>
       <div style="font-size:11px;color:var(--t3);margin-top:6px">
@@ -791,10 +791,10 @@ function renderSettingsHTML(){
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         ${canEdit?`<input id="${inp}" class="inp" type="password" autocomplete="off" placeholder="${st.configured?'Paste a new key to replace '+esc(st.hint||'the saved key'):c.ph}" style="flex:1;min-width:140px;font-size:11px" value="">
-        <button class="btn btn-s" style="height:30px;font-size:11px" title="Show / hide what you typed" onclick="document.getElementById('${inp}').type=document.getElementById('${inp}').type==='password'?'text':'password'">👁</button>
-        <button class="btn btn-p" style="height:30px;font-size:11px" onclick="setAIKey('${c.p}',document.getElementById('${inp}').value.trim())">${st.configured?'Replace':'Save'}</button>
-        ${st.configured?`<button class="btn btn-s" style="height:30px;font-size:11px" onclick="setAIKey('${c.p}','')">Clear</button>`:''}`:''}
-        ${(canEdit||st.configured)?`<button class="btn btn-s" style="height:30px;font-size:11px" id="btn-test-${c.p}" title="${canEdit?'Tests what you typed, or the saved key when the box is empty':'Tests the saved key'}" onclick="testAIProvider('${c.p}','${inp}','btn-test-${c.p}')">⚡ Test</button>`:''}
+        <button class="btn btn-s" style="height:30px;font-size:11px" title="Show / hide what you typed" onclick="document.getElementById('${_jsAttr(inp)}').type=document.getElementById('${_jsAttr(inp)}').type==='password'?'text':'password'">👁</button>
+        <button class="btn btn-p" style="height:30px;font-size:11px" onclick="setAIKey('${_jsAttr(c.p)}',document.getElementById('${_jsAttr(inp)}').value.trim())">${st.configured?'Replace':'Save'}</button>
+        ${st.configured?`<button class="btn btn-s" style="height:30px;font-size:11px" onclick="setAIKey('${_jsAttr(c.p)}','')">Clear</button>`:''}`:''}
+        ${(canEdit||st.configured)?`<button class="btn btn-s" style="height:30px;font-size:11px" id="btn-test-${c.p}" title="${canEdit?'Tests what you typed, or the saved key when the box is empty':'Tests the saved key'}" onclick="testAIProvider('${_jsAttr(c.p)}','${_jsAttr(inp)}','btn-test-${c.p}')">⚡ Test</button>`:''}
       </div>
       <div id="ai-${c.p}-status" style="font-size:11px;margin-top:4px;display:none"></div>
       <div style="font-size:11px;color:var(--t3);margin-top:4px">Get your key at <a href="${c.url}" target="_blank" style="color:var(--ac)">${c.host}</a></div>
@@ -810,13 +810,13 @@ function renderSettingsHTML(){
   <!-- AI Feature Toggles -->
   <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
     <h4 style="font-size:12px;font-weight:600;margin-bottom:8px">🤖 AI Feature Toggles</h4>
-    ${[{key:'aiTasks',label:'Task AI',desc:'Smart decomposition, priority scoring, delegation suggestions'},{key:'aiCalendar',label:'Calendar AI',desc:'Meeting prep briefs, schedule optimisation, NL event creation'},{key:'aiMail',label:'Mail AI',desc:'Smart reply drafts, triage scoring, thread summarisation'},{key:'aiNotes',label:'Notes AI',desc:'Concept linking, gap detection, Q&A over notes'},{key:'aiHabits',label:'Habits & Journal AI',desc:'Mood correlation, streak coaching, sentiment trends'},{key:'aiContacts',label:'Contacts AI',desc:'Relationship health score, conversation starters, duplicates'}].map(f=>`<div class="lr" style="padding:6px 0"><div style="flex:1"><div style="font-size:12px">${f.label}</div><div style="font-size:11px;color:var(--t3)">${f.desc}</div></div><div class="tog ${!(D.prefs&&D.prefs[f.key]===false)?'on':''}" onclick="D.prefs=D.prefs||{};D.prefs['${f.key}']=!this.classList.contains('on');this.classList.toggle('on');saveAll();toast(this.classList.contains('on')?'${f.label} on':'${f.label} off')"></div></div>`).join('')}
+    ${[{key:'aiTasks',label:'Task AI',desc:'Smart decomposition, priority scoring, delegation suggestions'},{key:'aiCalendar',label:'Calendar AI',desc:'Meeting prep briefs, schedule optimisation, NL event creation'},{key:'aiMail',label:'Mail AI',desc:'Smart reply drafts, triage scoring, thread summarisation'},{key:'aiNotes',label:'Notes AI',desc:'Concept linking, gap detection, Q&A over notes'},{key:'aiHabits',label:'Habits & Journal AI',desc:'Mood correlation, streak coaching, sentiment trends'},{key:'aiContacts',label:'Contacts AI',desc:'Relationship health score, conversation starters, duplicates'}].map(f=>`<div class="lr" style="padding:6px 0"><div style="flex:1"><div style="font-size:12px">${f.label}</div><div style="font-size:11px;color:var(--t3)">${f.desc}</div></div><div class="tog ${!(D.prefs&&D.prefs[f.key]===false)?'on':''}" onclick="D.prefs=D.prefs||{};D.prefs['${_jsAttr(f.key)}']=!this.classList.contains('on');this.classList.toggle('on');saveAll();toast(this.classList.contains('on')?'${f.label} on':'${f.label} off')"></div></div>`).join('')}
   </div>
   <!-- Assistant Topics -->
   <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
     <h4 style="font-size:12px;font-weight:600;margin-bottom:6px">📰 Assistant Topics</h4>
     <p style="font-size:11px;color:var(--t2);margin-bottom:8px">The AI assistant will proactively share info on these topics:</p>
-    ${['World News','Politics','Technology','Entertainment','Science','Weather','Sports','Finance'].map(t=>`<div class="lr" style="padding:4px 0"><div class="chk ${D.aiTopics.includes(t)?'on':''}" onclick="if(D.aiTopics.includes('${t}'))D.aiTopics=D.aiTopics.filter(x=>x!=='${t}');else D.aiTopics.push('${t}');save('aiTopics');renderScreen('settings')"></div><span style="font-size:11px">${t}</span></div>`).join('')}
+    ${['World News','Politics','Technology','Entertainment','Science','Weather','Sports','Finance'].map(t=>`<div class="lr" style="padding:4px 0"><div class="chk ${D.aiTopics.includes(t)?'on':''}" onclick="if(D.aiTopics.includes('${_jsAttr(t)}'))D.aiTopics=D.aiTopics.filter(x=>x!=='${_jsAttr(t)}');else D.aiTopics.push('${_jsAttr(t)}');save('aiTopics');renderScreen('settings')"></div><span style="font-size:11px">${t}</span></div>`).join('')}
   </div>
   <!-- AI Follow-ups in Compose -->
   <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
@@ -1153,7 +1153,7 @@ function _renderWorkspacePanel(){
 
   const presets=LU_PRESETS.map(p=>`
     <button class="btn ${p.id===activePreset?'btn-p':'btn-s'}" style="height:auto;padding:8px 10px;font-size:11px;text-align:left;display:block;width:100%;margin-bottom:4px;white-space:normal;line-height:1.35"
-      onclick="luApplyPreset('${p.id}');_renderWorkspacePanel()" title="${esc(p.desc)}">
+      onclick="luApplyPreset('${_jsAttr(p.id)}');_renderWorkspacePanel()" title="${esc(p.desc)}">
       <div style="font-weight:600">${esc(p.label)}${p.id===activePreset?' ·  in use':''}</div>
       <div style="font-size:11px;opacity:.75;font-weight:400;margin-top:1px">${esc(p.desc)}</div>
     </button>`).join('');
@@ -1167,12 +1167,12 @@ function _renderWorkspacePanel(){
           ${p.rail?`<div style="font-size:11px;color:var(--t3)">Right sidebar ${rOn?'shown':'hidden'}</div>`:''}
         </div>
         ${p.rail?`<button class="btn btn-s" style="height:24px;font-size:11px;padding:0 8px;${on?'':'opacity:.4;pointer-events:none'}"
-            onclick="luSetRailOn('${p.id}',${!rOn});_renderWorkspacePanel()"
+            onclick="luSetRailOn('${_jsAttr(p.id)}',${!rOn});_renderWorkspacePanel()"
             title="Show or hide this page's right sidebar">${rOn?'Hide rail':'Show rail'}</button>`:''}
         <div class="tog ${on?'on':''}" role="button" tabindex="0"
           aria-label="${esc(p.label)} visibility" aria-pressed="${on}"
           style="${p.core?'opacity:.4;pointer-events:none':''}"
-          onclick="luSetPageOn('${p.id}',${!on});_renderWorkspacePanel()"></div>
+          onclick="luSetPageOn('${_jsAttr(p.id)}',${!on});_renderWorkspacePanel()"></div>
       </div>`;
     }).join('');
     return rows?`<div style="margin-bottom:10px">
@@ -1219,8 +1219,8 @@ function _renderWorkspacePanel(){
 function renderCredCard(title,icon,desc,prefix,fields,isAI=false){
   const connected=fields.some(f=>D.creds[f.split('|')[1]]);
   return `<div class="cred"><div class="cred-h"><div class="cred-icon" style="background:var(--s3);color:var(--ac)">${icon}</div><div style="flex:1"><div class="cred-title">${title}</div><div class="cred-desc">${desc}</div></div><div class="cred-st"><span class="dot ${connected?'dot-g':'dot-x'}"></span><span style="color:${connected?'var(--ok)':'var(--t3)'}">${connected?'Configured':'Not set'}</span></div></div>
-  ${fields.map(f=>{const[label,key]=f.split('|');return`<div style="margin-bottom:6px"><label style="font-size:11px;font-weight:500;color:var(--t2);display:block;margin-bottom:2px">${label}</label><div style="display:flex;gap:4px"><input class="inp" style="flex:1;font-size:11px" type="password" placeholder="Enter ${label}" value="${esc(D.creds[key]||'')}" onchange="D.creds['${key}']=this.value;saveAll();toast('Saved!')"><button class="btn btn-s" style="height:30px;font-size:11px" onclick="this.previousElementSibling.type=this.previousElementSibling.type==='password'?'text':'password'">👁</button></div></div>`}).join('')}
-  <div style="display:flex;gap:4px;margin-top:6px"><button class="btn btn-p" style="height:26px;font-size:11px" onclick="testIntegrationCred('${prefix}','${title}')">Test</button>${connected?`<button class="btn btn-d" style="height:26px;font-size:11px" onclick="${fields.map(f=>`D.creds['${f.split('|')[1]}']=''`).join(';')};saveAll();renderScreen('settings');toast('Disconnected')">Disconnect</button>`:''}</div></div>`;
+  ${fields.map(f=>{const[label,key]=f.split('|');return`<div style="margin-bottom:6px"><label style="font-size:11px;font-weight:500;color:var(--t2);display:block;margin-bottom:2px">${label}</label><div style="display:flex;gap:4px"><input class="inp" style="flex:1;font-size:11px" type="password" placeholder="Enter ${label}" value="${esc(D.creds[key]||'')}" onchange="D.creds['${_jsAttr(key)}']=this.value;saveAll();toast('Saved!')"><button class="btn btn-s" style="height:30px;font-size:11px" onclick="this.previousElementSibling.type=this.previousElementSibling.type==='password'?'text':'password'">👁</button></div></div>`}).join('')}
+  <div style="display:flex;gap:4px;margin-top:6px"><button class="btn btn-p" style="height:26px;font-size:11px" onclick="testIntegrationCred('${_jsAttr(prefix)}','${_jsAttr(title)}')">Test</button>${connected?`<button class="btn btn-d" style="height:26px;font-size:11px" onclick="${fields.map(f=>`D.creds['${f.split('|')[1]}']=''`).join(';')};saveAll();renderScreen('settings');toast('Disconnected')">Disconnect</button>`:''}</div></div>`;
 }
 
 async function adminDemoCleanup(apply){
@@ -2581,7 +2581,7 @@ function editTeamMember(teamId,memberId){
   <div class="field"><label>Avatar Color</label><input type="color" class="inp" id="em-color" value="${m.color||'#3B82F6'}" style="height:36px;padding:2px"></div>
   <div style="display:flex;gap:8px;margin-top:12px" class="admin-only">
   <button class="btn btn-p" onclick="saveTeamMember(${teamId},${memberId})">Save Changes</button>
-  ${m.role!=='Owner'?`<button class="btn btn-d" onclick="if(confirm('Remove ${esc(m.name)} from team?')){removeMember(${teamId},${memberId});closeDrawer();}">Remove Member</button>`:''}
+  ${m.role!=='Owner'?`<button class="btn btn-d" onclick="if(confirm('Remove ${_jsAttr(m.name)} from team?')){removeMember(${teamId},${memberId});closeDrawer();}">Remove Member</button>`:''}
   </div>`;
   document.getElementById('drawer-ov').classList.add('show');
 }
@@ -2606,7 +2606,7 @@ function editPerms(teamId,memberId){
   const d=document.getElementById('drawer-content');
   d.innerHTML=`<h2>🔒 Permissions: ${esc(m.name)}<button class="close" onclick="closeDrawer()">✕</button></h2>
   <p style="font-size:11px;color:var(--t2);margin-bottom:10px">Toggle access to app sections for this team member.</p>
-  ${perms.map(p=>`<div class="lr" style="padding:6px 0"><span style="font-size:12px;flex:1;text-transform:capitalize">${p}</span><div class="tog ${m.perms[p]?'on':''}" onclick="this.classList.toggle('on');D.teams.find(t=>t.id===${teamId}).members.find(x=>x.id===${memberId}).perms['${p}']=this.classList.contains('on');save('teams');toast('Permission updated')"></div></div>`).join('')}`;
+  ${perms.map(p=>`<div class="lr" style="padding:6px 0"><span style="font-size:12px;flex:1;text-transform:capitalize">${p}</span><div class="tog ${m.perms[p]?'on':''}" onclick="this.classList.toggle('on');D.teams.find(t=>t.id===${teamId}).members.find(x=>x.id===${memberId}).perms['${_jsAttr(p)}']=this.classList.contains('on');save('teams');toast('Permission updated')"></div></div>`).join('')}`;
   document.getElementById('drawer-ov').classList.add('show');
 }
 function addTeam(){const n=prompt('Team name:');if(n){D.teams.push({id:nextId(D.teams),name:n,members:[]});save('teams');renderScreen('settings');toast('Team created!')}}
@@ -2790,8 +2790,8 @@ function showAIMsg(){
   if(!m)return; // every category muted — stay quiet
   const div=document.createElement('div');
   div.className='ai-msg';
-  const msgContent=m.link?`<div style="cursor:pointer" onclick="window.open('${m.link}','_blank')">${m.msg} <span style="font-size:11px;color:var(--ac)">↗ Read more</span></div>`:`<div>${m.msg}</div>`;
-  div.innerHTML=`<button class="ai-close" title="Mute ${m.type} messages (re-enable in Settings)" onclick="_aiBubbleMute('${m.type}',this)">✕</button><div class="ai-type ${m.type}">${m.type.toUpperCase()}</div>${msgContent}`;
+  const msgContent=m.link?`<div style="cursor:pointer" onclick="_luOpenUrl('${_jsAttr(m.link)}')">${m.msg} <span style="font-size:11px;color:var(--ac)">↗ Read more</span></div>`:`<div>${m.msg}</div>`;
+  div.innerHTML=`<button class="ai-close" title="Mute ${m.type} messages (re-enable in Settings)" onclick="_aiBubbleMute('${_jsAttr(m.type)}',this)">✕</button><div class="ai-type ${m.type}">${m.type.toUpperCase()}</div>${msgContent}`;
   bubble.insertBefore(div,bubble.firstChild);
   // Speak if enabled
   if('speechSynthesis' in window && D.creds.aiSpeak){
@@ -2961,7 +2961,7 @@ function _renderAISuggestions(){
     ideas:["Pre-mortem my top idea.","Score my ideas by ICE.","Which idea has the most momentum?"],
   };
   const picks=sets[screen]||sets.home;
-  el.innerHTML=picks.map(s=>`<button onclick="_aiQuickSend('${esc(s).replace(/'/g,'&#39;')}')">${esc(s)}</button>`).join('');
+  el.innerHTML=picks.map(s=>`<button onclick="_aiQuickSend('${_jsAttr(s).replace(/'/g,'&#39;')}')">${esc(s)}</button>`).join('');
 }
 function _aiQuickSend(s){
   const inp=document.getElementById('ai-input');
@@ -3311,7 +3311,7 @@ function renderNotifPanel(){
         <div style="font-size:11px;color:var(--t1);margin:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(n.body)}</div>
         <div style="font-size:11px;color:var(--t3)">${n.time}</div>
       </div>
-      <select onchange="event.stopPropagation();if(this.value)snoozeNotif('${n.id}',+this.value)" onclick="event.stopPropagation()" style="flex-shrink:0;background:var(--s3);border:1px solid var(--bd2);border-radius:5px;padding:2px 4px;font-size:11px;color:var(--t2);cursor:pointer;align-self:center;max-width:72px" title="Snooze">
+      <select onchange="event.stopPropagation();if(this.value)snoozeNotif('${_jsAttr(n.id)}',+this.value)" onclick="event.stopPropagation()" style="flex-shrink:0;background:var(--s3);border:1px solid var(--bd2);border-radius:5px;padding:2px 4px;font-size:11px;color:var(--t2);cursor:pointer;align-self:center;max-width:72px" title="Snooze">
         <option value="">⏰ Snooze</option>
         <option value="900000">15 min</option>
         <option value="3600000">1 hour</option>
@@ -3747,7 +3747,7 @@ function shareJournalEntry(id){
   <textarea id="share-md-text" style="width:100%;height:160px;background:var(--s3);border:1px solid var(--bd2);border-radius:6px;padding:8px;font-size:11px;color:var(--t1);font-family:monospace;resize:vertical" readonly>${md.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>
   <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
   <button class="btn btn-p" onclick="navigator.clipboard.writeText(document.getElementById('share-md-text').value).then(()=>toast('✓ Copied to clipboard!')).catch(()=>{document.getElementById('share-md-text').select();document.execCommand('copy');toast('✓ Copied!')})">📋 Copy Markdown</button>
-  <button class="btn btn-s" onclick="window.open('mailto:?subject='+encodeURIComponent('${esc(j.title)}')+\'&body=\'+encodeURIComponent(document.getElementById(\'share-md-text\').value),'_blank');toast('Email draft opened')">Email Draft</button>
+  <button class="btn btn-s" onclick="window.open('mailto:?subject='+encodeURIComponent('${_jsAttr(j.title)}')+\'&body=\'+encodeURIComponent(document.getElementById(\'share-md-text\').value),'_blank');toast('Email draft opened')">Email Draft</button>
   <button class="btn btn-s" onclick="closeModal()">Close</button>
   </div>`;
   document.getElementById('modal-capture').classList.add('show');
@@ -4123,10 +4123,10 @@ function onSearchInput(q){
     });
   });
   // Cross-module insights button
-  const qEsc=q.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  const qEsc=q; // escaped where it is used (_jsAttr): it also needs HTML escaping inside the attribute
   html+=`<div class="sd-hint" style="border-top:1px solid var(--bd2);padding-top:6px;margin-top:4px;display:flex;justify-content:space-between;align-items:center">`+
     `<span><kbd>↑↓</kbd> navigate &nbsp; <kbd>Enter</kbd> open &nbsp; <kbd>Esc</kbd> close</span>`+
-    `<button class="btn btn-s" style="font-size:10px;height:20px;padding:0 6px;color:var(--ac)" onclick="closeSearch();aiCrossModuleInsight('${qEsc}')">🔍 All related</button>`+
+    `<button class="btn btn-s" style="font-size:10px;height:20px;padding:0 6px;color:var(--ac)" onclick="closeSearch();aiCrossModuleInsight('${_jsAttr(qEsc)}')">🔍 All related</button>`+
     `</div>`;
   drop.innerHTML=html;
   drop.classList.add('show');
@@ -5253,7 +5253,7 @@ function faLinkerInput(field,val){
     ? available.filter(x=>(x.title||x.name||'').toLowerCase().includes(q)).slice(0,10)
     : available.slice(-10).reverse(); // most recent first when no query
   if(!matches.length){drop.classList.remove('show');return;}
-  drop.innerHTML=matches.map(x=>`<div class="fa-typeahead-item" onclick="faLinkItem('${field}',${x.id},'${esc(x.title||x.name||'')}')">${esc(x.title||x.name||'')}</div>`).join('');
+  drop.innerHTML=matches.map(x=>`<div class="fa-typeahead-item" onclick="faLinkItem('${_jsAttr(field)}',${x.id},'${_jsAttr(x.title||x.name||'')}')">${esc(x.title||x.name||'')}</div>`).join('');
   drop.classList.add('show');
 }
 // Show the dropdown when the input gets focus (even if empty) so users can see available items.
@@ -5282,11 +5282,11 @@ function renderFALinked(field){
   wrap.innerHTML=(_faLinked[field]||[]).map(id=>{
     const item=src.find(x=>x.id===id);
     const label=item?(item.title||item.name||'#'+id):'#'+id;
-    return`<span class="fa-chip">${esc(label)}<span class="fa-chip-x" onclick="faUnlinkItem('${field}',${id})">✕</span></span>`;
+    return`<span class="fa-chip">${esc(label)}<span class="fa-chip-x" onclick="faUnlinkItem('${_jsAttr(field)}',${id})">✕</span></span>`;
   }).join('');
 }
 function faLinkerHtml(field,placeholder){
-  return`<div class="fa-typeahead"><input class="fa-inp" id="fa-link-inp-${field}" placeholder="${placeholder} (click to browse)" oninput="faLinkerInput('${field}',this.value)" onfocus="faLinkerFocus('${field}')" onblur="faLinkerBlur('${field}')" autocomplete="off"><div class="fa-typeahead-drop" id="fa-drop-${field}"></div></div><div class="fa-linked-chips" id="fa-linked-${field}"></div>`;
+  return`<div class="fa-typeahead"><input class="fa-inp" id="fa-link-inp-${field}" placeholder="${placeholder} (click to browse)" oninput="faLinkerInput('${_jsAttr(field)}',this.value)" onfocus="faLinkerFocus('${_jsAttr(field)}')" onblur="faLinkerBlur('${_jsAttr(field)}')" autocomplete="off"><div class="fa-typeahead-drop" id="fa-drop-${field}"></div></div><div class="fa-linked-chips" id="fa-linked-${field}"></div>`;
 }
 
 // Toggle helper
@@ -5856,7 +5856,7 @@ function renderFAJournal(ej){
     <div class="fa-field" style="margin-bottom:10px">
       <label>Mood</label>
       <div class="fa-mood-row">
-        ${moods.map(m=>`<span class="fa-mood-btn${m===mood?' sel':''}" onclick="faSelectMood(this,'${m}')">${m}</span>`).join('')}
+        ${moods.map(m=>`<span class="fa-mood-btn${m===mood?' sel':''}" onclick="faSelectMood(this,'${_jsAttr(m)}')">${m}</span>`).join('')}
       </div>
       <input type="hidden" id="fa-mood-val" value="${v(mood)}">
     </div>
@@ -5943,7 +5943,7 @@ function renderFAHabit(){
     <div id="fa-custom-days" style="display:none">
       <div class="fa-field"><label>Custom Days</label>
       <div class="fa-day-grid">
-        ${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<button type="button" class="fa-day-btn" data-day="${d}" onclick="faToggleDay('${d}')">${d}</button>`).join('')}
+        ${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<button type="button" class="fa-day-btn" data-day="${d}" onclick="faToggleDay('${_jsAttr(d)}')">${d}</button>`).join('')}
       </div></div>
     </div>
     <div class="fa-row c2">
@@ -6412,7 +6412,7 @@ async function loadRelatedBookmarks(entityType, entityId){
           <a href="${b.url}" target="_blank" rel="noopener" style="font-size:11px;font-weight:500;color:var(--ac);text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(b.title||b.url)}">${esc(b.title||b.url)}</a>
           ${b.description ? `<div style="font-size:11px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(b.description.slice(0,80))}</div>` : ''}
         </div>
-        <button class="btn btn-s" style="font-size:11px;padding:1px 5px;color:var(--red);flex-shrink:0" onclick="unlinkBookmarkFromEntity('${entityType}',${entityId},${b.id})" title="Remove link">✕</button>
+        <button class="btn btn-s" style="font-size:11px;padding:1px 5px;color:var(--red);flex-shrink:0" onclick="unlinkBookmarkFromEntity('${_jsAttr(entityType)}',${entityId},${b.id})" title="Remove link">✕</button>
       </div>
     `).join('');
   } catch(e) {
@@ -6470,7 +6470,7 @@ function renderLinkBookmarkList(items, entityType, entityId){
     return;
   }
   listEl.innerHTML = items.map(b => `
-    <div style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid var(--bd1);cursor:pointer" onclick="doLinkBookmark('${entityType}',${entityId},${b.id},this)">
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid var(--bd1);cursor:pointer" onclick="doLinkBookmark('${_jsAttr(entityType)}',${entityId},${b.id},this)">
       ${b.favicon ? `<img src="${b.favicon}" style="width:16px;height:16px;flex-shrink:0" onerror="this.style.display='none'">` : '<span style="font-size:14px">🔖</span>'}
       <div style="flex:1;min-width:0">
         <div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(b.title||b.url)}</div>
@@ -6516,7 +6516,7 @@ function paintBookmarks(){
   const totalPages=Math.ceil(_bkTotal/_bkPageSize)||1;
 
   // Tag pills for filter
-  const tagPills=_bkTags.map(t=>`<span class="pill" style="cursor:pointer;margin:2px;${_bkTagFilter===t?'background:var(--ac);color:#fff':'background:var(--s3);color:var(--t2)'}" onclick="_bkTagFilter=_bkTagFilter==='${esc(t)}'?'':'${esc(t)}';_bkPage=1;renderBookmarks()">${esc(t)}</span>`).join('');
+  const tagPills=_bkTags.map(t=>`<span class="pill" style="cursor:pointer;margin:2px;${_bkTagFilter===t?'background:var(--ac);color:#fff':'background:var(--s3);color:var(--t2)'}" onclick="_bkTagFilter=_bkTagFilter==='${_jsAttr(t)}'?'':'${_jsAttr(t)}';_bkPage=1;renderBookmarks()">${esc(t)}</span>`).join('');
 
   // Collections sidebar
   const collSidebar=`
@@ -6552,7 +6552,7 @@ function paintBookmarks(){
             <div style="font-size:11px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--t1)">${esc(s.title||'Untitled share')}</div>
             <div style="font-size:11px;color:var(--t3);margin-bottom:3px">${s.viewCount||0} views</div>
             <div style="display:flex;gap:4px">
-              <button class="btn btn-s" style="height:20px;font-size:11px;padding:0 5px" onclick="copyShareLink('${esc(s.token)}')">&#128203; Copy</button>
+              <button class="btn btn-s" style="height:20px;font-size:11px;padding:0 5px" onclick="copyShareLink('${_jsAttr(s.token)}')">&#128203; Copy</button>
               <button class="btn btn-s" style="height:20px;font-size:11px;padding:0 5px;color:var(--red)" onclick="deleteShare(${s.id})">&#128465;</button>
             </div>
           </div>`).join('')}
@@ -6580,7 +6580,7 @@ function paintBookmarks(){
       const readMins=b.wordCount?Math.max(1,Math.round(b.wordCount/200)):null;
       const readTimeHtml=readMins?`<span style="font-size:11px;color:var(--t3)">&#9201; ${readMins} min read</span>`:'';
       const isSelected=_bkSelected.has(b.id);
-      return `<div class="cd" style="cursor:pointer;transition:border-color .15s,box-shadow .15s;position:relative${b.isRead?';opacity:.75':''}${isSelected?';border-color:var(--ac);box-shadow:0 0 0 2px var(--acs)':''}" onmouseenter="this.style.borderColor='var(--ac)'" onmouseleave="this.style.borderColor='${isSelected?'var(--ac)':''}'" onclick="_bkMultiSelect?toggleBkSelect(${b.id}):window.open('${esc(b.url)}','_blank')">
+      return `<div class="cd" style="cursor:pointer;transition:border-color .15s,box-shadow .15s;position:relative${b.isRead?';opacity:.75':''}${isSelected?';border-color:var(--ac);box-shadow:0 0 0 2px var(--acs)':''}" onmouseenter="this.style.borderColor='var(--ac)'" onmouseleave="this.style.borderColor='${isSelected?'var(--ac)':''}'" onclick="_bkMultiSelect?toggleBkSelect(${b.id}):_luOpenUrl('${_jsAttr(b.url)}')">
         ${_bkMultiSelect?`<div style="position:absolute;top:8px;left:8px;z-index:2;width:18px;height:18px;border-radius:4px;border:2px solid ${isSelected?'var(--ac)':'var(--bd2)'};background:${isSelected?'var(--ac)':'var(--s1)'};display:flex;align-items:center;justify-content:center;cursor:pointer" onclick="event.stopPropagation();toggleBkSelect(${b.id})">${isSelected?'<svg width="10" height="10" viewBox="0 0 10 10"><polyline points="1.5,5 4,7.5 8.5,2.5" stroke="white" stroke-width="1.5" fill="none"/></svg>':''}</div>`:''}
         <div style="display:flex;gap:10px;align-items:flex-start">
           <div style="flex:1;min-width:0">
@@ -6677,11 +6677,11 @@ function _paintBookmarksRail(){
       <div class="lr" style="cursor:pointer;border-radius:6px;padding:5px 8px;${_bkReadFilter==='unread'?'background:var(--acs);color:var(--ac)':''}" onclick="_bkReadFilter=_bkReadFilter==='unread'?'':'unread';_bkPage=1;renderBookmarks()">📚 <span style="font-size:11px;font-weight:500">Reading list</span></div>
     </div>
     ${recent.length?`<div style="font-size:12px;font-weight:600;margin-bottom:6px">🕐 Recently Added</div>
-    <div style="margin-bottom:14px">${recent.map(b=>`<div class="lr" style="cursor:pointer;padding:4px 0;border-bottom:1px solid var(--bd1)" onclick="window.open('${esc(b.url)}','_blank')"><span class="rt" style="font-size:11px">${esc(b.title||b.url)}</span></div>`).join('')}</div>`:''}
+    <div style="margin-bottom:14px">${recent.map(b=>`<div class="lr" style="cursor:pointer;padding:4px 0;border-bottom:1px solid var(--bd1)" onclick="_luOpenUrl('${_jsAttr(b.url)}')"><span class="rt" style="font-size:11px">${esc(b.title||b.url)}</span></div>`).join('')}</div>`:''}
     ${topTags.length?`<div style="font-size:12px;font-weight:600;margin-bottom:6px">🏷 Top Tags</div>
-    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:14px">${topTags.map(t=>`<span class="pill" style="cursor:pointer;${_bkTagFilter===t?'background:var(--ac);color:#fff':'background:var(--s3);color:var(--t2)'}" onclick="_bkTagFilter=_bkTagFilter==='${esc(t)}'?'':'${esc(t)}';_bkPage=1;renderBookmarks()">${esc(t)}</span>`).join('')}</div>`:''}
+    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:14px">${topTags.map(t=>`<span class="pill" style="cursor:pointer;${_bkTagFilter===t?'background:var(--ac);color:#fff':'background:var(--s3);color:var(--t2)'}" onclick="_bkTagFilter=_bkTagFilter==='${_jsAttr(t)}'?'':'${_jsAttr(t)}';_bkPage=1;renderBookmarks()">${esc(t)}</span>`).join('')}</div>`:''}
     ${topDomains.length?`<div style="font-size:12px;font-weight:600;margin-bottom:6px">🌐 Top Sites</div>
-    <div style="margin-bottom:8px">${topDomains.map(([d,n])=>`<div class="lr" style="cursor:pointer;padding:3px 0" onclick="_bkSearch='${esc(d)}';_bkPage=1;renderBookmarks()"><span class="rt" style="font-size:11px;color:var(--t2)">${esc(d)}</span><span style="font-size:11px;color:var(--t3)">${n}</span></div>`).join('')}</div>`:''}
+    <div style="margin-bottom:8px">${topDomains.map(([d,n])=>`<div class="lr" style="cursor:pointer;padding:3px 0" onclick="_bkSearch='${_jsAttr(d)}';_bkPage=1;renderBookmarks()"><span class="rt" style="font-size:11px;color:var(--t2)">${esc(d)}</span><span style="font-size:11px;color:var(--t3)">${n}</span></div>`).join('')}</div>`:''}
   `;
 }
 function openBkModal(title,body,buttons){
@@ -7084,7 +7084,7 @@ function showShareSuccess(url){
     `<div style="display:flex;flex-direction:column;gap:12px">` +
     `<div style="background:var(--s2);border-radius:8px;padding:12px;display:flex;align-items:center;gap:8px">` +
     `<input class="inp" id="share-url-input" value="${esc(url)}" readonly onclick="this.select()" style="flex:1;font-size:11px">` +
-    `<button class="btn btn-p" style="flex-shrink:0" onclick="copyShareLink(null,'${esc(url)}')">Copy</button>` +
+    `<button class="btn btn-p" style="flex-shrink:0" onclick="copyShareLink(null,'${_jsAttr(url)}')">Copy</button>` +
     `</div>` +
     `<div style="font-size:11px;color:var(--t3)">Anyone with this link can view these bookmarks without logging in.</div>` +
     `</div>`,
@@ -7122,7 +7122,7 @@ function showShareManager(){
           <div style="font-size:11px;color:var(--ac);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(url)}</div>
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0">
-          <button class="btn btn-s" style="height:24px;font-size:11px" onclick="copyShareLink(null,'${esc(url)}')">Copy</button>
+          <button class="btn btn-s" style="height:24px;font-size:11px" onclick="copyShareLink(null,'${_jsAttr(url)}')">Copy</button>
           <button class="btn btn-s" style="height:24px;font-size:11px;color:var(--red)" onclick="deleteShare(${s.id})">Delete</button>
         </div>
       </div>
@@ -8291,7 +8291,7 @@ function _rteHistoryRender(surfaceId){
     return `<div style="padding:6px 0;border-bottom:1px solid var(--bd2);last-child:border:none">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
         <span style="font-size:11px;color:var(--t3)">${ago}</span>
-        <button type="button" class="btn btn-s" style="height:18px;font-size:10px;padding:0 6px" onclick="_rteHistoryInsert('${surfaceId}',${i})">⬇ Use</button>
+        <button type="button" class="btn btn-s" style="height:18px;font-size:10px;padding:0 6px" onclick="_rteHistoryInsert('${_jsAttr(surfaceId)}',${i})">⬇ Use</button>
       </div>
       <div style="font-size:11px;color:var(--t2);white-space:pre-wrap;max-height:60px;overflow:hidden;line-height:1.5">${esc(h.result.substring(0,200))}${h.result.length>200?'…':''}</div>
     </div>`;
@@ -8308,7 +8308,7 @@ function _rteHistoryInsert(surfaceId,idx){
   // Find the result element for this surface and show the historical result
   const resultElId=surfaceId.replace('-rte','-ai-result').replace('fa-jrnl','fa-jrnl').replace('dr-diary','dr-jrnl').replace('dr-note','dr-note').replace('ni-body','ni').replace('fa-note','fa-note').replace('idea-body-rte-','idea-ai-result-');
   const el=document.getElementById(resultElId);
-  if(el){el.style.display='block';el.innerHTML=`<div style="white-space:pre-wrap;line-height:1.6">${esc(item.result)}</div><button type="button" class="btn btn-p" style="margin-top:6px;height:22px;font-size:11px;padding:0 8px" onclick="_rteInsert('${surfaceId}',this.previousElementSibling.textContent)">⬇ Insert into body</button>`;}
+  if(el){el.style.display='block';el.innerHTML=`<div style="white-space:pre-wrap;line-height:1.6">${esc(item.result)}</div><button type="button" class="btn btn-p" style="margin-top:6px;height:22px;font-size:11px;padding:0 8px" onclick="_rteInsert('${_jsAttr(surfaceId)}',this.previousElementSibling.textContent)">⬇ Insert into body</button>`;}
   toast('📋 Historical response loaded');
 }
 function _rteTimeAgo(ts){
@@ -8463,8 +8463,8 @@ async function _rteAIGeneral(systemPrompt,userContent,resultElId,targetRteId){
     const html=(typeof renderMd==='function')?renderMd(text):`<div style="white-space:pre-wrap">${esc(text)}</div>`;
     const previewId='ai-out-'+Math.random().toString(36).slice(2,9);
     const insertBtn=targetRteId
-      ?`<button type="button" class="btn btn-p" style="margin-top:6px;height:22px;font-size:11px;padding:0 8px" onmousedown="event.preventDefault()" onclick="_rteInsertHTML('${targetRteId}','${previewId}',this)">⬇ Insert into body</button>`
-      :`<button type="button" class="btn btn-p" style="margin-top:6px;height:22px;font-size:11px;padding:0 8px" onclick="_rteCopyToClipboard('${previewId}')">📋 Copy</button>`;
+      ?`<button type="button" class="btn btn-p" style="margin-top:6px;height:22px;font-size:11px;padding:0 8px" onmousedown="event.preventDefault()" onclick="_rteInsertHTML('${_jsAttr(targetRteId)}','${_jsAttr(previewId)}',this)">⬇ Insert into body</button>`
+      :`<button type="button" class="btn btn-p" style="margin-top:6px;height:22px;font-size:11px;padding:0 8px" onclick="_rteCopyToClipboard('${_jsAttr(previewId)}')">📋 Copy</button>`;
     const historyHtml=targetRteId?_rteHistoryRender(targetRteId):'';
     // data-md holds the original markdown for clipboard copy. The visible div
     // shows the rendered HTML. Both live in the same node so the Insert /
@@ -8885,7 +8885,7 @@ async function loadUserCredentials(){
             const isShared=!!cred.sharedWithTeam;
             shareRow.innerHTML=`
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--t2);flex:1">
-                <input type="checkbox" id="${p}-share-toggle" ${isShared?'checked':''} onchange="toggleCredentialSharing('${provider}',this.checked)" style="cursor:pointer">
+                <input type="checkbox" id="${p}-share-toggle" ${isShared?'checked':''} onchange="toggleCredentialSharing('${_jsAttr(provider)}',this.checked)" style="cursor:pointer">
                 <span>👥 Share these credentials with team members who have no own credentials</span>
               </label>
               <span style="font-size:11px;color:var(--t3)">${isShared?'<span style="color:var(--ok)">Shared</span>':'Private'}</span>
@@ -10204,7 +10204,7 @@ function _wizStepHTML(step){
     <div style="font-size:12px;font-weight:600;margin-bottom:6px">Which best describes your work?</div>
     <div style="display:grid;gap:6px">
       ${_WIZ_ROLES.map(r=>`<button class="btn btn-s" style="height:auto;padding:10px 12px;text-align:left;display:flex;gap:10px;align-items:flex-start;width:100%;white-space:normal;line-height:1.35;${_wiz.role===r.id?'border-color:var(--ac)':''}"
-        onclick="_wizPickRole('${r.id}')">
+        onclick="_wizPickRole('${_jsAttr(r.id)}')">
         <span style="font-size:17px;line-height:1">${r.icon}</span>
         <span style="flex:1"><span style="display:block;font-size:12px;font-weight:600">${esc(r.title)}</span>
         <span style="display:block;font-size:11px;color:var(--t3);font-weight:400;margin-top:1px">${esc(r.blurb)}</span></span>
@@ -10230,7 +10230,7 @@ function _wizStepHTML(step){
     <p style="font-size:11px;color:var(--t3);margin:0 0 6px">Sliced by the kind of work you do instead of by volume.</p>
     <div style="display:grid;gap:6px">
       ${LU_PRESETS.map(p=>`<button class="btn ${p.id===cur?'btn-p':'btn-s'}" style="height:auto;padding:10px 12px;text-align:left;display:block;width:100%;white-space:normal;line-height:1.35"
-        onclick="_wizPickPreset('${p.id}')">
+        onclick="_wizPickPreset('${_jsAttr(p.id)}')">
         <span style="display:block;font-size:12px;font-weight:600">${esc(p.label)}${p.id===_wiz.teamPreset?' · your team’s default':''}</span>
         <span style="display:block;font-size:11px;opacity:.8;font-weight:400;margin-top:1px">${esc(p.desc)}</span>
       </button>`).join('')}
@@ -10242,7 +10242,7 @@ function _wizStepHTML(step){
       const rows=LU_PAGES.filter(p=>p.group===gk&&p.nav).map(p=>{
         const on=set.has(p.id)||p.core;
         return `<label style="display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:6px;cursor:${p.core?'default':'pointer'};${p.core?'opacity:.55':''}">
-          <input type="checkbox" ${on?'checked':''} ${p.core?'disabled':''} onchange="_wizTogglePage('${p.id}')">
+          <input type="checkbox" ${on?'checked':''} ${p.core?'disabled':''} onchange="_wizTogglePage('${_jsAttr(p.id)}')">
           <span style="font-size:12px">${esc(p.label)}</span>
         </label>`;
       }).join('');
@@ -10261,7 +10261,7 @@ function _wizStepHTML(step){
          ['OneNote meeting notes','Sync meeting notes and auto-link them to events.','sp-8']]
         .map(([t,d,panel])=>`<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--s2);border:1px solid var(--bd1);border-radius:8px">
           <div style="flex:1"><div style="font-size:12px;font-weight:600">${esc(t)}</div><div style="font-size:11px;color:var(--t3)">${esc(d)}</div></div>
-          <button class="btn btn-s" style="font-size:11px;height:26px" onclick="_wizComplete();nav('settings');setTimeout(()=>{const el=[...document.querySelectorAll('#s-settings .si')].find(x=>x.getAttribute('onclick')&&x.getAttribute('onclick').indexOf(&quot;'${panel}'&quot;)>=0);if(el)el.click();},140)">Set up</button>
+          <button class="btn btn-s" style="font-size:11px;height:26px" onclick="_wizComplete();nav('settings');setTimeout(()=>{const el=[...document.querySelectorAll('#s-settings .si')].find(x=>x.getAttribute('onclick')&&x.getAttribute('onclick').indexOf(&quot;'${_jsAttr(panel)}'&quot;)>=0);if(el)el.click();},140)">Set up</button>
         </div>`).join('')}
     </div>
     <p style="font-size:11px;color:var(--t3);margin-top:12px">Skipping is fine — LevelUp works fully on its own, and Settings → Accounts is always there.</p>`;
@@ -10676,7 +10676,7 @@ async function loadTeamNotificationSenders(){
           <div style="font-size:11px;color:var(--t3)">${esc(u.email||'')}</div>
         </div>
         <span style="font-size:11px;padding:2px 8px;border-radius:10px;background:${u.hasSmtp?'rgba(34,197,94,.15);color:var(--ok)':'var(--s3);color:var(--t3)'}">${u.hasSmtp?'✓ Configured':'Not set'}</span>
-        <button class="btn btn-s" style="height:24px;font-size:11px" onclick="openTeamSenderForm(${u.id},'${esc(u.name||u.email||'user')}')">${u.hasSmtp?'Edit':'Configure'}</button>
+        <button class="btn btn-s" style="height:24px;font-size:11px" onclick="openTeamSenderForm(${u.id},'${_jsAttr(u.name||u.email||'user')}')">${u.hasSmtp?'Edit':'Configure'}</button>
         ${u.hasSmtp?`<button class="btn btn-d" style="height:24px;font-size:11px" onclick="deleteTeamSender(${u.id})">✕</button>`:''}
       </div>
     `).join('');
@@ -12656,15 +12656,15 @@ function mmRenderSidePanel(){
     </div>
     <div class="mm-side-section">
       <div class="mm-side-section-h">Icon</div>
-      <div class="mm-icon-grid">${MM_ICONS.map(ic=>`<div class="mm-icon-btn ${(node.icon||'')===ic?'on':''}" onclick="mmSidePanelIcon(${node.id},'${ic}')">${ic||'∅'}</div>`).join('')}</div>
+      <div class="mm-icon-grid">${MM_ICONS.map(ic=>`<div class="mm-icon-btn ${(node.icon||'')===ic?'on':''}" onclick="mmSidePanelIcon(${node.id},'${_jsAttr(ic)}')">${ic||'∅'}</div>`).join('')}</div>
     </div>
     <div class="mm-side-section">
       <div class="mm-side-section-h">Shape</div>
-      <div class="mm-shape-grid">${MM_SHAPES.map(s=>`<div class="mm-shape-btn ${(node.shape||'rect')===s?'on':''}" onclick="mmSidePanelShape(${node.id},'${s}')">${s}</div>`).join('')}</div>
+      <div class="mm-shape-grid">${MM_SHAPES.map(s=>`<div class="mm-shape-btn ${(node.shape||'rect')===s?'on':''}" onclick="mmSidePanelShape(${node.id},'${_jsAttr(s)}')">${s}</div>`).join('')}</div>
     </div>
     <div class="mm-side-section">
       <div class="mm-side-section-h">Color</div>
-      <div class="mm-color-grid">${MM_COLORS.map(c=>`<div class="mm-color-swatch ${(node.color||'')===c?'on':''}" style="background:${c}" onclick="mmSidePanelColor(${node.id},'${c}')"></div>`).join('')}</div>
+      <div class="mm-color-grid">${MM_COLORS.map(c=>`<div class="mm-color-swatch ${(node.color||'')===c?'on':''}" style="background:${c}" onclick="mmSidePanelColor(${node.id},'${_jsAttr(c)}')"></div>`).join('')}</div>
     </div>
     <div class="mm-side-section">
       <div class="mm-side-section-h">Description</div>
@@ -12733,7 +12733,7 @@ function mmRenderEdgePanel(){
     </div>
     <div class="mm-side-section">
       <div class="mm-side-section-h">Arrow</div>
-      <div style="display:flex;gap:4px">${arrowOpts.map(([k,l])=>`<button class="btn btn-s" style="flex:1;font-size:11px;height:24px;${(e.arrow||'none')===k?'background:var(--ac);color:#fff':''}" onclick="mmEdgeSetArrow('${k}')">${l}</button>`).join('')}</div>
+      <div style="display:flex;gap:4px">${arrowOpts.map(([k,l])=>`<button class="btn btn-s" style="flex:1;font-size:11px;height:24px;${(e.arrow||'none')===k?'background:var(--ac);color:#fff':''}" onclick="mmEdgeSetArrow('${_jsAttr(k)}')">${l}</button>`).join('')}</div>
     </div>
     <div class="mm-side-section">
       <div class="mm-side-section-h">Thickness (${thick})</div>
@@ -12804,7 +12804,7 @@ function mmNodeContext(e, id){
     <div class="mm-ctx-item" onclick="mmToggleConnect();document.getElementById('mm-context-menu').style.display='none'">🔗 Connect From Here</div>
     <div style="border-top:1px solid var(--bd1);margin:2px 0"></div>
     <div style="padding:4px 10px;display:flex;gap:3px">
-      ${colors.map(c=>`<div style="width:16px;height:16px;border-radius:50%;background:${c};cursor:pointer;border:${node.color===c?'2px solid #fff':'2px solid transparent'}" onclick="mmSetColor(${id},'${c}')"></div>`).join('')}
+      ${colors.map(c=>`<div style="width:16px;height:16px;border-radius:50%;background:${c};cursor:pointer;border:${node.color===c?'2px solid #fff':'2px solid transparent'}" onclick="mmSetColor(${id},'${_jsAttr(c)}')"></div>`).join('')}
     </div>
     <div style="border-top:1px solid var(--bd1);margin:2px 0"></div>
     <div class="mm-ctx-item" style="color:var(--red)" onclick="mmDeleteNode(${id})">🗑 Delete Node</div>
@@ -13124,7 +13124,7 @@ function mmShowTemplates(){
     <input id="mm-tpl-title" class="inp" placeholder="Map title…" style="width:100%;height:30px;font-size:12px;margin-bottom:10px" value="New Mind Map">
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px">
       <div class="cd" style="cursor:pointer;text-align:center;padding:14px 8px" onclick="mmCreateFromTemplate(null)"><div style="font-size:24px;margin-bottom:4px">📄</div><div style="font-size:11px;font-weight:600">Blank</div></div>
-      ${MM_TEMPLATES.map(t=>`<div class="cd" style="cursor:pointer;text-align:center;padding:14px 8px" onclick="mmCreateFromTemplate('${t.id}')"><div style="font-size:24px;margin-bottom:4px">${t.icon}</div><div style="font-size:11px;font-weight:600">${esc(t.name)}</div></div>`).join('')}
+      ${MM_TEMPLATES.map(t=>`<div class="cd" style="cursor:pointer;text-align:center;padding:14px 8px" onclick="mmCreateFromTemplate('${_jsAttr(t.id)}')"><div style="font-size:24px;margin-bottom:4px">${t.icon}</div><div style="font-size:11px;font-weight:600">${esc(t.name)}</div></div>`).join('')}
     </div>
     <div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="closeModal()">Cancel</button></div>`;
   document.getElementById('modal-capture').classList.add('show');
@@ -13734,13 +13734,13 @@ function shRowMenu(ev,rid){
 // ─── Design / theme / sharing panel ──────────────────────────────────────────
 function _shDesignHtml(){
   const s=_sheetCurrent; const th=s.theme||(s.theme={density:'comfortable',striped:true,gridlines:true,headerStyle:'accent'});
-  const seg=(active,val,label,fn)=>`<button class="sh-seg-b ${active?'on':''}" onclick="${fn}('${val}')">${label}</button>`;
+  const seg=(active,val,label,fn)=>`<button class="sh-seg-b ${active?'on':''}" onclick="${fn}('${_jsAttr(val)}')">${label}</button>`;
   return `
     <div class="sh-side-sec"><div class="sh-side-h">Sheet</div>
-      <div class="sh-icon-grid">${SHEET_ICONS.map(ic=>`<div class="sh-icon-b ${s.icon===ic?'on':''}" onclick="shSetIcon('${ic}')">${ic}</div>`).join('')}</div>
+      <div class="sh-icon-grid">${SHEET_ICONS.map(ic=>`<div class="sh-icon-b ${s.icon===ic?'on':''}" onclick="shSetIcon('${_jsAttr(ic)}')">${ic}</div>`).join('')}</div>
     </div>
     <div class="sh-side-sec"><div class="sh-side-h">Accent colour</div>
-      <div class="sh-color-grid">${SHEET_PALETTE.map(c=>`<div class="sh-color-sw ${s.color===c?'on':''}" style="background:${c}" onclick="shSetColor('${c}')"></div>`).join('')}</div>
+      <div class="sh-color-grid">${SHEET_PALETTE.map(c=>`<div class="sh-color-sw ${s.color===c?'on':''}" style="background:${c}" onclick="shSetColor('${_jsAttr(c)}')"></div>`).join('')}</div>
     </div>
     <div class="sh-side-sec"><div class="sh-side-h">Density</div>
       <div class="sh-seg">${seg(th.density!=='compact','comfortable','Comfortable','shSetDensity')}${seg(th.density==='compact','compact','Compact','shSetDensity')}</div>
@@ -14170,11 +14170,11 @@ function _dkPropsHtml(){
   else { const d=_deckCurrent; const th=d.theme||{};
     body=`<div style="margin-top:14px;border-top:1px solid var(--bd1);padding-top:12px">
       <div class="dk-props-h">Slide background</div>
-      <div class="dk-color-grid"><div class="dk-color-sw ${!_dkSlide().bg?'on':''}" style="background:#ffffff;border:1px solid var(--bd2)" onclick="dkSetSlideBg('')"></div>${['#0f172a','#1e293b','#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#f1f5f9'].map(c=>`<div class="dk-color-sw ${_dkSlide().bg===c?'on':''}" style="background:${c}" onclick="dkSetSlideBg('${c}')"></div>`).join('')}</div>
+      <div class="dk-color-grid"><div class="dk-color-sw ${!_dkSlide().bg?'on':''}" style="background:#ffffff;border:1px solid var(--bd2)" onclick="dkSetSlideBg('')"></div>${['#0f172a','#1e293b','#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#f1f5f9'].map(c=>`<div class="dk-color-sw ${_dkSlide().bg===c?'on':''}" style="background:${c}" onclick="dkSetSlideBg('${_jsAttr(c)}')"></div>`).join('')}</div>
       <div class="dk-props-h" style="margin-top:14px">Deck accent</div>
-      <div class="dk-color-grid">${SHEET_PALETTE.map(c=>`<div class="dk-color-sw ${d.color===c?'on':''}" style="background:${c}" onclick="dkSetDeckColor('${c}')"></div>`).join('')}</div>
+      <div class="dk-color-grid">${SHEET_PALETTE.map(c=>`<div class="dk-color-sw ${d.color===c?'on':''}" style="background:${c}" onclick="dkSetDeckColor('${_jsAttr(c)}')"></div>`).join('')}</div>
       <div class="dk-props-h" style="margin-top:14px">Deck icon</div>
-      <div style="display:flex;flex-wrap:wrap;gap:3px">${SHEET_ICONS.map(ic=>`<div class="dk-add-b" style="padding:4px;min-width:26px" onclick="dkSetIcon('${ic}')">${ic}</div>`).join('')}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:3px">${SHEET_ICONS.map(ic=>`<div class="dk-add-b" style="padding:4px;min-width:26px" onclick="dkSetIcon('${_jsAttr(ic)}')">${ic}</div>`).join('')}</div>
       <div class="dk-props-h" style="margin-top:14px">👥 Share with team</div>
       <div style="font-size:11px;color:var(--t3);margin-bottom:6px">Assigned members see this deck in their Slides section. Permission decides whether they co-edit or just view &amp; present.</div>
       ${(typeof buildMultiAssignee==='function')?buildMultiAssignee('deck-ma',d):''}
@@ -14187,11 +14187,11 @@ function _dkPropsHtml(){
 }
 function _dkElPropsHtml(el){
   const row=(label,inner)=>`<div class="dk-prop-row"><label>${label}</label>${inner}</div>`;
-  const colorSwatches=(key,cur,extra)=>`<div class="dk-color-grid">${(extra||[]).concat(SHEET_PALETTE).map(c=>`<div class="dk-color-sw ${cur===c?'on':''}" style="background:${c}${c==='#ffffff'?';border:1px solid var(--bd2)':''}" onclick="dkSetProp(${el.id},'${key}','${c}')"></div>`).join('')}</div>`;
+  const colorSwatches=(key,cur,extra)=>`<div class="dk-color-grid">${(extra||[]).concat(SHEET_PALETTE).map(c=>`<div class="dk-color-sw ${cur===c?'on':''}" style="background:${c}${c==='#ffffff'?';border:1px solid var(--bd2)':''}" onclick="dkSetProp(${el.id},'${_jsAttr(key)}','${_jsAttr(c)}')"></div>`).join('')}</div>`;
   let specific='';
   if(el.type==='text'){
     specific=row('Font size',`<input type="number" value="${el.fontSize||20}" min="8" max="120" onchange="dkSetProp(${el.id},'fontSize',Number(this.value))">`)
-      +`<div class="dk-prop-row" style="display:flex;gap:5px"><button class="btn btn-s" style="flex:1;height:26px;${el.bold?'background:var(--ac);color:#fff':''}" onclick="dkToggleProp(${el.id},'bold')"><b>B</b></button><button class="btn btn-s" style="flex:1;height:26px;${el.italic?'background:var(--ac);color:#fff':''}" onclick="dkToggleProp(${el.id},'italic')"><i>I</i></button>${['left','center','right'].map(a=>`<button class="btn btn-s" style="flex:1;height:26px;${(el.align||'left')===a?'background:var(--ac);color:#fff':''}" onclick="dkSetProp(${el.id},'align','${a}')">${a==='left'?'⯇':a==='center'?'≡':'⯈'}</button>`).join('')}</div>`
+      +`<div class="dk-prop-row" style="display:flex;gap:5px"><button class="btn btn-s" style="flex:1;height:26px;${el.bold?'background:var(--ac);color:#fff':''}" onclick="dkToggleProp(${el.id},'bold')"><b>B</b></button><button class="btn btn-s" style="flex:1;height:26px;${el.italic?'background:var(--ac);color:#fff':''}" onclick="dkToggleProp(${el.id},'italic')"><i>I</i></button>${['left','center','right'].map(a=>`<button class="btn btn-s" style="flex:1;height:26px;${(el.align||'left')===a?'background:var(--ac);color:#fff':''}" onclick="dkSetProp(${el.id},'align','${_jsAttr(a)}')">${a==='left'?'⯇':a==='center'?'≡':'⯈'}</button>`).join('')}</div>`
       +row('Colour',colorSwatches('color',el.color,['#0f172a','#ffffff']));
   } else if(el.type==='shape'){
     specific=row('Shape',`<select onchange="dkSetProp(${el.id},'shape',this.value)">${['rect','ellipse','line'].map(s=>`<option ${el.shape===s?'selected':''}>${s}</option>`).join('')}</select>`)+row('Fill',colorSwatches('fill',el.fill));
@@ -14422,7 +14422,7 @@ function renderAtlas(){
     {k:'pto',l:'PTO',cnt:(snap.departments||[]).reduce((s,d)=>s+(d.members||[]).reduce((s2,m)=>s2+((m.pto||[]).length?1:0),0),0)},
   ];
   const synced=snap.pulledAt?_pd(snap.pulledAt).toLocaleString():'unknown';
-  const tabBtn=t=>`<button class="btn btn-s" onclick="_atlasView='${t.k}';renderAtlas()" style="${_atlasView===t.k?'background:var(--ac);color:#fff;border-color:var(--ac);':''}">${t.l} <span style="opacity:.65">·${t.cnt}</span></button>`;
+  const tabBtn=t=>`<button class="btn btn-s" onclick="_atlasView='${_jsAttr(t.k)}';renderAtlas()" style="${_atlasView===t.k?'background:var(--ac);color:#fff;border-color:var(--ac);':''}">${t.l} <span style="opacity:.65">·${t.cnt}</span></button>`;
   const header=`<div class="ph-r" style="margin-bottom:14px;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap">
     <div>
       <h1 style="font-size:22px;font-weight:700">🗺 Atlas <span style="font-size:11px;color:var(--t3);font-weight:400;margin-left:8px">read-only mirror</span></h1>
@@ -14480,7 +14480,7 @@ function _atlasProjectsHTML(snap,category){
     },0),0);
     const rev=p.revenue||p.targetRevenue||0;
     const margin=rev-cost;
-    return `<div class="cd" style="padding:12px;border-left:3px solid #0ea5e9;cursor:pointer" onclick="atlasOpenDrawer('project','${p.id}')">
+    return `<div class="cd" style="padding:12px;border-left:3px solid #0ea5e9;cursor:pointer" onclick="atlasOpenDrawer('project','${_jsAttr(p.id)}')">
       <div style="font-size:13px;font-weight:700;margin-bottom:2px">${esc(p.name)}</div>
       ${p.customer?`<div style="font-size:11px;color:var(--t3);margin-bottom:6px">${esc(p.customer)}</div>`:''}
       <div style="display:flex;gap:8px;font-size:11px;color:var(--t2);margin-bottom:4px">
@@ -14542,7 +14542,7 @@ function _atlasOppsHTML(snap){
     const statusChip=o.status?`<span style="display:inline-block;background:${statusColor}22;color:${statusColor};font-size:11px;font-weight:700;padding:1px 6px;border-radius:3px;letter-spacing:.04em;margin-right:4px">${esc(o.status)}</span>`:'';
     const daysToClose=o.closeDate?(()=>{const d=_pd(o.closeDate);if(isNaN(d))return null;const dd=Math.round((d-Date.now())/86400000);return dd;})():null;
     const closeLbl=o.closeDate?(daysToClose!==null?(daysToClose<0?`<span style="color:#dc2626">${Math.abs(daysToClose)}d overdue</span>`:`${daysToClose}d`):esc(o.closeDate)):'';
-    return `<div class="cd" style="padding:9px 11px;margin-bottom:6px;cursor:pointer" onclick="atlasOpenDrawer('project','${o.id}')" title="${esc((o.team||'')+' '+(o.changeRequested||''))}">
+    return `<div class="cd" style="padding:9px 11px;margin-bottom:6px;cursor:pointer" onclick="atlasOpenDrawer('project','${_jsAttr(o.id)}')" title="${esc((o.team||'')+' '+(o.changeRequested||''))}">
       <div style="font-size:12px;font-weight:600;margin-bottom:2px">${esc(o.name)}</div>
       ${o.customer?`<div style="font-size:11px;color:var(--t3);margin-bottom:4px">${esc(o.customer)}</div>`:''}
       ${o.potential?`<div style="font-size:11px;font-weight:700;color:#16a34a;margin-bottom:3px">${_atlasMoney(o.potential)}/yr</div>`:''}
@@ -14580,10 +14580,10 @@ function _atlasOrgChartHTML(snap){
       const cost=members.reduce((s,m)=>s+(m.cost||0),0);
       return `<div class="cd" style="padding:10px 12px;margin-bottom:8px;margin-left:${depth*16}px;border-left:3px solid ${esc(d.accent||'#64748b')}">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
-          <div style="cursor:pointer" onclick="atlasOpenDrawer('department','${d.id}')"><strong style="font-size:13px">${esc(d.name)}</strong>${d.subtitle?` <span style="font-size:11px;color:var(--t3)">· ${esc(d.subtitle)}</span>`:''} ${_atlasAnnotIndicator('department',d.id)}</div>
+          <div style="cursor:pointer" onclick="atlasOpenDrawer('department','${_jsAttr(d.id)}')"><strong style="font-size:13px">${esc(d.name)}</strong>${d.subtitle?` <span style="font-size:11px;color:var(--t3)">· ${esc(d.subtitle)}</span>`:''} ${_atlasAnnotIndicator('department',d.id)}</div>
           <div style="font-size:11px;color:var(--t3)">${members.length} · ${_atlasMoney(cost)}/mo</div>
         </div>
-        ${members.length?`<div style="display:flex;flex-wrap:wrap;gap:5px;font-size:11px">${members.map(m=>`<span style="background:var(--s3);padding:2px 7px;border-radius:3px;cursor:pointer" onclick="atlasOpenDrawer('member','${m.id}')" title="${esc(m.role||'')}${m.cost?` · ${_atlasMoney(m.cost)}/mo`:''}">${esc(m.name)}${m.sme?' 🎓':''}${m.hub?' 🌐':''}</span>`).join('')}</div>`:'<div style="font-size:11px;color:var(--t3)">No members</div>'}
+        ${members.length?`<div style="display:flex;flex-wrap:wrap;gap:5px;font-size:11px">${members.map(m=>`<span style="background:var(--s3);padding:2px 7px;border-radius:3px;cursor:pointer" onclick="atlasOpenDrawer('member','${_jsAttr(m.id)}')" title="${esc(m.role||'')}${m.cost?` · ${_atlasMoney(m.cost)}/mo`:''}">${esc(m.name)}${m.sme?' 🎓':''}${m.hub?' 🌐':''}</span>`).join('')}</div>`:'<div style="font-size:11px;color:var(--t3)">No members</div>'}
         ${tree(d.id,depth+1)}
       </div>`;
     }).join('');
@@ -14602,7 +14602,7 @@ function _atlasResourcesHTML(snap){
     return `<div style="margin-bottom:14px">
       <div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">📍 ${esc(locName(lid))} <span style="color:var(--t3);font-weight:400">· ${list.length} ${list.length===1?'person':'people'} · ${_atlasMoney(cost)}/mo</span></div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px">
-        ${list.map(m=>`<div class="cd" style="padding:10px 12px;cursor:pointer" onclick="atlasOpenDrawer('member','${m.id}')">
+        ${list.map(m=>`<div class="cd" style="padding:10px 12px;cursor:pointer" onclick="atlasOpenDrawer('member','${_jsAttr(m.id)}')">
           <div style="font-size:12px;font-weight:700">${esc(m.name)}</div>
           <div style="font-size:11px;color:var(--t3)">${esc(m.role||'')}</div>
           <div style="font-size:11px;color:var(--t2);margin-top:4px">${_atlasMoney(m.cost)}/mo · ${esc(m._dept)}</div>
@@ -14649,7 +14649,7 @@ function _atlasTaskRow(snap,a,statusCfg){
   const owners=(a.owners||[]).map(id=>{const x=_atlasMember(snap,id);return x?x.member.name:'';}).filter(Boolean);
   const ownerLbl=owners.length?owners.join(', '):(a.ownerText||'—');
   const proj=a.projectId?_atlasProject(snap,a.projectId):null;
-  return `<div class="cd" style="padding:9px 12px;margin-bottom:5px;display:flex;gap:10px;align-items:flex-start;cursor:pointer" onclick="atlasOpenDrawer('activity','${a.id}')">
+  return `<div class="cd" style="padding:9px 12px;margin-bottom:5px;display:flex;gap:10px;align-items:flex-start;cursor:pointer" onclick="atlasOpenDrawer('activity','${_jsAttr(a.id)}')">
     <span style="display:inline-block;background:${s.c};color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:3px;text-transform:uppercase;letter-spacing:.04em;flex-shrink:0">${s.l}</span>
     <div style="flex:1;min-width:0">
       <div style="font-size:12px;font-weight:600">${a.isMilestone?'◆ ':''}${esc(a.subtask||'(untitled)')} ${_atlasAnnotIndicator('activity',a.id)}</div>
@@ -14838,7 +14838,7 @@ function _atlasReportsHTML(snap){
   return Object.keys(byArea).map(area=>`<div style="margin-bottom:14px">
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--t2);margin-bottom:6px">${esc(area)}</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px">
-    ${byArea[area].map(r=>`<div class="cd" style="padding:12px;cursor:pointer" onclick="_atlasRptOpen='${r.key}';renderAtlas()">
+    ${byArea[area].map(r=>`<div class="cd" style="padding:12px;cursor:pointer" onclick="_atlasRptOpen='${_jsAttr(r.key)}';renderAtlas()">
       <div style="font-size:13px;font-weight:700">${esc(r.title)}${r.financial?' <span title="Financial" style="font-size:11px;color:#d97706">$</span>':''}</div>
       <div style="font-size:11px;color:var(--ac);margin-top:4px">Open report →</div></div>`).join('')}
     </div></div>`).join('');
@@ -14886,7 +14886,7 @@ function _atlasProposalsHTML(snap){
     const totSec=(p.sections||[]).length;
     const ppMatches=(p.pastPerformance&&p.pastPerformance.matches)?p.pastPerformance.matches.length:0;
     const roles=(p.rfp&&p.rfp.requiredRoles)?p.rfp.requiredRoles.length:0;
-    return `<div class="cd" style="padding:12px 14px;margin-bottom:8px;border-left:4px solid ${c};cursor:pointer" onclick="atlasOpenDrawer('proposal','${p.id}')">
+    return `<div class="cd" style="padding:12px 14px;margin-bottom:8px;border-left:4px solid ${c};cursor:pointer" onclick="atlasOpenDrawer('proposal','${_jsAttr(p.id)}')">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:5px">
         <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:800">${esc(p.title)} ${_atlasAnnotIndicator('proposal',p.id)}</div>
         ${opp?`<div style="font-size:11px;color:var(--t3);margin-top:2px">${esc(opp.name)}${opp.customer?' · '+esc(opp.customer):''}</div>`:(p.rfp&&p.rfp.customer?`<div style="font-size:11px;color:var(--t3);margin-top:2px">${esc(p.rfp.customer)}</div>`:'')}</div>
@@ -14928,7 +14928,7 @@ function _atlasClassificationHTML(snap){
         <div style="font-size:11px;color:var(--t3)">${people.length} ${people.length===1?'person':'people'} · ${_atlasMoney(cost)}/mo</div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px">
-        ${people.map(m=>`<div class="cd" style="padding:10px 12px;cursor:pointer" onclick="atlasOpenDrawer('member','${m.id}')">
+        ${people.map(m=>`<div class="cd" style="padding:10px 12px;cursor:pointer" onclick="atlasOpenDrawer('member','${_jsAttr(m.id)}')">
           <div style="font-size:12px;font-weight:700">${esc(m.name)} ${_atlasAnnotIndicator('member',m.id)}</div>
           <div style="font-size:11px;color:var(--t3)">${esc(m.role||'')}</div>
           <div style="font-size:11px;color:var(--t2);margin-top:3px">${_atlasMoney(m.cost)}/mo · ${esc(m._dept)}</div>
@@ -14946,7 +14946,7 @@ function _atlasClassificationHTML(snap){
         <div style="font-size:11px;color:var(--t3)">${uncl.length} · ${_atlasMoney(cost)}/mo</div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px">
-        ${uncl.map(m=>`<div class="cd" style="padding:10px 12px;cursor:pointer" onclick="atlasOpenDrawer('member','${m.id}')">
+        ${uncl.map(m=>`<div class="cd" style="padding:10px 12px;cursor:pointer" onclick="atlasOpenDrawer('member','${_jsAttr(m.id)}')">
           <div style="font-size:12px;font-weight:700">${esc(m.name)}</div>
           <div style="font-size:11px;color:var(--t3)">${esc(m.role||'')}</div>
         </div>`).join('')}
@@ -14996,7 +14996,7 @@ function _atlasRenderDrawer(){
   const typeLabel=e.category?(e.category.charAt(0).toUpperCase()+e.category.slice(1)):(titleMap[type]||type);
   const name=_atlasEntityName(type,e);
   const tabs=[{k:'details',l:'Details'},{k:'notes',l:'My Notes'+((a.notes||'').replace(/<[^>]+>/g,'').trim()?' ●':'')},{k:'spawn',l:'+ Create…'}];
-  const tabBar=`<div style="display:flex;gap:2px;border-bottom:2px solid var(--brd);margin:0 16px">${tabs.map(t=>`<button onclick="_atlasDrawerSetTab('${t.k}')" style="background:transparent;border:none;padding:9px 14px;font-size:12px;font-weight:700;color:${tab===t.k?'var(--ac)':'var(--t2)'};cursor:pointer;border-bottom:2px solid ${tab===t.k?'var(--ac)':'transparent'};margin-bottom:-2px;font-family:inherit">${t.l}</button>`).join('')}</div>`;
+  const tabBar=`<div style="display:flex;gap:2px;border-bottom:2px solid var(--brd);margin:0 16px">${tabs.map(t=>`<button onclick="_atlasDrawerSetTab('${_jsAttr(t.k)}')" style="background:transparent;border:none;padding:9px 14px;font-size:12px;font-weight:700;color:${tab===t.k?'var(--ac)':'var(--t2)'};cursor:pointer;border-bottom:2px solid ${tab===t.k?'var(--ac)':'transparent'};margin-bottom:-2px;font-family:inherit">${t.l}</button>`).join('')}</div>`;
   let body='';
   if(tab==='details')body=_atlasDrawerDetailsHTML(type,e);
   else if(tab==='notes')body=_atlasDrawerNotesHTML(type,id,a);
@@ -15053,7 +15053,7 @@ function _atlasDetailsProject(p){
         ${p.clins.map(c=>`<tr><td style="padding:5px 6px;border-bottom:1px solid var(--bd1)">${esc(c.number||'')}</td><td style="padding:5px 6px;border-bottom:1px solid var(--bd1)">${esc(c.title||'')}</td><td style="padding:5px 6px;border-bottom:1px solid var(--bd1);text-align:right">${_atlasMoney(c.revenue)}/mo</td></tr>`).join('')}
       </tbody></table></div>`:''}
     ${team.length?`<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Team (${team.length})</div>
-      ${team.map(t=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--bd1);font-size:12px;cursor:pointer" onclick="atlasOpenDrawer('member','${t.m.id}')"><div><b>${esc(t.m.name)}</b><span style="color:var(--t3);margin-left:6px">${esc(t.m.role||'')}</span></div><div style="font-size:11px;color:var(--t3)">${t.pct}% · ${_atlasMoney(Math.round((t.m.cost||0)*t.pct/100))}/mo</div></div>`).join('')}
+      ${team.map(t=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--bd1);font-size:12px;cursor:pointer" onclick="atlasOpenDrawer('member','${_jsAttr(t.m.id)}')"><div><b>${esc(t.m.name)}</b><span style="color:var(--t3);margin-left:6px">${esc(t.m.role||'')}</span></div><div style="font-size:11px;color:var(--t3)">${t.pct}% · ${_atlasMoney(Math.round((t.m.cost||0)*t.pct/100))}/mo</div></div>`).join('')}
     </div>`:''}
     ${p.attachments&&p.attachments.length?`<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Attachments (${p.attachments.length})</div>
       ${p.attachments.map(a=>`<div style="font-size:12px;padding:5px 0;border-bottom:1px solid var(--bd1)">${a.type==='file'?'📄':'🔗'} <a href="${esc(a.url)}" target="_blank" style="color:var(--ac);text-decoration:none">${esc(a.name||a.url)}</a></div>`).join('')}
@@ -15078,7 +15078,7 @@ function _atlasDetailsMember(m){
     ${certs.length?`<div style="margin-top:10px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Certifications</div><div style="display:flex;flex-wrap:wrap;gap:5px">${certs.map(c=>`<span style="background:rgba(13,148,136,.12);color:#0d9488;padding:3px 9px;border-radius:3px;font-size:11px;font-weight:600">${esc(c)}</span>`).join('')}</div></div>`:''}
     ${m.note?`<div style="margin-top:14px;padding:10px 12px;background:var(--s2);border-radius:6px;font-size:12px;color:var(--t2)">${esc(m.note)}</div>`:''}
     ${projAssign.length?`<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Project Assignments (${projAssign.length})</div>
-      ${projAssign.map(x=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--bd1);font-size:12px;cursor:pointer" onclick="atlasOpenDrawer('project','${x.id}')"><div><b>${esc(x.p.name)}</b><span style="color:var(--t3);margin-left:6px">${esc(x.p.category||'')}</span></div><div style="font-size:11px;color:var(--t3)">${x.pct}% · ${_atlasMoney(Math.round((m.cost||0)*x.pct/100))}/mo</div></div>`).join('')}
+      ${projAssign.map(x=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--bd1);font-size:12px;cursor:pointer" onclick="atlasOpenDrawer('project','${_jsAttr(x.id)}')"><div><b>${esc(x.p.name)}</b><span style="color:var(--t3);margin-left:6px">${esc(x.p.category||'')}</span></div><div style="font-size:11px;color:var(--t3)">${x.pct}% · ${_atlasMoney(Math.round((m.cost||0)*x.pct/100))}/mo</div></div>`).join('')}
     </div>`:''}
     ${m.resumeLink?`<div style="margin-top:10px;font-size:12px">📎 <a href="${esc(m.resumeLink)}" target="_blank" style="color:var(--ac);text-decoration:none">Resume</a></div>`:''}
     ${m.attachments&&m.attachments.length?`<div style="margin-top:10px">${m.attachments.map(a=>`<div style="font-size:12px;padding:4px 0">${a.type==='file'?'📄':'🔗'} <a href="${esc(a.url)}" target="_blank" style="color:var(--ac);text-decoration:none">${esc(a.name||a.url)}</a></div>`).join('')}</div>`:''}`;
@@ -15091,7 +15091,7 @@ function _atlasDetailsDept(d){
       ${_atlasFld('Total Cost',_atlasMoney(cost)+'/mo')}${_atlasFld('Accent',d.accent)}
     </div>
     ${members.length?`<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Members</div>
-      ${members.map(m=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--bd1);font-size:12px;cursor:pointer" onclick="atlasOpenDrawer('member','${m.id}')"><div><b>${esc(m.name)}</b><span style="color:var(--t3);margin-left:6px">${esc(m.role||'')}</span>${m.sme?' 🎓':''}${m.hub?' 🌐':''}</div><div style="font-size:11px;color:var(--t3)">${_atlasMoney(m.cost)}/mo</div></div>`).join('')}
+      ${members.map(m=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--bd1);font-size:12px;cursor:pointer" onclick="atlasOpenDrawer('member','${_jsAttr(m.id)}')"><div><b>${esc(m.name)}</b><span style="color:var(--t3);margin-left:6px">${esc(m.role||'')}</span>${m.sme?' 🎓':''}${m.hub?' 🌐':''}</div><div style="font-size:11px;color:var(--t3)">${_atlasMoney(m.cost)}/mo</div></div>`).join('')}
     </div>`:''}`;
 }
 function _atlasDetailsActivity(a){
@@ -15109,7 +15109,7 @@ function _atlasDetailsActivity(a){
     </div>
     ${a.outline?`<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px">Description</div><div style="font-size:13px;color:var(--t1);line-height:1.55">${a.outline}</div></div>`:''}
     ${a.objective?`<div style="margin-top:10px;padding:8px 10px;background:rgba(197,165,90,.08);border:1px solid rgba(197,165,90,.25);border-radius:6px;font-size:12px"><b>Next Steps:</b> ${esc(a.objective)}</div>`:''}
-    ${owners.length?`<div style="margin-top:10px;font-size:12px"><b>Owners:</b> ${owners.map(m=>`<span style="cursor:pointer;color:var(--ac);text-decoration:underline;text-underline-offset:2px" onclick="atlasOpenDrawer('member','${m.id}')">${esc(m.name)}</span>`).join(', ')}</div>`:(a.ownerText?`<div style="margin-top:10px;font-size:12px"><b>Owners:</b> ${esc(a.ownerText)}</div>`:'')}
+    ${owners.length?`<div style="margin-top:10px;font-size:12px"><b>Owners:</b> ${owners.map(m=>`<span style="cursor:pointer;color:var(--ac);text-decoration:underline;text-underline-offset:2px" onclick="atlasOpenDrawer('member','${_jsAttr(m.id)}')">${esc(m.name)}</span>`).join(', ')}</div>`:(a.ownerText?`<div style="margin-top:10px;font-size:12px"><b>Owners:</b> ${esc(a.ownerText)}</div>`:'')}
     ${a.updates&&a.updates.length?`<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Status Updates (${a.updates.length})</div>
       ${a.updates.slice().reverse().map(u=>`<div style="padding:8px 10px;background:var(--s2);border-radius:6px;margin-bottom:5px;font-size:11px"><div style="color:var(--t3);font-size:11px">${esc(u.author||'—')} · ${_pd(u.ts).toLocaleString()}</div><div style="margin-top:3px">${esc(u.text)}</div></div>`).join('')}
     </div>`:''}
@@ -15130,7 +15130,7 @@ function _atlasDetailsProposal(p){
       ${has?`<div style="font-size:11px;color:var(--t2);margin-top:4px;line-height:1.5;max-height:80px;overflow:hidden;position:relative">${s.html}</div>`:''}
     </div>`;
   }).join('');
-  return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"><span style="background:${c}22;color:${c};font-size:11px;font-weight:800;padding:3px 9px;border-radius:4px;letter-spacing:.4px;text-transform:uppercase">${esc(p.status)}</span>${opp?`<span style="font-size:11px;color:var(--t2);cursor:pointer;text-decoration:underline" onclick="atlasOpenDrawer('project','${opp.id}')">↗ ${esc(opp.name)}</span>`:''}${tpl?`<span style="font-size:11px;color:var(--t3)">📄 ${esc(tpl.name)}</span>`:''}</div>
+  return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"><span style="background:${c}22;color:${c};font-size:11px;font-weight:800;padding:3px 9px;border-radius:4px;letter-spacing:.4px;text-transform:uppercase">${esc(p.status)}</span>${opp?`<span style="font-size:11px;color:var(--t2);cursor:pointer;text-decoration:underline" onclick="atlasOpenDrawer('project','${_jsAttr(opp.id)}')">↗ ${esc(opp.name)}</span>`:''}${tpl?`<span style="font-size:11px;color:var(--t3)">📄 ${esc(tpl.name)}</span>`:''}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       ${_atlasFld('Customer',rfp.customer)}${_atlasFld('Due Date',rfp.dueDate)}
       ${_atlasFld('Period of Performance',rfp.pop)}${_atlasFld('Potential Value',rfp.potentialValue?_atlasMoney(rfp.potentialValue):'')}
@@ -15152,7 +15152,7 @@ function _atlasDrawerNotesHTML(type,id,a){
   const key=_atlasAnnotKey(type,id);
   return `<div style="font-size:11px;color:var(--t3);margin-bottom:8px">Your private notes about this Atlas item. Stored in your LevelUp account — never synced back to Atlas. Updated ${a.updatedAt?_pd(a.updatedAt).toLocaleString():'never'}.</div>
     <textarea id="atlas-annot-textarea" style="width:100%;min-height:280px;padding:10px 12px;border:1.5px solid var(--brd);border-radius:7px;font-size:13px;font-family:inherit;background:var(--s1);color:var(--t1);line-height:1.55" placeholder="Add notes, observations, follow-ups...">${esc(a.notes||'')}</textarea>
-    <div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-p" onclick="_atlasSaveAnnot('${type}','${id}')">💾 Save Notes</button>${a.notes?`<button class="btn btn-d" style="font-size:11px" onclick="_atlasClearAnnot('${type}','${id}')">Clear</button>`:''}</div>`;
+    <div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-p" onclick="_atlasSaveAnnot('${_jsAttr(type)}','${_jsAttr(id)}')">💾 Save Notes</button>${a.notes?`<button class="btn btn-d" style="font-size:11px" onclick="_atlasClearAnnot('${_jsAttr(type)}','${_jsAttr(id)}')">Clear</button>`:''}</div>`;
 }
 function _atlasSaveAnnot(type,id){
   const ta=document.getElementById('atlas-annot-textarea');if(!ta)return;
@@ -15181,15 +15181,15 @@ function _atlasClearAnnot(type,id){
 function _atlasDrawerSpawnHTML(type,id,e){
   return `<div style="font-size:12px;color:var(--t2);margin-bottom:14px">Create a LevelUp item linked back to this Atlas object. The link goes in the body so you can find it later via search or by jumping back to the Atlas item.</div>
     <div style="display:grid;grid-template-columns:1fr;gap:8px">
-      <button class="btn btn-p" style="text-align:left;padding:12px 14px;height:auto" onclick="_atlasSpawnNote('${type}','${id}')">
+      <button class="btn btn-p" style="text-align:left;padding:12px 14px;height:auto" onclick="_atlasSpawnNote('${_jsAttr(type)}','${_jsAttr(id)}')">
         <div style="font-size:13px;font-weight:700">📝 Create LevelUp Note</div>
         <div style="font-size:11px;color:rgba(255,255,255,.8);margin-top:2px;font-weight:400">Long-form notes, ideas, research about this Atlas item</div>
       </button>
-      <button class="btn btn-s" style="text-align:left;padding:12px 14px;height:auto" onclick="_atlasSpawnJournal('${type}','${id}')">
+      <button class="btn btn-s" style="text-align:left;padding:12px 14px;height:auto" onclick="_atlasSpawnJournal('${_jsAttr(type)}','${_jsAttr(id)}')">
         <div style="font-size:13px;font-weight:700">📓 Add Journal Entry</div>
         <div style="font-size:11px;color:var(--t3);margin-top:2px;font-weight:400">A dated personal log entry referencing this item</div>
       </button>
-      <button class="btn btn-s" style="text-align:left;padding:12px 14px;height:auto" onclick="_atlasSpawnTask('${type}','${id}')">
+      <button class="btn btn-s" style="text-align:left;padding:12px 14px;height:auto" onclick="_atlasSpawnTask('${_jsAttr(type)}','${_jsAttr(id)}')">
         <div style="font-size:13px;font-weight:700">✅ Create LevelUp Task</div>
         <div style="font-size:11px;color:var(--t3);margin-top:2px;font-weight:400">An actionable task with this Atlas item as context</div>
       </button>
@@ -15914,14 +15914,14 @@ function _finTxHtml(){
   ${_finTxInsightsHtml(rows,rangeLabel)}
   <div class="fin-card fin-tx-wrap" style="padding:0">
   <table class="fin-tx"><thead><tr><th title="Cleared / reconciled against your statement">✓</th><th>Date</th><th>Payee</th><th>Category</th><th>Account</th><th style="text-align:right">Amount</th><th></th></tr></thead><tbody>
-  ${rows.length?rows.slice(0,500).map(t=>{const c=_finCat(t.catId);const a=f.accounts.find(x=>String(x.id)===String(t.accountId||''));return `<tr style="cursor:pointer" onclick="finOpenTx('${esc(String(t.id))}')">
-    <td><span title="${t.cleared?'Cleared — matches your statement':'Uncleared'}" style="cursor:pointer;font-size:13px;color:${t.cleared?'var(--ok)':'var(--bd2)'}" onclick="event.stopPropagation();finToggleCleared('${esc(String(t.id))}')">${t.cleared?'●':'○'}</span></td>
+  ${rows.length?rows.slice(0,500).map(t=>{const c=_finCat(t.catId);const a=f.accounts.find(x=>String(x.id)===String(t.accountId||''));return `<tr style="cursor:pointer" onclick="finOpenTx('${_jsAttr(String(t.id))}')">
+    <td><span title="${t.cleared?'Cleared — matches your statement':'Uncleared'}" style="cursor:pointer;font-size:13px;color:${t.cleared?'var(--ok)':'var(--bd2)'}" onclick="event.stopPropagation();finToggleCleared('${_jsAttr(String(t.id))}')">${t.cleared?'●':'○'}</span></td>
     <td style="white-space:nowrap">${esc(String(t.date||''))}</td>
     <td>${esc(t.payee||'')}${t.splitOf?' <span class="fin-chip" title="Part of a split">✂</span>':''}${t.recurringBillId?' <span class="fin-chip" title="Recurring — tracked in the Bills tab">↻</span>':''}${t.notes?` <span title="${esc(String(t.notes).slice(0,160))}" style="cursor:help;font-size:11px">📝</span>`:''}</td>
     <td><span class="fin-chip">${c.icon} ${esc(c.name)}</span></td>
     <td style="font-size:11px;color:var(--t3)">${a?esc(a.name):''}</td>
     <td style="text-align:right" class="${t.amount>0?'fin-amount-pos':'fin-amount-neg'}">${_finFmt(t.amount)}</td>
-    <td>${ro?'':`<span style="cursor:pointer;color:var(--t3)" title="Delete" onclick="event.stopPropagation();finDeleteTx('${esc(String(t.id))}')">✕</span>`}</td></tr>`;}).join('')+(rows.length>500?`<tr><td colspan="7" style="text-align:center;color:var(--t3);padding:10px;font-size:11px">Showing the newest 500 of ${rows.length} — narrow the range or filters to see the rest.</td></tr>`:''):`<tr><td colspan="7" style="text-align:center;color:var(--t3);padding:22px">No transactions in ${rangeLabel}.${ro?'':' Click <b>+ Transaction</b> to add one.'}</td></tr>`}
+    <td>${ro?'':`<span style="cursor:pointer;color:var(--t3)" title="Delete" onclick="event.stopPropagation();finDeleteTx('${_jsAttr(String(t.id))}')">✕</span>`}</td></tr>`;}).join('')+(rows.length>500?`<tr><td colspan="7" style="text-align:center;color:var(--t3);padding:10px;font-size:11px">Showing the newest 500 of ${rows.length} — narrow the range or filters to see the rest.</td></tr>`:''):`<tr><td colspan="7" style="text-align:center;color:var(--t3);padding:22px">No transactions in ${rangeLabel}.${ro?'':' Click <b>+ Transaction</b> to add one.'}</td></tr>`}
   </tbody></table></div>`;
 }
 function finOpenTx(id){
@@ -15945,12 +15945,12 @@ function finOpenTx(id){
     <div class="field"><label>Notes / description</label><textarea class="inp" id="ftx-notes" style="min-height:56px" placeholder="What was this? Context, receipt info, who it was for…">${esc(t?t.notes||'':'')}</textarea></div>
     ${t&&t.recurringBillId&&f.bills.some(b=>String(b.id)===String(t.recurringBillId))?`<div style="font-size:11px;color:var(--t2);margin-bottom:6px"><span class="fin-chip">↻ Recurring</span> tracked as bill <b>${esc((f.bills.find(b=>String(b.id)===String(t.recurringBillId))||{}).name||'')}</b> — edit amount/due day in the Bills tab.</div>`:''}
     <div class="dr-actions" style="margin-top:12px">
-      <button class="btn btn-p" onclick="finSaveTx('${t?esc(String(t.id)):''}')">Save</button>
-      ${t?`<button class="btn btn-s" onclick="finOpenSplit('${esc(String(t.id))}')" title="Split across multiple categories">✂ Split</button>
-      ${t.recurringBillId?`<button class="btn btn-s" onclick="finTxUnrecur('${esc(String(t.id))}')" title="Remove the recurring mark (the bill stays in the Bills tab)">↻ Un-mark</button>`
-                         :`<button class="btn btn-s" onclick="finTxMakeRecurring('${esc(String(t.id))}')" title="Mark as a recurring charge — creates a bill so it shows on the calendar, forecasts and email reminders">↻ Recurring</button>`}
-      <button class="btn btn-s" onclick="finTxReminder('${esc(String(t.id))}')" title="Create a reminder task from this transaction">⏰ Reminder</button>
-      <button class="btn btn-d" onclick="finDeleteTx('${esc(String(t.id))}');_finCloseModal()">Delete</button>`:''}
+      <button class="btn btn-p" onclick="finSaveTx('${t?_jsAttr(String(t.id)):''}')">Save</button>
+      ${t?`<button class="btn btn-s" onclick="finOpenSplit('${_jsAttr(String(t.id))}')" title="Split across multiple categories">✂ Split</button>
+      ${t.recurringBillId?`<button class="btn btn-s" onclick="finTxUnrecur('${_jsAttr(String(t.id))}')" title="Remove the recurring mark (the bill stays in the Bills tab)">↻ Un-mark</button>`
+                         :`<button class="btn btn-s" onclick="finTxMakeRecurring('${_jsAttr(String(t.id))}')" title="Mark as a recurring charge — creates a bill so it shows on the calendar, forecasts and email reminders">↻ Recurring</button>`}
+      <button class="btn btn-s" onclick="finTxReminder('${_jsAttr(String(t.id))}')" title="Create a reminder task from this transaction">⏰ Reminder</button>
+      <button class="btn btn-d" onclick="finDeleteTx('${_jsAttr(String(t.id))}');_finCloseModal()">Delete</button>`:''}
       <button class="btn btn-s" onclick="_finCloseModal()">Cancel</button>
     </div></div>`);
 }
@@ -16071,7 +16071,7 @@ function _finBudgetsHtml(){
     ${order.map(gname=>`<div class="fin-card" style="margin-bottom:10px"><h3>${esc(gname)} <span style="font-weight:400;color:var(--t3)">${_finFmt(groups[gname].reduce((s,r)=>s+r.s,0),0)} / ${_finFmt(groups[gname].reduce((s,r)=>s+r.b,0),0)}</span></h3>
       ${groups[gname].map(r=>{const pct=r.b?Math.min(100,Math.round(r.s/r.b*100)):0;const col=r.b&&r.s>r.b?'var(--red)':pct>85?'var(--warn)':'var(--ok)';return `<div class="fin-row">
         <span>${r.c.icon}</span><span class="nm">${esc(r.c.name)}${r.ov?' <span title="This month has its own amount (from your yearly plan); the input edits the base monthly amount" style="color:var(--ac);cursor:help">•</span>':''}</span>
-        ${ro?`<span style="font-size:11px;color:var(--t3)">${_finFmt(r.b,0)}</span>`:`<input class="inp" type="number" min="0" step="1" value="${r.b||''}" placeholder="—" style="width:84px;height:24px;font-size:11px;text-align:right" onchange="finSetBudget('${esc(r.c.id)}',this.value)">`}
+        ${ro?`<span style="font-size:11px;color:var(--t3)">${_finFmt(r.b,0)}</span>`:`<input class="inp" type="number" min="0" step="1" value="${r.b||''}" placeholder="—" style="width:84px;height:24px;font-size:11px;text-align:right" onchange="finSetBudget('${_jsAttr(r.c.id)}',this.value)">`}
         <div class="fin-bar" style="max-width:130px"><div style="width:${pct}%;background:${col}"></div></div>
         <span style="min-width:120px;text-align:right;font-size:11px"><b style="color:${col}">${_finFmt(r.s,0)}</b><span style="color:var(--t3)"> spent · ${_finFmt(Math.max(0,r.b-r.s),0)} left</span></span>
       </div>`;}).join('')}
@@ -16220,18 +16220,18 @@ function _finBillsHtml(){
       const dots=Array.from({length:6},(_,i)=>{const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-(5-i));const ym=_finYM(d);const hit=hist.some(h=>h.ym===ym)||b.lastPaidYM===ym;return `<span title="${ym}${hit?' · paid':' · no matched payment'}" style="color:${hit?'var(--ok)':'var(--bd2)'}">${hit?'●':'○'}</span>`;}).join('');
       return `<div class="fin-card" style="margin-bottom:8px"><div class="fin-row">
       <span>${c.icon}</span><span class="nm"><b>${esc(b.name)}</b>${b.active===false?' <span class="fin-chip">paused</span>':''}${b.autopay?' <span class="fin-chip">⚡ autopay</span>':''}${jump?` <span class="fin-chip" style="color:var(--warn)" title="Latest payment ${_finFmt(Math.abs(last.tx.amount))} vs ${_finFmt(Math.abs(prev.tx.amount))} the month before">📈 price up</span>`:''}</span>
-      ${ro?`<span class="fin-chip">day ${b.dueDay||1}</span>`:`<span class="fin-chip" title="Due day of the month — edit directly">due day <input type="number" min="1" max="28" value="${b.dueDay||1}" style="width:44px;height:20px;font-size:11px;text-align:center;background:var(--s1);border:1px solid var(--bd1);border-radius:4px;color:var(--t1)" onchange="finSetBillDay('${esc(String(b.id))}',this.value)"></span>`}
+      ${ro?`<span class="fin-chip">day ${b.dueDay||1}</span>`:`<span class="fin-chip" title="Due day of the month — edit directly">due day <input type="number" min="1" max="28" value="${b.dueDay||1}" style="width:44px;height:20px;font-size:11px;text-align:center;background:var(--s1);border:1px solid var(--bd1);border-radius:4px;color:var(--t1)" onchange="finSetBillDay('${_jsAttr(String(b.id))}',this.value)"></span>`}
       <span class="fin-chip" style="${!paid&&days<0?'color:var(--red);font-weight:650':days<=3&&!paid?'color:var(--warn)':''}">${paid?'✓ paid this month':(days<0?'overdue · was due ':'due ')+x.due.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>
       <span style="font-weight:650;min-width:76px;text-align:right">${_finFmt(b.amount,0)}</span>
-      ${ro?'':`${paid?'':`<button class="btn btn-s" style="height:24px;font-size:11px" onclick="finBillMarkPaid('${esc(String(b.id))}')">✓ Mark paid</button>`}
-      <button class="btn btn-s" style="height:24px;font-size:11px;padding:0 7px" onclick="finOpenBill('${esc(String(b.id))}')">✏</button>`}
+      ${ro?'':`${paid?'':`<button class="btn btn-s" style="height:24px;font-size:11px" onclick="finBillMarkPaid('${_jsAttr(String(b.id))}')">✓ Mark paid</button>`}
+      <button class="btn btn-s" style="height:24px;font-size:11px;padding:0 7px" onclick="finOpenBill('${_jsAttr(String(b.id))}')">✏</button>`}
     </div>
     <div class="fin-row" style="font-size:11px;color:var(--t3);margin-top:4px">
       <span style="letter-spacing:2px" title="Last 6 months — matched payments">${dots}</span>
-      ${last?`<span>last paid ${esc(String(last.tx.date||''))} · <b style="color:var(--t2)">${_finFmt(Math.abs(last.tx.amount))}</b></span>`:`<span>no payments matched yet</span>${ro?'':`<button class="btn btn-p" style="height:20px;font-size:10px;padding:0 7px" onclick="finBillLinkPicker('${esc(String(b.id))}')" title="Pick the bank charge that pays this bill">🔗 Link payment</button>`}`}
+      ${last?`<span>last paid ${esc(String(last.tx.date||''))} · <b style="color:var(--t2)">${_finFmt(Math.abs(last.tx.amount))}</b></span>`:`<span>no payments matched yet</span>${ro?'':`<button class="btn btn-p" style="height:20px;font-size:10px;padding:0 7px" onclick="finBillLinkPicker('${_jsAttr(String(b.id))}')" title="Pick the bank charge that pays this bill">🔗 Link payment</button>`}`}
       ${b.matchText?`<span class="fin-chip" title="Transactions whose bank payee contains this text count as payments of this bill">matches "${esc(b.matchText)}"</span>`:''}
-      ${avg!=null?`<span title="Average of the last ${actuals.length} matched payment${actuals.length===1?'':'s'}">avg <b style="color:${Math.abs(drift)>Math.max(2,b.amount*0.1)?'var(--warn)':'var(--t2)'}">${_finFmt(avg)}</b>${Math.abs(drift)>Math.max(2,b.amount*0.1)&&!ro?` <span style="cursor:pointer;color:var(--ac);text-decoration:underline" title="Set the planned amount to the 3-month actual average" onclick="finBillAdoptActual('${esc(String(b.id))}',${Math.round(avg*100)/100})">set as amount</span>`:''}</span>`:''}
-      ${hist.length?`<button class="btn btn-s" style="height:20px;font-size:10px;padding:0 6px" onclick="finBillViewPayments('${esc(String(b.id))}')" title="Open Transactions filtered to this bill's payments">📎 payments</button>`:''}
+      ${avg!=null?`<span title="Average of the last ${actuals.length} matched payment${actuals.length===1?'':'s'}">avg <b style="color:${Math.abs(drift)>Math.max(2,b.amount*0.1)?'var(--warn)':'var(--t2)'}">${_finFmt(avg)}</b>${Math.abs(drift)>Math.max(2,b.amount*0.1)&&!ro?` <span style="cursor:pointer;color:var(--ac);text-decoration:underline" title="Set the planned amount to the 3-month actual average" onclick="finBillAdoptActual('${_jsAttr(String(b.id))}',${Math.round(avg*100)/100})">set as amount</span>`:''}</span>`:''}
+      ${hist.length?`<button class="btn btn-s" style="height:20px;font-size:10px;padding:0 6px" onclick="finBillViewPayments('${_jsAttr(String(b.id))}')" title="Open Transactions filtered to this bill's payments">📎 payments</button>`:''}
     </div></div>`;}).join(''):'<div class="fin-card" style="color:var(--t3);font-size:12px">No bills yet. Add your mortgage, utilities, card payments — anything that recurs monthly. Or mark a transaction ↻ Recurring and it becomes a bill automatically.</div>'}`;
 }
 function finOpenBill(id){
@@ -16252,8 +16252,8 @@ function finOpenBill(id){
     <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin:8px 0"><input type="checkbox" id="fb-autopay" ${b&&b.autopay?'checked':''}> ⚡ On autopay</label>
     <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin:0 0 8px"><input type="checkbox" id="fb-active" ${!b||b.active!==false?'checked':''}> Active</label>
     <div class="dr-actions" style="margin-top:10px">
-      <button class="btn btn-p" onclick="finSaveBill('${b?esc(String(b.id)):''}')">Save</button>
-      ${b?`<button class="btn btn-d" onclick="finDeleteBill('${esc(String(b.id))}')">Delete</button>`:''}
+      <button class="btn btn-p" onclick="finSaveBill('${b?_jsAttr(String(b.id)):''}')">Save</button>
+      ${b?`<button class="btn btn-d" onclick="finDeleteBill('${_jsAttr(String(b.id))}')">Delete</button>`:''}
       <button class="btn btn-s" onclick="_finCloseModal()">Cancel</button>
     </div></div>`);
 }
@@ -16317,8 +16317,8 @@ function _finAccountsHtml(){
     <span>${a.icon||(isDebt?'💳':'🏦')}</span><span class="nm"><b>${esc(a.name)}</b>${a.apr?` <span class="fin-chip">${a.apr}% APR</span>`:''}${a.limit?` <span class="fin-chip">limit ${_finFmt(a.limit,0)}</span>`:''}</span>
     <span class="fin-chip">${esc(a.type)}</span>
     ${ro?`<span style="font-weight:650;color:${isDebt?'var(--red)':'var(--t1)'}">${_finFmt(isDebt?-Math.abs(a.balance||0):(a.balance||0),0)}</span>`
-        :`<input class="inp" type="number" step="0.01" value="${isDebt?Math.abs(a.balance||0):(a.balance||0)}" style="width:110px;height:24px;font-size:11px;text-align:right;color:${isDebt||(a.balance||0)<0?'var(--red)':'var(--t1)'}" onchange="finSetAcctBalance('${esc(String(a.id))}',this.value)" title="${isDebt?'Balance owed':'Balance'}">`}
-    ${ro?'':`<button class="btn btn-s" style="height:24px;font-size:11px;padding:0 7px" onclick="finOpenAcct('${esc(String(a.id))}')">✏</button>`}
+        :`<input class="inp" type="number" step="0.01" value="${isDebt?Math.abs(a.balance||0):(a.balance||0)}" style="width:110px;height:24px;font-size:11px;text-align:right;color:${isDebt||(a.balance||0)<0?'var(--red)':'var(--t1)'}" onchange="finSetAcctBalance('${_jsAttr(String(a.id))}',this.value)" title="${isDebt?'Balance owed':'Balance'}">`}
+    ${ro?'':`<button class="btn btn-s" style="height:24px;font-size:11px;padding:0 7px" onclick="finOpenAcct('${_jsAttr(String(a.id))}')">✏</button>`}
   </div>`;};
   return `${(typeof _finBankCardHtml==='function')?_finBankCardHtml():''}<div class="fin-card" style="margin-bottom:12px"><div class="fin-row" style="font-size:13px">
       <span class="nm">Net worth: <b style="color:${_finNetWorth()>=0?'var(--ok)':'var(--red)'}">${_finFmt(_finNetWorth(),0)}</b> · assets ${_finFmt(assets.reduce((s,a)=>s+(a.balance||0),0),0)} · debt ${_finFmt(_finDebt(),0)}</span>
@@ -16344,8 +16344,8 @@ function finOpenAcct(id){
       <div class="field"><label>APR % <span style="color:var(--t3);font-weight:400">(optional)</span></label><input class="inp" id="fa-apr" type="number" step="0.01" value="${a&&a.apr?a.apr:''}"></div>
     </div>
     <div class="dr-actions" style="margin-top:10px">
-      <button class="btn btn-p" onclick="finSaveAcct('${a?esc(String(a.id)):''}')">Save</button>
-      ${a?`<button class="btn btn-d" onclick="finDeleteAcct('${esc(String(a.id))}')">Delete</button>`:''}
+      <button class="btn btn-p" onclick="finSaveAcct('${a?_jsAttr(String(a.id)):''}')">Save</button>
+      ${a?`<button class="btn btn-d" onclick="finDeleteAcct('${_jsAttr(String(a.id))}')">Delete</button>`:''}
       <button class="btn btn-s" onclick="_finCloseModal()">Cancel</button>
     </div></div>`);
 }
@@ -16383,8 +16383,8 @@ function _finGoalsHtml(){
       <div class="fin-row"><div class="fin-bar"><div style="width:${pct}%;background:var(--ok)"></div></div><span style="font-weight:650">${pct}%</span></div>
       <div style="font-size:12px;color:var(--t2);margin-top:4px">${_finFmt(gl.saved||0,0)} of ${_finFmt(gl.target||0,0)}${gl.due?` · by ${esc(gl.due)}`:''}</div>
       ${ro?'':`<div style="display:flex;gap:6px;margin-top:10px">
-        <button class="btn btn-s" style="height:24px;font-size:11px" onclick="finGoalAddFunds('${esc(String(gl.id))}')">＋ Add funds</button>
-        <button class="btn btn-s" style="height:24px;font-size:11px;padding:0 7px" onclick="finOpenGoal('${esc(String(gl.id))}')">✏</button>
+        <button class="btn btn-s" style="height:24px;font-size:11px" onclick="finGoalAddFunds('${_jsAttr(String(gl.id))}')">＋ Add funds</button>
+        <button class="btn btn-s" style="height:24px;font-size:11px;padding:0 7px" onclick="finOpenGoal('${_jsAttr(String(gl.id))}')">✏</button>
       </div>`}
     </div>`;}).join(''):'<div class="fin-card" style="color:var(--t3);font-size:12px">No goals yet — e.g. Emergency fund, Vacation, Pay off Chase Amazon.</div>'}
     </div>`;
@@ -16401,8 +16401,8 @@ function finOpenGoal(id){
       <div class="field"><label>Target date</label><input class="inp" id="fg-due" type="date" value="${esc(gl&&gl.due?gl.due:'')}"></div>
     </div>
     <div class="dr-actions" style="margin-top:10px">
-      <button class="btn btn-p" onclick="finSaveGoal('${gl?esc(String(gl.id)):''}')">Save</button>
-      ${gl?`<button class="btn btn-d" onclick="finDeleteGoal('${esc(String(gl.id))}')">Delete</button>`:''}
+      <button class="btn btn-p" onclick="finSaveGoal('${gl?_jsAttr(String(gl.id)):''}')">Save</button>
+      ${gl?`<button class="btn btn-d" onclick="finDeleteGoal('${_jsAttr(String(gl.id))}')">Delete</button>`:''}
       <button class="btn btn-s" onclick="_finCloseModal()">Cancel</button>
     </div></div>`);
 }
@@ -16428,7 +16428,7 @@ function finGoalAddFunds(id){
     <h2 style="font-size:15px;font-weight:600;margin-bottom:12px">＋ Add funds — ${esc(gl.name)}</h2>
     <div class="field"><label>Amount</label><input class="inp" id="fgf-amt" type="number" min="0" step="0.01" placeholder="0.00"></div>
     <div class="dr-actions" style="margin-top:10px">
-      <button class="btn btn-p" onclick="finGoalAddFundsSave('${esc(String(gl.id))}')">Add</button>
+      <button class="btn btn-p" onclick="finGoalAddFundsSave('${_jsAttr(String(gl.id))}')">Add</button>
       <button class="btn btn-s" onclick="_finCloseModal()">Cancel</button>
     </div></div>`);
 }
@@ -16556,8 +16556,8 @@ function _finIncomeHtml(){
       <span class="nm"><b>${esc(st.name)}</b>${st.active===false?' <span class="fin-chip">paused</span>':''}${scheduled?' <span class="fin-chip" title="Amount varies by month (imported schedule)">📅 scheduled</span>':''}</span>
       <div class="fin-bar" style="max-width:130px"><div style="width:${pct}%;background:var(--ok)"></div></div>
       <span style="min-width:150px;text-align:right;font-size:11px"><b style="color:${rec>=exp&&exp?'var(--ok)':'var(--t1)'}">${_finFmt(rec,0)}</b><span style="color:var(--t3)"> of ${_finFmt(exp,0)}</span></span>
-      ${ro?'':`${exp>rec?`<button class="btn btn-s" style="height:24px;font-size:11px" onclick="finStreamLog('${esc(String(st.id))}')">＋ Log payment</button>`:''}
-      <button class="btn btn-s" style="height:24px;font-size:11px;padding:0 7px" onclick="finOpenStream('${esc(String(st.id))}')">✏</button>`}
+      ${ro?'':`${exp>rec?`<button class="btn btn-s" style="height:24px;font-size:11px" onclick="finStreamLog('${_jsAttr(String(st.id))}')">＋ Log payment</button>`:''}
+      <button class="btn btn-s" style="height:24px;font-size:11px;padding:0 7px" onclick="finOpenStream('${_jsAttr(String(st.id))}')">✏</button>`}
     </div></div>`;}).join(''):'<div class="fin-card" style="color:var(--t3);font-size:12px">No income streams yet — add each client / salary / side income, then log payments as they land.</div>'}
   <div class="fin-card" style="margin-top:12px"><h3>📈 Income — expected vs received, last 6 months</h3>
     <svg viewBox="0 0 300 110" style="width:100%;max-width:420px">
@@ -16583,8 +16583,8 @@ function finOpenStream(id){
     <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin:8px 0"><input type="checkbox" id="fs-active" ${!st||st.active!==false?'checked':''}> Active</label>
     ${scheduled?`<div style="font-size:11px;color:var(--t3);margin-bottom:8px">This stream has an imported month-by-month schedule (${Object.keys(st.perMonth).length} months). Editing here keeps it.</div>`:''}
     <div class="dr-actions" style="margin-top:10px">
-      <button class="btn btn-p" onclick="finSaveStream('${st?esc(String(st.id)):''}')">Save</button>
-      ${st?`<button class="btn btn-d" onclick="finDeleteStream('${esc(String(st.id))}')">Delete</button>`:''}
+      <button class="btn btn-p" onclick="finSaveStream('${st?_jsAttr(String(st.id)):''}')">Save</button>
+      ${st?`<button class="btn btn-d" onclick="finDeleteStream('${_jsAttr(String(st.id))}')">Delete</button>`:''}
       <button class="btn btn-s" onclick="_finCloseModal()">Cancel</button>
     </div></div>`);
 }
@@ -16617,7 +16617,7 @@ function finStreamLog(id){
       <div class="field"><label>Date</label><input class="inp" id="fsl-date" type="date" value="${_ymd(new Date())}"></div>
     </div>
     <div class="dr-actions" style="margin-top:10px">
-      <button class="btn btn-p" onclick="finStreamLogSave('${esc(String(st.id))}')">Log it</button>
+      <button class="btn btn-p" onclick="finStreamLogSave('${_jsAttr(String(st.id))}')">Log it</button>
       <button class="btn btn-s" onclick="_finCloseModal()">Cancel</button>
     </div></div>`);
 }
@@ -16729,7 +16729,7 @@ function finOpenPayPlan(accId){
     const ym=_finYM(new Date(y0,m0+i,1));
     const v=(ym in sched)?sched[ym]:'';
     return `<div><label style="font-size:10px;color:var(--t3);display:block">${lbl(ym)}</label>
-      <input class="inp" id="fpp-s-${i}" data-ym="${ym}" type="number" min="0" step="0.01" value="${v===''?'':v}" placeholder="default" style="height:24px;font-size:11px" oninput="finPayPlanPreview('${aid}')"></div>`;
+      <input class="inp" id="fpp-s-${i}" data-ym="${ym}" type="number" min="0" step="0.01" value="${v===''?'':v}" placeholder="default" style="height:24px;font-size:11px" oninput="finPayPlanPreview('${_jsAttr(aid)}')"></div>`;
   }).join('');
   const sec=m=>`display:${mode===m?'':'none'}`;
   _finModal(`<div style="padding:16px;max-width:560px">
@@ -16737,10 +16737,10 @@ function finOpenPayPlan(accId){
     <div class="fin-row" style="font-size:12px;margin-bottom:10px">
       <span class="nm">Owed <b style="color:var(--red)">${_finFmt(Math.abs(a.balance||0),0)}</b></span>
       <span style="font-size:11px;color:var(--t3)">APR %</span>
-      <input class="inp" id="fpp-apr" type="number" min="0" step="0.01" value="${a.apr||''}" placeholder="e.g. 24.99" style="width:90px;height:26px;font-size:11px" oninput="finPayPlanPreview('${aid}')" title="Used for interest math everywhere — payoff, what-if, agents">
+      <input class="inp" id="fpp-apr" type="number" min="0" step="0.01" value="${a.apr||''}" placeholder="e.g. 24.99" style="width:90px;height:26px;font-size:11px" oninput="finPayPlanPreview('${_jsAttr(aid)}')" title="Used for interest math everywhere — payoff, what-if, agents">
     </div>
     <div class="field"><label>How do you want to pay this down?</label>
-      <select class="inp" id="fpp-mode" onchange="finPayPlanMode('${aid}')">
+      <select class="inp" id="fpp-mode" onchange="finPayPlanMode('${_jsAttr(aid)}')">
         <option value="auto" ${mode==='auto'?'selected':''}>Auto — use the bill that matches this account</option>
         <option value="fixed" ${mode==='fixed'?'selected':''}>Fixed amount every month</option>
         <option value="target" ${mode==='target'?'selected':''}>Pay off in N months (spread evenly)</option>
@@ -16750,30 +16750,30 @@ function finOpenPayPlan(accId){
       ${bill?`Matched bill: <b>${esc(bill.name)}</b> — ${_finFmt(bill.amount||0,0)}/mo. Change the bill's amount in the Bills tab, or pick another mode here.`
             :`<span style="color:var(--warn)">⚠ No bill name-matches this account.</span> Add a bill whose name contains "${esc(a.name)}", or pick another mode.`}</div>
     <div id="fpp-sec-fixed" style="${sec('fixed')};margin:8px 0">
-      <div class="field"><label>Monthly payment</label><input class="inp" id="fpp-fixed" type="number" min="0" step="0.01" value="${p.fixed!=null?p.fixed:''}" oninput="finPayPlanPreview('${aid}')"></div></div>
+      <div class="field"><label>Monthly payment</label><input class="inp" id="fpp-fixed" type="number" min="0" step="0.01" value="${p.fixed!=null?p.fixed:''}" oninput="finPayPlanPreview('${_jsAttr(aid)}')"></div></div>
     <div id="fpp-sec-target" style="${sec('target')};margin:8px 0">
-      <div class="fin-row"><div class="field" style="flex:0 0 140px"><label>Months to payoff</label><input class="inp" id="fpp-target" type="number" min="1" step="1" value="${p.targetMonths||12}" oninput="finPayPlanPreview('${aid}')"></div>
+      <div class="fin-row"><div class="field" style="flex:0 0 140px"><label>Months to payoff</label><input class="inp" id="fpp-target" type="number" min="1" step="1" value="${p.targetMonths||12}" oninput="finPayPlanPreview('${_jsAttr(aid)}')"></div>
       <span id="fpp-target-pay" style="font-size:12px;font-weight:650"></span></div>
       <div style="font-size:11px;color:var(--t3)">The required level payment is recomputed from the current balance and APR.</div></div>
     <div id="fpp-sec-schedule" style="${sec('schedule')};margin:8px 0">
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:11px;margin-bottom:8px">
         <input class="inp" id="fpp-fill" type="number" min="0" step="0.01" placeholder="amount" style="width:90px;height:24px;font-size:11px">
-        <button class="btn btn-s" style="height:24px;font-size:10px" onclick="finPayPlanFillAll('${aid}')">Set all</button>
+        <button class="btn btn-s" style="height:24px;font-size:10px" onclick="finPayPlanFillAll('${_jsAttr(aid)}')">Set all</button>
         <span style="color:var(--t3)">·</span>
         <input class="inp" id="fpp-spread-total" type="number" min="0" step="0.01" placeholder="total $" style="width:90px;height:24px;font-size:11px">
         <span style="color:var(--t3)">over</span>
         <input class="inp" id="fpp-spread-n" type="number" min="1" max="${_FIN_PLAN_GRID}" step="1" placeholder="months" style="width:70px;height:24px;font-size:11px">
-        <button class="btn btn-s" style="height:24px;font-size:10px" onclick="finPayPlanSpread('${aid}')">Spread</button>
+        <button class="btn btn-s" style="height:24px;font-size:10px" onclick="finPayPlanSpread('${_jsAttr(aid)}')">Spread</button>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:6px;max-height:200px;overflow-y:auto;padding:2px">${cells}</div>
       <div class="fin-row" style="margin-top:8px;font-size:11px">
         <span class="nm" style="color:var(--t3)">Months after ${lbl(_finYM(new Date(y0,m0+_FIN_PLAN_GRID-1,1)))} — and any month left blank — pay the default:</span>
-        <input class="inp" id="fpp-sdef" type="number" min="0" step="0.01" value="${p.scheduleDefault!=null?p.scheduleDefault:''}" placeholder="0" style="width:90px;height:24px;font-size:11px" oninput="finPayPlanPreview('${aid}')">
+        <input class="inp" id="fpp-sdef" type="number" min="0" step="0.01" value="${p.scheduleDefault!=null?p.scheduleDefault:''}" placeholder="0" style="width:90px;height:24px;font-size:11px" oninput="finPayPlanPreview('${_jsAttr(aid)}')">
       </div>
       <div style="font-size:11px;color:var(--t3);margin-top:4px">Enter 0 to deliberately skip a month. Blank = use the default.</div></div>
     <div id="fpp-preview" style="font-size:12px;margin:10px 0 2px;min-height:18px"></div>
     <div class="dr-actions" style="margin-top:8px">
-      <button class="btn btn-p" onclick="finSavePayPlan('${aid}')">Save plan</button>
+      <button class="btn btn-p" onclick="finSavePayPlan('${_jsAttr(aid)}')">Save plan</button>
       <button class="btn btn-s" onclick="_finCloseModal()">Cancel</button>
     </div></div>`);
   finPayPlanPreview(String(a.id));
@@ -16965,11 +16965,11 @@ function _finReportsHtml(){
   if(rep){
     return ai+`<div class="fin-card"><div class="fin-row" style="margin-bottom:10px">
       <span class="nm" style="font-size:14px;font-weight:700">${rep.icon} ${esc(rep.name)}</span>
-      <button class="btn btn-s" style="height:26px;font-size:11px;color:var(--purp)" onclick="finReportAI('${rep.id}')">✨ AI insights</button>
+      <button class="btn btn-s" style="height:26px;font-size:11px;color:var(--purp)" onclick="finReportAI('${_jsAttr(rep.id)}')">✨ AI insights</button>
       <button class="btn btn-s" style="height:26px;font-size:11px" onclick="_finRepOpen=null;renderMoney()">← All reports</button>
     </div><div id="fin-report-body">${rep.run()}</div><div id="fin-report-ai"></div></div>`;
   }
-  return ai+`<div class="fin-grid">${FIN_REPORTS.map(r=>`<div class="fin-card" style="cursor:pointer" onclick="_finRepOpen='${r.id}';renderMoney()">
+  return ai+`<div class="fin-grid">${FIN_REPORTS.map(r=>`<div class="fin-card" style="cursor:pointer" onclick="_finRepOpen='${_jsAttr(r.id)}';renderMoney()">
     <h3 style="margin-bottom:4px">${r.icon} ${esc(r.name)}</h3>
     <div style="font-size:11.5px;color:var(--t3);line-height:1.55">${esc(r.desc)}</div>
   </div>`).join('')}</div>`;
@@ -17449,7 +17449,7 @@ function finOpenSplit(id){
     <button class="btn btn-s" style="height:24px;font-size:11px;margin-top:6px" onclick="_finSplitAddRow()">＋ Part</button>
     <div id="fsp-sum" style="font-size:11px;margin-top:6px;color:var(--t3)"></div>
     <div class="dr-actions" style="margin-top:10px">
-      <button class="btn btn-p" onclick="finDoSplit('${esc(String(t.id))}')">Split it</button>
+      <button class="btn btn-p" onclick="finDoSplit('${_jsAttr(String(t.id))}')">Split it</button>
       <button class="btn btn-s" onclick="_finCloseModal()">Cancel</button>
     </div></div>`);
   window._finSplitTotal=Math.abs(t.amount);
@@ -17945,7 +17945,7 @@ function finOpenInvestments(){
     <h2 style="font-size:15px;font-weight:600;margin-bottom:4px">💼 Investment holdings</h2>
     <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Enter what you hold and its current value (no live feed — update values when you check your accounts). The agent analyzes allocation, concentration and your retirement trajectory.</div>
     <div id="finv-rows" style="max-height:200px;overflow-y:auto;margin-bottom:8px">
-      ${f.investments.map(h=>`<div class="fin-row"><span class="nm"><b>${esc(h.name)}</b> <span class="fin-chip">${esc(h.class||'other')}</span></span><span style="font-weight:650">${_finFmt(h.value||0,0)}</span><span style="cursor:pointer;color:var(--t3)" onclick="finDelHolding('${esc(String(h.id))}')">✕</span></div>`).join('')||'<div style="font-size:11px;color:var(--t3)">No holdings yet.</div>'}
+      ${f.investments.map(h=>`<div class="fin-row"><span class="nm"><b>${esc(h.name)}</b> <span class="fin-chip">${esc(h.class||'other')}</span></span><span style="font-weight:650">${_finFmt(h.value||0,0)}</span><span style="cursor:pointer;color:var(--t3)" onclick="finDelHolding('${_jsAttr(String(h.id))}')">✕</span></div>`).join('')||'<div style="font-size:11px;color:var(--t3)">No holdings yet.</div>'}
     </div>
     <div class="field-row">
       <div class="field"><label>Name</label><input class="inp" id="finv-name" placeholder="e.g. Fidelity 401k, VTI, Bitcoin"></div>
