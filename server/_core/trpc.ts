@@ -9,7 +9,31 @@ const t = initTRPC.context<TrpcContext>().create({
 });
 
 export const router = t.router;
-export const publicProcedure = t.procedure;
+
+// Audit log (build -233): procedures listed in AUDITED are recorded once they
+// succeed — see _core/audit.ts. Imported lazily (audit → db → schema) so this
+// module stays light; the write is not awaited by the caller's response.
+const auditMw = t.middleware(async (opts) => {
+  const result = await opts.next();
+  if (result.ok) {
+    try {
+      const { AUDITED, audit } = await import("./audit");
+      const spec = AUDITED[opts.path];
+      if (spec) {
+        const input = spec.target ? await opts.getRawInput().catch(() => null) : null;
+        const target = spec.target ? spec.target(input) : {};
+        // An owner editing their own item through a shared endpoint isn't cross-user.
+        if (!(spec.action === "shared.edit" && target.targetUserId != null && target.targetUserId === opts.ctx.user?.id)) {
+          void audit(opts.ctx, spec.action, target);
+        }
+      }
+    } catch { /* auditing never fails the request */ }
+  }
+  return result;
+});
+const base = t.procedure.use(auditMw);
+
+export const publicProcedure = base;
 
 const requireUser = t.middleware(async opts => {
   const { ctx, next } = opts;
@@ -26,9 +50,9 @@ const requireUser = t.middleware(async opts => {
   });
 });
 
-export const protectedProcedure = t.procedure.use(requireUser);
+export const protectedProcedure = base.use(requireUser);
 
-export const adminProcedure = t.procedure.use(
+export const adminProcedure = base.use(
   t.middleware(async opts => {
     const { ctx, next } = opts;
 

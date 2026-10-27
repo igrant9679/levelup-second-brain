@@ -654,6 +654,19 @@ function renderSettingsHTML(){
     <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Every night (about 3–4 am Eastern) LevelUp saves an encrypted copy of the whole database to private storage and checks that it reads back correctly. Passwords, tokens and API keys are left out of backups, so after a restore you reconnect integrations and sign in with “Forgot password”.</p>
     <div id="backup-status" style="font-size:11px;color:var(--t3)">Click “Status” to see the last backup.</div>
   </div>
+  <!-- Health & audit (owner only; build -233) -->
+  <div id="ops-section" class="admin-only" style="display:none;margin-top:12px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:6px;flex-wrap:wrap">
+      <div style="font-size:12px;font-weight:600">🩺 Health &amp; audit</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap" role="group" aria-label="Health and audit view">
+        <button class="btn btn-s" style="height:26px;font-size:11px" id="btn-ops-errors" aria-pressed="true" onclick="_opsShow('errors')">Errors</button>
+        <button class="btn btn-s" style="height:26px;font-size:11px" id="btn-ops-audit" aria-pressed="false" onclick="_opsShow('audit')">Audit log</button>
+        <button class="btn btn-s" style="height:26px;font-size:11px" onclick="_opsShow(_opsView)">↻ Refresh</button>
+      </div>
+    </div>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Errors: everything that went wrong on the server (failed requests, background jobs) and in signed-in browsers over the last 7 days, grouped so a repeating problem is one row. Audit log: who changed other people's data, members, invites, mail, AI keys, bank link and backups.</p>
+    <div id="ops-body" style="font-size:11px;color:var(--t3)">Loading…</div>
+  </div>
   <!-- OAuth Setup Instructions -->
   <div style="margin-top:12px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
     <div style="font-size:12px;font-weight:600;margin-bottom:8px">⚙ Setup Required — Microsoft 365 OAuth</div>
@@ -9648,6 +9661,45 @@ async function _runBackupNow(){
   catch(e){toast({type:'error',title:'Backup failed',msg:String(e&&e.message||e).slice(0,140)});}
   if(btn){btn.disabled=false;btn.textContent='⟳ Back up now';}
 }
+// ── Health & audit panel (owner; build -233) ───────────────────────────────
+let _opsView='errors',_opsAuditRows=[];
+function _opsWhen(v){try{return _pd(v).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});}catch(_){return String(v||'');}}
+async function _opsShow(view,more){
+  _opsView=view;
+  ['errors','audit'].forEach(v=>{const b=document.getElementById('btn-ops-'+v);if(b){b.setAttribute('aria-pressed',String(v===view));b.style.fontWeight=v===view?'700':'';}});
+  const body=document.getElementById('ops-body');if(!body)return;
+  if(!more)body.textContent='Loading…';
+  try{
+    if(view==='errors'){
+      const rows=await _trpc('ops.errors',{sinceHours:24*7},'query')||[];
+      if(!rows.length){body.innerHTML='<span style="color:var(--ok);font-weight:600">✓ No errors recorded in the last 7 days.</span>';return;}
+      const total=rows.reduce((s,r)=>s+(r.count||0),0);
+      body.innerHTML=`<div style="margin-bottom:6px">${rows.length} distinct problem${rows.length===1?'':'s'} · ${total.toLocaleString()} occurrence${total===1?'':'s'}</div>`+
+        rows.map(r=>`<details style="border-top:1px solid var(--bd1);padding:5px 0">
+          <summary style="cursor:pointer;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;color:var(--t1)">
+            <span style="font-size:10px;font-weight:700;text-transform:uppercase;padding:1px 6px;border-radius:999px;background:${r.source==='client'?'var(--acs)':'var(--warns)'};color:${r.source==='client'?'var(--ac)':'var(--warn)'}">${r.source==='client'?'Browser':'Server'}</span>
+            <span style="flex:1;min-width:200px;overflow-wrap:anywhere">${esc(r.message)}</span>
+            <span style="color:var(--t3)">×${(r.count||0).toLocaleString()} · last ${esc(_opsWhen(r.lastAt))}</span>
+          </summary>
+          <div style="margin:6px 0 0 4px;color:var(--t3)">First seen ${esc(_opsWhen(r.firstAt))}${r.location?' · '+esc(r.location):''}${r.build?' · build '+esc(r.build):''}${r.userAgent?' · '+esc(r.userAgent.slice(0,80)):''}</div>
+          ${r.stack?`<pre style="margin:6px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:10px;max-height:180px;overflow:auto;background:var(--s3);padding:6px;border-radius:6px">${esc(r.stack)}</pre>`:''}
+        </details>`).join('');
+    }else{
+      const before=more&&_opsAuditRows.length?_opsAuditRows[_opsAuditRows.length-1].id:null;
+      const rows=await _trpc('ops.auditLog',{limit:100,before},'query')||[];
+      _opsAuditRows=more?_opsAuditRows.concat(rows):rows;
+      if(!_opsAuditRows.length){body.textContent='Nothing recorded yet.';return;}
+      body.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:11px">
+        <tr style="color:var(--t3);text-align:left"><th style="padding:3px 6px">When</th><th style="padding:3px 6px">Who</th><th style="padding:3px 6px">What</th><th style="padding:3px 6px">Target</th></tr>
+        ${_opsAuditRows.map(r=>{
+          let d='';try{const o=r.detail?JSON.parse(r.detail):null;if(o)d=Object.keys(o).map(k=>k+': '+(Array.isArray(o[k])?o[k].join(', '):o[k])).join(' · ');}catch(_){}
+          const tgt=[r.targetType,r.targetId,r.targetUserId!=null?'user #'+r.targetUserId:''].filter(Boolean).join(' · ');
+          return `<tr style="border-top:1px solid var(--bd1);vertical-align:top"><td style="padding:3px 6px;white-space:nowrap">${esc(_opsWhen(r.createdAt))}</td><td style="padding:3px 6px">${esc(r.actorName||(r.actorUserId!=null?'user #'+r.actorUserId:'signed out'))}</td><td style="padding:3px 6px;font-weight:600">${esc(r.action)}${d?`<div style="font-weight:400;color:var(--t3)">${esc(d)}</div>`:''}</td><td style="padding:3px 6px;overflow-wrap:anywhere">${esc(tgt||'—')}</td></tr>`;
+        }).join('')}
+      </table>${rows.length===100?'<button class="btn btn-s" style="height:26px;font-size:11px;margin-top:6px" onclick="_opsShow(\'audit\',true)">Load older</button>':''}`;
+    }
+  }catch(e){body.textContent='Could not load: '+String(e&&e.message||e).slice(0,140);}
+}
 /** Data Migration Health (admin) — Step 3 readiness check, strictly read-only.
     Queries the {tasks,notes,ideas}RelationalStatus endpoints and shows which
     store served the last appData.load (captured in window._luLoadSources). */
@@ -9698,6 +9750,8 @@ async function loadNotificationSenderOptions(){
     if(mh)mh.style.display='';
     const bk=document.getElementById('backup-section');
     if(bk){bk.style.display='';_loadBackupStatus();}
+    const ops=document.getElementById('ops-section');
+    if(ops){ops.style.display='';_opsShow(_opsView);}
     // Rebuild options
     sel.innerHTML='<option value="">— Use built-in notification service —</option>';
     const labels={microsoft:'Microsoft 365',google:'Google',smtp:'Secondary email (SMTP)'};
@@ -11248,6 +11302,43 @@ async function _pushKeyToServer(k){
       if(typeof toast==='function')toast({type:'error',title:'⚠ Sync to server failed',msg:('Saved on this device only. Reason: '+msg).slice(0,160),duration:7000});
     }
   }
+}
+// ── Browser error reports (build -233) ─────────────────────────────────────
+// Uncaught errors and rejected promises go to the server's error log
+// (Settings → Admin → Health & audit) so problems on a phone or a teammate's
+// laptop are visible without dev tools. Only once signed in and loaded
+// (earlier ones wait in a short queue); at most 20 per page load, each
+// distinct message once; browser-extension and cross-origin noise skipped.
+const _luErrQ=[];const _luErrSeen=new Set();let _luErrSent=0;
+function _luErrReport(message,stack,where){
+  try{
+    message=String(message||'').slice(0,1000);
+    if(!message||/^Script error\.?$/i.test(message)||/ResizeObserver loop/i.test(message))return;
+    if(/(chrome|moz|safari)-extension:\/\//.test(String(stack||'')))return;
+    if(_luErrSeen.has(message)||_luErrSent+_luErrQ.length>=20)return;
+    _luErrSeen.add(message);
+    _luErrQ.push({message,stack:stack?String(stack).slice(0,8000):null,where:String(where||((typeof curScreen!=='undefined'?'screen '+curScreen:'')+(location.hash||''))).slice(0,512),build:String(window.__APP_BUILD||(typeof APP_BUILD!=='undefined'?APP_BUILD:'')||'').slice(0,40)||null});
+    _luErrFlush();
+  }catch(_){}
+}
+function _luErrFlush(){
+  if(typeof _serverSyncReady==='undefined'||!_serverSyncReady)return;
+  while(_luErrQ.length){
+    const r=_luErrQ.shift();_luErrSent++;
+    try{Promise.resolve(_trpc('ops.reportClientError',r,'mutation')).catch(()=>{});}catch(_){}
+  }
+}
+if(typeof window!=='undefined'&&!window._luErrWired){
+  window._luErrWired=true;
+  window.addEventListener('error',e=>{
+    if(!e||e.target&&e.target!==window&&!e.error)return; // failed <img>/<script> loads: not code errors
+    _luErrReport(e.message||(e.error&&e.error.message),e.error&&e.error.stack,(e.filename?String(e.filename).split('/').pop()+':'+(e.lineno||0):''));
+  });
+  window.addEventListener('unhandledrejection',e=>{
+    const r=e&&e.reason;
+    _luErrReport('Unhandled promise rejection: '+(r&&r.message||String(r)),r&&r.stack,null);
+  });
+  setInterval(_luErrFlush,15000);
 }
 // User-runnable sync self-check: compares this device's local data with
 // what the server actually has, and reports it in a visible alert so the

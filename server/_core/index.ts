@@ -11,6 +11,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { sdk } from "./sdk";
 import { isOwner } from "./ownerGuard";
+import { installServerErrorCapture } from "./errorLog";
 import * as dbHelpers from "../db";
 import { sendEmail } from "./sendEmail";
 import { deleteOldEmailDeliveryLogs, deleteOldScheduledTaskLogs, insertScheduledTaskLog } from "../db";
@@ -45,6 +46,9 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 }
 
 async function startServer() {
+  // Everything logged with console.error from here on is also kept in the
+  // error log (Settings → Admin → Health & audit).
+  installServerErrorCapture();
   const app = express();
   const server = createServer(app);
   // Trust the platform's reverse proxy (Railway, etc.) so req.protocol/req.secure
@@ -382,6 +386,11 @@ async function startServer() {
     createExpressMiddleware({
       router: appRouter,
       createContext,
+      // Unexpected failures go to the error log (via console.error); expected
+      // ones (bad input, not signed in, forbidden) are the caller's business.
+      onError({ error, path }) {
+        if (error.code === "INTERNAL_SERVER_ERROR") console.error(`[trpc ${path ?? "?"}]`, error.cause instanceof Error ? error.cause : error);
+      },
     })
   );
   // development mode uses Vite, production mode uses static files

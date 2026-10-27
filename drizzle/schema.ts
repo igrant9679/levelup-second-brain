@@ -1107,3 +1107,47 @@ export const sendLedger = mysqlTable("send_ledger", {
 }, (t) => ({
   pk: primaryKey({ name: "send_ledger_pk", columns: [t.userId, t.kind, t.period] }),
 }));
+
+/**
+ * Audit log (migration 0059). One row per owner/admin, cross-user or
+ * destructive action — who did what to whose data, and when. Written only by
+ * server/_core/audit.ts (never throws into the action it records); read by
+ * the owner in Settings → Admin → Health & audit.
+ */
+export const auditLog = mysqlTable("audit_log", {
+  id: int("id").autoincrement().primaryKey(),
+  actorUserId: int("actorUserId"),
+  actorName: varchar("actorName", { length: 255 }),
+  action: varchar("action", { length: 64 }).notNull(),
+  targetUserId: int("targetUserId"),
+  targetType: varchar("targetType", { length: 32 }),
+  targetId: varchar("targetId", { length: 128 }),
+  detail: text("detail"),
+  ip: varchar("ip", { length: 64 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (t) => ({
+  idxCreated: index("idx_audit_log_created").on(t.createdAt),
+}));
+
+/**
+ * Error log (migration 0059). Server errors (failed requests, crons — anything
+ * logged with console.error) and browser errors reported by signed-in clients,
+ * grouped by fingerprint (source + normalised message): a repeat bumps count
+ * and lastAt instead of adding a row. Written only by server/_core/errorLog.ts.
+ */
+export const errorLog = mysqlTable("error_log", {
+  id: int("id").autoincrement().primaryKey(),
+  fingerprint: varchar("fingerprint", { length: 16 }).notNull().unique(),
+  source: varchar("source", { length: 16 }).notNull(),
+  message: varchar("message", { length: 1000 }).notNull(),
+  stack: text("stack"),
+  location: varchar("location", { length: 512 }),
+  build: varchar("build", { length: 40 }),
+  userId: int("userId"),
+  userAgent: varchar("userAgent", { length: 255 }),
+  count: int("count").notNull().default(1),
+  firstAt: timestamp("firstAt").defaultNow().notNull(),
+  lastAt: timestamp("lastAt").defaultNow().notNull(),
+}, (t) => ({
+  idxLast: index("idx_error_log_last").on(t.lastAt),
+}));

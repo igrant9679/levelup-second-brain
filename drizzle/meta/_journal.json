@@ -414,6 +414,13 @@
       "when": 1792000800000,
       "tag": "0058_send_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "5",
+      "when": 1792000900000,
+      "tag": "0059_audit_and_errors",
+      "breakpoints": true
     }
   ]
 }
