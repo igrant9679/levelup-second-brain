@@ -70,3 +70,16 @@ export const adminProcedure = base.use(
     });
   }),
 );
+
+/**
+ * Workspace OWNER only (-253). Teammates are ordinary members unless the
+ * owner grants admin, and admin never reaches the owner's data — so tools
+ * that read or change other people's accounts use this, not adminProcedure.
+ */
+export const ownerProcedure = base.use(requireUser).use(
+  t.middleware(async opts => {
+    const { assertOwner } = await import("./ownerGuard");
+    await assertOwner(opts.ctx.user as any);
+    return opts.next();
+  }),
+);

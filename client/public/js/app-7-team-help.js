@@ -39,7 +39,8 @@ function renderTeam(){
       if(!u||!u.name)continue;
       const k=u.name.trim().toLowerCase(); if(seen.has(k))continue; seen.add(k);
       const b=byName.get(k)||{};
-      out.push({...b,id:u.id,userId:u.id,name:u.name,email:u.email||b.email,role:b.role||u.role||'member',color:b.color||'#6366f1',avatar:b.avatar,lastSignedIn:u.lastSignedIn||null});
+      // role from the ACCOUNT (-253): the local team list's 'Admin'/'Owner' labels are stale
+      out.push({...b,id:u.id,userId:u.id,name:u.name,email:u.email||b.email,role:u.owner?'Owner':u.role==='admin'?'Admin':'Member',accountRole:u.role,isOwnerAccount:!!u.owner,color:b.color||'#6366f1',avatar:b.avatar,lastSignedIn:u.lastSignedIn||null});
     }
     for(const m of blob){
       if(!m||!m.name)continue;
@@ -112,14 +113,18 @@ function renderTeam(){
       <div style="font-size:11px;font-weight:600;margin-bottom:4px">📋 Active Tasks</div>
       ${tasks.filter(t=>t.status!=='Done').slice(0,3).map(t=>`<div class="lr" style="padding:2px 0;font-size:11px" onclick="${t._shared?`_openSharedTaskView(${Number(t._idx)||0})`:`openDrawer('task',D.tasks.find(x=>String(x.id)===String(${_tidLit(t.id)})))`}"><div class="chk ${t.status==='Done'?'on':''}"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span></div>`).join('') || '<div style="font-size:11px;color:var(--t3);padding:4px 0">No active tasks</div>'}
       ${memberFeedData.length?`<div style="margin-top:10px"><div style="font-size:11px;font-weight:600;margin-bottom:4px">🕐 Recent Activity</div>${memberFeedData.slice(0,3).map(a=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11px;color:var(--t2)"><span>${getActionIcon(a.action)}</span><span style="flex:1">${getActionLabel(a.action)}${a.entityTitle?' — '+esc(a.entityTitle):''}</span><span style="font-size:11px;color:var(--t3);white-space:nowrap">${timeAgo(a.createdAt)}</span></div>`).join('')}</div>`:''}
-      ${isAdminOrOwner&&m.userId?`<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd1);display:flex;justify-content:flex-end"><button class="btn btn-s" style="height:24px;font-size:11px;color:var(--red);border-color:var(--red)" onclick="deleteTeamMember(${m.userId},'${_jsAttr(m.name||'this member')}')">🗑 Remove</button></div>`:''}
+      ${m.userId&&!m.isOwnerAccount&&Number(m.userId)!==Number(D.creds&&D.creds.userId)&&(iAmOwner||iAmAdmin)?`<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd1);display:flex;align-items:center;gap:8px;justify-content:flex-end">${iAmOwner?`<label class="pm-muted" style="font-size:11px;color:var(--t3);margin-right:auto" for="role-${m.userId}">Access</label><select class="inp" id="role-${m.userId}" style="height:26px;font-size:11px;width:auto" data-uid="${m.userId}" data-name="${esc(m.name||'')}" onchange="setMemberRole(this)"><option value="user"${m.accountRole!=='admin'?' selected':''}>Member</option><option value="admin"${m.accountRole==='admin'?' selected':''}>Admin</option></select>`:''}<button class="btn btn-s" style="height:24px;font-size:11px;color:var(--red);border-color:var(--red)" onclick="deleteTeamMember(${m.userId},'${_jsAttr(m.name||'this member')}')">🗑 Remove</button></div>`:''}
     </div>`;
   }
   const teamName=D.teams[0]?D.teams[0].name:'Team';
   // Check role from DB creds AND from local team member data (local data uses Owner/Admin, DB uses admin/user)
   const _localMemberRole=(D.teams.flatMap(t=>t.members).find(m=>m.name===D.creds.userName)||{}).role||'';
   const isAdminOrOwner=((D.creds.role||'').toLowerCase()==='admin'||(D.creds.role||'').toLowerCase()==='owner'||(_localMemberRole.toLowerCase()==='admin')||(_localMemberRole.toLowerCase()==='owner'));
-  $('team-main').innerHTML=`<div class="ph-r" style="margin-bottom:16px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('users',22,'var(--page-accent)')}Team Dashboard</h1><p style="font-size:12px;color:var(--t2)">${teamName} · ${allMembers.length} members</p></div>${isAdminOrOwner?'<button class="btn btn-p" onclick="showInvitePanel()">✉️ Invite Member</button>':''}</div>
+  // The workspace owner (-253): grants admin, invites; the server checks again.
+  const iAmOwner=(_workspaceMembers||[]).some(u=>u&&u.owner&&Number(u.id)===Number(D.creds&&D.creds.userId));
+  // an admin the owner granted (the account's role, not the local team list's label)
+  const iAmAdmin=(_workspaceMembers||[]).some(u=>u&&u.role==='admin'&&Number(u.id)===Number(D.creds&&D.creds.userId));
+  $('team-main').innerHTML=`<div class="ph-r" style="margin-bottom:16px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('users',22,'var(--page-accent)')}Team Dashboard</h1><p style="font-size:12px;color:var(--t2)">${teamName} · ${allMembers.length} members</p></div>${iAmOwner?'<button class="btn btn-p" onclick="showInvitePanel()">✉️ Invite Member</button>':''}</div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px">${allMembers.map(m=>memberCard(m)).join('')}</div>
   <div id="invite-panel" class="admin-only" style="display:none;margin-top:24px">
     <div class="cd" style="padding:16px">
@@ -413,6 +418,19 @@ async function revokeInvite(id){
   }catch(e){
     toast('⚠ '+e.message);
   }
+}
+
+/** Owner only (-253): grant or revoke admin. Teammates are members unless made
+ *  admin here; admin never reaches the owner's own data (the server enforces both). */
+async function setMemberRole(sel){
+  const uid=Number(sel.dataset.uid),role=sel.value,name=sel.dataset.name||'This member';
+  const prev=role==='admin'?'user':'admin';
+  try{
+    await _trpc('team.setRole',{userId:uid,role},'mutation');
+    const u=(_workspaceMembers||[]).find(x=>Number(x.id)===uid);if(u)u.role=role;
+    toast({type:'success',title:role==='admin'?'Admin access granted':'Admin access removed',
+      msg:role==='admin'?name+' can now manage other members’ shared items (never yours).':name+' is a member: they see only what they create or what is assigned or shared with them.'});
+  }catch(e){sel.value=prev;toast({type:'error',title:'Could not change access',msg:String(e&&e.message||e).slice(0,160)});}
 }
 
 async function deleteTeamMember(userId, memberName){

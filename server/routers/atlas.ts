@@ -15,7 +15,7 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { getDb } from "../db";
 import { userAppData } from "../../drizzle/schema";
-import { protectedProcedure, router } from "../_core/trpc";
+import { ownerProcedure, protectedProcedure, router } from "../_core/trpc";
 import { pullAtlasSnapshot, atlasConfigStatus } from "../_core/atlasAdapter";
 
 export const atlasRouter = router({
@@ -69,7 +69,8 @@ export const atlasRouter = router({
    * Returns counts so the UI can confirm. Never throws on parse — the adapter
    * does validation; we just persist what comes back.
    */
-  pull: protectedProcedure.mutation(async ({ ctx }) => {
+  // Owner only (-253): the snapshot carries CommunityForce HR and finance data.
+  pull: ownerProcedure.mutation(async ({ ctx }) => {
     const snapshot = await pullAtlasSnapshot();
     const db = await getDb();
     if (!db) throw new Error('Database unavailable');

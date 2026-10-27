@@ -1,14 +1,14 @@
 /**
  * activityFeed router
  * - log: protectedProcedure — any authenticated user can log their own activity
- * - getTeamFeed: adminProcedure — paginated feed for all team members
- * - getMemberFeed: adminProcedure — feed for a specific member
- * - getMemberStats: adminProcedure — action counts per type for a member
- * - getTeamMembers: adminProcedure — list all users with last sign-in
+ * - getTeamFeed: ownerProcedure — paginated feed for all team members
+ * - getMemberFeed: ownerProcedure — feed for a specific member
+ * - getMemberStats: ownerProcedure — action counts per type for a member
+ * - getTeamMembers: ownerProcedure — list all users with last sign-in
  */
 import { z } from 'zod';
 import * as db from '../db';
-import { protectedProcedure, adminProcedure, router } from '../_core/trpc';
+import { protectedProcedure, ownerProcedure, router } from '../_core/trpc';
 
 
 export const activityFeedRouter = router({
@@ -38,7 +38,7 @@ export const activityFeedRouter = router({
   /**
    * Get paginated activity feed for all team members (admin only).
    */
-  getTeamFeed: adminProcedure
+  getTeamFeed: ownerProcedure
     .input(
       z.object({
         limit: z.number().int().min(1).max(200).default(50),
@@ -56,7 +56,7 @@ export const activityFeedRouter = router({
   /**
    * Get activity feed for a specific member (admin only).
    */
-  getMemberFeed: adminProcedure
+  getMemberFeed: ownerProcedure
     .input(
       z.object({
         userId: z.number().int(),
@@ -72,7 +72,7 @@ export const activityFeedRouter = router({
   /**
    * Get action counts per type for a member (admin only).
    */
-  getMemberStats: adminProcedure
+  getMemberStats: ownerProcedure
     .input(
       z.object({
         userId: z.number().int(),
@@ -87,7 +87,7 @@ export const activityFeedRouter = router({
   /**
    * List all team members with last sign-in (admin only).
    */
-  getTeamMembers: adminProcedure.query(async () => {
+  getTeamMembers: ownerProcedure.query(async () => {
     const members = await db.getTeamMembers();
     return { members };
   }),

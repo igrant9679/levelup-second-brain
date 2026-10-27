@@ -427,6 +427,8 @@ async function startServer() {
     try { startAutomationCron(); } catch (e) { console.error('[startup] automation cron failed:', e); }
     // Nightly encrypted, verified database backup to private storage (build -226).
     try { startBackupCron(); } catch (e) { console.error('[startup] backup cron failed:', e); }
+    // One-time (-253): invited teammates become ordinary members; the owner grants admin.
+    import('./roleMigration').then(m => m.demoteInvitedAdminsOnce()).catch(e => console.error('[startup] role change failed:', e));
     // Atlas integration env-var boot diagnostic. Prints only the
     // configured/length status — never the value — so logs are safe.
     try {

@@ -576,6 +576,12 @@ export const appDataRouter = router({
         result[key] = null;
       }
     }
+    // Atlas is the owner's only (-253); a member's row still holding a copy
+    // from before is cleared here.
+    if (!(await isOwnerCtxUser(ctx.user as any))) {
+      if (row.atlas != null) { try { await db.update(userAppData).set({ atlas: null }).where(eq(userAppData.userId, ctx.user.id)); } catch {} }
+      result.atlas = null;
+    }
     // Tasks / notes / ideas live only in their relational tables (Step 3b).
     // The _xSource fields stay for Settings → Admin → Migration Health.
     result.tasks = (await readTasks(db, ctx.user.id)).tasks; result._tasksSource = 'relational';
@@ -630,6 +636,9 @@ export const appDataRouter = router({
           updates[key as DataKey] = val;
         }
       }
+      // Atlas (CommunityForce HR + finance) is the owner's only (-253): a
+      // member's stale browser copy must never be written back.
+      if (updates.atlas !== undefined && !(await isOwnerCtxUser(ctx.user as any))) delete updates.atlas;
       // Money: every write bumps the budget's revision so people it is shared
       // with can't overwrite it from a stale copy (see updateSharedFinance).
       if (updates.finance !== undefined) updates.finance = await _bumpFinanceRev(db, ctx.user.id, updates.finance);
@@ -790,8 +799,8 @@ export const appDataRouter = router({
     const db = await getDb();
     if (!db) return { ok: false as const, tasks: [] as any[] };
     try {
-      const { isAdminUser } = await import("../_core/access");
-      const admin = isAdminUser(ctx.user as any);
+      const { canOverride } = await import("../_core/access");
+      const admin = await isOwnerCtxUser(ctx.user as any); // -253: override UI is the owner's; canOverride() decides each write
       const owner = await isOwnerCtxUser(ctx.user as any);
       // A task is "assigned to me" if I'm in the multi-assignee array /
       // primaryAssigneeId stored in raw, or the legacy `assignedTo` NAME
@@ -865,8 +874,8 @@ export const appDataRouter = router({
       const users = await adminListAllUsers();
       const me = users.find(u => u.id === ctx.user.id);
       const myKeys = new Set(_myAssigneeKeys(users, me));
-      const { isAdminUser } = await import("../_core/access");
-      const admin = isAdminUser(ctx.user as any);
+      const { canOverride } = await import("../_core/access");
+      const admin = await isOwnerCtxUser(ctx.user as any); // -253: override UI is the owner's; canOverride() decides each write
       const owner = await isOwnerCtxUser(ctx.user as any);
       const rows = await db.select({ userId: userAppData.userId, projects: userAppData.projects }).from(userAppData);
       const out: any[] = [];
@@ -918,8 +927,8 @@ export const appDataRouter = router({
       const users = await adminListAllUsers();
       const me = users.find(u => u.id === ctx.user.id);
       const myKeys = new Set(_myAssigneeKeys(users, me));
-      const { isAdminUser } = await import("../_core/access");
-      const admin = isAdminUser(ctx.user as any);
+      const { canOverride } = await import("../_core/access");
+      const admin = await isOwnerCtxUser(ctx.user as any); // -253: override UI is the owner's; canOverride() decides each write
       const owner = await isOwnerCtxUser(ctx.user as any);
       const rows = await db.select({ userId: userAppData.userId, programs: userAppData.programs }).from(userAppData);
       const out: any[] = [];
@@ -977,7 +986,7 @@ export const appDataRouter = router({
       const db = await getDb();
       if (!db) return { ok: false as const, error: 'db unavailable' };
       try {
-        const { isAdminUser } = await import("../_core/access");
+        const { canOverride } = await import("../_core/access");
         const [appRow] = await db.select({ programs: userAppData.programs }).from(userAppData)
           .where(eq(userAppData.userId, input.ownerUserId)).limit(1);
         if (!appRow || !appRow.programs) return { ok: false as const, error: 'program not found' };
@@ -986,7 +995,7 @@ export const appDataRouter = router({
         if (!Array.isArray(arr)) return { ok: false as const, error: 'bad data' };
         const prog = arr.find((x: any) => x && String(x.id) === input.programId);
         if (!prog) return { ok: false as const, error: 'program not found' };
-        let allowed = isAdminUser(ctx.user as any) || input.ownerUserId === ctx.user.id
+        let allowed = (await canOverride(ctx.user as any, input.ownerUserId)) || input.ownerUserId === ctx.user.id
           || (Array.isArray(prog.assignees) && prog.assignees.map((x: any) => Number(x)).includes(ctx.user.id));
         if (!allowed) {
           const { adminListAllUsers } = await import("../db");
@@ -1027,8 +1036,8 @@ export const appDataRouter = router({
       const users = await adminListAllUsers();
       const me = users.find(u => u.id === ctx.user.id);
       const myKeys = new Set(_myAssigneeKeys(users, me));
-      const { isAdminUser } = await import("../_core/access");
-      const admin = isAdminUser(ctx.user as any);
+      const { canOverride } = await import("../_core/access");
+      const admin = await isOwnerCtxUser(ctx.user as any); // -253: override UI is the owner's; canOverride() decides each write
       const owner = await isOwnerCtxUser(ctx.user as any);
       const rows = await db.select({ userId: userAppData.userId, mindmaps: userAppData.mindmaps }).from(userAppData);
       const out: any[] = [];
@@ -1084,7 +1093,7 @@ export const appDataRouter = router({
       const db = await getDb();
       if (!db) return { ok: false as const, error: 'db unavailable' };
       try {
-        const { isAdminUser } = await import("../_core/access");
+        const { canOverride } = await import("../_core/access");
         const [appRow] = await db.select({ mindmaps: userAppData.mindmaps }).from(userAppData)
           .where(eq(userAppData.userId, input.ownerUserId)).limit(1);
         if (!appRow || !(appRow as any).mindmaps) return { ok: false as const, error: 'mind map not found' };
@@ -1093,7 +1102,7 @@ export const appDataRouter = router({
         if (!Array.isArray(arr)) return { ok: false as const, error: 'bad data' };
         const mm = arr.find((x: any) => x && String(x.id) === input.mindmapId);
         if (!mm) return { ok: false as const, error: 'mind map not found' };
-        let allowed = isAdminUser(ctx.user as any) || input.ownerUserId === ctx.user.id
+        let allowed = (await canOverride(ctx.user as any, input.ownerUserId)) || input.ownerUserId === ctx.user.id
           || (Array.isArray(mm.assignees) && mm.assignees.map((x: any) => Number(x)).includes(ctx.user.id));
         if (!allowed) {
           const { adminListAllUsers } = await import("../db");
@@ -1135,8 +1144,8 @@ export const appDataRouter = router({
       const users = await adminListAllUsers();
       const me = users.find(u => u.id === ctx.user.id);
       const myKeys = new Set(_myAssigneeKeys(users, me));
-      const { isAdminUser } = await import("../_core/access");
-      const admin = isAdminUser(ctx.user as any);
+      const { canOverride } = await import("../_core/access");
+      const admin = await isOwnerCtxUser(ctx.user as any); // -253: override UI is the owner's; canOverride() decides each write
       const owner = await isOwnerCtxUser(ctx.user as any);
       const rows = await db.select({ userId: userAppData.userId, sheets: userAppData.sheets }).from(userAppData);
       const out: any[] = [];
@@ -1201,7 +1210,7 @@ export const appDataRouter = router({
       const db = await getDb();
       if (!db) return { ok: false as const, error: 'db unavailable' };
       try {
-        const { isAdminUser } = await import("../_core/access");
+        const { canOverride } = await import("../_core/access");
         const [appRow] = await db.select({ sheets: userAppData.sheets }).from(userAppData)
           .where(eq(userAppData.userId, input.ownerUserId)).limit(1);
         if (!appRow || !(appRow as any).sheets) return { ok: false as const, error: 'sheet not found' };
@@ -1210,7 +1219,7 @@ export const appDataRouter = router({
         if (!Array.isArray(arr)) return { ok: false as const, error: 'bad data' };
         const sh = arr.find((x: any) => x && String(x.id) === input.sheetId);
         if (!sh) return { ok: false as const, error: 'sheet not found' };
-        const admin = isAdminUser(ctx.user as any);
+        const admin = (await canOverride(ctx.user as any, input.ownerUserId));
         const isItemOwner = input.ownerUserId === ctx.user.id;
         let isAssignee = Array.isArray(sh.assignees) && sh.assignees.map((x: any) => Number(x)).includes(ctx.user.id);
         if (!isAssignee) {
@@ -1269,8 +1278,8 @@ export const appDataRouter = router({
       const users = await adminListAllUsers();
       const me = users.find(u => u.id === ctx.user.id);
       const myKeys = new Set(_myAssigneeKeys(users, me));
-      const { isAdminUser } = await import("../_core/access");
-      const admin = isAdminUser(ctx.user as any);
+      const { canOverride } = await import("../_core/access");
+      const admin = await isOwnerCtxUser(ctx.user as any); // -253: override UI is the owner's; canOverride() decides each write
       const owner = await isOwnerCtxUser(ctx.user as any);
       const rows = await db.select({ userId: userAppData.userId, decks: userAppData.decks }).from(userAppData);
       const out: any[] = [];
@@ -1331,7 +1340,7 @@ export const appDataRouter = router({
       const db = await getDb();
       if (!db) return { ok: false as const, error: 'db unavailable' };
       try {
-        const { isAdminUser } = await import("../_core/access");
+        const { canOverride } = await import("../_core/access");
         const [appRow] = await db.select({ decks: userAppData.decks }).from(userAppData)
           .where(eq(userAppData.userId, input.ownerUserId)).limit(1);
         if (!appRow || !(appRow as any).decks) return { ok: false as const, error: 'deck not found' };
@@ -1340,7 +1349,7 @@ export const appDataRouter = router({
         if (!Array.isArray(arr)) return { ok: false as const, error: 'bad data' };
         const dk = arr.find((x: any) => x && String(x.id) === input.deckId);
         if (!dk) return { ok: false as const, error: 'deck not found' };
-        const admin = isAdminUser(ctx.user as any);
+        const admin = (await canOverride(ctx.user as any, input.ownerUserId));
         const isItemOwner = input.ownerUserId === ctx.user.id;
         let isAssignee = Array.isArray(dk.assignees) && dk.assignees.map((x: any) => Number(x)).includes(ctx.user.id);
         if (!isAssignee) {
@@ -1469,8 +1478,8 @@ export const appDataRouter = router({
       const users = await adminListAllUsers();
       const me = users.find(u => u.id === ctx.user.id);
       const myKeys = new Set(_myAssigneeKeys(users, me));
-      const { isAdminUser } = await import("../_core/access");
-      const admin = isAdminUser(ctx.user as any);
+      const { canOverride } = await import("../_core/access");
+      const admin = await isOwnerCtxUser(ctx.user as any); // -253: override UI is the owner's; canOverride() decides each write
       const owner = await isOwnerCtxUser(ctx.user as any);
       const rows = await db.select({ userId: userAppData.userId, prefs: userAppData.prefs }).from(userAppData);
       const out: any[] = [];
@@ -1521,7 +1530,7 @@ export const appDataRouter = router({
       const db = await getDb();
       if (!db) return { ok: false as const, error: 'db unavailable' };
       try {
-        const { isAdminUser } = await import("../_core/access");
+        const { canOverride } = await import("../_core/access");
         const [appRow] = await db.select({ prefs: userAppData.prefs }).from(userAppData).where(eq(userAppData.userId, input.ownerUserId)).limit(1);
         if (!appRow || !appRow.prefs) return { ok: false as const, error: 'report not found' };
         let prefs: any;
@@ -1529,7 +1538,7 @@ export const appDataRouter = router({
         const arr = Array.isArray(prefs.savedReports) ? prefs.savedReports : [];
         const rep = arr.find((x: any) => x && String(x.id) === input.reportId);
         if (!rep) return { ok: false as const, error: 'report not found' };
-        let allowed = isAdminUser(ctx.user as any) || input.ownerUserId === ctx.user.id
+        let allowed = (await canOverride(ctx.user as any, input.ownerUserId)) || input.ownerUserId === ctx.user.id
           || (Array.isArray(rep.assignees) && rep.assignees.map((x: any) => Number(x)).includes(ctx.user.id));
         if (!allowed) {
           const { adminListAllUsers } = await import("../db");
@@ -1563,6 +1572,8 @@ export const appDataRouter = router({
       const db = await getDb();
       if (!db) return { ok: false as const, error: 'db unavailable' };
       if (input.ownerUserId === ctx.user.id) return { ok: false as const, error: 'You already own this report.' };
+      // -253: admin alone is not enough — never another member's way into the owner's data.
+      if (!(await (await import('../_core/access')).canOverride(ctx.user as any, input.ownerUserId))) return { ok: false as const, error: 'Only the workspace owner can take over this '+'report'+'.' };
       try {
         const readPrefs = async (uid: number): Promise<any> => {
           const [r] = await db.select({ prefs: userAppData.prefs }).from(userAppData).where(eq(userAppData.userId, uid)).limit(1);
@@ -1598,8 +1609,8 @@ export const appDataRouter = router({
       const db = await getDb();
       if (!db) return { ok: false as const, error: 'db unavailable' };
       try {
-        const { isAdminUser } = await import("../_core/access");
-        if (!(isAdminUser(ctx.user as any) || input.ownerUserId === ctx.user.id)) return { ok: false as const, error: 'not authorized' };
+        const { canOverride } = await import("../_core/access");
+        if (!((await canOverride(ctx.user as any, input.ownerUserId)) || input.ownerUserId === ctx.user.id)) return { ok: false as const, error: 'not authorized' };
         const [appRow] = await db.select({ prefs: userAppData.prefs }).from(userAppData).where(eq(userAppData.userId, input.ownerUserId)).limit(1);
         if (!appRow || !appRow.prefs) return { ok: true as const };
         let prefs: any;
@@ -1623,8 +1634,8 @@ export const appDataRouter = router({
     const db = await getDb();
     if (!db) return { ok: false as const, notes: [] as any[] };
     try {
-      const { isAdminUser } = await import("../_core/access");
-      const admin = isAdminUser(ctx.user as any);
+      const { canOverride } = await import("../_core/access");
+      const admin = await isOwnerCtxUser(ctx.user as any); // -253: override UI is the owner's; canOverride() decides each write
       const idMapNotes = await _resolveUserIdMap();
       const isMineAssigned = (r: any): boolean => {
         // Same rule as tasks: raw is the truth, the assigneeId column is a
@@ -1694,11 +1705,11 @@ export const appDataRouter = router({
       try {
         const [row] = await db.select().from(notesTable).where(and(eq(notesTable.userId, input.ownerUserId), eq(notesTable.noteId, input.noteId))).limit(1);
         if (!row) return { ok: false as const, error: 'note not found' };
-        const { isAdminUser } = await import("../_core/access");
+        const { canOverride } = await import("../_core/access");
         let rawAssignees: number[] = [];
         let rawNote: any = {};
         try { rawNote = JSON.parse(row.raw || '{}') || {}; if (Array.isArray(rawNote.assignees)) rawAssignees = rawNote.assignees.map((x: any) => Number(x)).filter((n: number) => !isNaN(n)); } catch {}
-        const admin = isAdminUser(ctx.user as any);
+        const admin = (await canOverride(ctx.user as any, input.ownerUserId));
         const isItemOwner = row.userId === ctx.user.id;
         const isAssignee = row.assigneeId === ctx.user.id || rawAssignees.includes(ctx.user.id);
         const allowed = admin || isItemOwner || isAssignee || rawNote.shareAll === true;
@@ -1781,8 +1792,8 @@ export const appDataRouter = router({
           .where(and(eq(tasksTable.userId, input.ownerUserId), eq(tasksTable.taskId, input.taskId)))
           .limit(1);
         if (!row) return { ok: false as const, error: 'task not found' };
-        const { isAdminUser } = await import("../_core/access");
-        const allowed = isAdminUser(ctx.user as any) || row.userId === ctx.user.id || _taskAssignedTo(row, ctx.user.id, await _resolveUserIdMap());
+        const { canOverride } = await import("../_core/access");
+        const allowed = (await canOverride(ctx.user as any, row.userId)) || row.userId === ctx.user.id || _taskAssignedTo(row, ctx.user.id, await _resolveUserIdMap());
         if (!allowed) return { ok: false as const, error: 'not authorized' };
 
         const isDone = /done|complete|completed|closed/i.test(input.status);
@@ -1837,12 +1848,12 @@ export const appDataRouter = router({
         const [row] = await db.select().from(tasksTable)
           .where(and(eq(tasksTable.userId, input.ownerUserId), eq(tasksTable.taskId, input.taskId))).limit(1);
         if (!row) return { ok: false as const, error: 'task not found' };
-        const { isAdminUser } = await import("../_core/access");
+        const { canOverride } = await import("../_core/access");
         // Authorized: admin, the relational primary assignee, the owner, OR any
         // member listed in the item's multi-assignee array (parsed from raw).
         let rawAssignees: number[] = [];
         try { const rj = JSON.parse(row.raw || '{}'); if (Array.isArray(rj.assignees)) rawAssignees = rj.assignees.map((x: any) => Number(x)).filter((n: number) => !isNaN(n)); } catch {}
-        const allowed = isAdminUser(ctx.user as any) || row.userId === ctx.user.id || rawAssignees.includes(ctx.user.id) || _taskAssignedTo(row, ctx.user.id, await _resolveUserIdMap());
+        const allowed = (await canOverride(ctx.user as any, row.userId)) || row.userId === ctx.user.id || rawAssignees.includes(ctx.user.id) || _taskAssignedTo(row, ctx.user.id, await _resolveUserIdMap());
         if (!allowed) return { ok: false as const, error: 'not authorized' };
         const p = input.patch;
         const isDone = p.status != null && /done|complete|completed|closed/i.test(p.status);
@@ -1928,7 +1939,7 @@ export const appDataRouter = router({
       const db = await getDb();
       if (!db) return { ok: false as const, error: 'db unavailable' };
       try {
-        const { isAdminUser } = await import("../_core/access");
+        const { canOverride } = await import("../_core/access");
         const [appRow] = await db.select({ projects: userAppData.projects }).from(userAppData)
           .where(eq(userAppData.userId, input.ownerUserId)).limit(1);
         if (!appRow || !appRow.projects) return { ok: false as const, error: 'project not found' };
@@ -1939,7 +1950,7 @@ export const appDataRouter = router({
         if (!proj) return { ok: false as const, error: 'project not found' };
         // Authorize: admin, owner, current assignee (by name/email), or any
         // member in the multi-assignee array.
-        let allowed = isAdminUser(ctx.user as any) || input.ownerUserId === ctx.user.id
+        let allowed = (await canOverride(ctx.user as any, input.ownerUserId)) || input.ownerUserId === ctx.user.id
           || (Array.isArray(proj.assignees) && proj.assignees.map((x: any) => Number(x)).includes(ctx.user.id));
         if (!allowed) {
           const { adminListAllUsers } = await import("../db");
@@ -1984,8 +1995,8 @@ export const appDataRouter = router({
       const db = await getDb();
       if (!db) return { ok: false as const, error: 'db unavailable' };
       try {
-        const { isAdminUser } = await import("../_core/access");
-        const allowed = isAdminUser(ctx.user as any) || input.ownerUserId === ctx.user.id;
+        const { canOverride } = await import("../_core/access");
+        const allowed = (await canOverride(ctx.user as any, input.ownerUserId)) || input.ownerUserId === ctx.user.id;
         if (!allowed) return { ok: false as const, error: 'not authorized' };
         // Step 3a: tasks/notes/ideas live ONLY in their relational tables now —
         // delete the row directly and leave the frozen blob untouched. The
@@ -1995,6 +2006,16 @@ export const appDataRouter = router({
           return { ok: true as const };
         }
         if (input.kind === 'notes') {
+          // -253: file the note in its owner's Trash first (30 days, restorable),
+          // like a delete through the normal sync path.
+          const [old] = await db.select({ raw: notesTable.raw }).from(notesTable).where(and(eq(notesTable.userId, input.ownerUserId), eq(notesTable.noteId, input.itemId))).limit(1);
+          if (old) {
+            try {
+              const { versionFromRaw, recordNoteVersion } = await import("../_core/noteVersions");
+              const v = versionFromRaw(input.itemId, old.raw, 'deleted', 'deleted by ' + (ctx.user.name || ctx.user.email || 'a teammate'));
+              if (v) await recordNoteVersion(db, input.ownerUserId, v);
+            } catch (e) { console.warn('[deleteSharedItem] trash copy failed', e); }
+          }
           await db.delete(notesTable).where(and(eq(notesTable.userId, input.ownerUserId), eq(notesTable.noteId, input.itemId)));
           return { ok: true as const };
         }
@@ -2037,6 +2058,8 @@ export const appDataRouter = router({
       const db = await getDb();
       if (!db) return { ok: false as const, error: 'db unavailable' };
       if (input.ownerUserId === ctx.user.id) return { ok: false as const, error: 'You already own this item.' };
+      // -253: admin alone is not enough — never another member's way into the owner's data.
+      if (!(await (await import('../_core/access')).canOverride(ctx.user as any, input.ownerUserId))) return { ok: false as const, error: 'Only the workspace owner can take over this '+'item'+'.' };
       try {
         // Step 3a: tasks/notes are table-backed — read/write their arrays via
         // the relational store; blob-backed kinds keep using their columns.
@@ -2090,6 +2113,7 @@ export const appDataRouter = router({
   adminDeleteSharedTasks: adminProcedure
     .input(z.object({ confirmCount: z.number().int().optional() }))
     .mutation(async ({ ctx, input }) => {
+      if (!(await isOwnerCtxUser(ctx.user as any))) return { ok: false as const, error: 'Workspace owner only.' }; // -253
       const db = await getDb();
       if (!db) return { ok: false as const, error: 'db unavailable' };
       try {
@@ -2139,6 +2163,7 @@ export const appDataRouter = router({
   adminRemoveNiftyDuplicates: adminProcedure
     .input(z.object({ confirmCount: z.number().int().optional() }))
     .mutation(async ({ ctx, input }) => {
+      if (!(await isOwnerCtxUser(ctx.user as any))) return { ok: false as const, error: 'Workspace owner only.' }; // -253
       const db = await getDb();
       if (!db) return { ok: false as const, error: 'db unavailable' };
       try {
@@ -2184,7 +2209,8 @@ export const appDataRouter = router({
       }
     }),
 
-  backfillTeamVisibilityIds: adminProcedure.mutation(async () => {
+  backfillTeamVisibilityIds: adminProcedure.mutation(async ({ ctx }) => {
+    if (!(await isOwnerCtxUser(ctx.user as any))) return { ok: false as const, error: 'Workspace owner only.' }; // -253
     const db = await getDb();
     if (!db) return { ok: false as const, error: 'db unavailable' };
     try {

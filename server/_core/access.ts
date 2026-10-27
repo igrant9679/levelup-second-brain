@@ -35,3 +35,30 @@ export function canSeeItem(item: OwnedItem, user: AccessUser): boolean {
   if (isAdminUser(user)) return true;
   return item.createdById === user.id || item.assigneeId === user.id;
 }
+
+/**
+ * May `actor` override access on items that belong to `targetUserId` (full
+ * edit, take ownership, delete, delete the account)? (-253)
+ *   - the workspace OWNER: yes, for anyone;
+ *   - an ADMIN: only for people other than the owner — admin is a role the
+ *     owner grants, and it never reaches the owner's own data;
+ *   - anyone else: no (their own items go through the normal paths).
+ * Invited teammates used to be admins by default, so "is admin" alone let any
+ * teammate take, rewrite or delete the owner's items (audit 2, 2026-10-27).
+ */
+export async function canOverride(actor: AccessUser & { openId?: string | null } | null | undefined, targetUserId: number): Promise<boolean> {
+  if (!actor) return false;
+  const { isOwnerCtxUser } = await import("../routers/appData");
+  if (await isOwnerCtxUser(actor as any)) return true;
+  if (!isAdminUser(actor)) return false;
+  if (actor.id === targetUserId) return true;
+  try {
+    const { getUserById } = await import("../db");
+    const target = await getUserById(targetUserId);
+    // unknown target → refuse rather than guess
+    if (!target) return false;
+    return !(await isOwnerCtxUser(target as any));
+  } catch {
+    return false;
+  }
+}

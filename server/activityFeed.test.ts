@@ -54,6 +54,11 @@ vi.mock("./db", () => ({
   createBookmark: vi.fn(),
 }));
 
+// The team feed is the workspace OWNER's (-253), not any admin's: invited
+// teammates are members unless the owner grants admin, and admin never
+// reaches the owner's data.
+vi.mock("./routers/appData", async (orig) => ({ ...(await orig<any>()), isOwnerCtxUser: vi.fn(async (u: any) => u?.openId === "owner-oid") }));
+
 // ─── Context helpers ──────────────────────────────────────────────────────────
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
@@ -107,7 +112,7 @@ describe("activityFeed router", () => {
 
   describe("getTeamFeed", () => {
     it("returns feed and members for an admin user", async () => {
-      const caller = appRouter.createCaller(makeCtx(makeUser({ role: "admin" })));
+      const caller = appRouter.createCaller(makeCtx(makeUser({ role: "admin", openId: "owner-oid" })));
       const result = await caller.activityFeed.getTeamFeed({ limit: 50 });
       expect(result.feed).toBeDefined();
       expect(result.members).toBeDefined();
@@ -117,6 +122,13 @@ describe("activityFeed router", () => {
 
     it("rejects non-admin users with FORBIDDEN", async () => {
       const caller = appRouter.createCaller(makeCtx(makeUser({ role: "user" })));
+      await expect(
+        caller.activityFeed.getTeamFeed({ limit: 50 })
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
+
+    it("rejects an admin who is not the workspace owner", async () => {
+      const caller = appRouter.createCaller(makeCtx(makeUser({ id: 2, role: "admin" })));
       await expect(
         caller.activityFeed.getTeamFeed({ limit: 50 })
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -132,7 +144,7 @@ describe("activityFeed router", () => {
 
   describe("getMemberFeed", () => {
     it("returns feed for a specific member when called by admin", async () => {
-      const caller = appRouter.createCaller(makeCtx(makeUser({ role: "admin" })));
+      const caller = appRouter.createCaller(makeCtx(makeUser({ role: "admin", openId: "owner-oid" })));
       const result = await caller.activityFeed.getMemberFeed({ userId: 2, limit: 30 });
       expect(result.feed).toBeDefined();
       expect(Array.isArray(result.feed)).toBe(true);
@@ -148,7 +160,7 @@ describe("activityFeed router", () => {
 
   describe("getMemberStats", () => {
     it("returns action summary for a member when called by admin", async () => {
-      const caller = appRouter.createCaller(makeCtx(makeUser({ role: "admin" })));
+      const caller = appRouter.createCaller(makeCtx(makeUser({ role: "admin", openId: "owner-oid" })));
       const result = await caller.activityFeed.getMemberStats({ userId: 1 });
       expect(result.summary).toBeDefined();
       expect(Array.isArray(result.summary)).toBe(true);
@@ -164,7 +176,7 @@ describe("activityFeed router", () => {
 
   describe("getTeamMembers", () => {
     it("returns all team members for an admin user", async () => {
-      const caller = appRouter.createCaller(makeCtx(makeUser({ role: "admin" })));
+      const caller = appRouter.createCaller(makeCtx(makeUser({ role: "admin", openId: "owner-oid" })));
       const result = await caller.activityFeed.getTeamMembers();
       expect(result.members).toBeDefined();
       expect(Array.isArray(result.members)).toBe(true);

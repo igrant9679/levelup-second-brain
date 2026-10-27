@@ -82,6 +82,7 @@ export const AUDITED: Record<string, Spec> = {
   "demoAdmin.cleanup": { action: "demo.cleanup", target: (i) => ({ targetType: "user", targetId: i?.email ?? null, detail: { apply: !!i?.apply } }) },
   // members and access
   "team.deleteMember": { action: "member.delete", target: (i) => ({ targetUserId: i?.userId ?? null, targetType: "user" }) },
+  "team.setRole": { action: "member.role", target: (i) => ({ targetUserId: i?.userId ?? null, targetType: "user", targetId: i?.role ?? null }) },
   "teamInvites.create": { action: "invite.create", target: (i) => ({ targetType: "invite", targetId: i?.email ?? null, detail: { role: i?.role ?? "user" } }) },
   "teamInvites.delete": { action: "invite.delete", target: (i) => ({ targetType: "invite", targetId: i?.id ?? null }) },
   "teamInvites.resend": { action: "invite.resend", target: (i) => ({ targetType: "invite", targetId: i?.id ?? i?.email ?? null }) },

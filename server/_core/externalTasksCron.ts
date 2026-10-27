@@ -803,8 +803,17 @@ async function processAtlasPull(): Promise<{ usersUpdated: number; reason: strin
     .where(sql`${userAppData.atlas} IS NOT NULL`);
   if (!users.length) return { usersUpdated: 0, reason: 'no opted-in users' };
   let ok = 0;
+  const { isOwnerCtxUser } = await import('../routers/appData');
+  const { getUserById } = await import('../db');
   for (const u of users) {
     try {
+      // Only the workspace owner keeps a copy (-253): it carries HR and finance
+      // data. A member's row that still holds one from before is cleared.
+      const usr = await getUserById(u.userId);
+      if (!usr || !(await isOwnerCtxUser(usr as any))) {
+        await db.update(userAppData).set({ atlas: null }).where(eq(userAppData.userId, u.userId));
+        continue;
+      }
       await db.update(userAppData).set({ atlas: payload }).where(eq(userAppData.userId, u.userId));
       ok++;
     } catch (e: any) {
