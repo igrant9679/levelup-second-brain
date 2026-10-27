@@ -399,6 +399,7 @@ var PM_TABS=[
   {id:'stakeholders',label:'Stakeholders',icon:'user'},
   {id:'resources',label:'Resources',icon:'barChart'},
   {id:'budget',label:'Budget',icon:'target'},
+  {id:'contract',label:'Contract',icon:'shield'},
   {id:'changes',label:'Changes',icon:'refresh'},
   {id:'reports',label:'Reports',icon:'mail'},
   {id:'lessons',label:'Lessons',icon:'lightbulb'},
@@ -753,6 +754,10 @@ function pmTab_overview(key){
     (ev&&ev.bac?k(ev.cpi?ev.cpi.toFixed(2):'—','Cost performance (CPI)',ev.cpi&&ev.cpi<0.95?'#d97706':null,'budget')+k(ev.spi?ev.spi.toFixed(2):'—','Schedule performance (SPI)',ev.spi&&ev.spi<0.95?'#d97706':null,'budget'):'')+'</div>';
   var card=function(title,icon,body,go){return '<div class="pm-card"><div class="pm-h">'+_pmIcon(icon,15)+' '+title+'<span class="sp"></span>'+(go?'<button class="btn btn-s" style="height:24px;font-size:11px" onclick="pmGo(null,\''+go+'\')">Open</button>':'')+'</div>'+body+'</div>';};
   var li=function(arr,fn,empty){return arr.length?'<div style="display:flex;flex-direction:column;gap:6px">'+arr.map(fn).join('')+'</div>':'<div class="pm-muted">'+empty+'</div>';};
+  // contract warnings (-252): funding, period of performance, overdue deliverables
+  var ch=pmContractHealth(key);
+  if(ch&&ch.warn.length)html+='<div class="pm-card clk" style="margin-bottom:12px;border-left:3px solid '+(ch.warn.some(function(w){return w.sev==='red';})?'#dc2626':'#d97706')+'" onclick="pmGo(null,\'contract\')">'+
+    '<div class="pm-h" style="margin-bottom:4px">'+_pmIcon('shield',15)+' Contract</div>'+ch.warn.map(function(w){return '<div style="font-size:12.5px;margin:2px 0;color:'+(w.sev==='red'?'#dc2626':'#d97706')+'">⚠ '+_pmE(w.text)+'</div>';}).join('')+'</div>';
   html+='<div class="pm-grid2">'+
     card('Waiting on others','clock',li(late.concat(due.filter(function(r){return late.indexOf(r)<0;})).slice(0,8),function(r){var d=r.data||{};return '<div style="font-size:12.5px;cursor:pointer" onclick="pmDelegationDetail(\''+_pmJ(r._lk)+'\')"><b>'+_pmE(_pmDlgRefLabel(r))+'</b> <span class="pm-muted">· '+_pmE(pmPersonName(d.personKey))+'</span> '+(_pmDlgLate(r,today)?_pmPill('late '+_pmDate(d.expectedBy),'#dc2626'):_pmPill('follow up','#d97706'))+'</div>';},'Nothing late or due a follow-up.'),'waiting')+
     card('Top risks','alertTriangle',li(risks.slice(0,6),function(r){var s=pmRiskScore(r);return '<div style="font-size:12.5px;cursor:pointer" onclick="pmRaidDialog(\'risk\','+r.id+')">'+_pmPill(String(s),_pmHeatColor(s))+' <b>'+_pmE(r.title)+'</b>'+((r.data||{}).owner?' <span class="pm-muted">· '+_pmE(pmPersonName(r.data.owner))+'</span>':'')+'</div>';},'No open risks logged.'),'raid')+
@@ -1203,7 +1208,11 @@ function _pmReportFacts(c){
   var L=[];
   L.push('PROJECT: '+c.name+' · period '+c.since+' to '+c.today+' · computed status '+c.rag);
   L.push('PROGRESS: '+c.pr.pct+'% ('+c.pr.done+'/'+c.pr.total+' items), '+c.pr.overdue+' overdue');
-  if(c.ev&&c.ev.bac)L.push('BUDGET: BAC '+_pmMoney(c.ev.bac)+', actual cost '+_pmMoney(c.ev.ac)+', earned value '+_pmMoney(c.ev.ev)+(c.ev.cpi?', CPI '+c.ev.cpi.toFixed(2):'')+(c.ev.spi?', SPI '+c.ev.spi.toFixed(2):'')+(c.ev.eac?', forecast at completion '+_pmMoney(c.ev.eac):''));
+  if(c.ev&&c.ev.bac)L.push('BUDGET: BAC '+_pmMoney(c.ev.bac)+', actual cost '+_pmMoney(c.ev.ac)+', earned value '+_pmMoney(c.ev.ev)+(c.ev.cpi?', CPI '+c.ev.cpi.toFixed(2):'')+(c.ev.spi?', SPI '+c.ev.spi.toFixed(2):'')+(c.ev.eac?', forecast at completion '+_pmMoney(c.ev.eac):'')+
+    (c.ev.spiT?', SPI(t) '+c.ev.spiT.toFixed(2):'')+(c.ev.forecastFinish?', forecast finish '+c.ev.forecastFinish+' vs planned '+c.ev.planFinish:'')+(c.ev.mr?', management reserve '+_pmMoney(c.ev.mr):''));
+  var ch=c.key?pmContractHealth(c.key):null;
+  if(ch)L.push('CONTRACT: '+[ch.rec.title,ch.d.number,ch.d.type,ch.d.customer].filter(Boolean).join(' · ')+(ch.pop1?', period of performance ends '+ch.pop1:'')+(ch.funded?', funded '+_pmMoney(ch.funded)+' of '+_pmMoney(ch.ceiling)+' ceiling, spent '+_pmMoney(ch.spent):'')+(ch.runout?', funds run out about '+ch.runout:'')+
+    ', billed '+_pmMoney(ch.billed)+', paid '+_pmMoney(ch.paid)+(ch.soon.length?'; deliverables due in 30 days: '+ch.soon.slice(0,6).map(function(r){return r.title+' ('+(r.data||{}).due+')';}).join('; '):'')+(ch.warn.length?'; WARNINGS: '+ch.warn.map(function(w){return w.text;}).join('; '):''));
   if(c.doneIn.length)L.push('COMPLETED THIS PERIOD: '+c.doneIn.slice(0,15).map(function(i){return i.title;}).join('; '));
   if(c.milestones.done.length)L.push('MILESTONES DONE: '+c.milestones.done.slice(-5).map(function(m){return m.name;}).join('; '));
   if(c.upcoming.length)L.push('DUE IN NEXT 14 DAYS: '+c.upcoming.slice(0,12).map(function(i){return i.title+' ('+i.due+')';}).join('; '));
@@ -2381,28 +2390,64 @@ function _pmLaborCost(key){
   var mins=(Array.isArray(D.timeEntries)?D.timeEntries:[]).filter(function(e){return refs[String(e.taskId)];}).reduce(function(s2,e){return s2+(Number(e.durationMins)||0);},0);
   return {cost:mins/60*rate,hours:mins/60};
 }
+/** Earned value (fuller in -252). Budget lines → the performance measurement
+ *  baseline (PMB) unless marked management reserve; a line or cost may sit on
+ *  a WBS element (data.wbsKey) — each budgeted element is a control account
+ *  whose PV/EV come from ITS leaves, the rest (and approved change requests)
+ *  from the whole project. Duration-weighted progress, work days, the active
+ *  baseline's dates for PV. Adds CV/SV, three EAC methods, TCPI to EAC, and
+ *  earned schedule (ES, SPI(t), forecast finish). Field names used elsewhere
+ *  (bac, pv, ev, ac, cpi, spi, eac, etc, vac, tcpi, planned, earned, labor,
+ *  crCost, start, finish, hasBaseline) keep their meaning. */
 function pmEvm(key){
   if(!key||key==='all')return null;
   var lines=pmRecs('budgetline',key),costs=pmRecs('cost',key);
   var cr=pmRecs('change',key).filter(function(r){return r.status==='approved'||r.status==='implemented';}).reduce(function(s,r){return s+(Number((r.data||{}).costImpact)||0);},0);
-  var bac=lines.reduce(function(s,r){return s+(Number((r.data||{}).amount)||0);},0)+cr;
+  var amt=function(r){return Number((r.data||{}).amount)||0;};
+  var mrLines=lines.filter(function(r){return (r.data||{}).reserve;}),pmbLines=lines.filter(function(r){return !(r.data||{}).reserve;});
+  var mr=mrLines.reduce(function(s,r){return s+amt(r);},0);
+  var bac=pmbLines.reduce(function(s,r){return s+amt(r);},0)+cr;
   var labor=_pmLaborCost(key);
-  var ac=costs.reduce(function(s,r){return s+(Number((r.data||{}).amount)||0);},0)+labor.cost;
-  if(!bac&&!ac)return {bac:0,ac:0,ev:0,pv:0};
-  var c=pmCpm(key),today=_pmToday(),leaves=c.nodes.filter(function(n){return !n.summary;});
+  var ac=costs.reduce(function(s,r){return s+amt(r);},0)+labor.cost;
+  if(!bac&&!ac)return {bac:0,ac:0,ev:0,pv:0,mr:mr,cas:[]};
+  var c=pmCpm(key),today=_pmToday(),leaves=c.nodes.filter(function(n){return !n.summary;}),by={};c.nodes.forEach(function(n){by[n.key]=n;});
   var base=_pmActiveBaseline(key),ww=_pmWorkWeekends(key);
-  var tot=leaves.reduce(function(s,n){return s+Math.max(1,n.dur);},0)||1;
-  // Planned share in WORK days, like the schedule (calendar days made PV run
-  // ahead over weekends).
-  var planned=leaves.reduce(function(s,n){var b=base&&base.data.nodes&&base.data.nodes[n.key];var st=b?b.start:n.start,fi=b?b.finish:n.finish;if(!st||!fi)return s;
-    var span=Math.max(1,_pmWorkBetween(st,fi,ww)+1),el=today<st?0:Math.min(span,_pmWorkBetween(st,today,ww)+1);return s+Math.max(1,n.dur)*(el/span);},0)/tot;
-  var earned=leaves.reduce(function(s,n){return s+Math.max(1,n.dur)*((n.done?100:(n.pct||0))/100);},0)/tot;
-  var pv=bac*planned,ev=bac*earned;
+  var leavesOf=function(k){var n=by[k];if(!n)return [];if(!n.children.length)return [n];var o=[];n.children.forEach(function(ch){o=o.concat(leavesOf(ch));});return o;};
+  // Planned share by the end of `day`, in WORK days, like the schedule
+  // (calendar days made PV run ahead over weekends).
+  var plannedAt=function(ls,day){var tot=ls.reduce(function(s,n){return s+Math.max(1,n.dur);},0);if(!tot)return 0;
+    return ls.reduce(function(s,n){var b=base&&base.data.nodes&&base.data.nodes[n.key];var st=b?b.start:n.start,fi=b?b.finish:n.finish;if(!st||!fi)return s;
+      var span=Math.max(1,_pmWorkBetween(st,fi,ww)+1),el=day<st?0:Math.min(span,_pmWorkBetween(st,day,ww)+1);return s+Math.max(1,n.dur)*(el/span);},0)/tot;};
+  var earnedOf=function(ls){var tot=ls.reduce(function(s,n){return s+Math.max(1,n.dur);},0);if(!tot)return 0;return ls.reduce(function(s,n){return s+Math.max(1,n.dur)*((n.done?100:(n.pct||0))/100);},0)/tot;};
+  // control accounts: one per WBS element that carries PMB budget
+  var caMap={},unassigned=cr;
+  pmbLines.forEach(function(r){var k=(r.data||{}).wbsKey;if(k&&by[k]){(caMap[k]=caMap[k]||{key:k,bac:0,ac:0}).bac+=amt(r);}else unassigned+=amt(r);});
+  // a cost belongs to the nearest control account at or above its element
+  var caOf=function(k){var g=0;while(k&&by[k]&&g++<12){if(caMap[k])return k;k=by[k].parent;}return null;};
+  var unAc=labor.cost;costs.forEach(function(r){var k=caOf((r.data||{}).wbsKey);if(k)caMap[k].ac+=amt(r);else unAc+=amt(r);});
+  var cas=Object.keys(caMap).map(function(k){var a=caMap[k],ls=leavesOf(k),p=a.bac*plannedAt(ls,today),e=a.bac*earnedOf(ls);
+    return {key:k,name:by[k].name,bac:a.bac,pv:p,ev:e,ac:a.ac,cv:e-a.ac,sv:e-p,cpi:a.ac>0?e/a.ac:null,spi:p>0?e/p:null,eac:a.ac>0&&e>0?a.bac*a.ac/e:null};})
+    .sort(function(a,b){return (by[a.key].row||0)-(by[b.key].row||0);});
+  var pvAt=function(day){return cas.reduce(function(s,a){return s+a.bac*plannedAt(leavesOf(a.key),day);},0)+unassigned*plannedAt(leaves,day);};
+  var pv=pvAt(today),ev=cas.reduce(function(s,a){return s+a.ev;},0)+unassigned*earnedOf(leaves);
+  var planned=bac?pv/bac:0,earned=bac?ev/bac:0;
   // No cost logged yet → no forecast (EAC = AC + remaining showed a fake
   // under-run). No baseline → PV follows the current plan, so SPI hovers at 1;
   // `hasBaseline` lets the UI say so.
   var cpi=ac>0?ev/ac:null,spi=pv>0?ev/pv:null,eac=ac>0?(cpi?bac/cpi:(ac+(bac-ev))):null,etc=eac!=null?eac-ac:null;
-  return {hasBaseline:!!base,bac:bac,ac:ac,ev:ev,pv:pv,cpi:cpi,spi:spi,eac:eac,etc:etc,vac:eac!=null?bac-eac:null,tcpi:(bac-ac)>0?(bac-ev)/(bac-ac):null,planned:planned,earned:earned,labor:labor,crCost:cr,start:c.start,finish:c.finish};
+  var eacComp=ac>0&&cpi&&spi?ac+(bac-ev)/(cpi*spi):null,eacPlan=ac>0?ac+(bac-ev):null;
+  // Earned schedule: the work day at which the plan had earned what has been
+  // earned now. SPI(t) = ES / actual time; forecast finish = planned duration / SPI(t).
+  var p0=c.start,planFin=base&&base.data.finish?base.data.finish:c.finish,PD=Math.max(1,_pmWorkBetween(p0,planFin,ww)+1);
+  var AT=today<p0?0:_pmWorkBetween(p0,today,ww)+1,es=null,spiT=null,forecastFinish=null;
+  if(AT>0&&ev>0&&bac>0){var prev=0,t=0,lim=PD+400;es=PD;
+    for(t=0;t<lim;t++){var v=pvAt(_pmAddWork(p0,t,ww));if(v>=ev-1e-9){es=t+(v>prev?(ev-prev)/(v-prev):1);break;}prev=v;}
+    es=Math.min(es,PD);spiT=es/AT;
+    if(spiT>0)forecastFinish=_pmAddWork(p0,Math.max(0,Math.ceil(PD/spiT)-1),ww);}
+  return {hasBaseline:!!base,bac:bac,ac:ac,ev:ev,pv:pv,cpi:cpi,spi:spi,eac:eac,etc:etc,vac:eac!=null?bac-eac:null,tcpi:(bac-ac)>0?(bac-ev)/(bac-ac):null,
+    tcpiEac:eac!=null&&eac-ac>0?(bac-ev)/(eac-ac):null,eacComp:eacComp,eacPlan:eacPlan,cv:ev-ac,sv:ev-pv,
+    mr:mr,cbb:bac+mr,cas:cas,unassigned:unassigned,unassignedAc:unAc,es:es,at:AT,pd:PD,spiT:spiT,forecastFinish:forecastFinish,planFinish:planFin,
+    planned:planned,earned:earned,labor:labor,crCost:cr,start:c.start,finish:c.finish};
 }
 function _pmEvmSnap(key,ev){
   if(!ev||!ev.bac)return;var snaps=pmRecs('evmsnap',key);var today=_pmToday();
@@ -2445,13 +2490,54 @@ function pmTab_budget(key){
     k(ev.cpi!=null?ev.cpi.toFixed(2):'—','CPI',good(ev.cpi),'Earned ÷ actual. Below 1 = over budget for the work done')+k(ev.spi!=null?ev.spi.toFixed(2):'—','SPI',good(ev.spi),'Earned ÷ planned. Below 1 = behind schedule')+
     k(ev.eac!=null?_pmMoney(ev.eac):'—','Estimate at completion',ev.eac!=null&&ev.eac>ev.bac?'#dc2626':null,ev.eac!=null?'Budget ÷ CPI':'Shown once a cost is logged')+k(ev.vac!=null?_pmMoney(ev.vac):'—','Variance at completion',ev.vac==null?null:ev.vac<0?'#dc2626':'#16a34a','Budget − estimate at completion')+'</div>'+
     (ev.hasBaseline?'':'<div class="pm-muted" style="margin:-4px 0 10px;font-size:12px">No baseline yet — planned value follows the current plan, so SPI stays near 1. Save a baseline on the Schedule tab to measure slip.</div>');
+  html+=_pmEvmMore(key,ev);
   html+='<div class="pm-card" style="margin-bottom:12px"><div class="pm-h">'+_pmIcon('activity',15)+' Earned value over time</div>'+_pmSCurve(key,ev)+'</div>';
   var byCat={};lines.forEach(function(r){var d=r.data||{};var c=d.category||'Other';(byCat[c]=byCat[c]||{plan:0,act:0}).plan+=Number(d.amount)||0;});
   costs.forEach(function(r){var d=r.data||{};var c=d.category||'Other';(byCat[c]=byCat[c]||{plan:0,act:0}).act+=Number(d.amount)||0;});
   if(ev.labor.cost)(byCat.Labor=byCat.Labor||{plan:0,act:0}).act+=ev.labor.cost;
   html+='<div class="pm-grid2"><div class="pm-card pm-scroll" style="padding:0"><div class="pm-h" style="padding:12px 14px 0">By category</div><table class="pm-table"><thead><tr><th>Category</th><th>Planned</th><th>Actual</th><th>Left</th></tr></thead><tbody>'+Object.keys(byCat).sort().map(function(c){var x=byCat[c];return '<tr><td>'+_pmE(c)+'</td><td>'+_pmMoney(x.plan)+'</td><td>'+_pmMoney(x.act)+'</td><td style="color:'+(x.plan-x.act<0?'#dc2626':'inherit')+'">'+_pmMoney(x.plan-x.act)+'</td></tr>';}).join('')+'</tbody></table></div>'+
-    '<div class="pm-card pm-scroll" style="padding:0"><div class="pm-h" style="padding:12px 14px 0">Budget lines</div>'+(lines.length?'<table class="pm-table"><thead><tr><th>Line</th><th>Category</th><th>Amount</th></tr></thead><tbody>'+lines.map(function(r){var d=r.data||{};return '<tr class="clk" onclick="pmBudgetLineDialog(\''+_pmJ(key)+'\','+r.id+')"><td>'+_pmE(r.title)+'</td><td>'+_pmE(d.category||'')+'</td><td>'+_pmMoney(d.amount)+'</td></tr>';}).join('')+'</tbody></table>':'<div class="pm-empty" style="padding:14px">No lines yet.</div>')+'</div></div>';
+    '<div class="pm-card pm-scroll" style="padding:0"><div class="pm-h" style="padding:12px 14px 0">Budget lines</div>'+(lines.length?'<table class="pm-table"><thead><tr><th>Line</th><th>Category</th><th>WBS element</th><th>Amount</th></tr></thead><tbody>'+lines.map(function(r){var d=r.data||{};return '<tr class="clk" onclick="pmBudgetLineDialog(\''+_pmJ(key)+'\','+r.id+')"><td>'+_pmE(r.title)+(d.reserve?' '+_pmPill('reserve','#7c3aed'):'')+'</td><td>'+_pmE(d.category||'')+'</td><td class="pm-muted">'+_pmE(_pmWbsElName(key,d.wbsKey))+'</td><td>'+_pmMoney(d.amount)+'</td></tr>';}).join('')+'</tbody></table>':'<div class="pm-empty" style="padding:14px">No lines yet.</div>')+'</div></div>';
   html+='<div class="pm-card pm-scroll" style="margin-top:12px;padding:0"><div class="pm-h" style="padding:12px 14px 0">Actual costs</div>'+(costs.length?'<table class="pm-table"><thead><tr><th>Date</th><th>What</th><th>Category</th><th>Amount</th></tr></thead><tbody>'+costs.map(function(r){var d=r.data||{};return '<tr class="clk" onclick="pmCostDialog(\''+_pmJ(key)+'\','+r.id+')"><td class="pm-muted">'+_pmDate(d.date)+'</td><td>'+_pmE(r.title)+'</td><td>'+_pmE(d.category||'')+'</td><td>'+_pmMoney(d.amount)+'</td></tr>';}).join('')+'</tbody></table>':'<div class="pm-empty" style="padding:14px">No costs logged yet.</div>')+'</div>';
+  return html;
+}
+/** WBS element picker for budget lines and costs (only when the project has a WBS). */
+function _pmWbsElRow(key,id,cur,hint){
+  var c=pmCpm(key);if(c.mode!=='wbs')return '';
+  var codes=pmWbsCodes(key);
+  return '<div class="pm-row"><label for="'+id+'">WBS element</label><select class="inp" id="'+id+'"><option value="">— whole project —</option>'+c.nodes.map(function(n){var lk=n.rec&&n.rec._lk;
+    return '<option value="'+_pmE(n.key)+'"'+(n.key===cur?' selected':'')+'>'+'  '.repeat(n.depth)+_pmE((codes[lk]?codes[lk]+' ':'')+n.name)+'</option>';}).join('')+'</select></div>'+
+    (hint?'<div class="pm-muted" style="font-size:12px;margin:-4px 0 8px">'+_pmE(hint)+'</div>':'');
+}
+function _pmWbsElName(key,wk){if(!wk)return '';var n=pmCpm(key).nodes.find(function(x){return x.key===wk;});return n?n.name:'(removed row)';}
+/** The rest of earned value: variances, the three estimates at completion,
+ *  earned schedule, management reserve, and cost performance per control account. */
+function _pmEvmMore(key,ev){
+  var f2=function(x){return x==null?'—':x.toFixed(2);},m=function(x){return x==null?'—':_pmMoney(x);};
+  var col=function(x,good){return x==null?'':' style="color:'+(good?'#16a34a':'#dc2626')+'"';};
+  var html='<div class="pm-grid2" style="margin-bottom:12px"><div class="pm-card"><div class="pm-h">'+_pmIcon('target',15)+' Variances and forecasts</div><table class="pm-table"><tbody>'+
+    '<tr><td>Cost variance (EV − AC)</td><td'+col(ev.ac?ev.cv:null,ev.cv>=0)+'>'+(ev.ac?m(ev.cv):'—')+'</td></tr>'+
+    '<tr><td>Schedule variance (EV − PV)</td><td'+col(ev.sv,ev.sv>=0)+'>'+m(ev.sv)+'</td></tr>'+
+    '<tr><td title="Budget ÷ CPI — if cost efficiency stays as it is">EAC — at current cost efficiency</td><td>'+m(ev.eac)+'</td></tr>'+
+    '<tr><td title="AC + remaining work ÷ (CPI × SPI) — if cost AND schedule pressure continue">EAC — cost and schedule pressure</td><td>'+m(ev.eacComp)+'</td></tr>'+
+    '<tr><td title="AC + remaining work at the planned rate — if the overrun so far was a one-off">EAC — rest at plan</td><td>'+m(ev.eacPlan)+'</td></tr>'+
+    '<tr><td title="Cost efficiency the remaining work needs to finish on budget">TCPI to budget</td><td'+(ev.tcpi!=null&&ev.tcpi>1.1?' style="color:#dc2626"':'')+'>'+f2(ev.tcpi)+'</td></tr>'+
+    '<tr><td title="Cost efficiency the remaining work needs to hit the CPI-based estimate">TCPI to EAC</td><td>'+f2(ev.tcpiEac)+'</td></tr>'+
+    '</tbody></table></div><div class="pm-card"><div class="pm-h">'+_pmIcon('clock',15)+' Earned schedule</div><table class="pm-table"><tbody>'+
+    '<tr><td title="Work days from the start until the plan had earned what has been earned now">Earned schedule</td><td>'+(ev.es!=null?(Math.round(ev.es*10)/10)+' of '+ev.at+' work days':'—')+'</td></tr>'+
+    '<tr><td title="Earned schedule ÷ actual time. Unlike SPI it does not drift back to 1 near the end">SPI(t)</td><td'+(ev.spiT!=null?' style="color:'+(ev.spiT>=1?'#16a34a':ev.spiT>=0.9?'#d97706':'#dc2626')+'"':'')+'>'+f2(ev.spiT)+'</td></tr>'+
+    '<tr><td>Planned finish'+(ev.hasBaseline?' (baseline)':'')+'</td><td>'+_pmDate(ev.planFinish)+'</td></tr>'+
+    '<tr><td title="Planned duration ÷ SPI(t)">Forecast finish at this pace</td><td'+(ev.forecastFinish&&ev.forecastFinish>ev.planFinish?' style="color:#dc2626"':'')+'>'+(ev.forecastFinish?_pmDate(ev.forecastFinish):'—')+'</td></tr>'+
+    '<tr><td>Management reserve</td><td>'+m(ev.mr)+'</td></tr>'+
+    '<tr><td title="Plan (incl. approved changes) + management reserve">Contract budget base</td><td>'+m(ev.cbb)+'</td></tr>'+
+    '</tbody></table></div></div>';
+  if(ev.cas&&ev.cas.length){
+    var row=function(a){return '<tr><td>'+_pmE(a.name)+'</td><td>'+m(a.bac)+'</td><td>'+m(a.pv)+'</td><td>'+m(a.ev)+'</td><td>'+m(a.ac)+'</td><td'+col(a.ac?a.cv:null,a.cv>=0)+'>'+(a.ac?m(a.cv):'—')+'</td><td'+col(a.sv,a.sv>=0)+'>'+m(a.sv)+'</td><td>'+f2(a.cpi)+'</td><td>'+f2(a.spi)+'</td><td>'+m(a.eac)+'</td></tr>';};
+    var tot={name:'Total',bac:ev.bac,pv:ev.pv,ev:ev.ev,ac:ev.ac,cv:ev.cv,sv:ev.sv,cpi:ev.cpi,spi:ev.spi,eac:ev.eac};
+    html+='<div class="pm-card pm-scroll" style="padding:0;margin-bottom:12px"><div class="pm-h" style="padding:12px 14px 0">Cost performance by control account</div><table class="pm-table"><thead><tr><th>WBS element</th><th>Budget</th><th>PV</th><th>EV</th><th>AC</th><th>CV</th><th>SV</th><th>CPI</th><th>SPI</th><th>EAC</th></tr></thead><tbody>'+
+      ev.cas.map(row).join('')+((ev.unassigned||ev.unassignedAc)?row({name:'Not on a WBS element'+(ev.crCost?' (incl. approved changes)':''),bac:ev.unassigned,pv:ev.pv-ev.cas.reduce(function(s,a){return s+a.pv;},0),ev:ev.ev-ev.cas.reduce(function(s,a){return s+a.ev;},0),ac:ev.unassignedAc,
+        cv:(ev.ev-ev.cas.reduce(function(s,a){return s+a.ev;},0))-ev.unassignedAc,sv:(ev.ev-ev.cas.reduce(function(s,a){return s+a.ev;},0))-(ev.pv-ev.cas.reduce(function(s,a){return s+a.pv;},0)),cpi:null,spi:null,eac:null}):'')+
+      '</tbody><tfoot><tr style="font-weight:700">'+row(tot).replace(/^<tr>|<\/tr>$/g,'')+'</tr></tfoot></table></div>';
+  } else if(pmCpm(key).mode==='wbs')html+='<div class="pm-muted" style="font-size:12px;margin:-4px 0 12px">Put budget lines on WBS elements (edit a line) to see cost performance per control account.</div>';
   return html;
 }
 function _pmAtlasTeamCost(aid){
@@ -2464,8 +2550,11 @@ function pmBudgetLineDialog(key,id){
     '<div class="pm-row"><label>Line</label><input class="inp" id="pmb-t" value="'+_pmE(r?r.title:'')+'" placeholder="e.g. Developer hours, AWS hosting"></div>'+
     '<div class="pm-row"><label>Category</label><select class="inp" id="pmb-c">'+PM_COST_CATS.map(function(c){return '<option'+(c===(d.category||'Labor')?' selected':'')+'>'+c+'</option>';}).join('')+'</select></div>'+
     '<div class="pm-row"><label>Planned amount ($)</label><input class="inp" type="number" id="pmb-a" value="'+_pmE(d.amount||'')+'"></div>'+
+    _pmWbsElRow(key,'pmb-w',d.wbsKey,'Budget on a WBS element makes it a control account: its planned and earned value come from that part of the schedule.')+
+    '<div class="pm-row"><label for="pmb-mr">Management reserve</label><input type="checkbox" id="pmb-mr" '+(d.reserve?'checked':'')+'><span class="pm-muted" style="font-size:12px">Held back for unknowns — not part of the plan earned value is measured against</span></div>'+
     '<div class="pm-acts">'+(r?'<button class="btn btn-s" style="margin-right:auto;color:#dc2626" onclick="pmCloseModal();pmDel(pmRec(\''+_pmJ(r._lk)+'\'),\'Budget line deleted\')">Delete</button>':'')+'<button class="btn btn-s" onclick="pmCloseModal()">Cancel</button><button class="btn btn-p" id="pmb-save">Save</button></div>');
-  document.getElementById('pmb-save').onclick=function(){var t=document.getElementById('pmb-t').value.trim();if(!t)return;var rec=r||pmNew('budgetline',key,{data:{}});rec.title=t;rec.data=Object.assign({},rec.data,{category:document.getElementById('pmb-c').value,amount:Number(document.getElementById('pmb-a').value)||0});pmCloseModal(true);pmPut(rec);pmRender();};
+  document.getElementById('pmb-save').onclick=function(){var t=document.getElementById('pmb-t').value.trim();if(!t)return;var rec=r||pmNew('budgetline',key,{data:{}});rec.title=t;var w=document.getElementById('pmb-w');
+    rec.data=Object.assign({},rec.data,{category:document.getElementById('pmb-c').value,amount:Number(document.getElementById('pmb-a').value)||0,reserve:document.getElementById('pmb-mr').checked,wbsKey:w?(w.value||null):(rec.data||{}).wbsKey||null});pmCloseModal(true);pmPut(rec);pmRender();};
 }
 function pmCostDialog(key,id){
   var r=id?pmRec(id):null,d=r?(r.data||{}):{};
@@ -2474,8 +2563,154 @@ function pmCostDialog(key,id){
     '<div class="pm-row"><label>Date</label><input class="inp" type="date" id="pmk-d" value="'+_pmE(d.date||_pmToday())+'"></div>'+
     '<div class="pm-row"><label>Category</label><select class="inp" id="pmk-c">'+PM_COST_CATS.map(function(c){return '<option'+(c===(d.category||'Other')?' selected':'')+'>'+c+'</option>';}).join('')+'</select></div>'+
     '<div class="pm-row"><label>Amount ($)</label><input class="inp" type="number" id="pmk-a" value="'+_pmE(d.amount||'')+'"></div>'+
+    _pmWbsElRow(key,'pmk-w',d.wbsKey,'Charge it to a WBS element to see cost performance per control account.')+
     '<div class="pm-acts">'+(r?'<button class="btn btn-s" style="margin-right:auto;color:#dc2626" onclick="pmCloseModal();pmDel(pmRec(\''+_pmJ(r._lk)+'\'),\'Cost deleted\')">Delete</button>':'')+'<button class="btn btn-s" onclick="pmCloseModal()">Cancel</button><button class="btn btn-p" id="pmk-save">Save</button></div>');
-  document.getElementById('pmk-save').onclick=function(){var t=document.getElementById('pmk-t').value.trim();if(!t)return;var rec=r||pmNew('cost',key,{data:{}});rec.title=t;rec.data=Object.assign({},rec.data,{date:document.getElementById('pmk-d').value,category:document.getElementById('pmk-c').value,amount:Number(document.getElementById('pmk-a').value)||0});pmCloseModal(true);pmPut(rec);pmRender();};
+  document.getElementById('pmk-save').onclick=function(){var t=document.getElementById('pmk-t').value.trim();if(!t)return;var rec=r||pmNew('cost',key,{data:{}});rec.title=t;var w=document.getElementById('pmk-w');
+    rec.data=Object.assign({},rec.data,{date:document.getElementById('pmk-d').value,category:document.getElementById('pmk-c').value,amount:Number(document.getElementById('pmk-a').value)||0,wbsKey:w?(w.value||null):(rec.data||{}).wbsKey||null});pmCloseModal(true);pmPut(rec);pmRender();};
+}
+// ═══ CONTRACT (build -252) ══════════════════════════════════════════════════
+// The commercial layer over the plan: one `contract` record per project
+// (number, customer, type, period of performance, ceiling, funded, fee, CO /
+// COR), `clin` lines, `invoice`s and `deliverable`s (CDRLs — one-off or
+// recurring; submitting a recurring one moves it to the next due date and
+// keeps the history). pmContractHealth() turns that plus earned value into
+// the numbers and warnings the tab, the Overview and status reports use.
+var PM_CONTRACT_TYPES=['Firm fixed price (FFP)','Time and materials (T&M)','Labor hour (LH)','Cost plus fixed fee (CPFF)','Cost plus incentive fee (CPIF)','Cost plus award fee (CPAF)','IDIQ task order','Grant / cooperative agreement','Commercial / other'];
+var PM_DLV_FREQ={once:'One time',monthly:'Monthly',quarterly:'Quarterly',annual:'Yearly'};
+function pmContract(key){return pmRecs('contract',key).slice().sort(function(a,b){return (a.id||0)-(b.id||0);})[0]||null;}
+function _pmNextDue(ymd,freq){var m={monthly:1,quarterly:3,annual:12}[freq];if(!m||!_pmIsYmd(ymd))return null;var d=new Date(ymd+'T12:00:00'),day=d.getDate();d.setDate(1);d.setMonth(d.getMonth()+m);
+  var last=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();d.setDate(Math.min(day,last));return _pmYmd(d);}
+function pmContractHealth(key){
+  var k=pmContract(key);if(!k)return null;var d=k.data||{},today=_pmToday(),ev=pmEvm(key)||{bac:0,ac:0,ev:0,pv:0};
+  var clins=pmRecs('clin',key),inv=pmRecs('invoice',key),dlv=pmRecs('deliverable',key);
+  var ceiling=Number(d.ceiling)||clins.reduce(function(s,r){return s+(Number((r.data||{}).ceiling)||0);},0);
+  var funded=Number(d.funded)||clins.reduce(function(s,r){return s+(Number((r.data||{}).funded)||0);},0);
+  var spent=ev.ac||0;
+  // burn = dated costs over the last 90 days (else everything since the first cost), per 30 days
+  var costs=pmRecs('cost',key).map(function(r){return {d:(r.data||{}).date,a:Number((r.data||{}).amount)||0};}).filter(function(x){return _pmIsYmd(x.d)&&x.d<=today;});
+  var since=_pmAddDays(today,-90),recent=costs.filter(function(x){return x.d>since;});
+  var first=costs.map(function(x){return x.d;}).sort()[0];
+  var burn=recent.length?recent.reduce(function(s,x){return s+x.a;},0)/3:(first?costs.reduce(function(s,x){return s+x.a;},0)/Math.max(1,_pmDays(first,today)/30):0);
+  var left=funded-spent,runout=burn>0&&funded?_pmAddDays(today,Math.max(0,Math.floor(left/burn*30))):null;
+  var billed=inv.filter(function(r){return r.status==='submitted'||r.status==='paid';}).reduce(function(s,r){return s+(Number((r.data||{}).amount)||0);},0);
+  var paid=inv.filter(function(r){return r.status==='paid';}).reduce(function(s,r){return s+(Number((r.data||{}).amount)||0);},0);
+  var unpaidOld=inv.filter(function(r){var x=r.data||{};return r.status==='submitted'&&_pmIsYmd(x.date)&&_pmDays(x.date,today)>30;});
+  var open=dlv.filter(function(r){return r.status!=='accepted'||((r.data||{}).freq&&(r.data||{}).freq!=='once');});
+  var overdue=open.filter(function(r){var x=r.data||{};return _pmIsYmd(x.due)&&x.due<today&&r.status!=='submitted';});
+  var soon=open.filter(function(r){var x=r.data||{};return _pmIsYmd(x.due)&&x.due>=today&&x.due<=_pmAddDays(today,30);});
+  var pop0=_pmIsYmd(d.popStart)?d.popStart:null,pop1=_pmIsYmd(d.popEnd)?d.popEnd:null;
+  var popPct=pop0&&pop1&&pop1>pop0?Math.max(0,Math.min(100,Math.round(_pmDays(pop0,today)/_pmDays(pop0,pop1)*100))):null;
+  var warn=[];
+  if(funded&&spent>funded)warn.push({sev:'red',text:'Spending ('+_pmMoney(spent)+') is past the funded amount ('+_pmMoney(funded)+')'});
+  else if(runout&&pop1&&runout<pop1)warn.push({sev:'red',text:'At the current burn ('+_pmMoney(burn)+' a month) funding runs out '+_pmDate(runout)+' — before the period of performance ends '+_pmDate(pop1)});
+  if(ev.eac!=null&&funded&&ev.eac>funded)warn.push({sev:ev.eac>ceiling&&ceiling?'red':'amber',text:'Forecast at completion '+_pmMoney(ev.eac)+' needs '+_pmMoney(ev.eac-funded)+' more funding'+(ceiling&&ev.eac>ceiling?' and is over the '+_pmMoney(ceiling)+' ceiling':'')});
+  if(pop1&&pop1<today&&ev.earned<1)warn.push({sev:'red',text:'The period of performance ended '+_pmDate(pop1)+' with the work '+Math.round((ev.earned||0)*100)+'% done'});
+  else if(pop1&&_pmDays(today,pop1)<=60&&_pmDays(today,pop1)>=0&&(ev.earned||0)<0.9)warn.push({sev:'amber',text:'The period of performance ends '+_pmDate(pop1)+' ('+_pmDays(today,pop1)+' days) with the work '+Math.round((ev.earned||0)*100)+'% done'});
+  if(overdue.length)warn.push({sev:'red',text:overdue.length+' deliverable'+(overdue.length===1?' is':'s are')+' overdue: '+overdue.slice(0,4).map(function(r){return r.title;}).join(', ')});
+  if(unpaidOld.length)warn.push({sev:'amber',text:unpaidOld.length+' invoice'+(unpaidOld.length===1?'':'s')+' unpaid after 30 days'});
+  return {rec:k,d:d,ceiling:ceiling,funded:funded,spent:spent,left:left,burn:burn,runout:runout,billed:billed,paid:paid,unbilled:Math.max(0,(ev.ev||0)-billed),outstanding:billed-paid,
+    pop0:pop0,pop1:pop1,popPct:popPct,earnedPct:Math.round((ev.earned||0)*100),overdue:overdue,soon:soon,warn:warn,clins:clins,inv:inv,dlv:dlv,ev:ev};
+}
+function pmTab_contract(key){
+  var K=_pmJ(key),H=pmContractHealth(key),pr=pmProject(key);
+  var html='<div class="pm-bar"><button class="btn btn-p" onclick="pmContractDialog(\''+K+'\')">'+(H?'Edit contract':'＋ Set up the contract')+'</button>'+(H?'<button class="btn btn-s" onclick="pmClinDialog(\''+K+'\')">＋ CLIN</button><button class="btn btn-s" onclick="pmInvoiceDialog(\''+K+'\')">＋ Invoice</button><button class="btn btn-s" onclick="pmDeliverableDialog(\''+K+'\')">＋ Deliverable</button><span class="sp"></span><button class="btn btn-s" onclick="pmContractExport(\''+K+'\')">Excel</button>':'')+'</div>';
+  if(pr&&pr.source==='atlas'&&(pr.rec.clins||[]).length)html+='<div class="pm-muted" style="font-size:12px;margin-bottom:8px">Atlas lists '+pr.rec.clins.length+' CLIN'+(pr.rec.clins.length===1?'':'s')+' for this project (Budget tab). Add them here to track funding and billing per CLIN.</div>';
+  if(!H)return html+'<div class="pm-card pm-empty"><b>No contract yet</b>Record the contract number, customer, type, period of performance, ceiling and funding. LevelUp then warns you when funding will run out before the work is done, tracks invoices against earned value, and keeps deliverables (CDRLs) on time.</div>';
+  var d=H.d,k=function(v,l,c,t){return '<div class="pm-kpi" title="'+_pmE(t||'')+'"><b'+(c?' style="color:'+c+'"':'')+'>'+v+'</b><span>'+l+'</span></div>';};
+  html+='<div class="pm-card" style="margin-bottom:12px"><div style="display:flex;flex-wrap:wrap;gap:6px 18px;align-items:baseline"><b style="font-size:15px">'+_pmE(H.rec.title||'Contract')+'</b>'+(d.number?'<span class="pm-muted">'+_pmE(d.number)+'</span>':'')+(d.type?_pmPill(d.type,'#0891b2'):'')+(d.customer?'<span>'+_pmE(d.customer)+'</span>':'')+
+    (H.pop0||H.pop1?'<span class="pm-muted">Period of performance '+_pmDate(H.pop0)+' → '+_pmDate(H.pop1)+'</span>':'')+(d.co?'<span class="pm-muted">CO '+_pmE(d.co)+'</span>':'')+(d.cor?'<span class="pm-muted">COR '+_pmE(d.cor)+'</span>':'')+'</div>'+
+    (H.popPct!=null?'<div style="margin-top:10px;font-size:12px"><div style="display:flex;justify-content:space-between"><span>Time used '+H.popPct+'%</span><span>Work done '+H.earnedPct+'%</span></div><div style="position:relative;height:8px;background:var(--s2);border-radius:4px;margin-top:3px"><div style="position:absolute;left:0;top:0;bottom:0;width:'+H.popPct+'%;background:#94a3b8;border-radius:4px"></div><div style="position:absolute;left:0;top:2px;height:4px;width:'+H.earnedPct+'%;background:'+(H.earnedPct+5<H.popPct?'#dc2626':'#16a34a')+';border-radius:4px"></div></div></div>':'')+'</div>';
+  if(H.warn.length)html+='<div class="pm-card" style="margin-bottom:12px;border-left:3px solid #dc2626">'+H.warn.map(function(w){return '<div style="font-size:13px;margin:3px 0;color:'+(w.sev==='red'?'#dc2626':'#d97706')+'">⚠ '+_pmE(w.text)+'</div>';}).join('')+'</div>';
+  html+='<div class="pm-kpis">'+k(_pmMoney(H.ceiling),'Ceiling')+k(_pmMoney(H.funded),'Funded',null,H.ceiling?Math.round(H.funded/H.ceiling*100)+'% of the ceiling':'')+k(_pmMoney(H.spent),'Spent','',  'Actual cost on the Budget tab')+
+    k(_pmMoney(H.left),'Funds left',H.left<0?'#dc2626':null)+k(H.burn?_pmMoney(H.burn):'—','Burn / month','','Dated costs over the last 90 days')+k(H.runout?_pmDate(H.runout):'—','Funds run out',H.runout&&H.pop1&&H.runout<H.pop1?'#dc2626':null,'At the current burn')+
+    k(_pmMoney(H.billed),'Billed'+(H.outstanding>0?' · '+_pmMoney(H.outstanding)+' unpaid':''),H.outstanding>0&&H.inv.some(function(r){return r.status==='submitted'&&_pmDays((r.data||{}).date||_pmToday(),_pmToday())>30;})?'#d97706':null,'Invoices submitted or paid')+k(_pmMoney(H.unbilled),'Earned, not billed','','Earned value minus what has been invoiced')+'</div>';
+  // deliverables
+  var dl=H.dlv.slice().sort(function(a,b){return String((a.data||{}).due||'9999').localeCompare(String((b.data||{}).due||'9999'));});
+  var dPill=function(r){var x=r.data||{},st=r.status||'pending';var late=_pmIsYmd(x.due)&&x.due<_pmToday()&&st!=='submitted'&&(st!=='accepted'||(x.freq&&x.freq!=='once'));return late?_pmPill('overdue','#dc2626'):_pmPill(st,{pending:'#64748b',submitted:'#d97706',accepted:'#16a34a',rejected:'#dc2626'}[st]||'#64748b');};
+  html+='<div class="pm-card pm-scroll" style="padding:0;margin-bottom:12px"><div class="pm-h" style="padding:12px 14px 0">Deliverables (CDRLs)</div>'+(dl.length?'<table class="pm-table"><thead><tr><th>CDRL</th><th>Deliverable</th><th>Due</th><th>How often</th><th>Status</th><th></th></tr></thead><tbody>'+dl.map(function(r){var x=r.data||{};
+    return '<tr><td class="pm-muted">'+_pmE(x.cdrl||'')+'</td><td class="clk" onclick="pmDeliverableDialog(\''+K+'\','+r.id+')"><b>'+_pmE(r.title)+'</b>'+((x.history||[]).length?'<div class="pm-muted" style="font-size:11.5px">Last submitted '+_pmDate(x.history[x.history.length-1].submitted)+'</div>':'')+'</td><td>'+_pmDate(x.due)+'</td><td class="pm-muted">'+_pmE(PM_DLV_FREQ[x.freq||'once'])+'</td><td>'+dPill(r)+'</td>'+
+      '<td style="white-space:nowrap">'+(r.status!=='submitted'&&!(r.status==='accepted'&&(x.freq||'once')==='once')?'<button class="btn btn-s" style="height:26px" onclick="pmDeliverableSubmit('+r.id+')">Submitted</button>':'')+(r.status==='submitted'?'<button class="btn btn-s" style="height:26px" onclick="pmDeliverableSet('+r.id+',\'accepted\')">Accepted</button><button class="btn btn-s" style="height:26px" onclick="pmDeliverableSet('+r.id+',\'rejected\')">Rejected</button>':'')+'</td></tr>';}).join('')+'</tbody></table>':'<div class="pm-empty" style="padding:14px">No deliverables yet.</div>')+'</div>';
+  // CLINs + invoices
+  html+='<div class="pm-grid2"><div class="pm-card pm-scroll" style="padding:0"><div class="pm-h" style="padding:12px 14px 0">CLINs</div>'+(H.clins.length?'<table class="pm-table"><thead><tr><th>CLIN</th><th>Title</th><th>Type</th><th>Ceiling</th><th>Funded</th><th>Billed</th></tr></thead><tbody>'+H.clins.map(function(r){var x=r.data||{};var b=H.inv.filter(function(i){return (i.data||{}).clin===String(r.id)&&(i.status==='submitted'||i.status==='paid');}).reduce(function(s,i){return s+(Number((i.data||{}).amount)||0);},0);
+      return '<tr class="clk" onclick="pmClinDialog(\''+K+'\','+r.id+')"><td>'+_pmE(x.number||'')+'</td><td>'+_pmE(r.title)+'</td><td class="pm-muted">'+_pmE(x.type||'')+'</td><td>'+_pmMoney(x.ceiling)+'</td><td>'+_pmMoney(x.funded)+'</td><td'+(Number(x.funded)&&b>Number(x.funded)?' style="color:#dc2626"':'')+'>'+_pmMoney(b)+'</td></tr>';}).join('')+'</tbody></table>':'<div class="pm-empty" style="padding:14px">No CLINs — optional; the contract’s own ceiling and funding are used.</div>')+'</div>'+
+    '<div class="pm-card pm-scroll" style="padding:0"><div class="pm-h" style="padding:12px 14px 0">Invoices</div>'+(H.inv.length?'<table class="pm-table"><thead><tr><th>Invoice</th><th>Date</th><th>Amount</th><th>Status</th></tr></thead><tbody>'+H.inv.slice().sort(function(a,b){return String((b.data||{}).date||'').localeCompare(String((a.data||{}).date||''));}).map(function(r){var x=r.data||{};
+      return '<tr class="clk" onclick="pmInvoiceDialog(\''+K+'\','+r.id+')"><td>'+_pmE(r.title)+'</td><td class="pm-muted">'+_pmDate(x.date)+'</td><td>'+_pmMoney(x.amount)+'</td><td>'+_pmPill(r.status||'draft',{draft:'#64748b',submitted:'#d97706',paid:'#16a34a'}[r.status||'draft']||'#64748b')+'</td></tr>';}).join('')+'</tbody></table>':'<div class="pm-empty" style="padding:14px">No invoices yet.</div>')+'</div></div>';
+  if(d.notes)html+='<div class="pm-card" style="margin-top:12px;font-size:13px;white-space:pre-wrap">'+_pmE(d.notes)+'</div>';
+  return html;
+}
+function pmContractDialog(key){
+  var r=pmContract(key),d=r?(r.data||{}):{};
+  var row=function(l,id,v,type){return '<div class="pm-row"><label for="'+id+'">'+l+'</label><input class="inp" id="'+id+'"'+(type?' type="'+type+'"':'')+' value="'+_pmE(v==null?'':String(v))+'"></div>';};
+  pmModal('<h3>'+_pmIcon('shield',18)+' Contract<button class="x" onclick="pmCloseModal()">×</button></h3>'+
+    row('Contract name','pmct-t',r?r.title:_pmProjName(key))+row('Contract number','pmct-no',d.number)+row('Customer / agency','pmct-cu',d.customer)+
+    '<div class="pm-row"><label for="pmct-ty">Type</label><select class="inp" id="pmct-ty"><option value="">—</option>'+PM_CONTRACT_TYPES.map(function(t){return '<option'+(t===d.type?' selected':'')+'>'+_pmE(t)+'</option>';}).join('')+'</select></div>'+
+    row('Period of performance — start','pmct-p0',d.popStart,'date')+row('Period of performance — end','pmct-p1',d.popEnd,'date')+
+    row('Ceiling ($)','pmct-ce',d.ceiling,'number')+row('Funded so far ($)','pmct-fu',d.funded,'number')+row('Fee (%)','pmct-fee',d.fee,'number')+
+    row('Contracting officer (CO)','pmct-co',d.co)+row('COR / customer PM','pmct-cor',d.cor)+
+    '<div class="pm-row" style="align-items:start"><label for="pmct-n">Notes</label><textarea class="inp" id="pmct-n" rows="3">'+_pmE(d.notes||'')+'</textarea></div>'+
+    '<div class="pm-acts">'+(r?'<button class="btn btn-s" style="margin-right:auto;color:#dc2626" onclick="pmCloseModal();pmDel(pmRec(\''+_pmJ(r._lk)+'\'),\'Contract deleted\')">Delete</button>':'')+'<button class="btn btn-s" onclick="pmCloseModal()">Cancel</button><button class="btn btn-p" id="pmct-save">Save</button></div>',true);
+  document.getElementById('pmct-save').onclick=function(){var v=function(x){return document.getElementById(x).value;};var n=function(x){var y=v(x);return y===''?null:Number(y)||0;};
+    var rec=r||pmNew('contract',key,{data:{}});rec.title=v('pmct-t').trim()||'Contract';
+    rec.data=Object.assign({},rec.data,{number:v('pmct-no').trim(),customer:v('pmct-cu').trim(),type:v('pmct-ty'),popStart:v('pmct-p0')||null,popEnd:v('pmct-p1')||null,ceiling:n('pmct-ce'),funded:n('pmct-fu'),fee:n('pmct-fee'),co:v('pmct-co').trim(),cor:v('pmct-cor').trim(),notes:v('pmct-n')});
+    pmCloseModal(true);pmPut(rec);pmRender();};
+}
+function pmClinDialog(key,id){
+  var r=id?pmRec(id):null,d=r?(r.data||{}):{};
+  pmModal('<h3>'+_pmIcon('list',18)+' CLIN<button class="x" onclick="pmCloseModal()">×</button></h3>'+
+    '<div class="pm-row"><label for="pmcl-no">CLIN number</label><input class="inp" id="pmcl-no" value="'+_pmE(d.number||'')+'" placeholder="0001"></div>'+
+    '<div class="pm-row"><label for="pmcl-t">Title</label><input class="inp" id="pmcl-t" value="'+_pmE(r?r.title:'')+'"></div>'+
+    '<div class="pm-row"><label for="pmcl-ty">Type</label><select class="inp" id="pmcl-ty"><option value="">—</option>'+['FFP','T&M','LH','CPFF','CPIF','CPAF','ODC','Option'].map(function(t){return '<option'+(t===d.type?' selected':'')+'>'+_pmE(t)+'</option>';}).join('')+'</select></div>'+
+    '<div class="pm-row"><label for="pmcl-ce">Ceiling ($)</label><input class="inp" type="number" id="pmcl-ce" value="'+_pmE(d.ceiling==null?'':String(d.ceiling))+'"></div>'+
+    '<div class="pm-row"><label for="pmcl-fu">Funded ($)</label><input class="inp" type="number" id="pmcl-fu" value="'+_pmE(d.funded==null?'':String(d.funded))+'"></div>'+
+    '<div class="pm-acts">'+(r?'<button class="btn btn-s" style="margin-right:auto;color:#dc2626" onclick="pmCloseModal();pmDel(pmRec(\''+_pmJ(r._lk)+'\'),\'CLIN deleted\')">Delete</button>':'')+'<button class="btn btn-s" onclick="pmCloseModal()">Cancel</button><button class="btn btn-p" id="pmcl-save">Save</button></div>');
+  document.getElementById('pmcl-save').onclick=function(){var v=function(x){return document.getElementById(x).value;};var t=v('pmcl-t').trim()||('CLIN '+v('pmcl-no'));
+    var rec=r||pmNew('clin',key,{data:{}});rec.title=t;rec.data=Object.assign({},rec.data,{number:v('pmcl-no').trim(),type:v('pmcl-ty'),ceiling:Number(v('pmcl-ce'))||0,funded:Number(v('pmcl-fu'))||0});pmCloseModal(true);pmPut(rec);pmRender();};
+}
+function pmInvoiceDialog(key,id){
+  var r=id?pmRec(id):null,d=r?(r.data||{}):{},clins=pmRecs('clin',key);
+  var n=1+pmRecs('invoice',key).length;
+  pmModal('<h3>'+_pmIcon('mail',18)+' Invoice<button class="x" onclick="pmCloseModal()">×</button></h3>'+
+    '<div class="pm-row"><label for="pmin-t">Invoice</label><input class="inp" id="pmin-t" value="'+_pmE(r?r.title:'INV-'+String(n).padStart(3,'0'))+'"></div>'+
+    '<div class="pm-row"><label for="pmin-d">Date</label><input class="inp" type="date" id="pmin-d" value="'+_pmE(d.date||_pmToday())+'"></div>'+
+    '<div class="pm-row"><label for="pmin-a">Amount ($)</label><input class="inp" type="number" id="pmin-a" value="'+_pmE(d.amount==null?'':String(d.amount))+'"></div>'+
+    (clins.length?'<div class="pm-row"><label for="pmin-c">CLIN</label><select class="inp" id="pmin-c"><option value="">—</option>'+clins.map(function(c){return '<option value="'+c.id+'"'+(String(c.id)===String(d.clin)?' selected':'')+'>'+_pmE(((c.data||{}).number?c.data.number+' ':'')+c.title)+'</option>';}).join('')+'</select></div>':'')+
+    '<div class="pm-row"><label for="pmin-s">Status</label><select class="inp" id="pmin-s">'+['draft','submitted','paid'].map(function(s){return '<option'+(s===(r?r.status||'draft':'draft')?' selected':'')+'>'+s+'</option>';}).join('')+'</select></div>'+
+    '<div class="pm-row"><label for="pmin-pd">Paid on</label><input class="inp" type="date" id="pmin-pd" value="'+_pmE(d.paidDate||'')+'"></div>'+
+    '<div class="pm-acts">'+(r?'<button class="btn btn-s" style="margin-right:auto;color:#dc2626" onclick="pmCloseModal();pmDel(pmRec(\''+_pmJ(r._lk)+'\'),\'Invoice deleted\')">Delete</button>':'')+'<button class="btn btn-s" onclick="pmCloseModal()">Cancel</button><button class="btn btn-p" id="pmin-save">Save</button></div>');
+  document.getElementById('pmin-save').onclick=function(){var v=function(x){var e=document.getElementById(x);return e?e.value:'';};
+    var rec=r||pmNew('invoice',key,{data:{}});rec.title=v('pmin-t').trim()||'Invoice';var st=v('pmin-s');rec.status=st;
+    rec.data=Object.assign({},rec.data,{date:v('pmin-d')||null,amount:Number(v('pmin-a'))||0,clin:v('pmin-c')||null,paidDate:v('pmin-pd')||(st==='paid'?_pmToday():null)});pmCloseModal(true);pmPut(rec);pmRender();};
+}
+function pmDeliverableDialog(key,id){
+  var r=id?pmRec(id):null,d=r?(r.data||{}):{};
+  pmModal('<h3>'+_pmIcon('checkCircle',18)+' Deliverable<button class="x" onclick="pmCloseModal()">×</button></h3>'+
+    '<div class="pm-row"><label for="pmdv-t">Deliverable</label><input class="inp" id="pmdv-t" value="'+_pmE(r?r.title:'')+'" placeholder="e.g. Monthly status report"></div>'+
+    '<div class="pm-row"><label for="pmdv-c">CDRL / item no.</label><input class="inp" id="pmdv-c" value="'+_pmE(d.cdrl||'')+'" placeholder="A001"></div>'+
+    '<div class="pm-row"><label for="pmdv-d">'+(r?'Next due':'Due')+'</label><input class="inp" type="date" id="pmdv-d" value="'+_pmE(d.due||'')+'"></div>'+
+    '<div class="pm-row"><label for="pmdv-f">How often</label><select class="inp" id="pmdv-f">'+Object.keys(PM_DLV_FREQ).map(function(f){return '<option value="'+f+'"'+(f===(d.freq||'once')?' selected':'')+'>'+PM_DLV_FREQ[f]+'</option>';}).join('')+'</select></div>'+
+    '<div class="pm-row"><label for="pmdv-s">Status</label><select class="inp" id="pmdv-s">'+['pending','submitted','accepted','rejected'].map(function(s){return '<option'+(s===(r?r.status||'pending':'pending')?' selected':'')+'>'+s+'</option>';}).join('')+'</select></div>'+
+    ((d.history||[]).length?'<div class="pm-muted" style="font-size:12px;margin:4px 0 8px">History: '+d.history.slice(-6).map(function(h){return 'due '+_pmDate(h.due)+' → sent '+_pmDate(h.submitted);}).join(' · ')+'</div>':'')+
+    '<div class="pm-acts">'+(r?'<button class="btn btn-s" style="margin-right:auto;color:#dc2626" onclick="pmCloseModal();pmDel(pmRec(\''+_pmJ(r._lk)+'\'),\'Deliverable deleted\')">Delete</button>':'')+'<button class="btn btn-s" onclick="pmCloseModal()">Cancel</button><button class="btn btn-p" id="pmdv-save">Save</button></div>');
+  document.getElementById('pmdv-save').onclick=function(){var v=function(x){return document.getElementById(x).value;};var t=v('pmdv-t').trim();if(!t)return;
+    var rec=r||pmNew('deliverable',key,{data:{}});rec.title=t;rec.status=v('pmdv-s');rec.data=Object.assign({},rec.data,{cdrl:v('pmdv-c').trim(),due:v('pmdv-d')||null,freq:v('pmdv-f')});pmCloseModal(true);pmPut(rec);pmRender();};
+}
+/** Mark sent. A recurring deliverable logs this round and moves to its next due date. */
+function pmDeliverableSubmit(id){
+  var r=pmRec(id);if(!r)return;var d=Object.assign({},r.data||{}),today=_pmToday();
+  if(d.freq&&d.freq!=='once'&&_pmIsYmd(d.due)){d.history=(d.history||[]).concat([{due:d.due,submitted:today}]).slice(-60);d.due=_pmNextDue(d.due,d.freq);r.status='pending';
+    _pmToast('Logged — next one due '+_pmDate(d.due));}
+  else{r.status='submitted';d.submitted=today;}
+  r.data=d;pmPut(r);pmRender();
+}
+function pmDeliverableSet(id,st){var r=pmRec(id);if(!r)return;r.status=st;var d=Object.assign({},r.data||{});d[st+'At']=_pmToday();r.data=d;pmPut(r);pmRender();}
+async function pmContractExport(key){
+  var H=pmContractHealth(key);if(!H)return;var d=H.d;
+  await _pmXlsx('Contract - '+_pmProjName(key)+'.xlsx',[
+    {name:'Contract',rows:[['Field','Value'],['Contract',H.rec.title],['Number',d.number||''],['Customer',d.customer||''],['Type',d.type||''],['PoP start',d.popStart||''],['PoP end',d.popEnd||''],['Ceiling',H.ceiling],['Funded',H.funded],['Spent',Math.round(H.spent)],['Funds left',Math.round(H.left)],['Burn / month',Math.round(H.burn)],['Funds run out',H.runout||''],['Billed',H.billed],['Paid',H.paid],['Earned, not billed',Math.round(H.unbilled)]].concat(H.warn.map(function(w){return ['Warning',w.text];}))},
+    {name:'CLINs',rows:[['CLIN','Title','Type','Ceiling','Funded']].concat(H.clins.map(function(r){var x=r.data||{};return [x.number,r.title,x.type,x.ceiling,x.funded];}))},
+    {name:'Invoices',rows:[['Invoice','Date','Amount','Status','Paid on']].concat(H.inv.map(function(r){var x=r.data||{};return [r.title,x.date,x.amount,r.status||'draft',x.paidDate||''];}))},
+    {name:'Deliverables',rows:[['CDRL','Deliverable','Due','How often','Status']].concat(H.dlv.map(function(r){var x=r.data||{};return [x.cdrl||'',r.title,x.due||'',PM_DLV_FREQ[x.freq||'once'],r.status||'pending'];}))},
+  ]);
 }
 async function pmBudgetExport(key){
   var ev=pmEvm(key)||{};
@@ -2777,7 +3012,7 @@ async function pmExportAll(key){
   try{if(typeof HC_ARTICLES!=='undefined'&&Array.isArray(HC_ARTICLES)&&!HC_ARTICLES.some(function(a){return a.slug==='project-management';})){
     HC_ARTICLES.push({id:65,slug:'project-management',catId:10,title:'Project management — delegation, RACI, schedule, risks and budget',
       summary:'The PM Workspace: track work you hand to others (even people without LevelUp), RACI, RAID log and risk matrix, stakeholders and status reports, Gantt with critical path and baselines, WBS / DoD IMS with MS Project export, resources, budget with earned value, change requests, lessons, templates and meeting notes → action items.',
-      tags:['project','projects','pm','project management','program','delegate','delegated','delegation','waiting','raci','raid','risk','risks','issue','stakeholder','status report','gantt','drag','schedule','critical path','baseline','ims','wbs','ms project','dod','dcma','schedule health','monte carlo','p80','p50','schedule risk','import','mpp','14 point','status date','actual start','actual finish','percent complete','cpli','bei','resource','resources','budget','evm','earned value','cpi','spi','change request','lessons','template','meeting notes','action items'],
-      body:'## Project management\n\nOpen **PM Workspace** in the sidebar (under Work), or **💼 PM workspace** in a project\'s details. Pick a project at the top — LevelUp projects and **Atlas (CommunityForce)** projects are both listed — or **All projects** for the portfolio.\n\n## Delegate and track (Waiting on)\n\nIn any task press **🤝 Delegate** (or **Delegate something** on the Waiting on tab). Choose the person — a team member, someone from your Contacts, or anyone you add with an email address; they do **not** need LevelUp. Set when you expect it back and when to follow up. Tick **Email them now** to send the details.\n\n**Waiting on** lists everything you have handed off, grouped by person or project, with what is late and what is due a follow-up. **Follow up** emails the person; they just **reply** ("done", "Friday", "blocked on the client") and LevelUp reads the reply, updates the delegation and tells you. A "done" marks the task done. Turn on **Automatic follow-up emails** in the project\'s Settings tab to have LevelUp send follow-ups on the date for you. Your coach mentions late delegated work in its check-ins.\n\n## RACI\n\nAdd people as columns, then click a cell to mark **R**esponsible, **A**ccountable (exactly one), **C**onsulted, **I**nformed. The Check column flags rows with no or several Accountables. **Fill from assignments** starts it from task assignees and delegations. Export to Excel or print.\n\n## RAID log\n\nRisks (with a 5×5 probability × impact matrix), Issues, Assumptions and Decisions. A risk that happens becomes an issue in one click.\n\n## Stakeholders and reports\n\nPlace stakeholders on the influence/interest grid and plan who hears what and how often. **Reports → New status report** drafts a red/amber/green report from live data with AI; edit it, then **Email** it, save a **PDF**, or turn it into a **Slides** deck.\n\n## Schedule, WBS and IMS\n\n**Schedule** is a Gantt with dependency arrows, the **critical path** in red, float, milestones and **baselines** (save one, then see how far each item has slipped). Drag a bar to move it, drag its right edge to change its length, and drag its ● onto another bar to make that one follow it; click an arrow to change or remove a link. Arrow keys move a selected bar (Shift changes its length), and each drag can be undone. **WBS / IMS** holds the outline with durations in work days and predecessors ("3", "3SS", "3FS+2"). Two styles: **MS Project-style WBS** or **DoD IMS** (event → significant accomplishment → accomplishment criteria → task). Build it from the project\'s tasks, from your milestones, or draft it with AI. Export to **Excel** or **MS Project XML** (open it in Microsoft Project). **Import XML** brings a schedule in from Microsoft Project (save it there with File → Save As → XML): the outline, durations, links and lags, % complete, actual dates and its baseline.\n\n## Progress and schedule health\n\nOn **WBS / IMS** set each row\'s **% done**, **Actual start** and **Actual finish** — an actual finish marks the row done, and the schedule moves the rest of the plan from the real dates. The **Health** tab runs the DCMA 14-point check on the schedule against a **status date** you choose: missing logic, leads and lags, link types, constraints, high float, negative float, long tasks, dates that are already past, unassigned work, missed tasks, the critical path, CPLI and BEI. Each failing check lists the rows to fix. Save a baseline on the Schedule tab first for the last three. The MS Project XML export carries % done, actual dates and the baseline. **Schedule risk** (also on Health) runs 1,000 simulations with each open task somewhere between its optimistic and pessimistic length, and shows the P50 and P80 finish dates, the chance of making the planned, baseline or a target date, and which tasks most often drive the finish.\n\n## Resources and budget\n\n**Resources** shows each person\'s load per week against their capacity (allocations plus estimated work they own; Atlas team plans too). **Budget** holds planned lines and actual costs and works out **earned value**: CPI (cost efficiency), SPI (schedule efficiency) and the estimate at completion. Approved **change requests** add to the budget.\n\n## Templates and meeting notes\n\n**All projects → Templates** creates a project with tasks, dependencies, RACI roles and risks from a template (client onboarding, ATO package, software release, proposal response — or save your own). **Action items from meeting notes** reads a note, finds who committed to what, and creates the tasks and delegations.'});
+      tags:['project','projects','pm','project management','program','delegate','delegated','delegation','waiting','raci','raid','risk','risks','issue','stakeholder','status report','gantt','drag','schedule','critical path','baseline','ims','wbs','ms project','dod','dcma','schedule health','monte carlo','p80','contract','clin','cdrl','deliverable','invoice','funding','period of performance','control account','management reserve','earned schedule','p50','schedule risk','import','mpp','14 point','status date','actual start','actual finish','percent complete','cpli','bei','resource','resources','budget','evm','earned value','cpi','spi','change request','lessons','template','meeting notes','action items'],
+      body:'## Project management\n\nOpen **PM Workspace** in the sidebar (under Work), or **💼 PM workspace** in a project\'s details. Pick a project at the top — LevelUp projects and **Atlas (CommunityForce)** projects are both listed — or **All projects** for the portfolio.\n\n## Delegate and track (Waiting on)\n\nIn any task press **🤝 Delegate** (or **Delegate something** on the Waiting on tab). Choose the person — a team member, someone from your Contacts, or anyone you add with an email address; they do **not** need LevelUp. Set when you expect it back and when to follow up. Tick **Email them now** to send the details.\n\n**Waiting on** lists everything you have handed off, grouped by person or project, with what is late and what is due a follow-up. **Follow up** emails the person; they just **reply** ("done", "Friday", "blocked on the client") and LevelUp reads the reply, updates the delegation and tells you. A "done" marks the task done. Turn on **Automatic follow-up emails** in the project\'s Settings tab to have LevelUp send follow-ups on the date for you. Your coach mentions late delegated work in its check-ins.\n\n## RACI\n\nAdd people as columns, then click a cell to mark **R**esponsible, **A**ccountable (exactly one), **C**onsulted, **I**nformed. The Check column flags rows with no or several Accountables. **Fill from assignments** starts it from task assignees and delegations. Export to Excel or print.\n\n## RAID log\n\nRisks (with a 5×5 probability × impact matrix), Issues, Assumptions and Decisions. A risk that happens becomes an issue in one click.\n\n## Stakeholders and reports\n\nPlace stakeholders on the influence/interest grid and plan who hears what and how often. **Reports → New status report** drafts a red/amber/green report from live data with AI; edit it, then **Email** it, save a **PDF**, or turn it into a **Slides** deck.\n\n## Schedule, WBS and IMS\n\n**Schedule** is a Gantt with dependency arrows, the **critical path** in red, float, milestones and **baselines** (save one, then see how far each item has slipped). Drag a bar to move it, drag its right edge to change its length, and drag its ● onto another bar to make that one follow it; click an arrow to change or remove a link. Arrow keys move a selected bar (Shift changes its length), and each drag can be undone. **WBS / IMS** holds the outline with durations in work days and predecessors ("3", "3SS", "3FS+2"). Two styles: **MS Project-style WBS** or **DoD IMS** (event → significant accomplishment → accomplishment criteria → task). Build it from the project\'s tasks, from your milestones, or draft it with AI. Export to **Excel** or **MS Project XML** (open it in Microsoft Project). **Import XML** brings a schedule in from Microsoft Project (save it there with File → Save As → XML): the outline, durations, links and lags, % complete, actual dates and its baseline.\n\n## Progress and schedule health\n\nOn **WBS / IMS** set each row\'s **% done**, **Actual start** and **Actual finish** — an actual finish marks the row done, and the schedule moves the rest of the plan from the real dates. The **Health** tab runs the DCMA 14-point check on the schedule against a **status date** you choose: missing logic, leads and lags, link types, constraints, high float, negative float, long tasks, dates that are already past, unassigned work, missed tasks, the critical path, CPLI and BEI. Each failing check lists the rows to fix. Save a baseline on the Schedule tab first for the last three. The MS Project XML export carries % done, actual dates and the baseline. **Schedule risk** (also on Health) runs 1,000 simulations with each open task somewhere between its optimistic and pessimistic length, and shows the P50 and P80 finish dates, the chance of making the planned, baseline or a target date, and which tasks most often drive the finish.\n\n## Resources and budget\n\n**Resources** shows each person\'s load per week against their capacity (allocations plus estimated work they own; Atlas team plans too). **Budget** holds planned lines and actual costs and works out **earned value**: CPI (cost efficiency), SPI (schedule efficiency) and the estimate at completion. Approved **change requests** add to the budget. Put a budget line on a WBS element to make it a **control account** (cost performance per part of the work), and mark a line **management reserve** to hold it outside the plan. The Budget tab also shows cost and schedule variance, three estimates at completion, the cost efficiency still needed (TCPI) and **earned schedule** — SPI(t) and the finish date at the current pace.\n\n## Contract\n\nThe **Contract** tab holds the contract number, customer, type, period of performance, ceiling, funding, CO and COR, plus CLINs, invoices and deliverables (CDRLs — one-off or monthly / quarterly / yearly; marking a recurring one submitted moves it to its next due date). It works out spending against funding, the monthly burn, when the funds run out, what is earned but not yet billed, and warns you — also on the Overview and in status reports — when funding will run out before the period of performance ends, the forecast needs more funding, a deliverable is overdue or an invoice is unpaid after 30 days.\n\n## Templates and meeting notes\n\n**All projects → Templates** creates a project with tasks, dependencies, RACI roles and risks from a template (client onboarding, ATO package, software release, proposal response — or save your own). **Action items from meeting notes** reads a note, finds who committed to what, and creates the tasks and delegations.'});
   }}catch(_){}
 })();

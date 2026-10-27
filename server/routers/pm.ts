@@ -24,7 +24,9 @@ import { sendEmail } from "../_core/sendEmail";
 import { spendQuota } from "../_core/quota";
 
 const KINDS = ["delegation", "raci", "risk", "issue", "assumption", "decision", "stakeholder", "commplan", "report",
-  "milestone", "baseline", "wbs", "alloc", "budgetline", "cost", "change", "lesson", "template", "pmsettings", "action", "evmsnap"] as const;
+  "milestone", "baseline", "wbs", "alloc", "budgetline", "cost", "change", "lesson", "template", "pmsettings", "action", "evmsnap",
+  // contract layer (-252)
+  "contract", "clin", "invoice", "deliverable"] as const;
 const DATA_MAX = 400_000;
 
 // These e-mails go to outside addresses from the shared system sender, so

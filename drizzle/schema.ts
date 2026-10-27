@@ -1014,7 +1014,8 @@ export type CoachMessage = typeof coachMessages.$inferSelect;
  * whole-list save, so two devices cannot clobber each other). `kind` is the
  * type (delegation, raci, risk, issue, assumption, decision, stakeholder,
  * commplan, report, milestone, baseline, wbs, alloc, budgetline, cost, change,
- * lesson, template, pmsettings); `projectKey` scopes it: "p:<projectId>",
+ * lesson, template, pmsettings, action, evmsnap, contract, clin, invoice,
+ * deliverable); `projectKey` scopes it: "p:<projectId>",
  * "g:<programId>", "atlas:<atlasProjectId>" or "" (global). `refType/refId`
  * point at what it is about (e.g. task / 123). `data` is the JSON body.
  */
