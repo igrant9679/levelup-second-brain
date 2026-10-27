@@ -18,15 +18,15 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import { PART1 } from './lib/bundles.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const SRC = resolve(ROOT, 'client/public/js/app-part1.js');
 
-// Pull ELECTRIC_DARK straight out of the shipped bundle so this can never
-// drift from what actually ships.
-const src = readFileSync(SRC, 'latin1');
+// Pull ELECTRIC_DARK straight out of the shipped bundles so this can never
+// drift from what actually ships (it lived in app-part1.js until -234).
+const src = PART1.map((f) => readFileSync(resolve(ROOT, 'client/public/js', f), 'latin1')).join('\n').replace(/\r\n/g, '\n');
 const m = src.match(/const ELECTRIC_DARK=\{([\s\S]*?)\n\};/);
-if (!m) { console.error('ELECTRIC_DARK not found in app-part1.js'); process.exit(1); }
+if (!m) { console.error('ELECTRIC_DARK not found in the app-1 … app-7 bundles'); process.exit(1); }
 const tokens = {};
 for (const hit of m[1].matchAll(/(\w+)\s*:\s*'([^']+)'/g)) tokens[hit[1]] = hit[2];
 

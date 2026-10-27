@@ -3082,14 +3082,16 @@ body.sh-resizing{user-select:none!important}
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-10-26-233';
+  var APP_BUILD='2026-10-26-234';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   // vendor/purify.min.js (DOMPurify 3.3.0, self-hosted) loads first: every
   // bundle renders note/mail/assistant HTML through luSanitizeHtml().
-  ['/js/vendor/purify.min.js','/js/app-part1.js','/js/app-part2.js','/js/app-agent.js','/js/app-coach.js','/js/app-pm.js'].forEach(function(src){
+  // Order = scripts/lib/bundles.mjs (pnpm check:bundles fails if they differ).
+  // app-1 … app-7 were app-part1.js until build -234.
+  ['/js/vendor/purify.min.js','/js/app-1-core.js','/js/app-2-home-tasks.js','/js/app-3-notes.js','/js/app-4-work.js','/js/app-5-life.js','/js/app-6-review.js','/js/app-7-team-help.js','/js/app-part2.js','/js/app-agent.js','/js/app-coach.js','/js/app-pm.js'].forEach(function(src){
     var s=document.createElement('script');
     s.src=src+'?v='+APP_BUILD;
-    s.defer=true;s.async=false; // preserve execution order (part1, part2, agent, then coach)
+    s.defer=true;s.async=false; // preserve execution order (the list above)
     document.head.appendChild(s);
   });
 })();

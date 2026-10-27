@@ -28,7 +28,7 @@
  * source picks which lists are offered (both by default).
  *
  * The screen is #s-pm (nav id 'pm'), registered at the bottom of this file
- * without touching index.html markup or app-part1.js.
+ * without touching index.html markup or the app-1 … app-7 bundles.
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 // ─── CSS (injected; never added to index.html's <style>) ────────────────────

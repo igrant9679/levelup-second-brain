@@ -53,7 +53,7 @@ export const timeEntriesRouter = router({
       const db = await requireDb();
       // If a timer is already running anywhere for this user, stop it first.
       // Single-active-timer is the simplest UX and matches the existing
-      // single-timerBtn UI in app-part1.js.
+      // single-timerBtn UI in the client (app-1-core.js).
       await db.update(timeEntries)
         .set({
           endedAt: sql`CURRENT_TIMESTAMP`,

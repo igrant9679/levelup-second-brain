@@ -21,7 +21,7 @@
 //     that procedure is missing (deploy skew) the panel falls back to the
 //     older ai.assist answer-only path, so the chat never goes dark.
 //
-// This file loads AFTER app-part1/2 and overrides three of part2's chat
+// This file loads AFTER app-1 … app-7 and app-part2 and overrides three of part2's chat
 // functions by global reassignment (sendAIMsg, _renderAIChatHistory,
 // _renderAISuggestions) — the same pattern renderScreen already uses.
 // The originals stay in part2 untouched, so the prompt-budget guards that
@@ -397,7 +397,7 @@ var LU_AGENT_TOOLS=[
   {name:'complete_task',kind:'write',sig:'complete_task{id,done?=true}',desc:'Mark a task done (or reopen with done:false).',
     describe:function(a){return (a.done===false?'Reopen':'Complete')+' task '+a.id;},
     run:function(a){var r=_agentFind(D.tasks||[],a.id,'title');var need=_agentNeed(r,'tasks');if(need)return need;var t=r.item;var was=t.status,wasAt=t.completedAt;
-      // setTaskStatus (app-part1) does completedAt, repeat, goals and the log.
+      // setTaskStatus (app-2-home-tasks) does completedAt, repeat, goals and the log.
       if(typeof setTaskStatus==='function')setTaskStatus(t,a.done===false?'Not Started':'Done');
       else{t.status=a.done===false?'Not Started':'Done';_syncTaskCompletedAt(t);save('tasks');}
       var undo=_agentPushUndo((t.status==='Done'?'complete':'reopen')+' "'+t.title+'"',function(){t.status=was;t.completedAt=wasAt;save('tasks');});

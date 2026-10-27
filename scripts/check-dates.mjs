@@ -35,7 +35,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 const STATIC_ONLY = args.includes('--static');
 const SRC = args.find(a => !a.startsWith('--'));
-const BUNDLES = ['app-part1.js', 'app-part2.js', 'app-agent.js', 'app-coach.js', 'app-pm.js'];
+import { BUNDLES } from './lib/bundles.mjs';
 
 const RULES = [
   { re: /\.toISOString\(\)\s*\.(?:slice|substring|substr)\(\s*0\s*,\s*(?:10|7)\s*\)/, why: 'UTC day from toISOString() — use _ymd(d)' },

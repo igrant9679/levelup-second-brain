@@ -51,13 +51,10 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      - name: Client bundles parse (a syntax error in any of them stops the app booting)
+      - name: Client bundles parse, load in order, keep their NUL placeholders (a syntax error in any of them stops the app booting)
         run: |
-          for f in app-part1.js app-part2.js app-agent.js app-coach.js app-pm.js vendor/purify.min.js; do
-            node --check "client/public/js/$f"
-          done
-          n=$(tr -cd '\000' < client/public/js/app-part1.js | wc -c)
-          if [ "$n" != "12" ]; then echo "app-part1.js must keep exactly 12 NUL bytes (markdown placeholders), found $n"; exit 1; fi
+          node --check client/public/js/vendor/purify.min.js
+          node scripts/check-bundles.mjs
 
       - name: Migrations apply to an empty database
         run: pnpm exec drizzle-kit migrate

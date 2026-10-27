@@ -18,6 +18,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { PART1 } from './lib/bundles.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const arg = process.argv[2];
@@ -30,12 +31,13 @@ async function loadBundles() {
       if (!res.ok) throw new Error(`${res.status} fetching ${n} from ${base}`);
       return res.text();
     };
-    return { where: base, s1: await grab('app-part1.js'), s2: await grab('app-part2.js') };
+    // s1 = the former app-part1.js (split into app-1 … app-7 in -234), joined in load order.
+    return { where: base, s1: (await Promise.all(PART1.map(grab))).join('\n'), s2: await grab('app-part2.js') };
   }
   const dir = arg ? path.resolve(arg) : path.join(ROOT, 'client', 'public', 'js');
   return {
     where: dir,
-    s1: fs.readFileSync(path.join(dir, 'app-part1.js'), 'utf8'),
+    s1: PART1.map((f) => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n'),
     s2: fs.readFileSync(path.join(dir, 'app-part2.js'), 'utf8'),
   };
 }

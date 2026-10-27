@@ -1112,7 +1112,7 @@ async function _publishTeamPreset(){
 }
 
 // ─── Workspace layout panel (Settings → Workspace) ──────────────────────────
-// Renders from the LU_PAGES registry in app-part1.js, so it stays correct as
+// Renders from the LU_PAGES registry in app-2-home-tasks.js, so it stays correct as
 // pages are added. Everything writes through the lu* setters, which keep the
 // stored object sparse and rebuild #lu-layout-css.
 function _renderWorkspacePanel(){
@@ -10068,7 +10068,7 @@ window._pendingOAuthErrorDetail=null;
 // ═══════════════════════════════════════════════════════════════════════════
 // Walks a new teammate through choosing what they want to see, then hands off
 // to the guided tour so they learn how to use it. Purely a front-end for the
-// workspace layer in app-part1.js — it calls the same lu* setters the Settings
+// workspace layer in app-2-home-tasks.js — it calls the same lu* setters the Settings
 // hub does, so there's one source of truth for what a layout is.
 //
 // Completion is recorded in D.prefs.workspace.onboarded, which is server-
@@ -13811,7 +13811,7 @@ function _shColorMenu(ev,cb,allowNone){
 }
 
 // Wrap renderNotes so switching to/returning to the Notes screen re-applies the
-// Notes⇄Sheets mode (and renders the sheets section) without editing app-part1.
+// Notes⇄Sheets mode (and renders the sheets section) without editing app-3-notes.js.
 if(typeof window!=='undefined'&&!window._notesSheetsWrapped&&typeof window.renderNotes==='function'){
   window._notesSheetsWrapped=true;
   const _origRenderNotes=window.renderNotes;
