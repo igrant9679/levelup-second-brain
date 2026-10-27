@@ -227,7 +227,7 @@ r = exec('create_note', { title: 'Launch checklist', body: '# Steps\n- one', tag
 const nn = D.notes.find((x) => x.title === 'Launch checklist');
 t('create_note builds the app shape', r.ok && nn && nn.body.startsWith('# Steps') && nn.bodyHtml.includes('<p>') && nn.linkedProjectIds[0] === np.id && nn.readingStatus === 'Inbox' && nn.starred === false);
 r = exec('append_note', { id: 'Launch checklist', text: '- two' });
-t('append_note appends', r.ok && nn.body.endsWith('- two') && nn.updated === 'Just now');
+t('append_note appends', r.ok && nn.body.endsWith('- two') && /^\d{4}-/.test(nn.updated));
 r = exec('update_note', { id: nn.id, starred: true, tags: 'a,b,c' });
 t('update_note edits', r.ok && nn.starred === true && nn.tags.length === 3);
 

@@ -29,6 +29,7 @@ import { taskMigrationsRouter } from "./routers/taskMigrations";
 import { dailyDigestRouter } from "./routers/dailyDigest";
 import { reportsScheduleRouter } from "./routers/reportsSchedule";
 import { claimsRouter } from "./routers/claims";
+import { noteVersionsRouter } from "./routers/noteVersions";
 import { opsRouter } from "./routers/ops";
 import { weeklyReviewRouter } from "./routers/weeklyReview";
 import { customFieldsRouter } from "./routers/customFields";
@@ -108,6 +109,7 @@ export const appRouter = router({
   dailyDigest: dailyDigestRouter,
   reportsSchedule: reportsScheduleRouter,
   claims: claimsRouter,
+  noteVersions: noteVersionsRouter,
   ops: opsRouter,
   coach: coachRouter,
   pm: pmRouter,

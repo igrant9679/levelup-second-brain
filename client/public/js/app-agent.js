@@ -480,21 +480,24 @@ var LU_AGENT_TOOLS=[
       var projIds=[],taskIds=[];
       for(var i=0;i<_agentArr(a.projects).length;i++){var pr=_agentFind(D.projects||[],_agentArr(a.projects)[i],'name');if(pr.item)projIds.push(pr.item.id);}
       for(var j=0;j<_agentArr(a.tasks).length;j++){var tr=_agentFind(D.tasks||[],_agentArr(a.tasks)[j],'title');if(tr.item)taskIds.push(tr.item.id);}
-      var n={id:nextId(D.notes),title:_agentStr(a.title,300),body:body,bodyHtml:html,noteType:a.noteType||'Note',para:'Resource',source:'AI Assistant',sourceUrl:'',readingStatus:'Inbox',favorite:false,tags:_agentArr(a.tags),scope:{personal:false,business:false},updated:'Just now',starred:false,linkedTaskIds:taskIds,linkedProjectIds:projIds,createdBy:_agentUser(),createdAt:new Date().toISOString()};
+      var n={id:nextId(D.notes),title:_agentStr(a.title,300),body:body,bodyHtml:html,noteType:a.noteType||'Note',para:'Resource',source:'AI Assistant',sourceUrl:'',readingStatus:'Inbox',favorite:false,tags:_agentArr(a.tags),scope:{personal:false,business:false},updated:new Date().toISOString(),starred:false,linkedTaskIds:taskIds,linkedProjectIds:projIds,createdBy:_agentUser(),createdAt:new Date().toISOString()};
+      if(html&&typeof _noteSetHtml==='function')_noteSetHtml(n,html); // one body (-240): body follows bodyHtml
       D.notes.push(n);save('notes');try{applyBidirectionalLinks('note',n.id);}catch(_){}
       var undo=_agentPushUndo('create note "'+n.title+'"',function(){_agentRemoveById(D.notes,n.id);save('notes');});
       return {ok:true,summary:'Created note #'+n.id+' "'+n.title+'"',ref:{type:'note',id:n.id},undo:undo};}},
   {name:'append_note',kind:'write',sig:'append_note{id,text(markdown)}',desc:'Append text to an existing note.',
     describe:function(a){return 'Append to note '+a.id+': "'+_agentStr(a.text,50)+'"';},
     run:function(a){var r=_agentFind(D.notes||[],a.id,'title');var need=_agentNeed(r,'notes');if(need)return need;var n=r.item;var snap={body:n.body,bodyHtml:n.bodyHtml,updated:n.updated};
-      var text=String(a.text||'');n.body=(n.body||'')+(n.body?'\n\n':'')+text;try{n.bodyHtml=(n.bodyHtml||'')+(typeof renderMd==='function'?renderMd(text):'<p>'+esc(text)+'</p>');}catch(_){}n.updated='Just now';n.updatedAt=new Date().toISOString();
+      var text=String(a.text||'');var add='';try{add=typeof renderMd==='function'?renderMd(text):'<p>'+esc(text)+'</p>';}catch(_){add='<p>'+esc(text)+'</p>';}
+      if(typeof _noteSetHtml==='function')_noteSetHtml(n,_noteHtml(n)+add);
+      else{n.body=(n.body||'')+(n.body?'\n\n':'')+text;n.bodyHtml=(n.bodyHtml||'')+add;n.updated=n.updatedAt=new Date().toISOString();}
       save('notes');var undo=_agentPushUndo('append to note "'+n.title+'"',function(){Object.assign(n,snap);save('notes');});
       return {ok:true,summary:'Appended to note "'+n.title+'"',ref:{type:'note',id:n.id},undo:undo};}},
   {name:'update_note',kind:'write',sig:'update_note{id,title?,body?,tags?,starred?,pinned?}',desc:'Edit a note (body replaces the whole text).',
     describe:function(a){return 'Update note '+a.id;},
     run:function(a){var r=_agentFind(D.notes||[],a.id,'title');var need=_agentNeed(r,'notes');if(need)return need;var n=r.item;var snap=_agentSnapshot(n);
-      if(a.title!=null)n.title=_agentStr(a.title,300);if(a.body!=null){n.body=String(a.body);try{n.bodyHtml=typeof renderMd==='function'?renderMd(n.body):'';}catch(_){}}
-      if(a.tags!=null)n.tags=_agentArr(a.tags);if(a.starred!=null)n.starred=!!a.starred;if(a.pinned!=null)n.pinned=!!a.pinned;n.updated='Just now';n.updatedAt=new Date().toISOString();
+      if(a.title!=null)n.title=_agentStr(a.title,300);if(a.body!=null){if(typeof _noteSetMd==='function')_noteSetMd(n,String(a.body));else{n.body=String(a.body);try{n.bodyHtml=typeof renderMd==='function'?renderMd(n.body):'';}catch(_){}}}
+      if(a.tags!=null)n.tags=_agentArr(a.tags);if(a.starred!=null)n.starred=!!a.starred;if(a.pinned!=null)n.pinned=!!a.pinned;n.updated=n.updatedAt=new Date().toISOString();
       save('notes');var undo=_agentPushUndo('edit note "'+n.title+'"',function(){_agentRestore(n,snap);save('notes');});
       return {ok:true,summary:'Updated note "'+n.title+'"',ref:{type:'note',id:n.id},undo:undo};}},
 

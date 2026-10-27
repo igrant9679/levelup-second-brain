@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getDb } from "../db";
 import { userAppData, tasksTable, notesTable, ideasTable, externalTasks, users, systemSettings } from "../../drizzle/schema";
 import { protectedProcedure, adminProcedure, router } from "../_core/trpc";
+import { recordNoteVersion, versionFromRaw, type VersionInput } from "../_core/noteVersions";
 
 /**
  * Full visibility ("see every member's items") in the shared-workspace read
@@ -157,6 +158,14 @@ const ENTITY_TABLE: Record<EntityKind, any> = { tasks: tasksTable, notes: notesT
 const ENTITY_ID_COL: Record<EntityKind, 'taskId' | 'noteId' | 'ideaId'> = { tasks: 'taskId', notes: 'noteId', ideas: 'ideaId' };
 
 /** FNV-1a 32-bit over UTF-16 code units — identical to the client's _luHash. */
+// Did an update change what the note says (title or text), as opposed to a
+// pin, a tag or a folder move? Only those get a history entry.
+function _noteTextChanged(prevRaw: string | null | undefined, nextRaw: string): boolean {
+  try {
+    const a = JSON.parse(prevRaw || '{}'), b = JSON.parse(nextRaw || '{}');
+    return String(a.title ?? '') !== String(b.title ?? '') || String(a.bodyHtml ?? '') !== String(b.bodyHtml ?? '') || String(a.body ?? '') !== String(b.body ?? '');
+  } catch { return true; }
+}
 export function _itemHash(s: string): string {
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
@@ -339,18 +348,22 @@ export async function applyEntityChanges(db: any, userId: number, kind: EntityKi
   const applied: Array<{ id: string; hash: string }> = [];
   const deleted: string[] = [];
   const conflicts: Array<{ id: string; raw: string | null }> = [];
+  // Note history (-241): the stored copy before each change, written after
+  // the transaction so a history problem can never fail a sync.
+  const history: VersionInput[] = [];
   await db.transaction(async (tx: any) => {
     for (const u of input.upserts) {
       let item: any;
       try { item = JSON.parse(u.raw); } catch { throw new Error(`${kind} item ${u.id} is not valid JSON`); }
       if (!_validItem(item) || String(item.id).slice(0, 40) !== String(u.id).slice(0, 40)) throw new Error(`${kind} item id mismatch for ${u.id}`);
       const row = build(item);
-      const [cur] = await tx.select({ id: table.id, raw: table.raw }).from(table)
+      const [cur] = await tx.select(kind === 'notes' ? { id: table.id, raw: table.raw, syncedAt: table.syncedAt } : { id: table.id, raw: table.raw }).from(table)
         .where(and(eq(table.userId, userId), eq(table[idCol], row[idCol]))).limit(1);
       if (cur) {
         const curHash = _itemHash(String(cur.raw ?? ''));
         if (cur.raw === row.raw) { applied.push({ id: u.id, hash: curHash }); continue; }
         if (u.baseHash && curHash !== u.baseHash) { conflicts.push({ id: u.id, raw: cur.raw ?? null }); continue; }
+        if (kind === 'notes') { const v = versionFromRaw(row[idCol], cur.raw, 'edit'); if (v && _noteTextChanged(cur.raw, row.raw)) history.push({ ...v, prevWrittenAt: cur.syncedAt ? new Date(cur.syncedAt) : null }); }
         const { userId: _u, ...set } = row;
         await tx.update(table).set(set).where(eq(table.id, cur.id));
       } else {
@@ -364,10 +377,12 @@ export async function applyEntityChanges(db: any, userId: number, kind: EntityKi
         .where(and(eq(table.userId, userId), eq(table[idCol], key))).limit(1);
       if (!cur) { deleted.push(d.id); continue; }
       if (d.baseHash && _itemHash(String(cur.raw ?? '')) !== d.baseHash) { conflicts.push({ id: d.id, raw: cur.raw ?? null }); continue; }
+      if (kind === 'notes') { const v = versionFromRaw(key, cur.raw, 'deleted'); if (v) history.push(v); }
       await tx.delete(table).where(eq(table.id, cur.id));
       deleted.push(d.id);
     }
   });
+  for (const v of history) await recordNoteVersion(db, userId, v);
   if (input.order) await _setEntityOrder(db, userId, kind, input.order);
   // Bump updatedAt: the client's offline-merge logic dates server writes by it.
   await db.insert(userAppData).values({ userId }).onDuplicateKeyUpdate({ set: { updatedAt: new Date() } });
@@ -1663,6 +1678,8 @@ export const appDataRouter = router({
       patch: z.object({
         title: z.string().max(512).optional(),
         bodyHtml: z.string().max(2000000).optional(),
+        // Plain text derived from bodyHtml on the client (one note body, -240).
+        body: z.string().max(2000000).optional(),
         assignedTo: z.string().max(255).optional(),
         assignees: z.array(z.number().int()).optional(),
         assigneeNames: z.array(z.string().max(255)).optional(),
@@ -1712,7 +1729,11 @@ export const appDataRouter = router({
         }
         const applyTo = (t: any) => {
           if (p.title != null) t.title = p.title;
-          if (p.bodyHtml != null) { t.bodyHtml = p.bodyHtml; t.updated = new Date().toLocaleString(); }
+          if (p.bodyHtml != null) {
+            t.bodyHtml = p.bodyHtml;
+            if (p.body != null) t.body = p.body;
+            t.updated = t.updatedAt = new Date().toISOString();
+          }
           if (p.shareAll !== undefined) t.shareAll = p.shareAll;
           if (p.shareMode !== undefined) t.shareMode = p.shareMode;
           if (p.assignees != null) t.assignees = p.assignees;
@@ -1729,6 +1750,11 @@ export const appDataRouter = router({
         if (p.title != null) set.title = p.title.slice(0, 512);
         if (primaryId !== undefined) set.assigneeId = primaryId ?? null;
         await db.update(notesTable).set(set).where(eq(notesTable.id, row.id));
+        // The owner's history keeps the note as it was before a teammate's edit.
+        if ((p.title != null || p.bodyHtml != null) && !isItemOwner && _noteTextChanged(row.raw, newRaw ?? '')) {
+          const v = versionFromRaw(input.noteId, row.raw, 'shared', 'Before ' + (ctx.user.name || 'a teammate') + '’s edit');
+          if (v) await recordNoteVersion(db, input.ownerUserId, v);
+        }
         return { ok: true as const };
       } catch (e: any) {
         return { ok: false as const, error: String(e?.message || e) };

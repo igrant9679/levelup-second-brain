@@ -1807,7 +1807,7 @@ function openMeetingNote(evId,dateStr){
     noteType:'Meeting Notes',
     para:'Resource',source:'Meeting',
     tags:['meeting'],
-    updated:'Just now',
+    updated:new Date().toISOString(),
     starred:false,
     meetings:[ref],
     createdBy:(D.creds&&D.creds.userName)||'',

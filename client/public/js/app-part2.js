@@ -2688,7 +2688,7 @@ function handleOneNoteFiles(files){
         bodyText=bodyText.substring(0,8000)+(bodyText.length>8000?'\n\n[...truncated at 8000 chars]':'');
       }
       const noteId=nextId(D.notes);
-      D.notes.push({id:noteId,title:title||nameNoExt,tags:[tag.toLowerCase().replace(/\s+/g,'-'),'onenote'],source:'OneNote Import',original,updated:'Just now',starred:false,body:bodyText,createdBy:D.creds.userName||'Idris Grant'});
+      D.notes.push({id:noteId,title:title||nameNoExt,tags:[tag.toLowerCase().replace(/\s+/g,'-'),'onenote'],source:'OneNote Import',original,updated:new Date().toISOString(),createdAt:new Date().toISOString(),starred:false,body:bodyText,createdBy:D.creds.userName||'Idris Grant'});
       save('notes');imported++;
       invalidateSearchIndex();
       const statusEl=res.querySelector('.import-status');
@@ -3273,7 +3273,9 @@ function _saveExpandedDoc(){
   const c=window._expandDocCtx||{title:'',tags:[]};
   const content=(document.getElementById('expand-doc-body')||{}).value||'';
   const now=new Date().toISOString();
-  D.notes.push({id:nextId(D.notes),title:'[Doc] '+c.title,body:content,tags:[...c.tags,'ai-expanded'],createdAt:now,updatedAt:now,updated:now,pinned:false});
+  const doc={id:nextId(D.notes),title:'[Doc] '+c.title,tags:[...c.tags,'ai-expanded'],createdAt:now,pinned:false};
+  _noteSetMd(doc,content);
+  D.notes.push(doc);
   save('notes');renderNotes();closeModal();
   toast('✓ Expanded document saved as new note!');
 }
@@ -3397,24 +3399,11 @@ function exportNotePDF(id){
   const n=D.notes.find(x=>x.id===id);
   if(!n)return;
   toast('📄 Preparing PDF...');
-  // Render markdown body to HTML
-  const bodyHtml=(n.body||'')
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g,'<em>$1</em>')
-    .replace(/^#{3}\s+(.+)$/gm,'<h3>$1</h3>')
-    .replace(/^#{2}\s+(.+)$/gm,'<h2>$1</h2>')
-    .replace(/^#\s+(.+)$/gm,'<h1>$1</h1>')
-    .replace(/^[-*]\s+(.+)$/gm,'<li>$1</li>')
-    .replace(/(<li>.*<\/li>)/gs,'<ul>$1</ul>')
-    .replace(/^>\s+(.+)$/gm,'<blockquote>$1</blockquote>')
-    .replace(/`([^`]+)`/g,'<code>$1</code>')
-    .replace(/\[\[(.+?)\]\]/g,'<span class="wikilink">$1</span>')
-    .replace(/\n\n+/g,'</p><p>')
-    .replace(/\n/g,'<br>');
-  const tagsHtml=(n.tags||[]).map(t=>`<span class="tag">#${t}</span>`).join(' ');
+  // The note's own (rich) body, sanitized; [[links]] styled as links.
+  const bodyHtml=luSanitizeHtml(_noteHtml(n)).replace(/\[\[([^\]<]+?)\]\]/g,'<span class="wikilink">$1</span>');
+  const tagsHtml=(n.tags||[]).map(t=>`<span class="tag">#${esc(t)}</span>`).join(' ');
   const printHtml=`<!DOCTYPE html><html><head><meta charset="utf-8">
-<title>${n.title}</title>
+<title>${esc(n.title||'Note')}</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
   *{box-sizing:border-box;margin:0;padding:0}
@@ -3438,14 +3427,14 @@ function exportNotePDF(id){
   }
 </style>
 </head><body>
-<div class="note-title">${n.title}</div>
+<div class="note-title">${esc(n.title||'Untitled')}</div>
 <div class="meta">
   ${tagsHtml?`<div style="margin-bottom:6px">${tagsHtml}</div>`:''}
-  <span>Source: ${n.source||'Manual'}</span>
-  ${n.updated?` &nbsp;·&nbsp; Updated: ${n.updated}`:''}
-  ${n.createdBy?` &nbsp;·&nbsp; Author: ${n.createdBy}`:''}
+  <span>Source: ${esc(n.source||'Manual')}</span>
+  ${n.updated?` &nbsp;·&nbsp; Updated: ${esc(fmtNoteDate(n.updated))}`:''}
+  ${n.createdBy?` &nbsp;·&nbsp; Author: ${esc(n.createdBy)}`:''}
 </div>
-<div class="body-content"><p>${bodyHtml||'<em>No content</em>'}</p></div>
+<div class="body-content">${bodyHtml||'<p><em>No content</em></p>'}</div>
 <div class="footer"><span>LevelUp Second Brain</span><span>Exported ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</span></div>
 </body></html>`;
   // Open in a new window and trigger print dialog
@@ -3634,7 +3623,7 @@ function aiSummarizeNote(id){
 function _applyAISummary(){
   const p=window._aiSummaryPayload;if(!p)return;
   const n=D.notes.find(x=>x.id===p.id);if(!n)return;
-  n.body='## ✨ AI Summary\n\n'+p.bulletText+'\n\n---\n\n'+(n.body||'');
+  _noteSetHtml(n,'<h2>✨ AI Summary</h2>'+_noteMdToHtml(p.bulletText)+'<hr>'+_noteHtml(n));
   save('notes');showNoteInEditor(p.id);closeModal();
   toast('✓ Summary prepended to note!');
 }
@@ -5595,17 +5584,12 @@ function renderFANote(){
     </div>
     ${faCommonScope()}
     <div class="fa-field" style="margin-bottom:10px"><label>Tags</label>${faCommonTags()}</div>
-    <div class="fa-field">
-      <label style="display:flex;justify-content:space-between;align-items:center">Content <span style="font-size:11px;color:var(--t3);font-weight:400">Markdown supported</span></label>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <textarea class="fa-inp" id="fa-desc" style="min-height:140px;font-family:monospace;font-size:11px" placeholder="# Title\n\nWrite your note in **markdown**...\n\n- Bullet points\n- **Bold**, *italic*" oninput="renderNotePreview(this.value)"></textarea>
-        <div id="fa-note-preview" style="min-height:140px;background:var(--s1);border:1px solid var(--bd1);border-radius:6px;padding:10px;font-size:12px;color:var(--t2);line-height:1.6;overflow-y:auto"><em style="color:var(--t3)">Preview will appear here as you type...</em></div>
-      </div>
-    </div>
-    <!-- Rich Text Body -->
-    <div class="fa-field" style="margin-top:12px">
-      <label><span>📝 Free-form Body <span style="font-size:11px;font-weight:400;color:var(--t3)">Rich text editor — write your full thoughts here</span></span></label>
-      ${luRTE_render({id:'fa-note-rte', placeholder:'Write your full note here — no structure required. Use the toolbar to format as you go...', value:'', height:'180px'})}
+    <!-- One body (build -240): the rich editor is the note. fa-desc stays as a
+         hidden field because a few prefills still write to it. -->
+    <textarea class="fa-inp" id="fa-desc" style="display:none" aria-hidden="true"></textarea>
+    <div class="fa-field" style="margin-top:4px">
+      <label><span>Content <span style="font-size:11px;font-weight:400;color:var(--t3);text-transform:none;letter-spacing:0">Type - or 1. and a space for a list, # for a heading, [[ to link a note</span></span></label>
+      ${luRTE_render({id:'fa-note-rte', placeholder:'Write your note…', value:'', height:'220px'})}
       <!-- AI Assistance -->
       <div style="margin-top:6px;padding:8px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
         <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:5px">✨ AI Assistance</div>
@@ -6040,8 +6024,7 @@ function doFASave(addAnother){
     } else if(_faType==='note'){
       const noteType=document.getElementById('fa-notetype')?.value||'Note';
       const n={
-        id:nextId(D.notes),title,body:desc,
-        bodyHtml:document.getElementById('fa-note-rte')?.innerHTML||'',
+        id:nextId(D.notes),title,
         noteType,para:document.getElementById('fa-para')?.value||'Resource',
         source:document.getElementById('fa-source')?.value||'Manual',
         sourceUrl:document.getElementById('fa-sourceurl')?.value||'',
@@ -6049,11 +6032,13 @@ function doFASave(addAnother){
         favorite:document.getElementById('fa-favorite')?.checked||false,
         // The Favorites view filters on `starred`, so the ⭐ Favorite checkbox
         // must set `starred` (was hardcoded false → new "favorites" never showed).
-        tags:_faTags,scope,updated:'Just now',starred:document.getElementById('fa-favorite')?.checked||false,
+        tags:_faTags,scope,starred:document.getElementById('fa-favorite')?.checked||false,
         linkedTaskIds:_faLinked.tasks,linkedProjectIds:_faLinked.projects,
         createdBy:D.creds.userName||'Idris Grant',
         createdAt:new Date().toISOString()
       };
+      // Anything a prefill left in the hidden markdown field goes first.
+      _noteSetHtml(n,(desc.trim()?_noteMdToHtml(desc):'')+(document.getElementById('fa-note-rte')?.innerHTML||''));
       if(noteType==='Decision'){
         n.decision={context:document.getElementById('fa-dec-context')?.value||'',choice:document.getElementById('fa-dec-choice')?.value||'',rationale:document.getElementById('fa-dec-rationale')?.value||'',expectedOutcome:document.getElementById('fa-dec-outcome')?.value||'',reviewDate:document.getElementById('fa-dec-review')?.value||'',actualOutcome:document.getElementById('fa-dec-actual')?.value||'',alternatives:_faDecisionAlts};
       }
@@ -8008,11 +7993,18 @@ function _onenoteMergePage(p,markdown){
   const isMeeting=/meeting/i.test(secTag)||/meeting/i.test(p.title||'');
   let n=D.notes.find(x=>x.onenotePageId===p.id);
   if(n){
+    // The page changed in OneNote: keep LevelUp's copy in the note history
+    // first (it may hold edits made here), then take OneNote's text.
+    if((n.body||'').trim()!==String(markdown||'').trim()){
+      n.versions=n.versions||[];
+      n.versions.push({title:n.title||'',body:n.body||'',bodyHtml:n.bodyHtml||'',savedAt:new Date().toISOString(),from:'LevelUp copy before a OneNote sync replaced it'});
+      if(n.versions.length>20)n.versions=n.versions.slice(-20);
+    }
     n.body=markdown;
     n.bodyHtml='';
     if(p.title)n.title=p.title;
     if(p.lastModified)n.onenoteLastModified=p.lastModified;
-    n.updated=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    n.updated=n.updatedAt=new Date().toISOString();
     return 'updated';
   }
   n={
@@ -8023,7 +8015,7 @@ function _onenoteMergePage(p,markdown){
     source:'OneNote',
     noteType:isMeeting?'Meeting Notes':'',
     para:'Resource',
-    updated:'Just now',starred:false,
+    updated:new Date().toISOString(),starred:false,
     onenotePageId:p.id,
     onenoteLastModified:p.lastModified||'',
     createdBy:(D.creds&&D.creds.userName)||'',
@@ -11244,6 +11236,9 @@ function _luItemMap(arr){
 // file this device's text in its version history so nothing is lost.
 function _luResolveConflict(k,sx,lx){
   if(k!=='notes'||!lx)return sx;
+  // Same text on both sides (e.g. both devices ran the same one-time
+  // update): nothing to keep.
+  if((lx.title||'')===(sx.title||'')&&(lx.bodyHtml||'')===(sx.bodyHtml||'')&&(lx.body||'')===(sx.body||''))return sx;
   const keep=Object.assign({},sx);
   const v=Array.isArray(sx.versions)?sx.versions.slice():[];
   v.push({title:lx.title||'',body:lx.body||'',bodyHtml:lx.bodyHtml||'',savedAt:new Date().toISOString(),conflict:true,from:'Your version on this device (the note changed on another device at the same time)'});
@@ -11359,6 +11354,8 @@ async function _luPushItems(k){
   }else{
     _luBaseSet(k,nb);
   }
+  // Copies a conflict filed on a note move to the server's history.
+  if(k==='notes'&&typeof _noteDrainVersions==='function'&&(D.notes||[]).some(n=>n&&n.versions&&n.versions.length))setTimeout(_noteDrainVersions,2500);
   _luOrderSig[k]=orderSig;
 }
 function _luEditing(){
@@ -11819,6 +11816,8 @@ window.save=function(k){
       _syncTimers['prefs']=setTimeout(()=>_pushKeyToServer('prefs'),2000);
     }
   }
+  // One note body (-240): body always follows bodyHtml, whoever wrote it.
+  if(k==='notes'&&typeof _noteNormalizeAll==='function'){try{_noteNormalizeAll();}catch(e){console.warn('[notes] normalize failed',e);}}
   _safeOrigSave(k);
   invalidateSearchIndex();
   // Debounce server push by 2s to batch rapid edits. Mark the key dirty so
@@ -11939,6 +11938,8 @@ async function loadServerData(){
         if(m.push){_dirtyKeys.add(k);try{clearTimeout(_syncTimers[k]);}catch(_){}setTimeout(()=>_pushKeyToServer(k),1500);}
         if(m.conflicts.length)console.warn('[appData] '+k+': '+m.conflicts.length+' item(s) changed on both sides — kept the server copy'+(k==='notes'?' (this device\'s text is in the note history)':''));
         if(k==='notes'&&typeof _backfillNoteStarredFromFavorite==='function')_backfillNoteStarredFromFavorite();
+        if(k==='notes'&&typeof _noteNormalizeAll==='function'&&_noteNormalizeAll()){_dirtyKeys.add(k);setTimeout(()=>_pushKeyToServer(k),1500);}
+        if(k==='notes'&&typeof _noteDrainVersions==='function')setTimeout(_noteDrainVersions,4000);
         if(k==='tasks'&&typeof _luRepairCarryOver==='function')_luRepairCarryOver();
         if(k==='habits'){
           try{localStorage.removeItem('lu_habits_owner_migrated_v1');}catch(_){}

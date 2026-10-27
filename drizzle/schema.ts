@@ -1151,3 +1151,34 @@ export const errorLog = mysqlTable("error_log", {
 }, (t) => ({
   idxLast: index("idx_error_log_last").on(t.lastAt),
 }));
+
+/**
+ * Note history (migration 0060, build -241). Replaces the copies notes used
+ * to carry inside themselves (n.versions, max 20, one per save, only on the
+ * device that saved). Written only by server/_core/noteVersions.ts:
+ *   • edit     — the note as it was before an edit, at most one every 10
+ *                minutes per note (so one per editing session, not per
+ *                autosave), recorded by the per-item sync;
+ *   • shared   — before a teammate edited a shared note;
+ *   • conflict — this device's text when another device's won;
+ *   • restore / sync / legacy — before a restore, before a OneNote sync
+ *                replaced the text, and copies moved from n.versions;
+ *   • deleted  — the whole note (raw) when it is deleted: the Trash.
+ */
+export const noteVersions = mysqlTable("note_versions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  noteId: varchar("noteId", { length: 40 }).notNull(),
+  kind: varchar("kind", { length: 16 }).notNull(),
+  label: varchar("label", { length: 255 }),
+  title: varchar("title", { length: 512 }),
+  bodyHtml: mediumtext("bodyHtml"),
+  body: mediumtext("body"),
+  raw: mediumtext("raw"),
+  hash: varchar("hash", { length: 16 }).notNull(),
+  chars: int("chars").notNull().default(0),
+  savedAt: timestamp("savedAt").defaultNow().notNull(),
+}, (t) => ({
+  idxNote: index("idx_note_versions_note").on(t.userId, t.noteId, t.savedAt),
+  idxKind: index("idx_note_versions_kind").on(t.userId, t.kind, t.savedAt),
+}));

@@ -414,6 +414,85 @@ function buildNoteOutlinks(n){
   const matches=[...n.body.matchAll(/\[\[([^\]]+)\]\]/g)].map(m=>m[1]);
   return matches.map(title=>D.notes.find(x=>x.title===title)).filter(Boolean);
 }
+// ── One note body (build -240) ──────────────────────────────────────────────
+// bodyHtml IS the note. body is derived from it (markdown-ish text that
+// search, backlinks, the graph, AI tools and exports read) and is never
+// edited on its own — before -240 the drawer, Full Add and several tools
+// wrote one or the other, so text could sit in body where nothing showed it.
+// A note with no bodyHtml (older quick captures, markdown/OneNote imports)
+// keeps its markdown in body until its first edit, which makes it rich.
+// Every writer goes through _noteSetHtml / _noteSetMd.
+const _noteBodySeen=new WeakMap(); // note → bodyHtml its body was derived from
+function _noteHasHtml(n){return !!(n&&n.bodyHtml&&String(n.bodyHtml).trim());}
+// Markdown (or HTML) → the HTML the editor and the display use. renderMd
+// keeps links and images, which luRTE_mdToHtml drops.
+function _noteMdToHtml(md){
+  const s=String(md==null?'':md);
+  if(!s.trim())return '';
+  return _luRTE_isHtml(s)?luSanitizeHtml(s):renderMd(s);
+}
+// The note's body as HTML, whichever field holds it.
+function _noteHtml(n){
+  if(!n)return '';
+  return _noteHasHtml(n)?String(n.bodyHtml):_noteMdToHtml(n.body||'');
+}
+function _noteTouch(n){const t=new Date().toISOString();n.updatedAt=t;n.updated=t;}
+function _noteSetHtml(n,html,opts){
+  if(!n)return;
+  const h=luSanitizeHtml(html||'');
+  n.bodyHtml=h;
+  n.body=h?luRTE_htmlToMd(h):'';
+  _noteBodySeen.set(n,h);
+  if(!(opts&&opts.keepTime))_noteTouch(n);
+}
+function _noteSetMd(n,md,opts){_noteSetHtml(n,_noteMdToHtml(md),opts);}
+// Words (3+ letters/digits) for comparing what two versions of a body say.
+function _noteWords(s){return String(s||'').toLowerCase().replace(/<[^>]+>/g,' ').replace(/&[a-z#0-9]+;/g,' ').match(/[\p{L}\p{N}]{3,}/gu)||[];}
+// Lines of `body` that the rich body does not show (mostly words it lacks).
+function _noteHiddenLines(body,html){
+  const have=new Set(_noteWords(luRTE_htmlToMd(html)));
+  const all=new Set(_noteWords(body));
+  if(!all.size)return '';
+  let missing=0;all.forEach(w=>{if(!have.has(w))missing++;});
+  if(missing<5||missing/all.size<0.2)return '';
+  const keep=String(body).split('\n').filter(l=>{
+    const ws=_noteWords(l);if(!ws.length)return false;
+    return ws.filter(w=>!have.has(w)).length/ws.length>0.5;
+  });
+  return keep.join('\n').trim();
+}
+// Make body agree with bodyHtml. Text that only body held (written there by
+// an older tool after the note became rich) is moved into the visible body
+// under a labelled divider first, so nothing is lost. Returns true if the
+// note changed. Cheap after the first pass: notes whose bodyHtml hasn't
+// changed since the last call are skipped.
+function _noteNormalize(n){
+  if(!_noteHasHtml(n))return false;
+  let h=String(n.bodyHtml);
+  if(_noteBodySeen.get(n)===h)return false;
+  let changed=false;
+  const hidden=n.body?_noteHiddenLines(n.body,h):'';
+  if(hidden){
+    h+='<hr><p><em>Text saved with this note that wasn’t showing until now:</em></p>'+_noteMdToHtml(hidden);
+    n.bodyHtml=h;changed=true;
+  }
+  const d=luRTE_htmlToMd(h);
+  if(n.body!==d){n.body=d;changed=true;}
+  _noteBodySeen.set(n,h);
+  return changed;
+}
+// "Just now" / "2h ago" were stored as the update time and never aged.
+function _noteFixRelTime(n){
+  const u=n&&n.updated;
+  if(typeof u!=='string'||!/^(just now|today|yesterday|this week|last week|\d+\s*\w+\s+ago)$/i.test(u.trim()))return false;
+  const best=n.updatedAt||n.createdAt||(typeof n.id==='number'&&n.id>1e12?new Date(n.id).toISOString():'');
+  if(!best)return false;
+  n.updated=best;return true;
+}
+function _noteNormalizeAll(){
+  let c=0;(D.notes||[]).forEach(n=>{if(!n)return;let ch=_noteNormalize(n);if(_noteFixRelTime(n))ch=true;if(ch)c++;});
+  return c;
+}
 // Plain text of a note (strip html/markdown) for context extraction.
 function _noteText(n){
   let s=String(n.bodyHtml?n.bodyHtml.replace(/<[^>]+>/g,' '):(n.body||''));
@@ -450,17 +529,44 @@ function _noteUnlinkedMentions(id){
 }
 // Materialize an unlinked mention: wrap the first plain-text occurrence of
 // `targetTitle` inside note `fromId` with [[ ]] (skips text already in [[..]]).
+// Wrap plain-text mentions of `title` in the note's HTML body with [[ ]].
+// Works on text nodes, so markup is untouched; text already inside [[…]]
+// and inside links is skipped. `all` wraps every mention, else the first.
+// Returns how many were wrapped (the note is saved by the caller).
+function _noteWrapMentions(n,title,all){
+  const t=String(title||'').trim();if(!n||!t)return 0;
+  const root=luParseInert(_noteHtml(n));
+  const tl=t.toLowerCase();
+  const re=new RegExp('(^|[^\\p{L}\\p{N}])('+t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')(?![\\p{L}\\p{N}])','iu');
+  const w=root.ownerDocument.createTreeWalker(root,4);
+  const nodes=[];while(w.nextNode())nodes.push(w.currentNode);
+  let count=0;
+  for(const node of nodes){
+    if(node.parentNode&&node.parentNode.closest&&node.parentNode.closest('a,code,pre'))continue;
+    // Split around existing [[…]] so text already linked is left alone; a
+    // wrap may also create a new [[…]] that the next search must skip.
+    let segs=node.textContent.split(/(\[\[[^\]]*\]\])/g),hit=false;
+    for(let i=0;i<segs.length;i++){
+      if(/^\[\[[^\]]*\]\]$/.test(segs[i]))continue;
+      let m;
+      while((m=re.exec(segs[i]))){
+        const at=m.index+m[1].length;
+        const parts=[segs[i].slice(0,at),'[['+segs[i].slice(at,at+t.length)+']]',segs[i].slice(at+t.length)];
+        segs.splice(i,1,...parts);i+=2;hit=true;count++;
+        if(!all)break;
+      }
+      if(hit&&!all)break;
+    }
+    if(hit)node.textContent=segs.join('');
+    if(hit&&!all)break;
+  }
+  if(count)_noteSetHtml(n,root.innerHTML);
+  return count;
+}
 function linkUnlinkedMention(fromId,targetTitle){
   const n=D.notes.find(x=>x.id===fromId);if(!n)return;
-  const segs=String(n.body||'').split(/(\[\[[^\]]+\]\])/g);
-  const tl=targetTitle.toLowerCase();let done=false;
-  for(let i=0;i<segs.length&&!done;i++){
-    if(/^\[\[[^\]]+\]\]$/.test(segs[i]))continue;
-    const idx=segs[i].toLowerCase().indexOf(tl);
-    if(idx>=0){segs[i]=segs[i].slice(0,idx)+'[['+segs[i].slice(idx,idx+targetTitle.length)+']]'+segs[i].slice(idx+targetTitle.length);done=true;}
-  }
-  if(!done){toast('Mention not found in body text.');return;}
-  n.body=segs.join('');n.updated=new Date().toISOString();save('notes');
+  if(!_noteWrapMentions(n,targetTitle,false)){toast('Mention not found in the note text.');return;}
+  save('notes');
   toast('🔗 Linked from “'+(n.title||'note')+'”');
   const cur=document.querySelector('.nc.on');
   if(cur&&cur.dataset.nid)showNoteInEditor(Number(cur.dataset.nid));
@@ -698,7 +804,10 @@ async function _webClipFetch(url){
     if(res&&res.ok){
       if(res.title&&titleEl&&!titleEl.value)titleEl.value=res.title;
       const stub=[`> Clipped from [${res.siteName||url}](${url})`, res.description?('\n'+res.description):''].filter(Boolean).join('\n');
-      if(descEl){ descEl.value=descEl.value?descEl.value+'\n\n'+stub:stub; if(typeof renderNotePreview==='function')renderNotePreview(descEl.value); }
+      // The note's editor is the body now (-240); older forms still have fa-desc.
+      const rte=g('fa-note-rte');
+      if(rte){ rte.insertAdjacentHTML('beforeend',_noteMdToHtml(stub)); try{luRTE_updateCharCount('fa-note-rte');}catch(_){} }
+      else if(descEl){ descEl.value=descEl.value?descEl.value+'\n\n'+stub:stub; if(typeof renderNotePreview==='function')renderNotePreview(descEl.value); }
       try{ _faHasChanges=true; }catch(_){}
       toast({type:'success',title:'Clipped',msg:res.title?('“'+String(res.title).slice(0,60)+'”'):'Page details added.',duration:2400});
     } else {
@@ -1802,7 +1911,7 @@ function applyNoteTemplate(idx){
     source:'Template',
     category:'Recent',
     starred:false,
-    updated:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),
+    updated:new Date().toISOString(),createdAt:new Date().toISOString(),
     createdBy:D.creds.userName||'Idris Grant'
   };
   D.notes.unshift(newNote);
@@ -2089,23 +2198,10 @@ function saveNoteInlineEdit(id){
   if(!n)return;
   const titleEl=document.getElementById('nie-title');
   const bodyEl=document.getElementById('nie-body');
-  // Save version snapshot before overwriting
-  if(!n.versions)n.versions=[];
-  n.versions.push({title:n.title,body:n.body||'',savedAt:new Date().toISOString()});
-  if(n.versions.length>20)n.versions=n.versions.slice(-20); // keep last 20
+  // The earlier text is kept by the server's note history (-241).
   if(titleEl)n.title=titleEl.value.trim()||n.title;
-  // Support both RTE (contenteditable) and plain textarea. RTE saves preserve
-  // the rich HTML in n.bodyHtml and a markdown plain-text fallback in n.body.
-  if(bodyEl){
-    if(bodyEl.contentEditable==='true'){
-      n.bodyHtml=bodyEl.innerHTML;
-      n.body=luRTE_htmlToMd(bodyEl.innerHTML);
-    } else {
-      n.body=bodyEl.value;
-      n.bodyHtml='';
-    }
-  }
-  n.updated=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  if(bodyEl)_noteSetHtml(n,bodyEl.contentEditable==='true'?bodyEl.innerHTML:_noteMdToHtml(bodyEl.value));
+  _noteTouch(n);
   save('notes');
   _noteInlineEditId=null;
   renderNotesList();
@@ -2200,106 +2296,150 @@ function _notesKbHandler(e){
   else if(e.key==='p'&&_notesKbSelectedId){if(typeof toggleNotePinned==='function'){toggleNotePinned(_notesKbSelectedId);}e.preventDefault();}
 }
 document.addEventListener('keydown',_notesKbHandler);
-function _renderNoteVersionSparkline(n){
-  if(!n||!n.versions||!n.versions.length)return '';
-  const versions=n.versions.slice();
-  const now=Date.now();
-  const stamps=versions.map(v=>Date.parse(v.savedAt)).filter(t=>!isNaN(t));
-  if(!stamps.length)return '';
-  const oldest=Math.min(...stamps);
-  // Make sure the strip has at least 1 day of width even for a single edit.
-  const span=Math.max(now-oldest,86400000);
-  const W=160,H=28,pad=6;
-  const dots=versions.map((v,i)=>{
-    const ts=Date.parse(v.savedAt);if(isNaN(ts))return '';
-    const x=pad+((ts-oldest)/span)*(W-pad*2);
-    const ago=Math.max(0,Math.round((now-ts)/86400000));
-    const label=`${esc(v.title||'(untitled)')} · ${ago===0?'today':ago+'d ago'} · ${_pd(ts).toLocaleString()}`;
-    return `<circle cx="${x.toFixed(1)}" cy="${H/2}" r="3" fill="var(--ac)" stroke="var(--bg)" stroke-width="1.2" style="cursor:pointer;transition:r .12s" onmouseover="this.setAttribute('r','5')" onmouseout="this.setAttribute('r','3')" onclick="previewNoteVersion(${_tidLit(n.id)},${i})"><title>${label}</title></circle>`;
-  }).join('');
-  // "Now" marker at far right.
-  const nowMark=`<line x1="${W-pad}" y1="${H/2-5}" x2="${W-pad}" y2="${H/2+5}" stroke="var(--t3)" stroke-width="1.2"/>`;
-  return `<div style="display:inline-flex;align-items:center;gap:8px;padding:4px 10px;background:var(--s2);border:1px solid var(--bd1);border-radius:14px;cursor:default" title="Edit timeline — click any dot to view that revision">
-    <span style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;font-weight:600">🕐 ${versions.length} edit${versions.length===1?'':'s'}</span>
-    <svg width="${W}" height="${H}" style="display:block">
-      <line x1="${pad}" y1="${H/2}" x2="${W-pad}" y2="${H/2}" stroke="var(--bd2)" stroke-width="1"/>
-      ${nowMark}
-      ${dots}
-    </svg>
-    <button class="btn btn-s" style="height:20px;padding:0 8px;font-size:10px" onclick="openNoteHistory(${_tidLit(n.id)})" title="Open full history list">All →</button>
-  </div>`;
+// ====== NOTE HISTORY (build -241) ======
+// Earlier versions live on the server (note_versions): the sync keeps the
+// note as it was before each editing session, a teammate's edit, a restore,
+// a OneNote sync or a conflict with another device. Notes no longer carry
+// copies of themselves; any left in n.versions (from before -241, or filed
+// while offline) are moved up by _noteDrainVersions.
+const _NOTE_VERSION_KIND={edit:'Before editing',shared:'Before a teammate’s edit',conflict:'Your copy from another device',restore:'Before a restore',sync:'Before a OneNote sync',legacy:'Earlier version'};
+function _noteVerWhen(t){
+  const d=new Date(t);if(isNaN(d.getTime()))return '';
+  return d.toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
 }
-// ====== NOTE VERSION HISTORY ======
-function openNoteHistory(id){
-  const n=D.notes.find(x=>x.id===id);
+function _noteVerKind(v){return v.label||_NOTE_VERSION_KIND[v.kind]||'Earlier version';}
+async function openNoteHistory(id){
+  const n=D.notes.find(x=>x.id==id);
   if(!n)return;
-  const versions=n.versions||[];
-  if(!versions.length){
-    toast('No history yet — save an edit first.');
-    return;
-  }
   const m=document.getElementById('modal-content');
-  m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:12px">🕐 Version History: ${esc(n.title)}</h2>
-  <div style="font-size:11px;color:var(--t3);margin-bottom:10px">${versions.length} saved version${versions.length!==1?'s':''}. Click a version to preview and optionally restore it.</div>
-  <div id="nh-list" style="max-height:340px;overflow-y:auto">${[...versions].reverse().map((v,ri)=>{
-    const i=versions.length-1-ri;
-    const dt=_pd(v.savedAt);
-    const label=dt.toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
-    const preview=(v.body||'').slice(0,80).replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    return `<div style="border:1px solid var(--bd1);border-radius:6px;padding:8px 10px;margin-bottom:6px;cursor:pointer;background:var(--s1)" onclick="previewNoteVersion(${id},${i})">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <span style="font-size:11px;font-weight:600;color:var(--t1)">${esc(v.title)}</span>
-        <span style="font-size:11px;color:var(--t3)">${label}</span>
-      </div>
-      <div style="font-size:11px;color:var(--t3);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${preview||'(empty)'}</div>
-    </div>`;
-  }).join('')}</div>
+  m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">🕐 History: ${esc(n.title||'Untitled')}</h2>
+  <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Kept on the server, the same on every device: the note as it was before each editing session, and before anything replaced its text.</div>
+  <div id="nh-list" style="max-height:380px;overflow-y:auto"><div style="font-size:12px;color:var(--t3);padding:10px">Loading…</div></div>
   <button class="btn btn-s" onclick="closeModal()" style="margin-top:8px;font-size:11px">Close</button>`;
   document.getElementById('modal-capture').classList.add('show');
+  let rows=null,err='';
+  try{rows=await _trpc('noteVersions.list',{noteId:String(n.id)},'query');}catch(e){err=String(e&&e.message||e);}
+  const box=document.getElementById('nh-list');if(!box)return;
+  if(!Array.isArray(rows)){
+    box.innerHTML=`<div style="font-size:12px;color:var(--t3);padding:10px">History isn’t available right now${err?` (${esc(err.slice(0,120))})`:''}. It needs a connection to LevelUp.</div>`;
+    return;
+  }
+  const pending=(n.versions||[]).length;
+  box.innerHTML=(pending?`<div style="font-size:11px;color:var(--t3);margin-bottom:8px">${pending} older cop${pending===1?'y is':'ies are'} still being moved to the server.</div>`:'')+
+    (rows.length?rows.map(v=>`<div role="button" tabindex="0" style="border:1px solid var(--bd1);border-radius:6px;padding:8px 10px;margin-bottom:6px;cursor:pointer;background:var(--s1)"${_act('previewNoteVersion',[n.id,v.id])}>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <span style="font-size:12px;font-weight:600;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(v.title||'(untitled)')}</span>
+        <span style="font-size:11px;color:var(--t3);white-space:nowrap">${_noteVerWhen(v.savedAt)}</span>
+      </div>
+      <div style="font-size:11px;color:var(--t3);margin-top:3px">${esc(_noteVerKind(v))} · ${(v.chars||0).toLocaleString()} characters</div>
+    </div>`).join(''):`<div style="font-size:12px;color:var(--t3);padding:10px">No earlier versions yet. One is kept the next time this note is edited.</div>`);
 }
-function previewNoteVersion(noteId,versionIdx){
-  const n=D.notes.find(x=>x.id===noteId);
-  if(!n||!n.versions)return;
-  const v=n.versions[versionIdx];
-  if(!v)return;
-  const dt=_pd(v.savedAt);
-  const label=dt.toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
-  // Simple diff: show lines added/removed
-  const oldLines=(v.body||'').split('\n');
-  const newLines=(n.body||'').split('\n');
-  const diffHtml=oldLines.map(l=>{
-    if(!newLines.includes(l))return `<div style="background:rgba(239,68,68,.12);color:var(--red);font-size:11px;padding:1px 4px;font-family:monospace">- ${esc(l)||'&nbsp;'}</div>`;
-    return `<div style="font-size:11px;padding:1px 4px;font-family:monospace;color:var(--t2)">&nbsp; ${esc(l)||'&nbsp;'}</div>`;
-  }).join('')+newLines.filter(l=>!oldLines.includes(l)).map(l=>`<div style="background:rgba(34,197,94,.12);color:var(--ok);font-size:11px;padding:1px 4px;font-family:monospace">+ ${esc(l)||'&nbsp;'}</div>`).join('');
+// Line diff (longest common subsequence) between two texts. Falls back to a
+// set comparison when the texts are too long for the table.
+function _noteLineDiff(a,b){
+  const A=String(a||'').split('\n'),B=String(b||'').split('\n');
+  if(A.length*B.length>2500000){
+    const sb=new Set(B),sa=new Set(A);
+    return A.map(l=>({t:sb.has(l)?'=':'-',l})).concat(B.filter(l=>!sa.has(l)).map(l=>({t:'+',l})));
+  }
+  const n=A.length,m=B.length,L=[];
+  for(let i=0;i<=n;i++)L.push(new Uint32Array(m+1));
+  for(let i=n-1;i>=0;i--)for(let j=m-1;j>=0;j--)L[i][j]=A[i]===B[j]?L[i+1][j+1]+1:Math.max(L[i+1][j],L[i][j+1]);
+  const out=[];let i=0,j=0;
+  while(i<n&&j<m){
+    if(A[i]===B[j]){out.push({t:'=',l:A[i]});i++;j++;}
+    else if(L[i+1][j]>=L[i][j+1])out.push({t:'-',l:A[i++]});
+    else out.push({t:'+',l:B[j++]});
+  }
+  while(i<n)out.push({t:'-',l:A[i++]});
+  while(j<m)out.push({t:'+',l:B[j++]});
+  return out;
+}
+let _noteVerOpen=null; // the version shown in the preview
+function _noteVerTab(which){
+  ['diff','was'].forEach(k=>{
+    const pane=document.getElementById('nv-'+k),tab=document.getElementById('nv-tab-'+k);
+    if(pane)pane.style.display=k===which?'':'none';
+    if(tab){tab.setAttribute('aria-selected',k===which?'true':'false');tab.classList.toggle('btn-p',k===which);tab.classList.toggle('btn-s',k!==which);}
+  });
+}
+async function previewNoteVersion(noteId,versionId){
+  const n=D.notes.find(x=>x.id==noteId);if(!n)return;
   const m=document.getElementById('modal-content');
-  m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:4px">🕐 Version: ${esc(v.title)}</h2>
-  <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Saved ${label} &mdash; diff vs. current version</div>
-  <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:6px;padding:8px;max-height:260px;overflow-y:auto;margin-bottom:12px">${diffHtml||'<div style="font-size:11px;color:var(--t3)">No differences</div>'}</div>
-  <div style="display:flex;gap:8px">
-    <button class="btn btn-p" style="font-size:11px" onclick="restoreNoteVersion(${noteId},${versionIdx})">↩ Restore this version</button>
-    <button class="btn btn-s" style="font-size:11px" onclick="openNoteHistory(${noteId})">← Back to list</button>
+  m.innerHTML=`<div style="font-size:12px;color:var(--t3);padding:14px">Loading…</div>`;
+  let v=null;try{v=await _trpc('noteVersions.get',{id:Number(versionId)},'query');}catch(_){}
+  if(!v){m.innerHTML=`<div style="font-size:12px;color:var(--t3);padding:14px">That version couldn’t be loaded.</div><button class="btn btn-s"${_act('openNoteHistory',[noteId])}>← Back</button>`;return;}
+  _noteVerOpen=v;
+  const vText=(v.bodyHtml&&String(v.bodyHtml).trim())?luRTE_htmlToMd(v.bodyHtml):(v.body||'');
+  const diff=_noteLineDiff(vText,n.body||'');
+  const changed=diff.some(d=>d.t!=='=')||(v.title||'')!==(n.title||'');
+  const row=(bg,fg,mark,l)=>`<div style="${bg?`background:color-mix(in srgb,${bg} 13%,transparent);`:''}color:${fg};font-size:11px;padding:1px 4px;font-family:monospace;white-space:pre-wrap">${mark} ${esc(l)||'&nbsp;'}</div>`;
+  const diffHtml=diff.map(d=>d.t==='='?row('','var(--t2)','&nbsp;',d.l):d.t==='-'?row('var(--red)','var(--red)','−',d.l):row('var(--ok)','var(--ok)','+',d.l)).join('');
+  const asWas=luSanitizeHtml((v.bodyHtml&&String(v.bodyHtml).trim())?v.bodyHtml:_noteMdToHtml(v.body||''));
+  m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:4px">🕐 ${esc(v.title||'(untitled)')}</h2>
+  <div style="font-size:11px;color:var(--t3);margin-bottom:10px">${esc(_noteVerKind(v))} · ${_noteVerWhen(v.savedAt)}${(v.title||'')!==(n.title||'')?` · the title is now “${esc(n.title||'')}”`:''}</div>
+  <div role="tablist" style="display:flex;gap:6px;margin-bottom:8px">
+    <button class="btn btn-p" id="nv-tab-diff" role="tab" aria-selected="true" style="height:24px;font-size:11px"${_act('_noteVerTab',['diff'])}>Changes since</button>
+    <button class="btn btn-s" id="nv-tab-was" role="tab" aria-selected="false" style="height:24px;font-size:11px"${_act('_noteVerTab',['was'])}>As it was</button>
+  </div>
+  <div id="nv-diff" style="background:var(--s2);border:1px solid var(--bd1);border-radius:6px;padding:8px;max-height:300px;overflow-y:auto;margin-bottom:12px">${changed?diffHtml:'<div style="font-size:11px;color:var(--t3)">Same as the note now.</div>'}<div style="font-size:11px;color:var(--t3);margin-top:6px">− only in this version · + only in the note now</div></div>
+  <div id="nv-was" class="note-body" style="display:none;background:var(--s1);border:1px solid var(--bd1);border-radius:6px;padding:10px 12px;max-height:300px;overflow-y:auto;margin-bottom:12px">${asWas||'<em style="color:var(--t3)">Empty</em>'}</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn btn-p" style="font-size:11px"${_act('restoreNoteVersion',[noteId])}${changed?'':' disabled'}>↩ Restore this version</button>
+    <button class="btn btn-s" style="font-size:11px"${_act('openNoteHistory',[noteId])}>← Back to list</button>
     <button class="btn btn-s" style="font-size:11px" onclick="closeModal()">Close</button>
   </div>`;
 }
-function restoreNoteVersion(noteId,versionIdx){
-  const n=D.notes.find(x=>x.id===noteId);
-  if(!n||!n.versions)return;
-  const v=n.versions[versionIdx];
-  if(!v)return;
-  if(!confirm(`Restore version from ${_pd(v.savedAt).toLocaleString()}? Current version will be saved as a new history entry.`))return;
-  // Save current as new version (rich text included: versions from a
-  // conflict between devices carry bodyHtml, and the display prefers it).
-  n.versions.push({title:n.title,body:n.body||'',bodyHtml:n.bodyHtml||'',savedAt:new Date().toISOString()});
-  n.title=v.title;
-  n.body=v.body;
-  if(v.bodyHtml!==undefined)n.bodyHtml=v.bodyHtml;
-  else if(n.bodyHtml)n.bodyHtml=luRTE_mdToHtml(v.body||'');
-  n.updated=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+async function restoreNoteVersion(noteId){
+  const n=D.notes.find(x=>x.id==noteId);const v=_noteVerOpen;
+  if(!n||!v||String(v.noteId)!==String(n.id))return;
+  if(!confirm(`Restore the version from ${_noteVerWhen(v.savedAt)}? The note as it is now is kept in its history.`))return;
+  const cur={title:n.title||'',body:n.body||'',bodyHtml:n.bodyHtml||''};
+  try{await _trpc('noteVersions.add',{noteId:String(n.id),kind:'restore',title:cur.title,bodyHtml:cur.bodyHtml,body:cur.body},'mutation');}
+  catch(_){ // offline: file it on the note; it moves to the server later
+    n.versions=n.versions||[];n.versions.push(Object.assign(cur,{savedAt:new Date().toISOString(),from:'Before a restore'}));
+  }
+  n.title=v.title||n.title;
+  if(v.bodyHtml&&String(v.bodyHtml).trim())_noteSetHtml(n,v.bodyHtml);else _noteSetMd(n,v.body||'');
   save('notes');
   closeModal();
   renderNotesList();
-  showNoteInEditor(noteId);
+  showNoteInEditor(n.id);
   toast('✓ Version restored');
+}
+// Move copies still filed on notes (n.versions) to the server, then drop
+// them from the notes. Runs after load and after a notes push; one run at a
+// time; a failure leaves them in place for the next run.
+let _noteDraining=false;
+async function _noteDrainVersions(){
+  if(_noteDraining||window._luItemSyncOff||(typeof _serverSyncReady!=='undefined'&&!_serverSyncReady))return;
+  const withV=(D.notes||[]).filter(n=>n&&Array.isArray(n.versions)&&n.versions.length);
+  if(!withV.length)return;
+  _noteDraining=true;
+  let moved=0;
+  try{
+    let batch=[],size=0;
+    const flush=async()=>{
+      if(!batch.length)return;
+      const res=await _trpc('noteVersions.importLegacy',{items:batch.map(b=>({noteId:String(b.n.id),versions:b.v}))},'mutation');
+      if(!res||!res.ok)throw new Error('import failed');
+      // Drop only the copies sent (more may have been filed meanwhile).
+      batch.forEach(b=>{if(Array.isArray(b.n.versions)){b.n.versions=b.n.versions.slice(b.count);if(!b.n.versions.length)delete b.n.versions;moved++;}});
+      batch=[];size=0;
+    };
+    for(const n of withV){
+      if(n.versions.length>60)n.versions=n.versions.slice(-60);
+      const v=n.versions.map(x=>({title:String(x.title||'').slice(0,512),body:x.body||'',bodyHtml:x.bodyHtml||'',savedAt:x.savedAt||null,from:x.from?String(x.from).slice(0,255):null,conflict:!!x.conflict}));
+      const s=JSON.stringify(v).length;
+      if(batch.length&&(size+s>1500000||batch.length>=100))await flush();
+      batch.push({n,v,count:v.length});size+=s;
+    }
+    await flush();
+  }catch(e){console.warn('[notes] moving history to the server failed; will retry',e&&e.message);}
+  finally{
+    _noteDraining=false;
+    if(moved)save('notes');
+  }
 }
 // ====== WIKI-LINK AUTO-COMPLETE ======
 // ── [[ ]] note-link + #tag autocomplete for the contenteditable RTE ──────
@@ -2396,14 +2536,9 @@ function _noteBodyDisplayHtmlRaw(n){
     // untouched; plain-typed bodies like "- a<br>- b" become real lists.
     return luRTE_mdToHtml(n.bodyHtml);
   }
-  // Build body HTML — extract markdown images first so they survive HTML escaping
-  const _imgPlaceholders=[];
-  const _bodyWithPlaceholders=(n.body||'').replace(/!\[([^\]]*)\]\(([^)]+)\)/g,(m,alt,url)=>{
-    const idx=_imgPlaceholders.length;
-    _imgPlaceholders.push(`<img src="${url}" alt="${alt||'Image'}" style="max-width:100%;border-radius:6px;margin:8px 0;display:block" loading="lazy" onerror="this.style.display='none'">`);
-    return `%%IMG${idx}%%`;
-  });
-  return n.body?_bodyWithPlaceholders.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/^#{3}\s+(.+)$/gm,'<h3 style="font-size:14px;font-weight:600;margin:10px 0 4px">$1</h3>').replace(/^#{2}\s+(.+)$/gm,'<h2 style="font-size:16px;font-weight:600;margin:12px 0 4px">$1</h2>').replace(/^#\s+(.+)$/gm,'<h1 style="font-size:18px;font-weight:700;margin:14px 0 6px">$1</h1>').replace(/^[-*]\s+(.+)$/gm,'<li style="margin:2px 0;padding-left:4px">$1</li>').replace(/(?:<li style="margin:2px 0;padding-left:4px">.*<\/li>(?:\n|$))+/g,blk=>'<ul style="margin:6px 0;padding-left:22px;list-style:disc outside">'+blk.replace(/\n/g,'')+'</ul>').replace(/\n/g,'<br>').replace(/%%IMG(\d+)%%/g,(_,i)=>_imgPlaceholders[+i]||''):'';
+  // Markdown-only note: the same converter the editor loads it with, so the
+  // first edit doesn't change what it looks like (links + images kept).
+  return _noteMdToHtml(n.body||'');
 }
 function renderNoteEditor(n){
   let bodyHtml=_noteBodyDisplayHtml(n);
@@ -2420,7 +2555,7 @@ function renderNoteEditor(n){
   <input id="nie-title" class="inp" style="font-size:16px;font-weight:600;margin-bottom:8px;width:100%" value="${esc(n.title)}" placeholder="Note title...">
   <div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:8px">${(n.tags||[]).map(t=>`<span style="font-size:11px;color:var(--ac);background:var(--acs);padding:2px 6px;border-radius:3px">#${t}</span>`).join('')}</div>
   <div style="font-size:11px;color:var(--t3);margin-bottom:8px">Source: ${n.source||'Manual'} · Rich text editor — Ctrl/Cmd+S to save</div>
-  ${luRTE_render({id:'nie-body', placeholder:'Write your note...', value:(n.bodyHtml||n.body||''), height:'300px'})}
+  ${luRTE_render({id:'nie-body', placeholder:'Write your note...', value:_noteHtml(n), height:'300px'})}
   <div id="wiki-autocomplete" style="display:none;position:absolute;z-index:200;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.18);min-width:220px;max-height:200px;overflow-y:auto"></div>`;
   }
   const {wc,mins}=_readingTime(n.body||n.bodyHtml||'');
@@ -2438,7 +2573,7 @@ function renderNoteEditor(n){
       <button class="btn btn-s" style="height:26px;font-size:11px${n.pinned?';color:var(--page-accent);font-weight:600':''}" onclick="toggleNotePinned(${_tidLit(n.id)})" title="${n.pinned?'Unpin':'Pin to top'}">📌</button>
       <button class="btn btn-s" style="height:26px;font-size:11px" onclick="toggleNoteFocusMode()" title="Focus mode (Esc to exit)">⛶</button>
       <button class="btn btn-s" style="height:26px;font-size:11px;color:var(--ac)" onclick="moveNoteToFolder(${_tidLit(n.id)})" title="${n.folderId?'Move folder':'Move to a folder'}">📁 ${n.folderId?esc((_noteFolderById(n.folderId)?.name||'?').slice(0,12)):'Move'}</button>
-      <button class="btn btn-s" style="height:26px;font-size:11px" onclick="openNoteHistory(${_tidLit(n.id)})" title="Version history">🕐${(n.versions||[]).length?` ${(n.versions||[]).length}`:''}</button>
+      <button class="btn btn-s" style="height:26px;font-size:11px"${_act('openNoteHistory',[n.id])} title="History — earlier versions of this note" aria-label="History">🕐</button>
       <button class="btn btn-s" style="height:26px;font-size:11px" onclick="exportNotePDF(${_tidLit(n.id)})" title="Export PDF">📄</button>
       <div style="position:relative;display:inline-block">
         <button class="btn btn-s" style="height:26px;font-size:11px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('note-ai-menu')" title="AI tools">✨ AI ▾</button>
@@ -2476,7 +2611,6 @@ function renderNoteEditor(n){
     <div class="k">📅 Dates</div>
     <div class="v" style="color:var(--t3);font-size:12px">Updated ${fmtNoteDate(n.updated)}${created?` · created ${created}`:''}${n.createdBy?` · ${esc(n.createdBy)}`:''} · ${wc} word${wc===1?'':'s'} · ${mins} min</div>
   </div>
-  ${(n.versions&&n.versions.length)?`<div style="margin-bottom:14px">${_renderNoteVersionSparkline(n)}</div>`:''}
   ${(()=>{const o=_renderNoteOutline(n,bodyHtml);bodyHtml=o.htmlWithIds;return o.toc;})()}
   ${_noteOriginalHtml(n)}
   ${_noteOrigMode(n)==='original'?'':`<div class="note-body" ondblclick="toggleNoteInlineEdit(${_tidLit(n.id)})" title="Double-click to edit inline">${bodyHtml||'<em style="color:var(--t3)">No content yet. Click ✏ Edit to add.</em>'}</div>`}

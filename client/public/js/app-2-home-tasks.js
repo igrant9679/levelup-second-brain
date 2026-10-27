@@ -3372,7 +3372,7 @@ function _saveNoteAssign(id){
   const n=(D.notes||[]).find(x=>String(x.id)===String(id)); if(!n)return;
   if(typeof _maGet==='function'){ const ma=_maGet('note-assign-ma'); n.assignees=ma.assignees; n.assigneeNames=ma.assigneeNames; n.primaryAssigneeId=ma.primaryAssigneeId; const pi=ma.assignees.indexOf(ma.primaryAssigneeId); n.assignedTo=pi>=0?ma.assigneeNames[pi]:''; }
   const sc=_shareControlsGet('note-share'); if(sc){ n.shareAll=sc.shareAll; n.shareMode=sc.shareMode; }
-  n.updated='Just now';
+  n.updated=n.updatedAt=new Date().toISOString();
   try{save('notes');}catch(_){}
   document.getElementById('modal-capture').classList.remove('show');
   toast({type:'success',title:'Assigned',msg:n.assignedTo?('Primary: '+n.assignedTo):'Assignees updated.',duration:1800});
@@ -3450,7 +3450,7 @@ async function _saveSharedNote(idx){
   const g=id=>document.getElementById(id);
   const patch={ title:(g('snt-title')?.value||'').trim() };
   const bodyEl=g('snt-body');
-  if(bodyEl&&bodyEl.dataset.editable==='1')patch.bodyHtml=bodyEl.innerHTML;
+  if(bodyEl&&bodyEl.dataset.editable==='1'){patch.bodyHtml=luSanitizeHtml(bodyEl.innerHTML);patch.body=luRTE_htmlToMd(patch.bodyHtml);}
   if(typeof _maGet==='function'){ const ma=_maGet('snt-ma'); patch.assignees=ma.assignees; patch.assigneeNames=ma.assigneeNames; patch.primaryAssigneeId=ma.primaryAssigneeId; }
   try{
     const res=await _trpc('appData.updateSharedNote',{ownerUserId,noteId,patch},'mutation');

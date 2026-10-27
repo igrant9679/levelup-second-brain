@@ -2884,28 +2884,17 @@ function _kgOpenNote(id){
 // outside existing [[...]] segments.
 function _kgMaterializeMentions(id){
   const n=(D.notes||[]).find(x=>x.id===id);if(!n)return;
-  let segs=String(n.body||'').split(/(\[\[[^\]]+\]\])/g);
-  const alreadyLinked=new Set();
-  segs.forEach(s=>{const m=/^\[\[([^\]]+)\]\]$/.exec(s);if(m)alreadyLinked.add(m[1].trim().toLowerCase());});
+  // Titles already linked from this note are skipped; longest titles first so
+  // a short title inside a longer one is left inside the longer link.
+  const linked=new Set([...String(n.body||'').matchAll(/\[\[([^\]]+)\]\]/g)].map(m=>m[1].trim().toLowerCase()));
   const titles=(D.notes||[]).filter(o=>o.id!==id&&(o.title||'').trim().length>=5)
     .map(o=>o.title.trim()).sort((a,b)=>b.length-a.length);
   let count=0;
   titles.forEach(title=>{
-    const tl=title.toLowerCase();
-    if(alreadyLinked.has(tl))return;
-    for(let i=0;i<segs.length;i++){
-      const s=segs[i];
-      if(/^\[\[[^\]]+\]\]$/.test(s))continue; // skip existing links
-      const idx=s.toLowerCase().indexOf(tl);
-      if(idx>=0){
-        segs[i]=s.slice(0,idx)+'[['+s.slice(idx,idx+title.length)+']]'+s.slice(idx+title.length);
-        alreadyLinked.add(tl);count++;break;
-      }
-    }
+    if(linked.has(title.toLowerCase()))return;
+    if(_noteWrapMentions(n,title,false)){linked.add(title.toLowerCase());count++;}
   });
   if(!count){toast('No new mentions to link.');return;}
-  n.body=segs.join('');
-  n.updated=new Date().toISOString();
   if(typeof save==='function')save('notes');
   toast('🔗 Linked '+count+' mention'+(count===1?'':'s')+' in “'+(n.title||'note')+'”');
   renderKnowledgeGraph();
@@ -4462,10 +4451,9 @@ function renderDrawer(type,item){
         </select>
       </div>
     </div>
-    <div class="field"><label>Content (Markdown)</label><textarea class="inp" style="min-height:120px" id="dr-body">${esc(item.body||'')}</textarea></div>
     <div class="field" style="margin-top:8px">
-      <label><span>📝 Free-form Body <span style="font-size:11px;font-weight:400;color:var(--t3)">Rich text — edit freely</span></span></label>
-      ${luRTE_render({id:'dr-note-rte', placeholder:'Continue your note here…', value:(item.bodyHtml||''), height:'160px'})}
+      <label><span>Content <span style="font-size:11px;font-weight:400;color:var(--t3);text-transform:none;letter-spacing:0">Type - or 1. and a space for a list, # for a heading, [[ to link a note</span></span></label>
+      ${luRTE_render({id:'dr-note-rte', placeholder:'Continue your note here…', value:_noteHtml(item), height:'240px'})}
       <!-- AI Assistance in Note Drawer -->
       <div style="margin-top:6px;padding:7px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
         <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:5px">✨ AI Assistance</div>
@@ -4985,6 +4973,11 @@ function fmtNoteDate(raw){
     const d=new Date(Number(raw));
     if(!isNaN(d.getTime()))return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
   }
+  // ISO timestamps (what notes store since -240) → "Oct 27, 2026"
+  if(/^\d{4}-\d{2}-\d{2}T/.test(String(raw))){
+    const d=new Date(String(raw));
+    if(!isNaN(d.getTime()))return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  }
   // Already a human-readable string
   return String(raw);
 }
@@ -5047,7 +5040,7 @@ function _drAutoSaveLinks(){
   n.linkedNoteIds=[...(_drLinks.notes||[])];
   n.linkedBookmarkIds=[...(_drLinks.bookmarks||[])];
   n.linkedJournalIds=[...(_drLinks.journal||[])];
-  n.updated='Just now';
+  _noteTouch(n);
   try{ save('notes'); }catch(e){ console.error('autosave note links failed',e); }
 }
 function _drRenderTaskLinks(containerId){
@@ -5143,7 +5136,7 @@ function saveItem(type,id){
     setTaskStatus(t,_drNewStatus,{noSave:true});
     save('tasks');
   }}
-  if(type==='note'){const n=D.notes.find(x=>x.id===id);if(n){n.title=$('#dr-title').value;n.icon=document.getElementById('dr-note-icon')?.value||'';n.titleColor=document.getElementById('dr-note-title-color')?.value||'';n.tags=$('#dr-tags').value.split(',').map(s=>s.trim()).filter(Boolean);n.source=$('#dr-source').value;n.body=$('#dr-body').value;const drNoteRte=document.getElementById('dr-note-rte');if(drNoteRte)n.bodyHtml=drNoteRte.innerHTML;
+  if(type==='note'){const n=D.notes.find(x=>x.id===id);if(n){n.title=$('#dr-title').value;n.icon=document.getElementById('dr-note-icon')?.value||'';n.titleColor=document.getElementById('dr-note-title-color')?.value||'';n.tags=$('#dr-tags').value.split(',').map(s=>s.trim()).filter(Boolean);n.source=$('#dr-source').value;const drNoteRte=document.getElementById('dr-note-rte');if(drNoteRte)_noteSetHtml(n,drNoteRte.innerHTML);
     // Persist linked items from the chip-based picker state (_drLinks),
     // only when the picker host matches this note (mirrors the task save).
     if(_drLinksHostId===id){
@@ -5157,7 +5150,7 @@ function saveItem(type,id){
     // Folder assignment
     const folderSel=document.getElementById('dr-folder');
     if(folderSel){const fv=parseInt(folderSel.value);if(!isNaN(fv))n.folderId=fv;else delete n.folderId;}
-    n.updated='Just now';save('notes')}}
+    _noteTouch(n);save('notes')}}
   if(type==='program'){
     const prog=(D.programs||[]).find(x=>x.id===id);
     if(prog){
@@ -5345,7 +5338,7 @@ function doCapture(){
     _trpc('activityFeed.log',{action:'task_created',entityType:'task',entityTitle:title},'mutation').catch(()=>{});
   } else if(capType==='Note'){
     const tags=(document.getElementById('cap-tags')?.value||'').split(',').map(s=>s.trim()).filter(Boolean);
-    D.notes.push({id:nextId(D.notes),title,tags,source:document.getElementById('cap-source')?.value||'Quick Capture',updated:'Just now',starred:false,body:document.getElementById('cap-body')?.value||''});
+    D.notes.push({id:nextId(D.notes),title,tags,source:document.getElementById('cap-source')?.value||'Quick Capture',updated:new Date().toISOString(),createdAt:new Date().toISOString(),starred:false,body:document.getElementById('cap-body')?.value||''});
     save('notes');
     _trpc('activityFeed.log',{action:'note_created',entityType:'note',entityTitle:title},'mutation').catch(()=>{});
   } else if(capType==='Project'){
