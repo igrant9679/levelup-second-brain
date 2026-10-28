@@ -156,7 +156,7 @@ try {
   failed++;
   console.log('Sweep aborted: ' + e.message);
 } finally {
-  if (br) br.close();
+  if (br) await br.close();
   if (srv) srv.close();
 }
 console.log('\n' + summary.join(' · '));

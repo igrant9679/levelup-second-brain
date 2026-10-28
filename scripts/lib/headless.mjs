@@ -2,8 +2,8 @@
 // a static server for dist/public with /api answering 503, and headless
 // Chrome/Edge driven over the DevTools protocol. No dependencies.
 import { createServer } from 'node:http';
-import { readFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
-import { spawn } from 'node:child_process';
+import { readFileSync, existsSync, mkdtempSync, rmSync, readdirSync, statSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, extname, normalize } from 'node:path';
 
@@ -38,11 +38,63 @@ function findChrome() {
   return c.find(p => p && existsSync(p));
 }
 
-/** Launch headless Chrome and connect to its first page. */
-export async function openBrowser() {
-  const chromePath = findChrome();
-  if (!chromePath) throw new Error('No Chrome/Edge found — set CHROME_PATH.');
-  const profile = mkdtempSync(join(tmpdir(), 'lu-headless-'));
+// Temp profiles THIS process still owns. Every exit path must empty it: 88 dirs
+// (3.16 GB) had piled up in %TEMP% because close() only tried once, 500ms after
+// killing Chrome, and swallowed the EBUSY.
+const PROFILE_PREFIX = 'lu-headless-';
+const OWNED = new Set();
+
+/** Chrome spawns renderer/gpu/crashpad children; killing only the parent leaves
+ *  them holding handles on the profile dir, so removing it then fails. */
+function killTree(child) {
+  if (!child || child.exitCode !== null || child.signalCode !== null) return;
+  if (process.platform === 'win32') {
+    try { spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' }); return; } catch {}
+  }
+  try { child.kill(); } catch {}
+}
+
+const sleepSync = ms => { try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); } catch {} };
+
+/** Windows frees the profile's handles a moment after Chrome dies — keep trying. */
+function removeProfile(profile) {
+  for (let i = 0; i < 12; i++) {
+    try { rmSync(profile, { recursive: true, force: true, maxRetries: 4, retryDelay: 120 }); OWNED.delete(profile); return true; } catch {}
+    sleepSync(150);
+  }
+  OWNED.delete(profile);
+  return !existsSync(profile);
+}
+
+/** Profiles left by runs that crashed or were killed: remove the ones too old for
+ *  any live run to still be using, so a past leak heals itself. */
+export function sweepStaleProfiles(maxAgeMs = 60 * 60 * 1000) {
+  let removed = 0;
+  try {
+    for (const name of readdirSync(tmpdir())) {
+      if (!name.startsWith(PROFILE_PREFIX)) continue;
+      const dir = join(tmpdir(), name);
+      if (OWNED.has(dir)) continue;
+      try {
+        if (Date.now() - statSync(dir).mtimeMs < maxAgeMs) continue;
+        rmSync(dir, { recursive: true, force: true, maxRetries: 2, retryDelay: 100 });
+        removed++;
+      } catch {}
+    }
+  } catch {}
+  return removed;
+}
+
+// Last resort for a crash or an explicit process.exit, which skips close().
+process.on('exit', () => {
+  for (const p of OWNED) { try { rmSync(p, { recursive: true, force: true, maxRetries: 2, retryDelay: 50 }); } catch {} }
+});
+
+/** Spawn Chrome on a fresh profile and wait for its DevTools port. Cleans up
+ *  after itself on every failure — a throw here used to leak the profile. */
+async function startChrome(chromePath) {
+  const profile = mkdtempSync(join(tmpdir(), PROFILE_PREFIX));
+  OWNED.add(profile);
   const chrome = spawn(chromePath, ['--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`,
     '--no-first-run', '--no-default-browser-check', '--disable-extensions', 'about:blank'], { stdio: 'ignore' });
   let port = null;
@@ -50,11 +102,28 @@ export async function openBrowser() {
     await new Promise(r => setTimeout(r, 150));
     try { port = Number(readFileSync(join(profile, 'DevToolsActivePort'), 'utf8').split('\n')[0]); } catch {}
   }
-  if (!port) { chrome.kill(); throw new Error('Chrome did not start.'); }
-  const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
-  const page = targets.find(t => t.type === 'page');
-  const ws = new WebSocket(page.webSocketDebuggerUrl);
-  await new Promise((r, j) => { ws.onopen = r; ws.onerror = j; });
+  if (!port) { killTree(chrome); removeProfile(profile); throw new Error('Chrome did not start.'); }
+  return { profile, chrome, port };
+}
+
+/** Launch headless Chrome and connect to its first page. */
+export async function openBrowser() {
+  const chromePath = findChrome();
+  if (!chromePath) throw new Error('No Chrome/Edge found — set CHROME_PATH.');
+  sweepStaleProfiles();
+  const { profile, chrome, port } = await startChrome(chromePath);
+  let ws = null;
+  try {
+    const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
+    const page = targets.find(t => t.type === 'page');
+    ws = new WebSocket(page.webSocketDebuggerUrl);
+    await new Promise((r, j) => { ws.onopen = r; ws.onerror = j; });
+  } catch (e) {
+    try { ws?.close(); } catch {}
+    killTree(chrome);
+    removeProfile(profile);
+    throw e;
+  }
   let seq = 0; const pending = new Map();
   ws.onmessage = ev => {
     const m = JSON.parse(ev.data);
@@ -79,10 +148,16 @@ export async function openBrowser() {
     }
     throw new Error('app did not boot');
   }
-  function close() {
+  /** Ask Chrome to shut down (that releases the profile's files), wait for the
+   *  process to go, then make sure the tree and the temp profile are gone.
+   *  AWAIT it: the old fire-and-forget timer is what left 88 dirs behind. */
+  async function close() {
+    const exited = chrome.exitCode === null ? new Promise(r => chrome.once('exit', r)) : Promise.resolve();
+    try { await Promise.race([send('Browser.close'), new Promise(r => setTimeout(r, 1000))]); } catch {}
     try { ws.close(); } catch {}
-    chrome.kill();
-    setTimeout(() => { try { rmSync(profile, { recursive: true, force: true }); } catch {} }, 500);
+    await Promise.race([exited, new Promise(r => setTimeout(r, 2000))]);
+    killTree(chrome);
+    removeProfile(profile);
   }
   await send('Page.enable');
   await send('Runtime.enable');

@@ -162,7 +162,7 @@ if (!STATIC_ONLY && !(SRC && /^https?:/i.test(SRC))) {
     failures++;
     console.log('  FAIL  clock test aborted: ' + e.message);
   } finally {
-    if (br) br.close();
+    if (br) await br.close();
     if (srv) srv.close();
   }
 }

@@ -92,7 +92,7 @@ try {
   failed++;
   console.log('a11y scan aborted: ' + e.message);
 } finally {
-  if (br) br.close();
+  if (br) await br.close();
   if (srv) srv.close();
 }
 const top = Object.entries(tally).sort((a, b) => b[1] - a[1]).slice(0, 15);
