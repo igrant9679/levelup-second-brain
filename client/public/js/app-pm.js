@@ -1278,7 +1278,7 @@ function pmReportHtml(r,forEmail){
   var sec=function(t,a){return a&&a.length?'<h2 style="font-size:14px;margin:18px 0 6px;color:#0f172a;border-bottom:2px solid #0891b2;padding-bottom:3px">'+t+'</h2><ul style="margin:0;padding-left:20px">'+a.map(function(x){return '<li style="margin:3px 0">'+_pmE(x)+'</li>';}).join('')+'</ul>':'';};
   var met=[m.total!=null?['Complete',m.pct+'%']:null,m.overdue!=null?['Overdue items',m.overdue]:null,m.cpi?['CPI',Number(m.cpi).toFixed(2)]:null,m.spi?['SPI',Number(m.spi).toFixed(2)]:null,m.lateDelegations?['Late delegated',m.lateDelegations]:null].filter(Boolean);
   return '<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#0f172a;max-width:680px;font-size:14px;line-height:1.5">'+
-    '<div style="font-size:12px;color:#64748b">'+_pmE(_pmProjName(r.projectKey))+' · status report · '+_pmE(_pmDate(d.date||String_dayOf(r.createdAt)))+'</div>'+
+    '<div style="font-size:12px;color:#64748b">'+_pmE(_pmProjName(r.projectKey))+' · status report · '+_pmE(_pmDate(d.date||_dayOf(r.createdAt)))+'</div>'+
     '<div style="display:flex;align-items:center;gap:10px;margin:6px 0 10px"><span style="background:'+c+';color:#fff;border-radius:12px;padding:2px 12px;font-weight:700;font-size:12px">'+_pmE((d.rag||'').toUpperCase())+'</span><b style="font-size:18px">'+_pmE(r.title||'')+'</b></div>'+
     (d.summary?'<p style="margin:0 0 10px">'+_pmE(d.summary)+'</p>':'')+
     (met.length?'<table style="border-collapse:collapse;margin:6px 0"><tr>'+met.map(function(x){return '<td style="padding:6px 14px 6px 0"><div style="font-size:18px;font-weight:700">'+_pmE(x[1])+'</div><div style="font-size:11px;color:#64748b">'+_pmE(x[0])+'</div></td>';}).join('')+'</tr></table>':'')+
@@ -2868,7 +2868,7 @@ function pmMeetingNotesDialog(key){
     try{
       var people=pmPeopleAll().slice(0,80).map(function(p){return p.name;}).join(', ');
       var sys='Extract the ACTION ITEMS from these meeting notes: things someone committed to do. For each return the task (imperative, ≤12 words), the owner exactly as named in the notes (or "me" if it is the note-taker / unassigned), and a due date (YYYY-MM-DD, resolve relative dates from the meeting date) or null. Ignore discussion and FYIs. Return ONLY JSON {"meetingDate":"YYYY-MM-DD or null","actions":[{"title":"","owner":"","due":null,"notes":"≤20 words of context"}]}. Known people: '+people;
-      var res=await _trpc('ai.assist',{systemPrompt:sys.slice(0,3900),userContent:('NOTE TITLE: '+(n.title||'')+'\nDATE: '+String_dayOf(n.createdAt)+'\n\n'+text).slice(0,7800),provider:(typeof _getAIConfig==='function'?_getAIConfig().provider:undefined)},'mutation');
+      var res=await _trpc('ai.assist',{systemPrompt:sys.slice(0,3900),userContent:('NOTE TITLE: '+(n.title||'')+'\nDATE: '+_dayOf(n.createdAt)+'\n\n'+text).slice(0,7800),provider:(typeof _getAIConfig==='function'?_getAIConfig().provider:undefined)},'mutation');
       var raw=String(res&&(res.result||res.text)||'');var m=raw.match(/\{[\s\S]*\}/);if(!m)throw new Error('the AI reply was not usable');
       var acts=(JSON.parse(m[0]).actions||[]).filter(function(a){return a&&a.title;}).slice(0,40);
       if(!acts.length){out.innerHTML='<div class="pm-muted" style="margin-top:10px">No action items found in that note.</div>';return;}

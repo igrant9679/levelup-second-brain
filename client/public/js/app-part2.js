@@ -15401,7 +15401,7 @@ function _atlasSpawnNote(type,id){
   if(!D.notes)D.notes=[];
   D.notes.unshift(note);
   save('notes');if(typeof _pushKeyToServer==='function')_pushKeyToServer('notes');
-  toast({type:'success',title:'📝 Note created',msg:title.slice(0,80),actions:[{label:'Open',primary:true,onClick:()=>{_atlasCloseDrawer();nav('notes');setTimeout(()=>{if(typeof openNote==='function')openNote(note.id);else if(typeof _openNoteDrawer==='function')_openNoteDrawer(note.id);},150);}}]});
+  toast({type:'success',title:'📝 Note created',msg:title.slice(0,80),actions:[{label:'Open',primary:true,onClick:()=>{_atlasCloseDrawer();nav('notes');setTimeout(()=>{if(typeof showNoteInEditor==='function')showNoteInEditor(note.id);},150);}}]});
 }
 function _atlasSpawnJournal(type,id){
   const e=_atlasFindEntity(type,id);if(!e)return;

@@ -12,6 +12,9 @@
  *      and the bodies of functions those call — uses a function / var / class
  *      declared in a LATER bundle. Inside one file that worked (declarations
  *      are hoisted); across files it is a ReferenceError that stops the boot.
+ *   6. a function is called (by bare name, first in an inline on*="…" handler,
+ *      or as _act('name')) but declared nowhere — not in any bundle, index.html,
+ *      or the browser (build -256; a mangled String_dayOf() call shipped for days).
  * Callbacks registered at load (listeners, timers) are listed for review but
  * do not fail: they run after loading, apart from the moments between files.
  *
@@ -144,6 +147,78 @@ if (forward.length) uniq(forward).forEach((x) => fail('load-time call into a lat
 else pass('no code that runs at load uses a later bundle');
 const roots = uniq(deferred.map((x) => x.replace(/^.* — loaded from /, '')));
 if (roots.length) console.log(`note  ${roots.length} load-time callback setup(s) reach later bundles (run after loading; review if the setup can fire early): ${roots.join(', ')}`);
+
+// 6. calls to names that exist nowhere (audit 2, build -256): a mangled
+//    find-and-replace left `String_dayOf(...)` in app-pm.js for days — every
+//    call threw "is not defined", and no other check looks at what a function
+//    body calls. A call by bare name, a name used first in an inline on*="…"
+//    handler, or an _act('name') must be declared somewhere: in any bundle (any
+//    scope — a loose but cheap test), assigned to window.X / a bare global, in
+//    index.html's own scripts, or a browser / vendor global.
+{
+  const declared = new Set();
+  const calls = [];
+  const sources = {};
+  const addPat = (p) => {
+    if (!p) return;
+    if (p.type === 'Identifier') declared.add(p.name);
+    else if (p.type === 'ObjectPattern') p.properties.forEach((q) => addPat(q.value || q.argument));
+    else if (p.type === 'ArrayPattern') p.elements.forEach(addPat);
+    else if (p.type === 'RestElement') addPat(p.argument);
+    else if (p.type === 'AssignmentPattern') addPat(p.left);
+  };
+  const visit = (n, fn) => {
+    if (!n || typeof n.type !== 'string') return;
+    fn(n);
+    for (const k of Object.keys(n)) {
+      if (k === 'loc' || k === 'type') continue;
+      const v = n[k];
+      if (Array.isArray(v)) v.forEach((x) => x && typeof x.type === 'string' && visit(x, fn));
+      else if (v && typeof v.type === 'string') visit(v, fn);
+    }
+  };
+  parsed.forEach(({ f, ast }) => {
+    sources[f] = fs.readFileSync(path.join(dir, f)).toString('latin1');
+    visit(ast, (n) => {
+      if ((n.type === 'FunctionDeclaration' || n.type === 'FunctionExpression' || n.type === 'ClassDeclaration' || n.type === 'ClassExpression') && n.id) declared.add(n.id.name);
+      if (n.params) n.params.forEach(addPat);
+      if (n.type === 'VariableDeclarator') addPat(n.id);
+      if (n.type === 'CatchClause') addPat(n.param);
+      if (n.type === 'AssignmentExpression' && n.left.type === 'Identifier') declared.add(n.left.name);
+      if (n.type === 'AssignmentExpression' && n.left.type === 'MemberExpression' && !n.left.computed && n.left.object.type === 'Identifier' && (n.left.object.name === 'window' || n.left.object.name === 'globalThis') && n.left.property.type === 'Identifier') declared.add(n.left.property.name);
+      if (n.type === 'CallExpression' && n.callee.type === 'Identifier') calls.push({ name: n.callee.name, at: `${f}:${n.loc.start.line}` });
+    });
+  });
+  // index.html's own inline scripts (APP_BUILD, the loader, a few early helpers)
+  for (const sm of page.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)) {
+    try { visit(acorn.parse(sm[1], { ecmaVersion: 'latest', sourceType: 'script' }), (n) => {
+      if ((n.type === 'FunctionDeclaration') && n.id) declared.add(n.id.name);
+      if (n.type === 'VariableDeclarator') addPat(n.id);
+      if (n.type === 'AssignmentExpression' && n.left.type === 'MemberExpression' && !n.left.computed && n.left.object.type === 'Identifier' && n.left.object.name === 'window') declared.add(n.left.property.name);
+    }); } catch { /* JSON-LD etc. */ }
+  }
+  const BROWSER = new Set(Object.getOwnPropertyNames(globalThis).concat(('window document navigator location history screen localStorage sessionStorage indexedDB caches crypto performance ' +
+    'alert confirm prompt print open close focus blur scrollTo scrollBy postMessage getComputedStyle matchMedia getSelection requestAnimationFrame cancelAnimationFrame requestIdleCallback ' +
+    'addEventListener removeEventListener dispatchEvent fetch setTimeout clearTimeout setInterval clearInterval queueMicrotask structuredClone atob btoa escape unescape ' +
+    'Event CustomEvent KeyboardEvent MouseEvent PointerEvent MutationObserver ResizeObserver IntersectionObserver PerformanceObserver DOMParser XMLSerializer Range Image Audio Option ' +
+    'FileReader Blob File FormData Headers Request Response URL URLSearchParams TextEncoder TextDecoder Notification BroadcastChannel Worker ClipboardItem PublicKeyCredential ' +
+    'AudioContext webkitAudioContext MediaRecorder SpeechRecognition webkitSpeechRecognition SpeechSynthesisUtterance speechSynthesis OffscreenCanvas createImageBitmap ' +
+    'showSaveFilePicker showOpenFilePicker innerWidth innerHeight Highlight CSS ' +
+    'DOMPurify XLSX Chart html2pdf jspdf mammoth pdfjsLib JSZip marked Sortable Quill Papa gapi google msal').split(/\s+/)));
+  const KEYWORDS = new Set('event this if return new typeof void await function'.split(' '));
+  const missing = new Map();
+  const note = (name, at) => { if (!declared.has(name) && !BROWSER.has(name) && !KEYWORDS.has(name)) (missing.get(name) || missing.set(name, []).get(name)).push(at); };
+  calls.forEach((c) => note(c.name, c.at));
+  for (const [f, s] of Object.entries(sources)) {
+    const line = (i) => s.slice(0, i).split('\n').length;
+    // names inside comments (// … or * … lines) don't count — e.g. the _act() usage example in app-1-core
+    const inComment = (i) => { const t = s.slice(s.lastIndexOf('\n', i) + 1, i).trimStart(); return t.startsWith('//') || t.startsWith('*'); };
+    for (const m of s.matchAll(/\bon[a-z]+=\\?"(?:[^"]*?;)?\s*(?:await\s+)?([A-Za-z_$][\w$]*)\s*\(/g)) if (!inComment(m.index)) note(m[1], `${f}:${line(m.index)} (handler)`);
+    for (const m of s.matchAll(/_act\(\s*'([\w$]+)'/g)) if (!inComment(m.index)) note(m[1], `${f}:${line(m.index)} (_act)`);
+  }
+  if (missing.size) missing.forEach((at, name) => fail(`${name}() is called but declared nowhere — ${at.slice(0, 4).join(', ')}${at.length > 4 ? ` (+${at.length - 4})` : ''}`));
+  else pass(`every called name is declared (${calls.length} calls, inline handlers and _act names checked)`);
+}
 
 console.log(failures ? `\n${failures} check(s) failed` : '\nbundles OK');
 process.exit(failures ? 1 : 0);

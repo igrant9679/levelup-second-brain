@@ -206,6 +206,24 @@ async function startServer() {
     }
   });
 
+  // ---- Liveness + database: GET /api/health (-256) ----
+  // Public, no data. 200 {ok, db:'up'} when MySQL answers SELECT 1 within 3 s,
+  // else 503 — so Railway's health check (Settings → Deploy → Healthcheck
+  // path: /api/health) keeps the previous deploy running when a new one
+  // can't reach the database. The old system.health never touched it.
+  app.get('/api/health', async (_req, res) => {
+    try {
+      const { getDb } = await import('../db');
+      const { sql } = await import('drizzle-orm');
+      const db = await getDb();
+      if (!db) throw new Error('no database connection');
+      await Promise.race([db.execute(sql`SELECT 1`), new Promise((_, rej) => setTimeout(() => rej(new Error('database did not answer in 3 s')), 3000))]);
+      res.set('Cache-Control', 'no-store').json({ ok: true, db: 'up', build: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) || null });
+    } catch (e: any) {
+      res.status(503).set('Cache-Control', 'no-store').json({ ok: false, db: 'down', error: String(e?.message || e).slice(0, 120) });
+    }
+  });
+
   // ---- Storage backend health check: GET /api/storage-status ----
   // Auth-gated. Runs a live test upload via the active backend so the user
   // can confirm the S3 / Google Drive env vars are wired correctly without
