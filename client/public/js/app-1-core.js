@@ -4330,9 +4330,29 @@ function openDrawer(type,item){
   }
 }
 function closeDrawer(){document.getElementById('drawer-ov').classList.remove('show')}
+// Unsaved drawer edits (-259): the drawer saves only on Save Changes, and one tap
+// on the dim area, the close button or Esc threw typed edits away. Typing or
+// picking in the drawer marks ITS current content dirty (content replaced by
+// another item starts clean); the user's ways out go through dismissDrawer(),
+// which asks first. closeDrawer() stays the silent close code uses after a save.
+// Fields that save themselves (custom fields) don't count.
+document.addEventListener('input',_drMarkDirty,true);document.addEventListener('change',_drMarkDirty,true);
+function _drMarkDirty(e){
+  const box=document.getElementById('drawer-content'),t=e.target;
+  if(!box||!t||!t.closest||!box.contains(t))return;
+  if(t.matches&&t.matches('[onchange*="_setCustomFieldValue"],[onblur*="_setCustomFieldValue"],input[type=search],input[type=file]'))return;
+  box._luDirtyFor=box.firstElementChild;
+}
+function _drIsDirty(){const box=document.getElementById('drawer-content');return !!(box&&box._luDirtyFor&&box._luDirtyFor===box.firstElementChild&&box.contains(box._luDirtyFor));}
+function dismissDrawer(){
+  const ov=document.getElementById('drawer-ov');if(!ov||!ov.classList.contains('show'))return true;
+  if(_drIsDirty()&&!confirm('You have unsaved changes in this drawer. Discard them?'))return false;
+  const box=document.getElementById('drawer-content');if(box)box._luDirtyFor=null;
+  closeDrawer();return true;
+}
 function renderDrawer(type,item){
   const pinBtn=(t,id)=>{const pinned=D.prefs.pinned&&D.prefs.pinned.some(p=>p.type===t&&p.id===id);return `<button class="btn btn-s" style="height:22px;padding:0 7px;font-size:11px;margin-right:4px" onclick="togglePin('${_jsAttr(t)}',${id})" title="${pinned?'Unpin from Home':'Pin to Home'}">${pinned?'📌 Pinned':'📌 Pin'}</button>`;};
-  const cb=`<button class="close" onclick="closeDrawer()">✕</button>`;
+  const cb=`<button class="close" onclick="dismissDrawer()">✕</button>`;
   if(type==='task'){
     const subs=item.subtasks||[];
     const subHtml=subs.map((s,si)=>{

@@ -4506,7 +4506,7 @@ function openHabitDrawer(hid){
   const isNew=!h;
   const d=document.getElementById('drawer-content');
   const ov=document.getElementById('drawer-ov');
-  d.innerHTML=`<h2>${isNew?'+ New Habit':h.icon+' Edit Habit'} <button class="close" onclick="closeDrawer()">✕</button></h2>
+  d.innerHTML=`<h2>${isNew?'+ New Habit':h.icon+' Edit Habit'} <button class="close" onclick="dismissDrawer()">✕</button></h2>
   <div class="field"><label>Title</label><input class="inp" value="${esc(h?.title||'')}" id="hdr-title"></div>
   <div class="field-row">
     <div class="field"><label>Icon</label>${_iconPickBtn('hdr-icon',h?.icon||'✅','Pick…')}</div>

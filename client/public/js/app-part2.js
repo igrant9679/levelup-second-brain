@@ -2573,7 +2573,7 @@ function updateMemberRole(teamId,memberId,role){
 function editTeamMember(teamId,memberId){
   const m=D.teams.find(t=>t.id===teamId).members.find(x=>x.id===memberId);
   const d=document.getElementById('drawer-content');
-  d.innerHTML=`<h2>✏ Edit Member: ${esc(m.name)}<button class="close" onclick="closeDrawer()">✕</button></h2>
+  d.innerHTML=`<h2>✏ Edit Member: ${esc(m.name)}<button class="close" onclick="dismissDrawer()">✕</button></h2>
   <div class="field"><label>Name</label><input class="inp" id="em-name" value="${esc(m.name)}"></div>
   <div class="field"><label>Email</label><input class="inp" id="em-email" value="${esc(m.email||'')}"></div>
   <div class="field"><label>Job Title</label><input class="inp" id="em-title" value="${esc(m.jobTitle||'')}"></div>
@@ -2604,7 +2604,7 @@ function editPerms(teamId,memberId){
   const m=D.teams.find(t=>t.id===teamId).members.find(x=>x.id===memberId);
   const perms=['tasks','notes','projects','goals','journal','settings','mail','calendar','habits','coach'];
   const d=document.getElementById('drawer-content');
-  d.innerHTML=`<h2>🔒 Permissions: ${esc(m.name)}<button class="close" onclick="closeDrawer()">✕</button></h2>
+  d.innerHTML=`<h2>🔒 Permissions: ${esc(m.name)}<button class="close" onclick="dismissDrawer()">✕</button></h2>
   <p style="font-size:11px;color:var(--t2);margin-bottom:10px">Toggle access to app sections for this team member.</p>
   ${perms.map(p=>`<div class="lr" style="padding:6px 0"><span style="font-size:12px;flex:1;text-transform:capitalize">${p}</span><div class="tog ${m.perms[p]?'on':''}" onclick="this.classList.toggle('on');D.teams.find(t=>t.id===${teamId}).members.find(x=>x.id===${memberId}).perms['${_jsAttr(p)}']=this.classList.contains('on');save('teams');toast('Permission updated')"></div></div>`).join('')}`;
   document.getElementById('drawer-ov').classList.add('show');
@@ -4518,7 +4518,7 @@ document.addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT'||e.target.isContentEditable)return;
   if(!_kbEnabled){
     // Escape still works even when shortcuts are disabled
-    if(e.key==='Escape'){closeModal();closeDrawer();document.getElementById('ai-panel').classList.remove('show');closeSearch();if(typeof _tourOverlayActive!=='undefined'&&_tourOverlayActive)exitTour();if(typeof _helpDrawerOpen!=='undefined'&&_helpDrawerOpen)closeHelpDrawer();}
+    if(e.key==='Escape'){closeModal();dismissDrawer();document.getElementById('ai-panel').classList.remove('show');closeSearch();if(typeof _tourOverlayActive!=='undefined'&&_tourOverlayActive)exitTour();if(typeof _helpDrawerOpen!=='undefined'&&_helpDrawerOpen)closeHelpDrawer();}
     return;
   }
   // Single-letter navigation — plain keypresses only. Without the modifier
@@ -4544,7 +4544,7 @@ document.addEventListener('keydown',e=>{
   // the Help drawer, all on one keypress. The shortcuts overlay and Ask LevelUp
   // (both bound above) win; Help stays reachable via sidebar + command palette.
   if(e.key==='Escape'){
-    closeModal();closeDrawer();
+    closeModal();dismissDrawer();
     document.getElementById('ai-panel').classList.remove('show');
     closeSearch();
     if(_tourOverlayActive)exitTour();
@@ -7388,7 +7388,7 @@ function openContactDetail(id){
   const hasKey=!!D.creds.clo_key;
   const d=document.getElementById('drawer-content');
   const ov=document.getElementById('drawer-ov');
-  d.innerHTML=`<h2>👤 ${esc(c.name)} <button class="close" onclick="closeDrawer()">✕</button></h2>
+  d.innerHTML=`<h2>👤 ${esc(c.name)} <button class="close" onclick="dismissDrawer()">✕</button></h2>
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding:12px;background:var(--s2);border-radius:8px">
     <div style="width:52px;height:52px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff;flex-shrink:0">${initials}</div>
     <div style="flex:1">
@@ -7522,7 +7522,7 @@ function openEditContactModal(id){
 }
 function contactFormHTML(c){
   const isEdit=!!c;
-  return`<h2>${isEdit?'✏ Edit Contact':'➕ New Contact'} <button class="close" onclick="closeDrawer()">✕</button></h2>
+  return`<h2>${isEdit?'✏ Edit Contact':'➕ New Contact'} <button class="close" onclick="dismissDrawer()">✕</button></h2>
   <div class="field"><label>Full Name *</label><input class="inp" id="cf-name" value="${esc(c?c.name:'')}"></div>
   <div class="field-row">
     <div class="field"><label>Job Title</label><input class="inp" id="cf-title" value="${esc(c?c.title||'':'')}"></div>

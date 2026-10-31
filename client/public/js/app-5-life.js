@@ -437,7 +437,7 @@ function openGoalDetail(gid){
     <span class="rt" style="font-size:11px;${t.status==='Done'?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.title)}</span>
     <span class="pill ${pillClass(t.priority)}" style="font-size:11px">${t.priority}</span>
   </div>`).join('');
-  d.innerHTML=`<h2>${g.icon} ${esc(g.title)} <button class="close" onclick="closeDrawer()">✕</button></h2>
+  d.innerHTML=`<h2>${g.icon} ${esc(g.title)} <button class="close" onclick="dismissDrawer()">✕</button></h2>
   <div style="font-size:11px;color:var(--t3);margin-bottom:8px">${esc(g.category||'')} · ${esc(g.target)}</div>
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
     <div class="pb" style="flex:1"><div class="f" style="width:${g.pct}%;background:var(--ac)"></div></div>

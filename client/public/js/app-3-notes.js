@@ -661,7 +661,9 @@ function showNoteInEditor(id,opts){
     body.addEventListener('click',_noteEditorClick);
     body.addEventListener('blur',()=>{if(_noteAutosaveTimer)_noteAutosaveNow();});
     _noteDecorateLinks(body); // chips are not editable text (the sanitizer drops that attribute)
-    _noteEditorBase={id:n.id,title:n.title||'',titleAtOpen:n.title||'',html:body.innerHTML};
+    // stored*: what the note held when it was opened / last saved here (-259) —
+    // autosave checks it hasn't changed underneath (another device's edit pulled in).
+    _noteEditorBase={id:n.id,title:n.title||'',titleAtOpen:n.title||'',html:body.innerHTML,storedHtml:String(n.bodyHtml||''),storedBody:String(n.body||''),storedTitle:n.title||''};
   }else _noteEditorBase=null;
   // Hydrate the chip linker; add/remove auto-saves to the note.
   if(document.getElementById('note-inline-links')&&typeof _drInitLinks==='function'){
@@ -2384,16 +2386,39 @@ function _noteAutosaveNow(){
   if(!b||b.dataset.nid!==String(base.id))return false; // the editor shows another note now
   const n=(D.notes||[]).find(x=>String(x.id)===String(base.id));
   if(!n){_noteEditorBase=null;return false;}
-  let changed=false;
   const title=t?t.value.trim():'';
-  if(t&&title&&title!==base.title){n.title=title;base.title=title;changed=true;}
   const html=b.innerHTML;
+  // Changed underneath since this editor opened or last saved (-259)? The
+  // focus-time pull merges another device's edit into D.notes but does not
+  // re-render a focused editor, so the next keystroke here used to write the
+  // old text over it. Keep the newer note, file what was typed here in its
+  // history, and show the newer text.
+  if(base.storedHtml!=null&&(String(n.bodyHtml||'')!==base.storedHtml||String(n.body||'')!==base.storedBody||(n.title||'')!==base.storedTitle)){
+    _noteKeepNewer(n,title,html,base);return false;
+  }
+  let changed=false;
+  if(t&&title&&title!==base.title){n.title=title;base.title=title;changed=true;}
   if(html!==base.html){_noteSetHtml(n,html);base.html=html;changed=true;}
   if(!changed){_noteSaveStatus('saved');return false;}
   try{save('notes');_noteSaveStatus('saved');}
   catch(e){console.warn('[notes] autosave failed',e);_noteSaveStatus('error');return false;}
+  // after save(): it normalises notes (the derived text can change there)
+  base.storedHtml=String(n.bodyHtml||'');base.storedBody=String(n.body||'');base.storedTitle=n.title||'';
   _noteListTouched(n);
   return true;
+}
+// The open note changed elsewhere while this editor had it (-259): keep the
+// newer note, put what was typed here into the note's history (server, kind
+// 'conflict' — restorable from 🕐), and show the newer text.
+function _noteKeepNewer(n,title,html,base){
+  const typedHere=html!==base.html||(!!title&&title!==base.title);
+  if(typedHere&&typeof _trpc==='function'){
+    try{Promise.resolve(_trpc('noteVersions.add',{noteId:String(n.id),kind:'conflict',title:(title||base.title||'').slice(0,512),bodyHtml:html,label:'Typed on this device while the note changed elsewhere'},'mutation')).catch(e=>console.warn('[notes] conflict copy not saved',e));}catch(e){console.warn('[notes] conflict copy not saved',e);}
+  }
+  clearTimeout(_noteAutosaveTimer);_noteAutosaveTimer=null;
+  _noteEditorBase=null; // so reopening does not flush the stale editor again
+  if(typeof showNoteInEditor==='function')showNoteInEditor(n.id);
+  toast({type:typedHere?'warn':'info',title:'This note changed on another device',msg:typedHere?'Showing the newer version. What you typed here is saved in the note’s history (🕐).':'Showing the newer version.',duration:typedHere?9000:4000});
 }
 // Keep the list card in step without re-rendering the whole list on every
 // pause: title now, full list a little later.

@@ -1020,7 +1020,7 @@ function openOpportunityDetail(oppId,opts){
     if(type==='textarea')return `<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--t3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">${esc(label)}</div><textarea class="inp" id="${id}" style="min-height:60px;font-size:12px" ${extra||''}>${esc(value||'')}</textarea></div>`;
     return `<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--t3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">${esc(label)}</div><input class="inp" id="${id}" type="${type}" style="font-size:12px" value="${esc(value??'')}" ${extra||''}></div>`;
   };
-  d.innerHTML=`<h2 style="display:flex;align-items:center;gap:8px;margin:0 0 6px"><span style="width:11px;height:11px;border-radius:3px;background:${stage.color}"></span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(o.name||'(unnamed)')}</span><button class="close" onclick="closeDrawer()">✕</button></h2>
+  d.innerHTML=`<h2 style="display:flex;align-items:center;gap:8px;margin:0 0 6px"><span style="width:11px;height:11px;border-radius:3px;background:${stage.color}"></span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(o.name||'(unnamed)')}</span><button class="close" onclick="dismissDrawer()">✕</button></h2>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
       <span class="pill" style="background:color-mix(in srgb,${stage.color} 18%,transparent);color:${stage.color};font-weight:700">${esc(stage.label)}</span>
       <span style="font-size:11px;color:var(--t2);align-self:center;font-weight:600">💰 ${_fmtMoney(o.value||0)}</span>
@@ -1843,7 +1843,7 @@ function openProgramDetail(pid){
       <span style="font-size:11px;color:var(--t3)">›</span>
     </div>`;
   }).join(''):'<p style="font-size:11px;color:var(--t3);padding:6px 0">No projects linked. ✏ Edit Program to assign projects.</p>';
-  d.innerHTML=`<h2 style="display:flex;align-items:center;gap:8px"><span style="font-size:22px;flex-shrink:0">${esc(prog.icon||'📊')}</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(prog.name)}</span><button class="close" onclick="closeDrawer()">✕</button></h2>
+  d.innerHTML=`<h2 style="display:flex;align-items:center;gap:8px"><span style="font-size:22px;flex-shrink:0">${esc(prog.icon||'📊')}</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(prog.name)}</span><button class="close" onclick="dismissDrawer()">✕</button></h2>
     ${prog.description?`<p style="font-size:12px;color:var(--t2);margin-bottom:14px;line-height:1.6">${esc(prog.description)}</p>`:''}
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
       <div style="background:conic-gradient(${prog.color||'#1f6feb'} ${pct}%, var(--s3) ${pct}%);width:52px;height:52px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center"><div style="width:40px;height:40px;border-radius:50%;background:var(--s1);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:750">${pct}%</div></div>
@@ -2133,7 +2133,7 @@ function openProjectDetail(pid){
       </div>
       ${sb.length?`<div style="padding-left:24px;font-size:11px;color:var(--t3)">${sd}/${sb.length} subtasks</div>`:''}
     </div>`}).join('');
-  d.innerHTML=`<h2 style="display:flex;align-items:center;gap:8px"><span style="width:11px;height:11px;border-radius:3px;background:${p.color}"></span>${p.icon?`<span style="font-size:18px;flex-shrink:0">${esc(p.icon)}</span>`:''}<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</span><button class="close" onclick="closeDrawer()">✕</button></h2>
+  d.innerHTML=`<h2 style="display:flex;align-items:center;gap:8px"><span style="width:11px;height:11px;border-radius:3px;background:${p.color}"></span>${p.icon?`<span style="font-size:18px;flex-shrink:0">${esc(p.icon)}</span>`:''}<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</span><button class="close" onclick="dismissDrawer()">✕</button></h2>
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
     <span class="pill" style="background:color-mix(in srgb,${health.color} 16%,transparent);color:${health.color};font-weight:700">${health.icon} ${health.label}</span>
     <span class="pill ${statusPill(p.status)}">${p.status||'—'}</span>
