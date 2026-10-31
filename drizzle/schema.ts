@@ -569,7 +569,7 @@ export const userAppData = mysqlTable('user_app_data', {
   habits: mediumtext('habits'),       // JSON array
   contacts: mediumtext('contacts'),   // JSON array
   teams: mediumtext('teams'),         // JSON array
-  prefs: text('prefs'),               // JSON object
+  prefs: mediumtext('prefs'),         // JSON object (mediumtext since migration 0061 — it outgrew text's 64 KB)
   calEvents: mediumtext('calEvents'), // JSON array
   clusters: mediumtext('clusters'),   // JSON array of cluster objects
   programs: mediumtext('programs'),   // JSON array — portfolio layer above projects (migration 0035)
