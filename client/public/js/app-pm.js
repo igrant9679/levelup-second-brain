@@ -110,9 +110,20 @@ function _pmE(s){return typeof esc==='function'?esc(s==null?'':String(s)):String
 function _pmJ(s){return typeof _jsAttr==='function'?_jsAttr(s):String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');}
 function _pmToday(){return typeof _ymd==='function'?_ymd(new Date()):_ymd(new Date());}
 function _pmYmd(d){if(!d)return '';var x=d instanceof Date?d:new Date(String(d).length<=10?String(d)+'T12:00:00':d);if(isNaN(x))return '';return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');}
-function _pmAddDays(ymd,n){var d=new Date(ymd+'T12:00:00');d.setDate(d.getDate()+n);return _pmYmd(d);}
-function _pmDays(a,b){return Math.round((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/86400000);}
-function _pmDate(ymd){if(!ymd)return '';var d=new Date(String(ymd).slice(0,10)+'T12:00:00');if(isNaN(d))return String(ymd);return d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:(d.getFullYear()!==new Date().getFullYear()?'numeric':undefined)});}
+// A real YYYY-MM-DD goes through day numbers (-261: the Gantt called these
+// thousands of times per render); anything else takes the old Date path.
+var _pmDnVC=Object.create(null);
+function _pmDnV(s){if(typeof s!=='string'||s.length!==10)return NaN;var v=_pmDnVC[s];if(v!==undefined)return v;v=/^d{4}-dd-dd$/.test(s)?_pmDn(s):NaN;if(!isNaN(v)&&_pmYmdOfDn(v)!==s)v=NaN;return (_pmDnVC[s]=v);}
+function _pmAddDays(ymd,n){var v=_pmDnV(ymd);if(!isNaN(v)&&isFinite(n)&&n===Math.floor(n))return _pmYmdOfDn(v+n);var d=new Date(ymd+'T12:00:00');d.setDate(d.getDate()+n);return _pmYmd(d);}
+function _pmDays(a,b){var va=_pmDnV(a),vb=_pmDnV(b);if(!isNaN(va)&&!isNaN(vb))return vb-va;return Math.round((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/86400000);}
+// Same text as toLocaleDateString(undefined,{month:'short',day:'numeric',year?}),
+// from two reused formatters and a per-day cache.
+var _pmDateC=Object.create(null),_pmDateY=0,_pmDateF=null;
+function _pmDate(ymd){if(!ymd)return '';var k=String(ymd).slice(0,10),d=new Date(k+'T12:00:00');if(isNaN(d))return String(ymd);
+  var y=new Date().getFullYear();if(y!==_pmDateY||!_pmDateF){_pmDateY=y;_pmDateC=Object.create(null);try{_pmDateF=[new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric'}),new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',year:'numeric'})];}catch(_){_pmDateF=null;}}
+  var c=_pmDateC[k];if(c!==undefined)return c;
+  c=_pmDateF?_pmDateF[d.getFullYear()!==y?1:0].format(d):d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:(d.getFullYear()!==y?'numeric':undefined)});
+  return (_pmDateC[k]=c);}
 function _pmMoney(n){n=Number(n)||0;return (n<0?'-$':'$')+Math.abs(Math.round(n)).toLocaleString();}
 function _pmIsYmd(s){return /^\d{4}-\d{2}-\d{2}$/.test(String(s||''));}
 function _pmToast(m,type){try{toast(type?{type:type,msg:m}:m);}catch(_){console.log('[pm]',m);}}
@@ -146,6 +157,7 @@ function pmRec(id){if(id==null||id==='')return null;return PM.records.find(funct
 /** Save a record: updates the local store at once, persists in the background
  *  (chained per record, so rapid edits land in order). Returns a promise. */
 function pmPut(rec){
+  _pmMemoClear();
   if(!rec._lk)rec._lk=rec.id?'id'+rec.id:'lk'+(++_pmLk);
   var i=PM.records.findIndex(function(x){return x._lk===rec._lk;});
   if(i>=0)PM.records[i]=rec;else PM.records.push(rec);
@@ -166,7 +178,7 @@ function pmNew(kind,projectKey,fields){return Object.assign({kind:kind,projectKe
 async function pmDel(recs,label){
   recs=(Array.isArray(recs)?recs:[recs]).filter(Boolean);if(!recs.length)return;
   var keys=recs.map(function(r){return r._lk;});
-  PM.records=PM.records.filter(function(r){return keys.indexOf(r._lk)<0;});
+  PM.records=PM.records.filter(function(r){return keys.indexOf(r._lk)<0;});_pmMemoClear();
   pmRender();
   for(var i=0;i<recs.length;i++){try{await _pmPending[recs[i]._lk];}catch(_){}}
   var ids=recs.map(function(r){return r.id;}).filter(Boolean);
@@ -430,6 +442,7 @@ function pmGo(proj,tab){
 function openPM(projKey,tab){pmGo(projKey||'all',tab||null);if(typeof curScreen==='undefined'||curScreen!=='pm')nav('pm');}
 function pmRender(){
   var main=document.getElementById('pm-main');if(!main)return;
+  _pmMemoClear(); // tasks, Atlas or settings may have changed since the last render
   _pmCSS();
   if(!PM.loaded){
     main.innerHTML='<div class="pm-empty"><b>Loading your projects…</b></div>';
@@ -1415,17 +1428,30 @@ async function pmLessonsExport(){
 // es/ef/ls/lf/float/critical per node plus summary roll-ups.
 function _pmWorkWeekends(key){return !!pmSettings(key).workWeekends;}
 function _pmIsWork(d,ww){var x=d.getDay();return ww||(x!==0&&x!==6);}
-function _pmNextWork(ymd,ww){var d=new Date(ymd+'T12:00:00');while(!_pmIsWork(d,ww))d.setDate(d.getDate()+1);return _pmYmd(d);}
-function _pmAddWork(ymd,n,ww){var d=new Date(_pmNextWork(ymd,ww)+'T12:00:00');var step=n<0?-1:1;var left=Math.abs(n);while(left>0){d.setDate(d.getDate()+step);if(_pmIsWork(d,ww))left--;}return _pmYmd(d);}
-function _pmWorkBetween(a,b,ww){/* work days from a to b (b exclusive), negative if b<a */if(a===b)return 0;var sign=b>a?1:-1;var d=new Date((sign>0?a:b)+'T12:00:00'),end=new Date((sign>0?b:a)+'T12:00:00');var n=0;while(d<end){if(_pmIsWork(d,ww))n++;d.setDate(d.getDate()+1);}return sign*n;}
+// Calendar maths on day numbers (-261). The old versions walked one day at a
+// time with Date objects: ~1 s per schedule on a 500-row WBS, ~3 s for earned
+// value, several times per screen. Same results (server/phase8.pmperf.test.ts
+// compares them with the old loops). Day 0 = 1970-01-01, a Thursday.
+var _pmDnCache={},_pmDnSize=0;
+function _pmDn(ymd){var k=String(ymd).slice(0,10),c=_pmDnCache[k];if(c!==undefined)return c;var p=k.split('-');c=Math.round(Date.UTC(+p[0],+p[1]-1,+p[2])/864e5);if(++_pmDnSize>20000){_pmDnCache={};_pmDnSize=0;}_pmDnCache[k]=c;return c;}
+function _pmYmdOfDn(n){var d=new Date(n*864e5);return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');}
+function _pmWdN(n){return ((n+4)%7+7)%7;} // 0 = Sunday
+function _pmIsWorkN(n,ww){if(ww)return true;var w=_pmWdN(n);return w!==0&&w!==6;}
+/** Work days in [n0, n1): whole weeks at once, then at most 6 days. */
+function _pmWorkDaysN(n0,n1,ww){var d=n1-n0;if(!(d>0))return 0;if(ww)return d;var w=Math.floor(d/7),c=w*5,r=d-w*7,s=_pmWdN(n0);for(var i=0;i<r;i++){var x=(s+i)%7;if(x!==0&&x!==6)c++;}return c;}
+function _pmNextWork(ymd,ww){var n=_pmDn(ymd);if(isNaN(n))return _pmYmd(ymd);while(!_pmIsWorkN(n,ww))n++;return _pmYmdOfDn(n);}
+function _pmAddWork(ymd,n,ww){var d=_pmDn(_pmNextWork(ymd,ww));if(isNaN(d))return _pmYmd(ymd);if(ww)return _pmYmdOfDn(d+n);var step=n<0?-1:1,left=Math.abs(n),w=Math.floor(left/5);d+=step*w*7;left-=w*5;while(left>0){d+=step;if(_pmIsWorkN(d,false))left--;}return _pmYmdOfDn(d);}
+function _pmWorkBetween(a,b,ww){/* work days from a to b (b exclusive), negative if b<a */if(a===b)return 0;var na=_pmDn(a),nb=_pmDn(b);if(isNaN(na)||isNaN(nb))return 0;return nb>=na?_pmWorkDaysN(na,nb,ww):-_pmWorkDaysN(nb,na,ww);}
 function _pmWbsRecs(key){return pmRecs('wbs',key).slice().sort(function(a,b){return (a.sortOrder||0)-(b.sortOrder||0)||(a.id||0)-(b.id||0);});}
 function _pmWbsOrdered(key){
-  var recs=_pmWbsRecs(key),kids={},roots=[];
-  recs.forEach(function(r){var p=(r.data||{}).parentId;if(p&&recs.some(function(x){return x._lk===p||String(x.id)===String(p);}))(kids[p]=kids[p]||[]).push(r);else roots.push(r);});
+  var recs=_pmWbsRecs(key),kids={},roots=[],has=Object.create(null);
+  recs.forEach(function(r){has[r._lk]=1;if(r.id!=null)has[String(r.id)]=1;});
+  recs.forEach(function(r){var p=(r.data||{}).parentId;if(p&&has[String(p)])(kids[p]=kids[p]||[]).push(r);else roots.push(r);});
   var out=[];var walk=function(r,depth){out.push({rec:r,depth:depth});(kids[r._lk]||[]).concat(r.id?(kids[String(r.id)]||[]):[]).forEach(function(c){walk(c,depth+1);});};
   roots.forEach(function(r){walk(r,0);});
   return out;
 }
+function _pmKids(nodes){var ch=Object.create(null);nodes.forEach(function(c){if(c.parent!=null)(ch[c.parent]=ch[c.parent]||[]).push(c.key);});nodes.forEach(function(n){n.children=ch[n.key]||[];});}
 function pmScheduleNodes(key){
   var ww=_pmWorkWeekends(key);
   var wbs=_pmWbsOrdered(key);
@@ -1448,7 +1474,7 @@ function pmScheduleNodes(key){
       if(!Number((n.rec.data||{}).pct))n.pct=Math.round(doneN/linked.length*100);
       if(doneN===linked.length)n.done=true;
     });
-    nodes.forEach(function(n){n.children=nodes.filter(function(c){return c.parent===n.key;}).map(function(c){return c.key;});});
+    _pmKids(nodes);
     return {mode:'wbs',nodes:nodes,ww:ww};
   }
   var items=pmItems(key);var refs={};items.forEach(function(i){refs[i.ref]=1;});
@@ -1458,10 +1484,19 @@ function pmScheduleNodes(key){
       preds:(i.preds||[]).filter(function(p){return refs[p];}).map(function(p){return {key:p,type:'FS',lag:0};}),milestone:!!i.milestone,done:i.done,pct:i.done?100:0,refs:[i.ref],item:i,dated:!!(s||f)};
   });
   var dk={};nodes2.forEach(function(n){dk[n.key]=n;});
-  nodes2.forEach(function(n){var d=0,p=n.parent,g=0;while(p&&dk[p]&&g++<8){d++;p=dk[p].parent;}n.depth=d;n.children=nodes2.filter(function(c){return c.parent===n.key;}).map(function(c){return c.key;});});
+  nodes2.forEach(function(n){var d=0,p=n.parent,g=0;while(p&&dk[p]&&g++<8){d++;p=dk[p].parent;}n.depth=d;});_pmKids(nodes2);
   return {mode:'items',nodes:nodes2,ww:ww};
 }
-function pmCpm(key){
+// pmCpm / pmEvm are called many times per render (tabs, cards, Gantt, EVM,
+// reports). Results are remembered until the next tick, the next pmRender,
+// or any PM write (pmPut, pmDel, _pmGSaveTask, Gantt undo) — build -261.
+// Callers must treat the result as read-only.
+var _pmMemo=Object.create(null),_pmMemoT=0;
+function _pmMemoClear(){_pmMemo=Object.create(null);}
+function _pmMemoGet(kind,key,fn){var k=kind+'|'+key;if(k in _pmMemo)return _pmMemo[k];var v=fn();_pmMemo[k]=v;
+  if(!_pmMemoT&&typeof setTimeout==='function')_pmMemoT=setTimeout(function(){_pmMemoT=0;_pmMemoClear();},0);return v;}
+function pmCpm(key){return _pmMemoGet('cpm',key,function(){return _pmCpmCalc(key);});}
+function _pmCpmCalc(key){
   var S=pmScheduleNodes(key),nodes=S.nodes,ww=S.ww,by={};nodes.forEach(function(n){by[n.key]=n;});
   var leaves=nodes.filter(function(n){return !n.children.length;});
   var starts=leaves.map(function(n){return n.sne;}).filter(Boolean).sort();
@@ -1470,15 +1505,16 @@ function pmCpm(key){
   var idx=function(ymd){return _pmWorkBetween(p0,_pmNextWork(ymd,ww),ww);};
   // a summary's predecessors apply to all its leaves
   var effPreds=function(n){var ps=n.preds.slice();var p=n.parent,g=0;while(p&&by[p]&&g++<8){ps=ps.concat(by[p].preds);p=by[p].parent;}return ps;};
-  var leafOf=function(k){var n=by[k];if(!n)return [];if(!n.children.length)return [n];var out=[];n.children.forEach(function(c){out=out.concat(leafOf(c));});return out;};
+  var lfC=Object.create(null),leafOf=function(k){if(lfC[k])return lfC[k];var n=by[k];if(!n)return [];if(!n.children.length)return (lfC[k]=[n]);lfC[k]=[];var out=[];n.children.forEach(function(c){out=out.concat(leafOf(c));});return (lfC[k]=out);};
   // expand summary predecessors into their leaves
   var predEdges={};leaves.forEach(function(n){predEdges[n.key]=[];effPreds(n).forEach(function(p){leafOf(p.key).forEach(function(l){if(l.key!==n.key)predEdges[n.key].push({key:l.key,type:p.type,lag:p.lag});});});});
   // topological order (Kahn); cycles are reported and their links ignored
   var indeg={},succ={};leaves.forEach(function(n){indeg[n.key]=0;succ[n.key]=[];});
   leaves.forEach(function(n){predEdges[n.key].forEach(function(e){if(indeg[n.key]!=null&&succ[e.key]){indeg[n.key]++;succ[e.key].push({key:n.key,type:e.type,lag:e.lag});}});});
   var q=leaves.filter(function(n){return !indeg[n.key];}).map(function(n){return n.key;}),order=[];
-  while(q.length){var k=q.shift();order.push(k);succ[k].forEach(function(s){if(--indeg[s.key]===0)q.push(s.key);});}
-  var cyc=leaves.filter(function(n){return order.indexOf(n.key)<0;}).map(function(n){return n.key;});
+  for(var qi=0;qi<q.length;qi++){var k=q[qi];order.push(k);succ[k].forEach(function(s){if(--indeg[s.key]===0)q.push(s.key);});}
+  var inOrd=Object.create(null);order.forEach(function(k){inOrd[k]=1;});
+  var cyc=leaves.filter(function(n){return !inOrd[n.key];}).map(function(n){return n.key;});
   order=order.concat(cyc);
   var M={order:order,predEdges:predEdges,by:by,idx:idx,leaves:leaves,p0:p0,ww:ww};
   var R=_pmForward(M,function(n){return n.dur;});
@@ -1637,7 +1673,7 @@ function _pmGCan(c,n){
   if(!(n.item&&n.item.editable&&n.item.src))return {};
   return {move:true,resize:!n.milestone,link:true};
 }
-function _pmPrevWork(ymd,ww){var d=new Date(ymd+'T12:00:00');while(!_pmIsWork(d,ww))d.setDate(d.getDate()-1);return _pmYmd(d);}
+function _pmPrevWork(ymd,ww){var n=_pmDn(ymd);if(isNaN(n))return _pmYmd(ymd);while(!_pmIsWorkN(n,ww))n--;return _pmYmdOfDn(n);}
 function _pmGNode(key,gk){return pmCpm(key).nodes.find(function(n){return n.key===gk;})||null;}
 /** Re-render the Schedule tab keeping the chart where it was scrolled. */
 function _pmGRender(focusGk){
@@ -1653,14 +1689,14 @@ function _pmGSnap(n){
   if(n.rec){var lk=n.rec._lk,d=JSON.parse(JSON.stringify(n.rec.data||{}));return function(){var r=pmRec(lk);if(!r)return;r.data=d;pmPut(r);};}
   var t=n.item&&n.item.src;if(!t)return function(){};
   var s={startDate:t.startDate,due:t.due,predecessorIds:Array.isArray(t.predecessorIds)?t.predecessorIds.slice():t.predecessorIds};
-  return function(){Object.keys(s).forEach(function(k){if(s[k]===undefined)delete t[k];else t[k]=s[k];});t.updatedAt=new Date().toISOString();try{save('tasks');}catch(_){}};
+  return function(){_pmMemoClear();Object.keys(s).forEach(function(k){if(s[k]===undefined)delete t[k];else t[k]=s[k];});t.updatedAt=new Date().toISOString();try{save('tasks');}catch(_){}};
 }
 function _pmGDone(msg,undo,gk,quiet){
   _pmGRender(gk);
   if(quiet){if(msg.warn)_pmToast(msg.text,'warn');return;}
   try{toast({type:msg.warn?'warn':'success',title:'Schedule updated',msg:msg.text,duration:8000,actions:[{label:'Undo',primary:true,onClick:function(){undo();_pmGRender();}}]});}catch(_){_pmToast(msg.text);}
 }
-function _pmGSaveTask(t){t.updatedAt=new Date().toISOString();try{save('tasks');}catch(_){}}
+function _pmGSaveTask(t){_pmMemoClear();t.updatedAt=new Date().toISOString();try{save('tasks');}catch(_){}}
 /** Move a bar so it starts on newStart (snapped to a work day). */
 function pmGanttMove(key,gk,newStart,quiet){
   var c=pmCpm(key),n=c.nodes.find(function(x){return x.key===gk;});if(!n||!_pmGCan(c,n).move)return;
@@ -1728,7 +1764,9 @@ var _pmGD=null;
 function _pmGCSS(){
   if(document.getElementById('lu-pm-gantt-css'))return;
   var s=document.createElement('style');s.id='lu-pm-gantt-css';
-  s.textContent='.pm-gantt .pm-gbar[data-move="1"]{cursor:grab}'+
+  // bars (and their ● / resize handles) above the arrow layer (z-index 2): an
+  // outgoing arrow's hit path covered the ● of every bar that had a successor (-261)
+  s.textContent='.pm-gantt .pm-gbar{z-index:3}.pm-gantt .pm-gbar[data-move="1"]{cursor:grab}'+
     '.pm-gantt .pm-gbar:focus-visible{outline:2px solid var(--page-accent,#0891b2);outline-offset:2px}'+
     '.pm-gantt .pm-gres{position:absolute;right:-3px;top:-2px;bottom:-2px;width:9px;cursor:ew-resize;touch-action:none}'+
     '.pm-gantt .pm-glink{position:absolute;right:-15px;top:50%;width:10px;height:10px;margin-top:-5px;border-radius:50%;box-sizing:border-box;background:var(--s1);border:2px solid var(--page-accent,#0891b2);cursor:crosshair;opacity:0;transition:opacity .12s;touch-action:none}'+
@@ -1764,7 +1802,8 @@ document.addEventListener('pointerdown',function(e){
   _pmGD={mode:mode,g:g,bar:bar,gk:bar.getAttribute('data-gk'),key:g.getAttribute('data-key'),ppd:Number(g.getAttribute('data-ppd'))||22,
     x0:e.clientX,y0:e.clientY,left:bar.offsetLeft,width:bar.offsetWidth,touch:e.pointerType==='touch'&&mode==='move',
     lx:hr.left+hr.width/2-gr.left,ly:hr.top+hr.height/2-gr.top,active:false,ready:!(e.pointerType==='touch'&&mode==='move')};
-  _pmGD.node=_pmGNode(_pmGD.key,_pmGD.gk);if(!_pmGD.node){_pmGD=null;return;}
+  var gc=pmCpm(_pmGD.key);_pmGD.ww=gc.ww;_pmGD.byKey={};gc.nodes.forEach(function(x){_pmGD.byKey[x.key]=x;});
+  _pmGD.node=_pmGD.byKey[_pmGD.gk]||null;if(!_pmGD.node){_pmGD=null;return;}
   if(_pmGD.touch)_pmGD.hold=setTimeout(function(){if(_pmGD&&!_pmGD.active){_pmGD.ready=true;_pmGStart(_pmGD);try{navigator.vibrate&&navigator.vibrate(12);}catch(_){}}},350);
   if(mode!=='move'||e.pointerType!=='touch')e.preventDefault();
 },true);
@@ -1776,7 +1815,7 @@ document.addEventListener('pointermove',function(e){
     if(Math.abs(dx)<4&&Math.abs(dy)<4)return;_pmGStart(g);
   }
   e.preventDefault();
-  var n=g.node,days=Math.round(dx/g.ppd),ww=pmCpm(g.key).ww;
+  var n=g.node,days=Math.round(dx/g.ppd),ww=g.ww;
   if(g.mode==='move'){g.bar.style.left=(g.left+dx)+'px';_pmGTip('Starts '+_pmDate(_pmNextWork(_pmAddDays(n.start,days),ww)),e.clientX,e.clientY);}
   else if(g.mode==='resize'){g.bar.style.width=Math.max(g.ppd,g.width+dx)+'px';var f=_pmPrevWork(_pmAddDays(n.finish,days),ww);if(f<n.start)f=n.start;
     _pmGTip('Finishes '+_pmDate(f)+' · '+(_pmWorkBetween(n.start,f,ww)+1)+' work days',e.clientX,e.clientY);}
@@ -1784,7 +1823,7 @@ document.addEventListener('pointermove',function(e){
     var el=document.elementFromPoint(e.clientX,e.clientY),row=el&&el.closest&&el.closest('.pm-gantt [data-grow]');
     if(row&&row.getAttribute('data-grow')===g.gk)row=null;
     if(row!==g.over){if(g.over)g.over.classList.remove('pm-gdrop');g.over=row;if(row)row.classList.add('pm-gdrop');}
-    var tn=row&&_pmGNode(g.key,row.getAttribute('data-grow'));_pmGTip(tn?'“'+tn.name+'” follows “'+n.name+'”':'Drop on the bar that should follow',e.clientX,e.clientY);}
+    var tn=row&&g.byKey[row.getAttribute('data-grow')];_pmGTip(tn?'“'+tn.name+'” follows “'+n.name+'”':'Drop on the bar that should follow',e.clientX,e.clientY);}
   // keep the pointer in view near the chart's edges
   var sc=g.g.closest('.pm-scroll');if(sc){var r=sc.getBoundingClientRect();if(e.clientX>r.right-40)sc.scrollLeft+=14;else if(e.clientX<r.left+40+(g.mode==='link'?0:440))sc.scrollLeft-=14;
     if(e.clientY>r.bottom-30)sc.scrollTop+=10;else if(e.clientY<r.top+40)sc.scrollTop-=10;}
@@ -2399,8 +2438,8 @@ function _pmLaborCost(key){
  *  earned schedule (ES, SPI(t), forecast finish). Field names used elsewhere
  *  (bac, pv, ev, ac, cpi, spi, eac, etc, vac, tcpi, planned, earned, labor,
  *  crCost, start, finish, hasBaseline) keep their meaning. */
-function pmEvm(key){
-  if(!key||key==='all')return null;
+function pmEvm(key){if(!key||key==='all')return null;return _pmMemoGet('evm',key,function(){return _pmEvmCalc(key);});}
+function _pmEvmCalc(key){
   var lines=pmRecs('budgetline',key),costs=pmRecs('cost',key);
   var cr=pmRecs('change',key).filter(function(r){return r.status==='approved'||r.status==='implemented';}).reduce(function(s,r){return s+(Number((r.data||{}).costImpact)||0);},0);
   var amt=function(r){return Number((r.data||{}).amount)||0;};
@@ -2412,12 +2451,19 @@ function pmEvm(key){
   if(!bac&&!ac)return {bac:0,ac:0,ev:0,pv:0,mr:mr,cas:[]};
   var c=pmCpm(key),today=_pmToday(),leaves=c.nodes.filter(function(n){return !n.summary;}),by={};c.nodes.forEach(function(n){by[n.key]=n;});
   var base=_pmActiveBaseline(key),ww=_pmWorkWeekends(key);
-  var leavesOf=function(k){var n=by[k];if(!n)return [];if(!n.children.length)return [n];var o=[];n.children.forEach(function(ch){o=o.concat(leavesOf(ch));});return o;};
+  var lvC=Object.create(null),leavesOf=function(k){if(lvC[k])return lvC[k];var n=by[k];if(!n)return [];if(!n.children.length)return (lvC[k]=[n]);var o=[];n.children.forEach(function(ch){o=o.concat(leavesOf(ch));});return (lvC[k]=o);};
   // Planned share by the end of `day`, in WORK days, like the schedule
   // (calendar days made PV run ahead over weekends).
-  var plannedAt=function(ls,day){var tot=ls.reduce(function(s,n){return s+Math.max(1,n.dur);},0);if(!tot)return 0;
-    return ls.reduce(function(s,n){var b=base&&base.data.nodes&&base.data.nodes[n.key];var st=b?b.start:n.start,fi=b?b.finish:n.finish;if(!st||!fi)return s;
-      var span=Math.max(1,_pmWorkBetween(st,fi,ww)+1),el=day<st?0:Math.max(0,Math.min(span,_pmWorkBetween(st,_pmPrevWork(day,ww),ww)+1)); /* a weekend "day" counts to the Friday before (-260) */return s+Math.max(1,n.dur)*(el/span);},0)/tot;};
+  // Each leaf's planned window is turned into day numbers ONCE per call
+  // (the earned-schedule search below asks for PV on hundreds of days).
+  var wb=function(na,nb){return nb>=na?_pmWorkDaysN(na,nb,ww):-_pmWorkDaysN(nb,na,ww);};
+  var prepC=new Map(),prep=function(ls){var P=prepC.get(ls);if(P)return P;P={tot:0,a:[]};
+    ls.forEach(function(n){var w=Math.max(1,n.dur);P.tot+=w;var b=base&&base.data.nodes&&base.data.nodes[n.key];var st=b?b.start:n.start,fi=b?b.finish:n.finish;if(!st||!fi)return;
+      var sn=_pmDn(st);P.a.push({w:w,st:String(st),sn:sn,span:Math.max(1,wb(sn,_pmDn(fi))+1)});});
+    prepC.set(ls,P);return P;};
+  var plannedAt=function(ls,day){var P=prep(ls);if(!P.tot)return 0;var pn=_pmDn(_pmPrevWork(day,ww)),s=0; /* a weekend "day" counts to the Friday before (-260) */
+    for(var i=0;i<P.a.length;i++){var e=P.a[i],el=day<e.st?0:Math.max(0,Math.min(e.span,wb(e.sn,pn)+1));s+=e.w*(el/e.span);}
+    return s/P.tot;};
   var earnedOf=function(ls){var tot=ls.reduce(function(s,n){return s+Math.max(1,n.dur);},0);if(!tot)return 0;return ls.reduce(function(s,n){return s+Math.max(1,n.dur)*((n.done?100:(n.pct||0))/100);},0)/tot;};
   // control accounts: one per WBS element that carries PMB budget
   var caMap={},unassigned=cr;
