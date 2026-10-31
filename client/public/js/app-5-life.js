@@ -1575,6 +1575,12 @@ const _CAL_EV_FIELDS=['title','start','end','time','hour','endHour','minute','lo
 function _calApplyEdit(row,occ,fields,rule,scope){
   const key=occ||row.dateStr;
   if(!_calRule(row)||(scope==='following'&&key===row.dateStr))scope='all';
+  // The dialog shows (and returns) an occurrence's MOVED date when it was moved
+  // on its own; measuring a shift from the rule date then moved the whole
+  // series by that earlier move (-257).
+  const shown=(row.overrides&&row.overrides[key]&&row.overrides[key].dateStr)||key;
+  const shiftWeekdays=(r,shift)=>{if(shift&&r&&r.freq==='weekly'&&Array.isArray(r.byDay)&&_calRule(row)&&JSON.stringify(r.byDay)===JSON.stringify(_calRule(row).byDay))r.byDay=r.byDay.map(d=>(((d+shift)%7)+7)%7).sort((a,b)=>a-b);};
+  const shiftOv=(ov,shift)=>ov&&ov.dateStr&&shift?Object.assign({},ov,{dateStr:_calYmdOf(_calDn(ov.dateStr)+shift)}):ov;
   if(scope==='one'){
     const ov=Object.assign({},(row.overrides||{})[key]);
     _CAL_EV_FIELDS.forEach(f=>{if(fields[f]!==undefined)ov[f]=fields[f];});
@@ -1589,16 +1595,19 @@ function _calApplyEdit(row,occ,fields,rule,scope){
     const nr=Object.assign({},row);
     _CAL_EV_FIELDS.forEach(f=>{if(fields[f]!==undefined)nr[f]=fields[f];});
     nr.id=Date.now()+Math.floor(Math.random()*1000);
-    nr.dateStr=fields.dateStr||key;
-    const shift=_calDn(nr.dateStr)-_calDn(key);
+    const shift=fields.dateStr?_calDn(fields.dateStr)-_calDn(shown):0;
+    nr.dateStr=_calYmdOf(_calDn(key)+shift);
     if(rule){
       nr.rrule=Object.assign({},rule);
       if(row.rrule.count&&rule.count===_calRule(row).count)nr.rrule.count=Math.max(1,rule.count-before);
+      // a weekly series moved to another day moves its weekdays too (-257:
+      // the new series kept the old ones, so the moved occurrence vanished)
+      shiftWeekdays(nr.rrule,shift);
     }else delete nr.rrule;
     const keep=(d)=>_calDn(d)>=_calDn(key);
     nr.exdates=rule?(row.exdates||[]).filter(keep).map(d=>_calYmdOf(_calDn(d)+shift)):[];
     nr.overrides={};
-    if(rule)Object.keys(row.overrides||{}).forEach(d=>{if(keep(d))nr.overrides[_calYmdOf(_calDn(d)+shift)]=row.overrides[d];});
+    if(rule)Object.keys(row.overrides||{}).forEach(d=>{if(keep(d))nr.overrides[_calYmdOf(_calDn(d)+shift)]=shiftOv(row.overrides[d],shift);});
     if(!nr.exdates.length)delete nr.exdates;
     if(!Object.keys(nr.overrides).length)delete nr.overrides;
     delete nr.extId;delete nr.dbId;
@@ -1608,18 +1617,18 @@ function _calApplyEdit(row,occ,fields,rule,scope){
     return nr;
   }
   // all
-  const shift=fields.dateStr?_calDn(fields.dateStr)-_calDn(key):0;
+  const shift=fields.dateStr?_calDn(fields.dateStr)-_calDn(shown):0;
   _CAL_EV_FIELDS.forEach(f=>{if(fields[f]!==undefined)row[f]=fields[f];});
   if(shift)row.dateStr=_calYmdOf(_calDn(row.dateStr)+shift);
   else if(!_calRule(row)&&fields.dateStr)row.dateStr=fields.dateStr;
   if(rule){
     const r=Object.assign({},rule);
     // Moving every occurrence to another weekday moves the chosen weekdays too.
-    if(shift&&r.freq==='weekly'&&Array.isArray(r.byDay)&&_calRule(row)&&JSON.stringify(r.byDay)===JSON.stringify(_calRule(row).byDay))r.byDay=r.byDay.map(d=>(((d+shift)%7)+7)%7).sort((a,b)=>a-b);
+    shiftWeekdays(r,shift);
     row.rrule=r;
     if(shift){
       if(row.exdates)row.exdates=row.exdates.map(d=>_calYmdOf(_calDn(d)+shift));
-      if(row.overrides){const o={};Object.keys(row.overrides).forEach(d=>{o[_calYmdOf(_calDn(d)+shift)]=row.overrides[d];});row.overrides=o;}
+      if(row.overrides){const o={};Object.keys(row.overrides).forEach(d=>{o[_calYmdOf(_calDn(d)+shift)]=shiftOv(row.overrides[d],shift);});row.overrides=o;}
     }
   }else{delete row.rrule;delete row.exdates;delete row.overrides;}
   delete row.repeat;delete row.recurrence;

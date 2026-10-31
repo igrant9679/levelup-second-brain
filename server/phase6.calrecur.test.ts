@@ -124,6 +124,30 @@ describe("editing and deleting a repeating event", () => {
     expect(row.dateStr).toBe("2026-10-29");
     expect(clientBetween(ctx, "2026-10-26", "2026-12-31").filter((x: string) => x.endsWith("1:1"))).toEqual(["2026-10-29 15:00 1:1", "2026-11-26 15:00 1:1", "2026-12-10 15:00 1:1", "2026-12-24 15:00 1:1"]);
   });
+  // -257 (audit 2): two edits that moved or hid the wrong dates
+  const TUE = { id: 9, title: "Review", dateStr: "2026-11-03", start: "13:00", end: "14:00", hour: 13, endHour: 14, rrule: { freq: "weekly", interval: 1, byDay: [2] } };
+  it("all events, opened from an occurrence moved on its own, does not shift the series", () => {
+    const ctx = device([TUE]);
+    const row = ctx._calEvents[0];
+    // Nov 10 moved to Wed Nov 11 ("this event")
+    ctx._calApplyEdit(row, "2026-11-10", { dateStr: "2026-11-11" }, ctx._calRule(row), "one");
+    // reopened: the dialog shows Nov 11; only the title changes, "All events"
+    ctx._calApplyEdit(row, "2026-11-10", { title: "Weekly review", dateStr: "2026-11-11" }, ctx._calRule(row), "all");
+    expect(row.dateStr).toBe("2026-11-03");
+    expect(ctx._calRule(row).byDay).toEqual([2]);
+    expect(clientBetween(ctx, "2026-11-01", "2026-11-22")).toEqual(["2026-11-03 13:00 Weekly review", "2026-11-11 13:00 Weekly review", "2026-11-17 13:00 Weekly review"]);
+    expect(serverBetween(JSON.parse(JSON.stringify(ctx._calEvents)), "2026-11-01", "2026-11-22")).toEqual(clientBetween(ctx, "2026-11-01", "2026-11-22"));
+  });
+  it("this and following, moved to another weekday, keeps the edited occurrence", () => {
+    const ctx = device([TUE]);
+    const row = ctx._calEvents[0];
+    const nr = ctx._calApplyEdit(row, "2026-11-17", { dateStr: "2026-11-18" }, ctx._calRule(row), "following");
+    ctx._calEvents.push(nr);
+    expect(nr.dateStr).toBe("2026-11-18");
+    expect(ctx._calRule(nr).byDay).toEqual([3]);
+    expect(clientBetween(ctx, "2026-11-01", "2026-11-30")).toEqual(["2026-11-03 13:00 Review", "2026-11-10 13:00 Review", "2026-11-18 13:00 Review", "2026-11-25 13:00 Review"]);
+    expect(serverBetween(JSON.parse(JSON.stringify(ctx._calEvents)), "2026-11-01", "2026-11-30")).toEqual(clientBetween(ctx, "2026-11-01", "2026-11-30"));
+  });
   it("delete one / following / all", () => {
     const ctx = device(ROWS);
     const row = ctx._calEvents.find((e: any) => e.id === 1);

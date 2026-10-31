@@ -9858,14 +9858,19 @@ async function syncCalendarO365(btn){
 function _calMsId(extId){return 'ms:'+_luHash(String(extId||''));}
 function _calPushQ(){try{const q=JSON.parse(localStorage.getItem('lu_cal_pushq')||'{}');return q&&typeof q==='object'?q:{};}catch(_){return {};}}
 function _calSetPushQ(q){try{if(Object.keys(q).length)localStorage.setItem('lu_cal_pushq',JSON.stringify(q));else localStorage.removeItem('lu_cal_pushq');}catch(_){}}
+// Queue entries are 'op#stamp' (-257): a change queued while the same row is
+// being sent gets a new stamp, so the finished send can tell it is not the one
+// it sent and leaves it for the next pass. Plain 'op' entries (older) still read.
+function _calQOp(v){return String(v||'').split('#')[0];}
+let _calQSeq=0;
 function _calQueuePush(row,op){
   if(!row)return;
   const q=_calPushQ(),k=String(row.id);
   // A create that has not gone out yet stays a create (with the new values);
   // deleting it before it went out just drops it.
-  if(q[k]==='create'&&op==='update')op='create';
-  if(q[k]==='create'&&op==='delete'){delete q[k];_calSetPushQ(q);const i=_calEvents.indexOf(row);if(i>-1)_calEvents.splice(i,1);_calPersist();return;}
-  q[k]=op;_calSetPushQ(q);
+  if(_calQOp(q[k])==='create'&&op==='update')op='create';
+  if(_calQOp(q[k])==='create'&&op==='delete'){delete q[k];_calSetPushQ(q);const i=_calEvents.indexOf(row);if(i>-1)_calEvents.splice(i,1);_calPersist();return;}
+  q[k]=op+'#'+Date.now().toString(36)+(++_calQSeq);_calSetPushQ(q);
   if(op==='delete')row._pendingDelete=true;
   _calPersist();
   setTimeout(()=>{_calPushPending();},0);
@@ -9899,27 +9904,30 @@ async function _calPushPending(){
   const q=_calPushQ(),ids=Object.keys(q);
   if(!ids.length)return 0;
   _calPushBusy=true;
+  // Remove an entry only if it is still the one this pass sent (-257): edits
+  // made while a request was out used to be wiped by a stale copy of the queue.
+  const done=(k,sent)=>{const live=_calPushQ();if(live[k]===sent){delete live[k];_calSetPushQ(live);}};
   const tz=(Intl.DateTimeFormat().resolvedOptions().timeZone)||'UTC';
   let ok=0,pulled=false;const fails=[];
   try{
     for(const k of ids){
-      const op=q[k];
+      const sent=q[k],op=_calQOp(sent);
       const row=(_calEvents||[]).find(r=>r&&String(r.id)===k);
-      if(!row){delete q[k];continue;}
+      if(!row){done(k,sent);continue;}
       try{
         const res=await _trpc('oauthSync.calendarWrite',{provider:'microsoft',op,extId:op==='create'?undefined:row.extId,timeZone:tz,event:op==='delete'?undefined:_calOutlookPayload(row)},'mutation');
         if(res&&res.ok){
-          delete q[k];ok++;
+          done(k,sent);ok++;
           if(op==='delete'||res.gone){const i=_calEvents.indexOf(row);if(i>-1)_calEvents.splice(i,1);}
           else if(op==='create'){
             row.source='microsoft';row.extId=res.id;row.editable=true;if(res.webLink)row.webLink=res.webLink;
             if(_calRule(row))pulled=true; // Outlook's occurrences replace the local series on the next pull
             else _calRekey(row,_calMsId(res.id));
           }
-        }else if(res&&res.gone){delete q[k];const i=_calEvents.indexOf(row);if(i>-1)_calEvents.splice(i,1);}
+        }else if(res&&res.gone){done(k,sent);const i=_calEvents.indexOf(row);if(i>-1)_calEvents.splice(i,1);}
         else if(res&&res.readOnly){
           // Outlook says it has attendees: keep Outlook's version (the next pull restores it).
-          delete q[k];row.editable=false;delete row._pendingDelete;
+          done(k,sent);row.editable=false;delete row._pendingDelete;
           fails.push(`"${row.title}": ${res.error}`);
         }else fails.push(`"${row.title}": ${(res&&res.error)||'not saved'}`);
       }catch(e){
@@ -9928,12 +9936,15 @@ async function _calPushPending(){
       }
     }
   }finally{
-    _calSetPushQ(q);_calPushBusy=false;
+    _calPushBusy=false;
     _calPersist();
     if(typeof curScreen!=='undefined'&&curScreen==='calendar'&&typeof renderCal==='function')renderCal();
   }
   if(ok&&!fails.length)toast('☁ Outlook updated');
-  if(fails.length)toast({type:'warn',title:'Outlook not updated',msg:fails.slice(0,2).join(' · ')+(Object.keys(q).length?' — will retry on the next sync':''),duration:6000});
+  const left=_calPushQ();
+  if(fails.length)toast({type:'warn',title:'Outlook not updated',msg:fails.slice(0,2).join(' · ')+(Object.keys(left).length?' — will retry on the next sync':''),duration:6000});
+  // anything queued (or re-queued) while this pass was out goes now
+  if(Object.keys(left).some(k=>left[k]!==q[k]))setTimeout(()=>{_calPushPending();},0);
   if(pulled)setTimeout(()=>syncOAuthCalendar('microsoft',{silent:true,force:true}),1500);
   return ok;
 }

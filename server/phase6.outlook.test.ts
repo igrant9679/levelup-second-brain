@@ -26,13 +26,13 @@ const CLIENT = [
   line(LIFE, "const _CAL_FREQS="), line(LIFE, "const _calLastMemo="), line(LIFE, "const _CAL_DOW="), line(LIFE, "const _CAL_EV_FIELDS="), line(LIFE, "const _calIsAllDay="),
   ...["_calDn", "_calYmdOf", "_calRule", "_calRuleHits", "_calRuleLast", "_calNaturalOn", "_calOccurrence", "_calSeriesOn", "_calLocalOn",
     "_calLocalEventsOn", "_calLocalBetween", "_calResolve", "_calApplyEdit", "_calEvMins", "_calMoveEvent", "_calAfterMove", "_calCanMove"].map((n) => grab(LIFE, n)),
-  grab(P2, "_luHash"), line(P2, "let _calPushBusy="), line(P2, "let _calOutlookConnected="),
+  grab(P2, "_luHash"), line(P2, "let _calPushBusy="), line(P2, "let _calOutlookConnected="), line(P2, "let _calQSeq="), grab(P2, "_calQOp"),
   ...["_calMsId", "_calPushQ", "_calSetPushQ", "_calQueuePush", "_calIsOutlook", "_calOutlookEditable", "_calRekey", "_calOutlookPayload",
     "_calPushPending", "_calOutlookReady", "syncOAuthCalendar"].map((n) => grab(P2, n)),
 ].join("\n");
 
 type Call = { path: string; input: any };
-function device(graph: any[], opts: { readOnly?: boolean } = {}) {
+function device(graph: any[], opts: { readOnly?: boolean; onWrite?: (input: any, ctx: any) => Promise<void> | void } = {}) {
   const store: Record<string, string> = {};
   const calls: Call[] = [];
   const toasts: any[] = [];
@@ -46,6 +46,7 @@ function device(graph: any[], opts: { readOnly?: boolean } = {}) {
       if (p === "oauthSync.syncCalendar") return { events: graph, window: { from: input.fromISO, to: input.toISO } };
       if (p === "oauthSync.status") return { microsoft: { connected: true } };
       if (p === "oauthSync.calendarWrite") {
+        if (opts.onWrite) await opts.onWrite(input, ctx);
         if (opts.readOnly && input.op !== "create") return { ok: false, readOnly: true, error: "has attendees" };
         if (input.op === "create") return { ok: true, id: "NEW-" + input.event.title, webLink: "https://outlook.office.com/x" };
         return { ok: true, id: input.extId };
@@ -138,6 +139,34 @@ describe("push", () => {
     expect(row.editable).toBe(false);
     expect(d.ctx._calPushQ()).toEqual({});
     expect(d.toasts.some((t) => t && t.title === "Outlook not updated")).toBe(true);
+  });
+  it("edits made while a send is out are not lost (-257)", async () => {
+    let first = true;
+    const d: any = device(GRAPH, {
+      // while the first update is on its way, move this event again and the other one too
+      onWrite: (input: any, ctx: any) => {
+        if (!first) return; first = false;
+        const a = ctx._calEvents.find((r: any) => r.extId === "AAA-dentist"), b = ctx._calEvents.find((r: any) => r.extId === "BBB-board");
+        a.start = "11:00"; a.end = "12:00"; a.hour = 11; a.endHour = 12;
+        ctx._calQueuePush(a, "update");
+        b.editable = true; b.start = "16:00"; b.end = "17:00"; b.hour = 16; b.endHour = 17;
+        ctx._calQueuePush(b, "update");
+      },
+    });
+    await d.ctx.syncOAuthCalendar("microsoft", { silent: true });
+    const a = d.ctx._calEvents.find((r: any) => r.extId === "AAA-dentist");
+    a.start = "10:00"; a.end = "11:00"; a.hour = 10; a.endHour = 11;
+    d.ctx._calQueuePush(a, "update");
+    d.ctx._later.length = 0;
+    await d.ctx._calPushPending();
+    // the pass re-runs itself for what arrived while it was out
+    while (d.ctx._later.length) await d.ctx._later.shift()();
+    await new Promise((r) => setImmediate(r));
+    const writes = d.calls.filter((c: any) => c.path === "oauthSync.calendarWrite").map((c: any) => c.input.extId + "@" + c.input.event.start.slice(11, 16));
+    expect(writes).toContain("AAA-dentist@10:00");
+    expect(writes).toContain("AAA-dentist@11:00"); // the second move of the same event went out
+    expect(writes).toContain("BBB-board@16:00");   // the other event's move went out
+    expect(d.ctx._calPushQ()).toEqual({});
   });
   it("delete hides at once and removes after Outlook confirms", async () => {
     const d = device(GRAPH);
