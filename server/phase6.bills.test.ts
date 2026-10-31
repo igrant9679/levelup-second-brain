@@ -105,6 +105,21 @@ describe("reconcile", () => {
     expect(fin.bills[0]).toMatchObject({ paidThrough: "2026-10-01", lastPaidYM: "2026-10" });
     expect(fin.transactions.find((t: any) => t.id === "t2")).toMatchObject({ recurringBillId: "rent" });
   });
+  it("one late payment pays one due date, not the next one too (-258), on both sides", () => {
+    // monthly on the 15th, paid through Sep 15; ONE charge on Nov 8 (the October bill paid late)
+    const phone = { id: "phone", name: "Phone", matchText: "verizon", amount: 90, dueDay: 15, paidThrough: "2026-09-15" };
+    const late = [{ id: "v1", date: "2026-11-08", payee: "VERIZON WIRELESS", amount: -90 }];
+    const match = (bill: any, t: any) => vm.runInContext("_finBillTxMatch", c)(bill, t);
+    for (const side of ["client", "server"]) {
+      const b = copy(phone), t = copy(late);
+      const run = (today: string) => side === "client" ? c._finBillReconcileOne(b, t, today) : billReconcile(b, t, match, today);
+      expect(run("2026-11-08")?.id).toBe("v1");        // pays Oct 15
+      expect(b.paidThrough).toBe("2026-10-15");
+      expect(t[0].billPaidDue).toBe("2026-10-15");
+      expect(run("2026-11-09")).toBeNull();            // the same charge must not pay Nov 15
+      expect(b.paidThrough).toBe("2026-10-15");
+    }
+  });
   it("a charge too early for the next due date does not pay it", () => {
     const water = { id: "water", name: "City Water", amount: 150, freq: "quarterly", startDate: "2026-11-10", dueDay: 10, paidThrough: "2026-08-10" };
     expect(c._finBillReconcileOne(copy(water), copy(txs), TODAY)).toBeNull();

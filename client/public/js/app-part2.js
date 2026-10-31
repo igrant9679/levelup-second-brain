@@ -15815,10 +15815,14 @@ function _finBillReconcileOne(b,txs,today){
   today=today||_ymd(new Date());
   const due=_finBillDue(b,today),w=_finBillWindow(b),D=_fbDayNum(due),N=_fbDayNum(today);
   if(D-N>w)return null;
-  const hit=txs.filter(t=>{const d=_fbDayNum(String(t.date||''));return d>=D-w&&d<=N&&_finBillTxMatch(b,t)&&(!t.recurringBillId||String(t.recurringBillId)===String(b.id));})
+  // A charge pays ONE due date (-258): a late payment that also fell inside the
+  // next due date's window used to mark that one paid as well. billPaidDue
+  // records which due date a charge paid. Mirror: billReconcile (server).
+  const hit=txs.filter(t=>{const d=_fbDayNum(String(t.date||''));return d>=D-w&&d<=N&&_finBillTxMatch(b,t)&&(!t.recurringBillId||String(t.recurringBillId)===String(b.id))&&(!t.billPaidDue||t.billPaidDue===due);})
     .sort((x,y)=>String(y.date).localeCompare(String(x.date)))[0];
   if(!hit)return null;
   if(!hit.recurringBillId)hit.recurringBillId=b.id;
+  hit.billPaidDue=due;
   _finBillSetPaid(b,due);
   return hit;
 }
@@ -16335,7 +16339,8 @@ function _finReviewQueue(){
   // 1) Uncategorized, by merchant.
   const g=new Map();
   (f.transactions||[]).forEach(t=>{
-    if(!_finIsUncat(t)||t.catReviewed||t.splitOf)return;
+    // last 120 days, like every other group (-258: old uncategorized history inflated the Review count)
+    if(!_finIsUncat(t)||t.catReviewed||t.splitOf||!recent(t))return;
     const c=m.get(t);if(c&&c.cls==='xfer')return;
     const k=_finMerchantKey(t.payee)||'(no payee)';
     if(!g.has(k))g.set(k,{key:k,txs:[]});
@@ -16677,7 +16682,7 @@ function finBillLinkTo(billId,txId){
   b.matchText=String(t.payee||'').trim().slice(0,80)||b.matchText;
   t.recurringBillId=b.id;
   // The charge pays the current due date if it falls in that date's window.
-  const due=_finBillDue(b);if(_fbDayNum(String(t.date||''))>=_fbDayNum(due)-_finBillWindow(b))_finBillSetPaid(b,due);
+  const due=_finBillDue(b);if(_fbDayNum(String(t.date||''))>=_fbDayNum(due)-_finBillWindow(b)){_finBillSetPaid(b,due);t.billPaidDue=due;}
   _finSave(); _finCloseModal(); renderMoney();
   toast({type:'success',title:'🔗 Linked',msg:b.name+' now matches "'+b.matchText+'" — future charges reconcile automatically.',duration:3200});
 }
@@ -16804,13 +16809,13 @@ function finBillMarkPaid(id){
   //    Logging a payment here counted the bill twice once it did.
   // 3) Manual tracking only (no bank sync) → log the payment as before.
   const due=_finBillDue(b),from=_fbDayNum(due)-_finBillWindow(b);
-  const charge=f.transactions.filter(t=>_fbDayNum(String(t.date||''))>=from&&String(t.date||'')<=_ymd(today)&&_finBillTxMatch(b,t)&&(!t.recurringBillId||String(t.recurringBillId)===String(b.id)))
+  const charge=f.transactions.filter(t=>_fbDayNum(String(t.date||''))>=from&&String(t.date||'')<=_ymd(today)&&_finBillTxMatch(b,t)&&(!t.recurringBillId||String(t.recurringBillId)===String(b.id))&&(!t.billPaidDue||t.billPaidDue===due))
     .sort((a,c)=>String(c.date).localeCompare(String(a.date)))[0];
   const acct=b.accountId?f.accounts.find(a=>String(a.id)===String(b.accountId)):null;
   const banked=acct?!!acct.bankId:f.accounts.some(a=>a.bankId);
   _finBillSetPaid(b,due);
   if(charge){
-    charge.recurringBillId=b.id;
+    charge.recurringBillId=b.id;charge.billPaidDue=due;
     _finSave(); renderMoney();
     toast({type:'success',title:'✓ '+b.name+' paid',msg:'Linked to the bank charge: '+(charge.payee||'')+' '+_finFmt(charge.amount)+' on '+charge.date+'.',duration:2600});
     return;

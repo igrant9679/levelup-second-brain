@@ -97,14 +97,17 @@ export function billWindow(b: ScheduledBill): number { return Math.min(10, Math.
  * before the current due date and today, that due date is paid. Returns the
  * transaction used (stamped with the bill's id) or null.
  */
-export function billReconcile<T extends { date?: string; recurringBillId?: any }>(b: ScheduledBill & { id?: any }, txs: T[], match: (b: any, t: T) => boolean, today: string): T | null {
+export function billReconcile<T extends { date?: string; recurringBillId?: any; billPaidDue?: string }>(b: ScheduledBill & { id?: any }, txs: T[], match: (b: any, t: T) => boolean, today: string): T | null {
   const due = billDue(b, today), w = billWindow(b);
   const D = dayNum(due), N = dayNum(today);
   if (D - N > w) return null;
-  const hit = txs.filter(t => { const d = dayNum(String(t.date || '')); return d >= D - w && d <= N && match(b, t) && (!t.recurringBillId || String(t.recurringBillId) === String(b.id)); })
+  // A charge pays ONE due date (-258) — billPaidDue records which. Mirror of
+  // the client's _finBillReconcileOne.
+  const hit = txs.filter(t => { const d = dayNum(String(t.date || '')); return d >= D - w && d <= N && match(b, t) && (!t.recurringBillId || String(t.recurringBillId) === String(b.id)) && (!t.billPaidDue || t.billPaidDue === due); })
     .sort((x, y) => String(y.date).localeCompare(String(x.date)))[0];
   if (!hit) return null;
   if (!hit.recurringBillId) hit.recurringBillId = b.id;
+  hit.billPaidDue = due;
   billSetPaid(b, due);
   return hit;
 }

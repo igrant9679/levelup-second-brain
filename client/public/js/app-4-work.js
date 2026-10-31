@@ -402,12 +402,20 @@ function _pipeSyncAtlas(){
     if(!o)o=opps.find(x=>x.source!=='atlas'&&norm(x.name)===norm(a.name)&&(x.source==='smartsheet'||norm(x.accountName)===norm(a.customer)));
     const want={name:String(a.name||'(unnamed)'),accountName:String(a.customer||''),value:Number(a.potential)||0,closeDate:_atlasOppDate(a.closeDate),owner:String(a.pm||'')};
     const stage=_atlasOppStage(a);
+    // A deal Atlas already shows as won/lost closed on its close date, not when
+    // LevelUp first saw it (-258: old wins all counted as won this month).
+    const closedAt=(fallback)=>{const cd=want.closeDate;return cd&&cd<=_ymd(new Date())?cd+'T12:00:00':fallback;};
     if(!o){
       const now=new Date().toISOString();
-      o=Object.assign({id:Date.now()+opps.length+changed,probability:null,contact:'',notes:'',linkedTaskIds:[],createdAt:now,updatedAt:now,stage,stageAt:now,stageHistory:[{stage,at:now}]},want,{source:'atlas',externalId:ext});
-      const def=_stageDef(stage);o.status=def.outcome==='won'?'won':def.outcome==='lost'?'lost':'open';
+      const def=_stageDef(stage),done=def.outcome==='won'||def.outcome==='lost',at=done?closedAt(now):now;
+      o=Object.assign({id:Date.now()+opps.length+changed,probability:null,contact:'',notes:'',linkedTaskIds:[],createdAt:now,updatedAt:now,stage,stageAt:at,stageHistory:[{stage,at}]},want,{source:'atlas',externalId:ext});
+      o.status=def.outcome==='won'?'won':def.outcome==='lost'?'lost':'open';
+      if(def.outcome==='won')o.wonAt=at;else if(def.outcome==='lost')o.lostAt=at;
       opps.push(o);changed++;return;
     }
+    // repair deals made before -258 (closed, no won/lost date, history stamped at the sync)
+    if(o.source==='atlas'&&o.status==='won'&&!o.wonAt&&want.closeDate){o.wonAt=closedAt(o.stageAt||o.createdAt);changed++;}
+    if(o.source==='atlas'&&o.status==='lost'&&!o.lostAt&&want.closeDate){o.lostAt=closedAt(o.stageAt||o.createdAt);changed++;}
     let c=false;
     if(o.source!=='atlas'||String(o.externalId)!==ext){o.source='atlas';o.externalId=ext;delete o.sourceConfigId;c=true;}
     Object.keys(want).forEach(k=>{if(String(o[k]??'')!==String(want[k])){o[k]=want[k];c=true;}});
@@ -416,7 +424,7 @@ function _pipeSyncAtlas(){
       const at=new Date().toISOString();
       o.stageAt=at;o.stageHistory=(Array.isArray(o.stageHistory)?o.stageHistory.slice(-49):[]).concat([{stage,at}]);
       const def=_stageDef(stage);
-      if(def.outcome==='won'){o.status='won';o.wonAt=o.wonAt||at;}else if(def.outcome==='lost'){o.status='lost';o.lostAt=o.lostAt||at;}else{o.status='open';delete o.wonAt;delete o.lostAt;}
+      if(def.outcome==='won'){o.status='won';o.wonAt=o.wonAt||closedAt(at);}else if(def.outcome==='lost'){o.status='lost';o.lostAt=o.lostAt||closedAt(at);}else{o.status='open';delete o.wonAt;delete o.lostAt;}
       c=true;
     }
     if(o.stage!==stage){o.stage=stage;c=true;}
@@ -433,8 +441,15 @@ _luDropRoutes.pipe=function(kind,id,stage){
   const o=_opps().find(x=>String(x.id)===String(id));if(!o||o.source==='atlas')return;
   const was=o.stage;
   if(_stageDef(was).key===_stageDef(stage).key)return;
+  // Undo puts the deal back exactly as it was (-258): changing the stage back
+  // added a second history entry, so the funnel still counted the mistaken stage.
+  const snap=JSON.parse(JSON.stringify({stage:o.stage,stageAt:o.stageAt,stageHistory:o.stageHistory,status:o.status,wonAt:o.wonAt,lostAt:o.lostAt,updatedAt:o.updatedAt}));
   _setOpportunityStage(id,stage,{quiet:true});
-  toast({type:'info',title:'Stage → '+stage,msg:o.name||'',duration:5000,actions:[{label:'Undo',onClick:()=>_setOpportunityStage(id,was,{quiet:true})}]});
+  toast({type:'info',title:'Stage → '+stage,msg:o.name||'',duration:5000,actions:[{label:'Undo',onClick:()=>{
+    const x=_opps().find(y=>String(y.id)===String(id));if(!x)return;
+    ['stage','stageAt','stageHistory','status','wonAt','lostAt','updatedAt'].forEach(k=>{if(snap[k]===undefined)delete x[k];else x[k]=snap[k];});
+    save('opportunities');if(curScreen==='pipeline')renderPipeline();
+  }}]});
 };
 // ── Link an existing task to a deal ──
 function _oppLinkTask(oppId){
