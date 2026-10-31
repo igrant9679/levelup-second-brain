@@ -2417,7 +2417,7 @@ function pmEvm(key){
   // (calendar days made PV run ahead over weekends).
   var plannedAt=function(ls,day){var tot=ls.reduce(function(s,n){return s+Math.max(1,n.dur);},0);if(!tot)return 0;
     return ls.reduce(function(s,n){var b=base&&base.data.nodes&&base.data.nodes[n.key];var st=b?b.start:n.start,fi=b?b.finish:n.finish;if(!st||!fi)return s;
-      var span=Math.max(1,_pmWorkBetween(st,fi,ww)+1),el=day<st?0:Math.min(span,_pmWorkBetween(st,day,ww)+1);return s+Math.max(1,n.dur)*(el/span);},0)/tot;};
+      var span=Math.max(1,_pmWorkBetween(st,fi,ww)+1),el=day<st?0:Math.max(0,Math.min(span,_pmWorkBetween(st,_pmPrevWork(day,ww),ww)+1)); /* a weekend "day" counts to the Friday before (-260) */return s+Math.max(1,n.dur)*(el/span);},0)/tot;};
   var earnedOf=function(ls){var tot=ls.reduce(function(s,n){return s+Math.max(1,n.dur);},0);if(!tot)return 0;return ls.reduce(function(s,n){return s+Math.max(1,n.dur)*((n.done?100:(n.pct||0))/100);},0)/tot;};
   // control accounts: one per WBS element that carries PMB budget
   var caMap={},unassigned=cr;
@@ -2439,7 +2439,7 @@ function pmEvm(key){
   // Earned schedule: the work day at which the plan had earned what has been
   // earned now. SPI(t) = ES / actual time; forecast finish = planned duration / SPI(t).
   var p0=c.start,planFin=base&&base.data.finish?base.data.finish:c.finish,PD=Math.max(1,_pmWorkBetween(p0,planFin,ww)+1);
-  var AT=today<p0?0:_pmWorkBetween(p0,today,ww)+1,es=null,spiT=null,forecastFinish=null;
+  var AT=today<p0?0:Math.max(0,_pmWorkBetween(p0,_pmPrevWork(today,ww),ww)+1),es=null,spiT=null,forecastFinish=null;
   if(AT>0&&ev>0&&bac>0){var prev=0,t=0,lim=PD+400;es=PD;
     for(t=0;t<lim;t++){var v=pvAt(_pmAddWork(p0,t,ww));if(v>=ev-1e-9){es=t+(v>prev?(ev-prev)/(v-prev):1);break;}prev=v;}
     es=Math.min(es,PD);spiT=es/AT;

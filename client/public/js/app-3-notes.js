@@ -3504,5 +3504,26 @@ function _ccTasks(){
       });
     });
   }
+  // CommunityForce work lives in Atlas since Smartsheet was retired (-223); the
+  // CF hat showed "0" until -260. Read-only rows; a click opens Atlas's drawer.
+  if((hat==='all'||hat==='cf')&&D.atlas&&Array.isArray(D.atlas.activities)){
+    const projName={};(D.atlas.projects||[]).forEach(p=>{if(p)projName[String(p.id)]=p.name||'';});
+    const ST={todo:'Not Started',doing:'In Progress',blocked:'Blocked',done:'Done'};
+    D.atlas.activities.forEach(x=>{
+      if(!x||!(x.subtask||x.task))return;
+      const done=x.status==='done';
+      const ymd=v=>/^\d{4}-\d{2}-\d{2}/.test(String(v||''))?String(v).slice(0,10):'';
+      out.push({
+        id:'atlas:'+x.id,title:x.subtask||x.task,
+        status:ST[x.status]||'Not Started',rawStatus:x.status||'',
+        priority:x.priority||'Medium',due:ymd(x.dueDate),
+        completedAt:done?(x.completedAt||x.updatedAt||null):null,
+        updatedAt:x.updatedAt||'',projectId:null,
+        project:projName[String(x.projectId)]||'CF',
+        assignee:x.ownerText||((x.owners||[]).length?(typeof _pmAtlasMemberName==='function'?(x.owners||[]).map(_pmAtlasMemberName).filter(Boolean).join(', '):''):''),
+        source:'atlas',sourceLabel:'CF',hasPendingPush:false,_atlas:x,
+      });
+    });
+  }
   return out;
 }

@@ -1673,7 +1673,7 @@ function renderArchive(){
 function renderMyDay(){
 // Restore the user's last subnav choice; default to Execute (most-used view).
 const _mdSec=(D.prefs&&D.prefs.myDaySection)||'e';
-$('myday-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('sun',22,'var(--page-accent)')}My Day</h1><p style="font-size:12px;color:var(--t2)">${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · ${D.tasks.filter(t=>t.myDay).length} selected</p>${_focusViewTabs('myday')}</div><div style="display:flex;gap:4px"><button class="btn btn-s" onclick="startFreshMyDay()" title="Clear all My Day flags and start fresh for today">🔄 Start Fresh</button><button class="btn btn-s" onclick="D.tasks.forEach(t=>t.myDay=false);save('tasks');renderScreen('myday')">Clear All</button><button class="btn btn-p" onclick="openFA('task')">+ Full Add</button></div></div>
+$('myday-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('sun',22,'var(--page-accent)')}Planner</h1><p style="font-size:12px;color:var(--t2)">${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · ${D.tasks.filter(t=>t.myDay).length} selected</p>${_focusViewTabs('myday')}</div><div style="display:flex;gap:4px"><button class="btn btn-s" onclick="startFreshMyDay()" title="Clear all My Day flags and start fresh for today">🔄 Start Fresh</button><button class="btn btn-s" onclick="D.tasks.forEach(t=>t.myDay=false);save('tasks');renderScreen('myday')">Clear All</button><button class="btn btn-p" onclick="openFA('task')">+ Full Add</button></div></div>
 <div class="subnav"><span class="sn ${_mdSec==='p'?'on':''}" onclick="mdSec(this,'p')">📋 Plan</span><span class="sn ${_mdSec==='e'?'on':''}" onclick="mdSec(this,'e')">⚡ Execute</span><span class="sn ${_mdSec==='w'?'on':''}" onclick="mdSec(this,'w')">🌙 Wrap-Up</span></div>
 <div id="md-p" style="display:${_mdSec==='p'?'':'none'}">${_renderCapacityIndicator()}<div class="sec-h" style="display:flex;align-items:center;justify-content:space-between"><span>📋 Plan — Select tasks for today</span><div style="display:flex;gap:5px"><button class="btn btn-s" style="font-size:11px;height:24px;color:var(--purp);border-color:var(--purp)" onclick="aiSmartSchedule()" title="AI builds a time-blocked schedule that respects your calendar + peak focus hours">🧠 AI Smart Plan</button><button class="btn btn-s" style="font-size:11px;height:24px" onclick="scheduleMyDay()" title="Linear auto-assign (basic) — ignores calendar events">🗓 Basic Schedule</button></div></div>
 <div class="cd">${D.tasks.filter(t=>t.status!=='Done').map(t=>`<div class="lr" onclick="openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))"><div class="chk ${t.myDay?'on':''}" onclick="event.stopPropagation();D.tasks.find(x=>x.id==${_tidLit(t.id)}).myDay=!D.tasks.find(x=>x.id==${_tidLit(t.id)}).myDay;save('tasks');renderScreen('myday')"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${t.context}</span><span style="cursor:pointer;font-size:12px" title="Toggle My Day">${t.myDay?'☀️':'○'}</span></div>`).join('')}</div></div>
@@ -1702,18 +1702,18 @@ $('myday-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1
 <div id="md-exec-summary">${getMdExecSummary('all')}</div><div id="md-exec-list">${renderMdExecList('all')}</div></div>
 <div id="md-w" style="display:${_mdSec==='w'?'':'none'}"><div class="sec-h">🌙 Wrap-Up</div>
 <div class="g3" style="margin-bottom:12px">
-  <div class="stat"><div class="stat-n" style="color:var(--ok)">${D.tasks.filter(t=>t.status==='Done').length}</div><div class="stat-l">Done today</div></div>
+  <div class="stat"><div class="stat-n" style="color:var(--ok)">${D.tasks.filter(t=>t.status==='Done'&&t.completedAt&&_dayOf(t.completedAt)===_todayStr).length}</div><div class="stat-l">Done today</div></div>
   <div class="stat"><div class="stat-n" style="color:var(--warn)">${D.tasks.filter(t=>t.myDay&&t.status!=='Done').length}</div><div class="stat-l">Carried over</div></div>
   <div class="stat"><div class="stat-n" style="color:var(--ac)">${Math.floor((D.prefs&&D.prefs.focusMinsToday||0)/60)+'h '+(D.prefs&&D.prefs.focusMinsToday||0)%60+'m'}</div><div class="stat-l">Focus time</div></div>
 </div>
 <div class="cd">
   <div style="font-size:12px;font-weight:600;margin-bottom:8px">📝 Daily Reflection</div>
   <div style="font-size:11px;color:var(--t3);margin-bottom:4px">What went well today?</div>
-  <textarea class="inp" id="wrapup-wins" placeholder="Wins, breakthroughs, things to celebrate..." style="height:56px;margin-bottom:8px"></textarea>
+  <textarea class="inp" id="wrapup-wins" placeholder="Wins, breakthroughs, things to celebrate..." style="height:56px;margin-bottom:8px" oninput="_wrapupDraftSave()">${esc(_wrapupDraft()['wrapup-wins']||'')}</textarea>
   <div style="font-size:11px;color:var(--t3);margin-bottom:4px">What could be improved?</div>
-  <textarea class="inp" id="wrapup-improve" placeholder="Challenges, blockers, lessons learned..." style="height:56px;margin-bottom:8px"></textarea>
+  <textarea class="inp" id="wrapup-improve" placeholder="Challenges, blockers, lessons learned..." style="height:56px;margin-bottom:8px" oninput="_wrapupDraftSave()">${esc(_wrapupDraft()['wrapup-improve']||'')}</textarea>
   <div style="font-size:11px;color:var(--t3);margin-bottom:4px">Top priority for tomorrow?</div>
-  <textarea class="inp" id="wrapup-tomorrow" placeholder="One thing that will make tomorrow great..." style="height:40px;margin-bottom:10px"></textarea>
+  <textarea class="inp" id="wrapup-tomorrow" placeholder="One thing that will make tomorrow great..." style="height:40px;margin-bottom:10px" oninput="_wrapupDraftSave()">${esc(_wrapupDraft()['wrapup-tomorrow']||'')}</textarea>
   <button class="btn btn-p" style="width:100%" onclick="saveWrapUp()">Save as Journal Entry</button>
 </div></div>`;
 // ── Right rail: Day at a Glance + Up Next + Today's meetings + Quick Wins + Quick Capture
@@ -1819,6 +1819,11 @@ function _mdRailCaptureNote(){
   toast('📝 Saved to Notes');
 }
 function mdSec(el,s){el.parentElement.querySelectorAll('.sn').forEach(x=>x.classList.remove('on'));el.classList.add('on');['p','e','w'].forEach(x=>document.getElementById('md-'+x).style.display=x===s?'':'none');D.prefs=D.prefs||{};D.prefs.myDaySection=s;save('prefs');}
+// Wrap-Up reflection drafts (-260): leaving the page lost what was typed. Kept
+// per day on this device until the wrap-up is saved.
+function _wrapupDraftKey(){return 'lu_wrapup_draft_'+_todayStr;}
+function _wrapupDraft(){try{return JSON.parse(localStorage.getItem(_wrapupDraftKey())||'{}')||{};}catch(_){return {};}}
+function _wrapupDraftSave(){try{const o={};['wrapup-wins','wrapup-improve','wrapup-tomorrow'].forEach(id=>{const el=document.getElementById(id);if(el&&el.value)o[id]=el.value;});if(Object.keys(o).length)localStorage.setItem(_wrapupDraftKey(),JSON.stringify(o));else localStorage.removeItem(_wrapupDraftKey());}catch(_){}}
 function saveWrapUp(){
   const wins=(document.getElementById('wrapup-wins')||{}).value||'';
   const improve=(document.getElementById('wrapup-improve')||{}).value||'';
@@ -1853,6 +1858,7 @@ function saveWrapUp(){
     const el=document.getElementById(id);
     if(el)el.value='';
   });
+  try{localStorage.removeItem(_wrapupDraftKey());}catch(_){}
   toast('📝 Wrap-Up saved to Journal!');
 }
 function getMdExecSummary(filter){

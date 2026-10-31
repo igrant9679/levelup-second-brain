@@ -45,7 +45,7 @@ function renderCommandCenter(){
     const totalN=allInLabel.length;
     const pct=totalN?Math.round(doneN/totalN*100):0;
     const overdueN=rows.filter(t=>t.due&&t.due<today).length;
-    const accent=rows[0]?(rows[0].source==='smartsheet'?'#1f6feb':rows[0].source==='nifty'?'#9333ea':'#10b981'):'#64748b';
+    const accent=rows[0]?((rows[0].source==='smartsheet'||rows[0].source==='atlas')?'#1f6feb':rows[0].source==='nifty'?'#9333ea':'#10b981'):'#64748b';
     const src=rows[0]?rows[0].source:'personal';
     return `<div class="cd cc-proj-tile" style="padding:11px 13px;border-left:3px solid ${accent};cursor:pointer;transition:transform .12s ease,background .12s ease" onclick="_ccDrillIntoProject('${_jsAttr(name)}','${_jsAttr(src)}')" title="Click to open these tasks in the Tasks view">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px">
@@ -63,14 +63,16 @@ function renderCommandCenter(){
 
   const atRiskRow=(t,kind)=>{
     const pcolor=t.priority==='High'?'#ef4444':t.priority==='Medium'?'#f59e0b':'#64748b';
-    const srcBadge=t.source==='smartsheet'?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#1f6feb;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">CF</span>':t.source==='nifty'?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#9333ea;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">LSI</span>':'';
+    const srcBadge=(t.source==='smartsheet'||t.source==='atlas')?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#1f6feb;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">CF</span>':t.source==='nifty'?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#9333ea;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">LSI</span>':'';
     // Badge is clickable — drills into Tasks filtered to that kind + current hat.
     const kindMeta=kind==='overdue'?{e:'⚠',l:'overdue',c:'var(--red)'}:kind==='today'?{e:'📅',l:'today',c:'var(--warn)'}:{e:'💤',l:'stalled',c:'var(--t3)'};
     const kindBadge=`<span style="color:${kindMeta.c};font-size:11px;font-weight:${kind==='stalled'?'400':'600'};cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px" onclick="event.stopPropagation();_ccDrillIntoKind('${_jsAttr(kind)}')" title="Click to see all ${kindMeta.l} tasks in the current hat">${kindMeta.e} ${kindMeta.l}</span>`;
     const dueDays=t.due?_daysUntil(t.due):null;
     const dueLabel=t.due?(dueDays===0?'today':dueDays<0?`${-dueDays}d ago`:`${dueDays}d`):'—';
     const extId=t._ext?t._ext.externalId:'';
-    const clickAction=t.source==='personal'?`openDrawer('task',D.tasks.find(x=>String(x.id)==='${_jsAttr(String(t.id))}'))`:`_openExternalAnnotateModal('${_jsAttr(t.source)}','${_jsAttr(extId)}')`;
+    const clickAction=t.source==='personal'?`openDrawer('task',D.tasks.find(x=>String(x.id)==='${_jsAttr(String(t.id))}'))`
+      :t.source==='atlas'?`atlasOpenDrawer('activity','${_jsAttr(String(t._atlas&&t._atlas.id||''))}')`
+      :`_openExternalAnnotateModal('${_jsAttr(t.source)}','${_jsAttr(extId)}')`;
     return `<div class="lr" style="padding:8px 10px;border-bottom:1px solid var(--bd1);cursor:pointer;display:flex;align-items:center;gap:8px" onclick="${clickAction}">
       <span style="width:6px;height:6px;border-radius:50%;background:${pcolor};flex-shrink:0"></span>
       ${srcBadge}
@@ -105,7 +107,7 @@ function renderCommandCenter(){
 
   // Recently shipped (last 7d).
   const shippedBody=shipped.length?shipped.slice(0,10).map(t=>{
-    const srcBadge=t.source==='smartsheet'?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#1f6feb;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">CF</span>':t.source==='nifty'?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#9333ea;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">LSI</span>':'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#10b981;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">YOU</span>';
+    const srcBadge=(t.source==='smartsheet'||t.source==='atlas')?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#1f6feb;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">CF</span>':t.source==='nifty'?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#9333ea;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">LSI</span>':'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#10b981;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">YOU</span>';
     const when=t.completedAt?_relTime(t.completedAt):'';
     return `<div class="lr" style="padding:7px 10px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:8px">
       <span style="font-size:13px;color:var(--ok);flex-shrink:0">✓</span>
@@ -131,7 +133,9 @@ function renderCommandCenter(){
     return `<button class="btn btn-s" onclick="setCcContext('${_jsAttr(key)}')" style="height:26px;padding:0 12px;font-size:11px;border:1px solid ${on?color:'var(--bd2)'};background:${on?color:'transparent'};color:${on?'#fff':'var(--t2)'};border-radius:13px;font-weight:${on?600:500}">${label}</button>`;
   };
 
-  const cfCount=(Array.isArray(D.externalTasks)?D.externalTasks:[]).filter(t=>t.source==='smartsheet'&&!(t.override&&t.override.tombstoned)).length;
+  // CF work comes from Atlas since Smartsheet was retired (-223); counted here since -260
+  const cfCount=(Array.isArray(D.externalTasks)?D.externalTasks:[]).filter(t=>t.source==='smartsheet'&&!(t.override&&t.override.tombstoned)).length
+    +((D.atlas&&Array.isArray(D.atlas.activities))?D.atlas.activities.filter(x=>x&&x.status!=='done').length:0);
   const lsiCount=(Array.isArray(D.externalTasks)?D.externalTasks:[]).filter(t=>t.source==='nifty'&&!(t.override&&t.override.tombstoned)).length;
 
   // Saved views row (only when at least one)
@@ -277,7 +281,7 @@ function renderStandup(){
 
   const renderColumn=(title,emoji,rows,empty,color)=>{
     const body=rows.length?rows.map(t=>{
-      const srcBadge=t.source==='smartsheet'?'<span style="display:inline-block;padding:1px 4px;border-radius:3px;background:#1f6feb;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">CF</span>':t.source==='nifty'?'<span style="display:inline-block;padding:1px 4px;border-radius:3px;background:#9333ea;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">LSI</span>':'';
+      const srcBadge=(t.source==='smartsheet'||t.source==='atlas')?'<span style="display:inline-block;padding:1px 4px;border-radius:3px;background:#1f6feb;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">CF</span>':t.source==='nifty'?'<span style="display:inline-block;padding:1px 4px;border-radius:3px;background:#9333ea;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">LSI</span>':'';
       return `<div class="lr" style="padding:8px 10px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:8px">
         ${srcBadge}
         <span style="flex:1;font-size:12px;color:var(--t1);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</span>

@@ -100,8 +100,9 @@ function renderSettingsHTML(){
   <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--brd)"><div style="font-size:12px;font-weight:600;margin-bottom:8px">Session</div>
   <button class="btn btn-s" style="margin-bottom:8px" onclick="doLogout()">🚪 Sign Out &amp; Switch User</button>
   <div style="font-size:11px;color:var(--t3);margin-bottom:12px">Signs you out and returns to the login screen. Your data is preserved.</div>
-  <div style="font-size:12px;font-weight:600;margin-bottom:8px">Danger Zone</div>
-  <button class="btn btn-d" onclick="if(confirm('Reset ALL app data to defaults? This cannot be undone.')){localStorage.clear();location.reload()}">🗑 Reset All Data</button></div>
+  <div style="font-size:12px;font-weight:600;margin-bottom:8px">This device</div>
+  <button class="btn btn-s" onclick="clearLocalCacheAndReload()" title="Your data on the server is not touched">🧹 Clear this device's cache</button>
+  <div style="font-size:11px;color:var(--t3);margin-top:4px">Reloads everything fresh from the server. (Was "Reset All Data" — it only ever cleared this browser.)</div></div>
   </div>
   <!-- General --><div id="sp-1" class="sp" style="display:none">
   <h3 style="font-size:14px;font-weight:600;margin-bottom:16px">⚙ General</h3>
@@ -641,32 +642,6 @@ function renderSettingsHTML(){
     <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Blob → relational migration status for tasks / notes / ideas. All three need <b>consistent ✓</b> and <b>served from: relational</b> over a soak period before the legacy blob columns can be retired (Step 3). Read-only — checking changes nothing.</p>
     <div id="migration-health-body" style="font-size:11px;color:var(--t3)">Click “Check now” to run the readiness checks.</div>
   </div>
-  <!-- Backups (owner only; build -226) -->
-  <div id="backup-section" class="admin-only" style="display:none;margin-top:12px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:6px;flex-wrap:wrap">
-      <div style="font-size:12px;font-weight:600">🗄 Backups</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="btn btn-s" style="height:26px;font-size:11px" id="btn-backup-now" onclick="_runBackupNow()">⟳ Back up now</button>
-        <button class="btn btn-s" style="height:26px;font-size:11px" onclick="_downloadMigrationBackup()" title="Owner only: every table as JSON">💾 Download a copy</button>
-        <button class="btn btn-s" style="height:26px;font-size:11px" onclick="_loadBackupStatus()">↻ Status</button>
-      </div>
-    </div>
-    <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Every night (about 3–4 am Eastern) LevelUp saves an encrypted copy of the whole database to private storage and checks that it reads back correctly. Passwords, tokens and API keys are left out of backups, so after a restore you reconnect integrations and sign in with “Forgot password”.</p>
-    <div id="backup-status" style="font-size:11px;color:var(--t3)">Click “Status” to see the last backup.</div>
-  </div>
-  <!-- Health & audit (owner only; build -233) -->
-  <div id="ops-section" class="admin-only" style="display:none;margin-top:12px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:6px;flex-wrap:wrap">
-      <div style="font-size:12px;font-weight:600">🩺 Health &amp; audit</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap" role="group" aria-label="Health and audit view">
-        <button class="btn btn-s" style="height:26px;font-size:11px" id="btn-ops-errors" aria-pressed="true" onclick="_opsShow('errors')">Errors</button>
-        <button class="btn btn-s" style="height:26px;font-size:11px" id="btn-ops-audit" aria-pressed="false" onclick="_opsShow('audit')">Audit log</button>
-        <button class="btn btn-s" style="height:26px;font-size:11px" onclick="_opsShow(_opsView)">↻ Refresh</button>
-      </div>
-    </div>
-    <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Errors: everything that went wrong on the server (failed requests, background jobs) and in signed-in browsers over the last 7 days, grouped so a repeating problem is one row. Audit log: who changed other people's data, members, invites, mail, AI keys, bank link and backups.</p>
-    <div id="ops-body" style="font-size:11px;color:var(--t3)">Loading…</div>
-  </div>
   <!-- OAuth Setup Instructions -->
   <div style="margin-top:12px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
     <div style="font-size:12px;font-weight:600;margin-bottom:8px">⚙ Setup Required — Microsoft 365 OAuth</div>
@@ -994,13 +969,44 @@ function renderSettingsHTML(){
   </div>
   <!-- Backup --><div id="sp-10" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Backup & Export</h3>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Export All Data</div><div style="font-size:11px;color:var(--t3)">JSON + Markdown + CSV</div></div><button class="btn btn-p" style="font-size:11px" onclick="exportData()">Export ZIP</button></div>
-  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Auto-Backup</div></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
+  <!-- -260: the real nightly backups + health/audit cards (owner only; moved here from Accounts) — the "Auto-Backup" toggle that was here did nothing -->
+  <!-- Backups (owner only; build -226) -->
+  <div id="backup-section" class="admin-only" style="display:none;margin-top:12px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:6px;flex-wrap:wrap">
+      <div style="font-size:12px;font-weight:600">🗄 Backups</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-s" style="height:26px;font-size:11px" id="btn-backup-now" onclick="_runBackupNow()">⟳ Back up now</button>
+        <button class="btn btn-s" style="height:26px;font-size:11px" onclick="_downloadMigrationBackup()" title="Owner only: every table as JSON">💾 Download a copy</button>
+        <button class="btn btn-s" style="height:26px;font-size:11px" onclick="_loadBackupStatus()">↻ Status</button>
+      </div>
+    </div>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Every night (about 3–4 am Eastern) LevelUp saves an encrypted copy of the whole database to private storage and checks that it reads back correctly. Passwords, tokens and API keys are left out of backups, so after a restore you reconnect integrations and sign in with “Forgot password”.</p>
+    <div id="backup-status" style="font-size:11px;color:var(--t3)">Click “Status” to see the last backup.</div>
+  </div>
+  <!-- Health & audit (owner only; build -233) -->
+  <div id="ops-section" class="admin-only" style="display:none;margin-top:12px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:6px;flex-wrap:wrap">
+      <div style="font-size:12px;font-weight:600">🩺 Health &amp; audit</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap" role="group" aria-label="Health and audit view">
+        <button class="btn btn-s" style="height:26px;font-size:11px" id="btn-ops-errors" aria-pressed="true" onclick="_opsShow('errors')">Errors</button>
+        <button class="btn btn-s" style="height:26px;font-size:11px" id="btn-ops-audit" aria-pressed="false" onclick="_opsShow('audit')">Audit log</button>
+        <button class="btn btn-s" style="height:26px;font-size:11px" onclick="_opsShow(_opsView)">↻ Refresh</button>
+      </div>
+    </div>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Errors: everything that went wrong on the server (failed requests, background jobs) and in signed-in browsers over the last 7 days, grouped so a repeating problem is one row. Audit log: who changed other people's data, members, invites, mail, AI keys, bank link and backups.</p>
+    <div id="ops-body" style="font-size:11px;color:var(--t3)">Loading…</div>
+  </div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Import Data</div><div style="font-size:11px;color:var(--t3)">Restore from JSON backup</div></div><button class="btn btn-s" style="font-size:11px" onclick="document.getElementById('import-input').click()">Import JSON</button></div>
   <div style="background:var(--acs);border-left:3px solid var(--ac);border-radius:0 6px 6px 0;padding:8px 12px;margin-top:4px;font-size:11px;color:var(--t2)">⚠ Importing will <strong>replace</strong> all current data. Export a backup first if needed.</div></div>
   <!-- Privacy --><div id="sp-11" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Privacy</h3>
-  <p style="font-size:11px;color:var(--t2);margin-bottom:8px">LevelUp is local-first. Your data lives on your machine.</p>
-  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Local encryption</div></div><div class="tog" onclick="this.classList.toggle('on')"></div></div>
-  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">AI Audit Log</div></div><button class="btn btn-s" style="font-size:11px">View Activity</button></div></div>
+  <!-- -260: was "LevelUp is local-first. Your data lives on your machine." plus two controls that did nothing -->
+  <div style="font-size:12px;color:var(--t2);line-height:1.55;display:flex;flex-direction:column;gap:8px;margin-bottom:10px">
+    <p style="margin:0"><b>Where your data lives.</b> Your workspace is stored on LevelUp's server so it follows you between devices. Each browser keeps a working copy for speed and for working offline; it syncs back when you're online.</p>
+    <p style="margin:0"><b>Who can see it.</b> Teammates see only what they create and what you assign or share with them. Only the workspace owner can see everyone's items.</p>
+    <p style="margin:0"><b>AI.</b> When you use an AI feature, the text it needs is sent to your workspace's AI provider to get the answer. Atlas data stays with the workspace owner, and a Money budget is visible only to people it is shared with.</p>
+    <p style="margin:0"><b>Backups.</b> The whole workspace is backed up every night, encrypted, to private storage.</p>
+  </div>
+  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">This device's copy</div><div style="font-size:11px;color:var(--t3)">Clear the copy kept in this browser and reload it from the server. Nothing on the server is changed.</div></div><button class="btn btn-s" style="font-size:11px" onclick="clearLocalCacheAndReload()">Clear this device's cache</button></div></div>
   <!-- Admin --><div id="sp-12" class="sp" style="display:none">
     <h3 style="font-size:14px;font-weight:600;margin-bottom:8px">\ud83d\udee1 Admin Tools</h3>
     <p style="font-size:11px;color:var(--t3);margin-bottom:12px">Visible to administrators only. Manage system-wide email delivery and OAuth token health.</p>
