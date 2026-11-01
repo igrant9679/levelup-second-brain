@@ -11631,6 +11631,26 @@ async function _pushKeyToServer(k){
         else throw e;
       }
     }
+    if(!viaItems&&k==='finance'&&D.finance&&typeof D.finance==='object'){
+      // Money (-266): send the revision this copy is based on. A newer budget
+      // on the server (another device, a co-editor, the bank sync) is not
+      // overwritten: it comes back, replaces this copy, and the user is told.
+      // One save at a time — each must carry the revision the last one got.
+      const once=async()=>{
+        const base=Number(D.finance&&D.finance._rev);
+        const res=await _trpc('appData.save',{finance:JSON.stringify(D.finance),financeBaseRev:Number.isFinite(base)?base:null},'mutation');
+        if(res&&res.financeConflict&&res.financeConflict.finance){
+          D.finance=res.financeConflict.finance;
+          try{_safeOrigSave('finance');}catch(_){}
+          if(typeof toast==='function')toast({type:'warning',title:'Money changed elsewhere',msg:'The budget was updated on another device, by someone you share it with, or by the bank sync. That newer version is shown now — please make your last change again.',duration:10000});
+          try{if(typeof curScreen!=='undefined'&&curScreen==='money'&&typeof renderMoney==='function')renderMoney();}catch(_){}
+        }else if(res&&res.financeRev!=null&&D.finance){D.finance._rev=res.financeRev;try{_safeOrigSave('finance');}catch(_){}}
+      };
+      const p=(_luPushChain.finance||Promise.resolve()).catch(()=>{}).then(once);
+      _luPushChain.finance=p;
+      await p;
+      viaItems=true;
+    }
     if(!viaItems){
       const val=JSON.stringify(D[k]);
       await _trpc('appData.save',{[k]:val},'mutation');

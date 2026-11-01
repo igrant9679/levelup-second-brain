@@ -674,6 +674,8 @@ export const appDataRouter = router({
         decks: z.string().max(SAVE_MAX).optional(),
         finance: z.string().max(SAVE_MAX).optional(),
         calGrid: z.string().max(SAVE_MAX).optional(),
+        /** -266: the Money revision this device last saw (sent with finance). */
+        financeBaseRev: z.number().int().nullable().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -687,7 +689,7 @@ export const appDataRouter = router({
       // shape is unchanged.
       const updates: Partial<Record<DataKey, string>> = {};
       for (const key of DATA_KEYS) {
-        const val = input[key as keyof typeof input];
+        const val = input[key as keyof typeof input] as string | undefined;
         if (val !== undefined) {
           updates[key as DataKey] = val;
         }
@@ -697,10 +699,31 @@ export const appDataRouter = router({
       if (updates.atlas !== undefined && !(await isOwnerCtxUser(ctx.user as any))) delete updates.atlas;
       // Money: every write bumps the budget's revision so people it is shared
       // with can't overwrite it from a stale copy (see updateSharedFinance).
-      if (updates.finance !== undefined) updates.finance = await _bumpFinanceRev(db, ctx.user.id, updates.finance);
+      // -266: the owner's own save is checked the same way when the client
+      // says which revision it last saw — a co-editor's change, the bank-sync
+      // job's new transactions or another of the owner's devices are no
+      // longer overwritten by a stale tab. Refused → the current budget comes
+      // back (financeConflict) and nothing is written. Clients that don't send
+      // financeBaseRev (pre-266) save as before.
+      let financeConflict: { rev: number; finance: unknown } | null = null;
+      let financeRev: number | null = null;
+      if (updates.finance !== undefined && input.financeBaseRev != null) {
+        const [cur] = await db.select({ finance: userAppData.finance }).from(userAppData).where(eq(userAppData.userId, ctx.user.id)).limit(1);
+        let stored: any = null;
+        try { stored = JSON.parse((cur as any)?.finance || 'null'); } catch { stored = null; }
+        const storedRev = Number(stored?._rev) || 0;
+        if (stored && storedRev > input.financeBaseRev) {
+          financeConflict = { rev: storedRev, finance: stored };
+          delete updates.finance;
+        }
+      }
+      if (updates.finance !== undefined) {
+        updates.finance = await _bumpFinanceRev(db, ctx.user.id, updates.finance);
+        try { financeRev = Number(JSON.parse(updates.finance)?._rev) || null; } catch { financeRev = null; }
+      }
       const hasRelational = input.tasks !== undefined || input.notes !== undefined || input.ideas !== undefined;
 
-      if (Object.keys(updates).length === 0 && !hasRelational) return { ok: true };
+      if (Object.keys(updates).length === 0 && !hasRelational) return { ok: true, financeRev, financeConflict };
 
       if (Object.keys(updates).length > 0) {
         await db
@@ -726,7 +749,7 @@ export const appDataRouter = router({
       if (input.notes !== undefined) await mirrorNotesToRelational(db, ctx.user.id, input.notes, { guard: true });
       if (input.ideas !== undefined) await mirrorIdeasToRelational(db, ctx.user.id, input.ideas, { guard: true });
 
-      return { ok: true };
+      return { ok: true, financeRev, financeConflict };
     }),
 
   /**
