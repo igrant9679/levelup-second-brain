@@ -234,7 +234,7 @@ function renderCommandCenter(){
         <button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left" onclick="nav('standup')">📋 See the standup</button>
         <button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left" onclick="nav('clusters')">⬡ Clusters dashboard</button>
         <button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left" onclick="nav('process')">⚡ Process (GTD)</button>
-        <button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left" onclick="nav('programs')">📊 Portfolio view</button>
+        <button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left" onclick="nav('pm')">📊 Portfolio</button>
         <button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left" onclick="nav('reports')">📈 Build a widget</button>
         <button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left" onclick="_openSavedCCViews()" title="Save the current hat + filter set">⭐ Saved views</button>
       </div>
@@ -1674,7 +1674,7 @@ function renderPrograms(){
     </div>`;
   }).join('');
   const empty=programs.length?'':renderEmptyState({icon:'barChart',title:'No programs yet',hint:'Programs group your projects into a portfolio (one per company or strategic area).',ctaLabel:'+ New program',ctaFn:'_newProgram()'});
-  m.innerHTML=`<div class="ph-r" style="margin-bottom:14px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('barChart',22,'var(--page-accent)')}Programs</h1><p style="font-size:12px;color:var(--t2)">Portfolio view — group projects under a strategic umbrella. ${programs.length} program${programs.length===1?'':'s'} · ${(D.projects||[]).length} project${(D.projects||[]).length===1?'':'s'} total.</p></div><div style="display:flex;gap:6px"><button class="btn btn-s" onclick="nav('command')" title="Open Across tools">🎯 Across tools</button><button class="btn btn-p" onclick="_newProgram()">+ New program</button></div></div>
+  m.innerHTML=`<div class="ph-r" style="margin-bottom:14px"><div><h2 style="font-size:17px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('barChart',18,'var(--page-accent)')}Programs</h2><p style="font-size:12px;color:var(--t2)">Portfolio view — group projects under a strategic umbrella. ${programs.length} program${programs.length===1?'':'s'} · ${(D.projects||[]).length} project${(D.projects||[]).length===1?'':'s'} total.</p></div><div style="display:flex;gap:6px"><button class="btn btn-p" onclick="_newProgram()">+ New program</button></div></div>
     ${typeof _renderSharedProgramsSection==='function'?_renderSharedProgramsSection():''}
     ${programs.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">${cards}</div>`:empty}
     ${(D.projects||[]).length?_renderPortfolioTimeline():''}`;
@@ -1691,7 +1691,7 @@ function renderPrograms(){
         Tasks: <strong>${_topLevelTasks(D.tasks).filter(t=>t.status!=='Done'&&t.status!=='Someday').length}</strong> open
       </div>
     </div>
-    ${orphans.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px"><div style="font-size:11px;font-weight:600;margin-bottom:6px">🗂 Unassigned projects (${orphans.length})</div><div style="font-size:11px;color:var(--t3);margin-bottom:8px">Edit a program to link them.</div>${orphans.slice(0,15).map(p=>`<div class="lr" style="font-size:11px;padding:3px 0;cursor:pointer" onclick="openProjectDetail(${p.id})"><span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt" style="font-size:11px">${esc(p.name)}</span></div>`).join('')}</div>`:''}`;
+    ${orphans.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px"><div style="font-size:11px;font-weight:600;margin-bottom:6px">🗂 Unassigned projects (${orphans.length})</div><div style="font-size:11px;color:var(--t3);margin-bottom:8px">Edit a program to link them.</div>${orphans.slice(0,15).map(p=>`<div class="lr" style="font-size:11px;padding:3px 0;cursor:pointer" onclick="openProject(${p.id})"><span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt" style="font-size:11px">${esc(p.name)}</span></div>`).join('')}</div>`:''}`;
   }
 }
 
@@ -1839,7 +1839,7 @@ function openProgramDetail(pid){
     const pdone=pt.filter(t=>t.status==='Done').length;
     const ptotal=pt.length;
     const ppct=ptotal?Math.round(pdone/ptotal*100):p.pct||0;
-    return `<div class="lr" style="padding:8px 0;border-bottom:1px solid var(--bd1);cursor:pointer" onclick="closeDrawer();setTimeout(()=>openProjectDetail(${p.id}),120)">
+    return `<div class="lr" style="padding:8px 0;border-bottom:1px solid var(--bd1);cursor:pointer" onclick="closeDrawer();setTimeout(()=>openProject(${p.id}),120)">
       <span style="width:8px;height:8px;border-radius:2px;background:${p.color};flex-shrink:0"></span>
       <span class="rt" style="font-size:12px;font-weight:500">${p.icon?esc(p.icon)+' ':''}${esc(p.name)}</span>
       <span style="font-size:11px;color:var(--t3)">${pdone}/${ptotal}</span>
@@ -2024,7 +2024,7 @@ function renderProjectsList(header){
     const overdue=pts.filter(t=>t.status!=='Done'&&t.due&&t.due<_todayStr).length;
     const dueOverdue=p.due&&p.due!=='TBD'&&p.due<_todayStr;
     const ring=`background:conic-gradient(${health.color} ${pct}%, var(--s3) ${pct}% 100%)`;
-    return`<div class="pc" data-project-id="${p.id}" draggable="true" style="--pc-h:${health.color};${p.archived?'opacity:.55':''}" onclick="openProjectDetail(${p.id})" ondragstart="_projDragStart(event,${p.id})" ondragover="_projDragOver(event,${p.id})" ondragleave="_projDragLeave(event)" ondrop="_projDrop(event,${p.id})" ondragend="_projDragEnd(event)">
+    return`<div class="pc" data-project-id="${p.id}" draggable="true" style="--pc-h:${health.color};${p.archived?'opacity:.55':''}" onclick="openProject(${p.id})" ondragstart="_projDragStart(event,${p.id})" ondragover="_projDragOver(event,${p.id})" ondragleave="_projDragLeave(event)" ondrop="_projDrop(event,${p.id})" ondragend="_projDragEnd(event)">
       <span class="proj-drag pc-drag" title="Drag to reorder" onclick="event.stopPropagation()">⋮⋮</span>
       <div class="pc-head">
         <span class="pc-dot" style="background:${p.color}"></span>
@@ -2092,6 +2092,15 @@ function _projDrop(e,targetId){
   const set=new Set(visible);
   D.projects.filter(p=>!set.has(p.id)).forEach((p,i)=>{p.sortOrder=visible.length+i+1000;});
   save('projects');renderProjects();
+}
+// -268: clicking a project opens its workspace, the inside of the project. The
+// details drawer is the Project details button there. People without the
+// workspace in their layout (detail level 3 and below), and archived projects,
+// which the workspace doesn't list, keep the drawer.
+function openProject(pid){
+  const p=(D.projects||[]).find(x=>x.id===pid);
+  if(p&&!p.archived&&typeof openPM==='function'&&luPageOn('pm')){openPM('p:'+pid,'overview');return;}
+  openProjectDetail(pid);
 }
 function openProjectDetail(pid){
   const p=D.projects.find(x=>x.id===pid);
@@ -2784,7 +2793,7 @@ function renderProjectsKanban(header){
     const ps=filtered.filter(p=>(colMap[p.status]||p.status)===col);
     return`<div style="flex:1;min-width:180px;max-width:260px">
       <div style="font-size:11px;font-weight:600;padding:6px 8px;border-radius:6px 6px 0 0;background:var(--s3);margin-bottom:6px">${col} <span style="font-size:11px;color:var(--t3)">(${ps.length})</span></div>
-      ${ps.map(p=>`<div class="cd" style="cursor:pointer;margin-bottom:6px;border-left:3px solid ${p.color};${p.archived?'opacity:.55':''}" onclick="openProjectDetail(${p.id})">
+      ${ps.map(p=>`<div class="cd" style="cursor:pointer;margin-bottom:6px;border-left:3px solid ${p.color};${p.archived?'opacity:.55':''}" onclick="openProject(${p.id})">
         <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px"><span style="cursor:pointer;font-size:13px;${p.pinned?'color:var(--warn)':'color:var(--t3)'}" onclick="_projToggleStar(${p.id},event)">${p.pinned?'★':'☆'}</span><span style="font-size:12px;font-weight:500;flex:1">${p.icon?esc(p.icon)+' ':''}${esc(p.name)}</span></div>
         <div style="font-size:11px;color:var(--t3)">Due ${p.due||'—'} · ${p.pct||0}%</div>
         <div class="pb" style="margin-top:4px"><div class="f" style="width:${p.pct||0}%;background:${p.color}"></div></div>
@@ -2832,7 +2841,7 @@ function renderProjectsGantt(header){
       ?`<span title="${cfN?cfN+' CF':''}${cfN&&lsiN?' · ':''}${lsiN?lsiN+' LSI':''} external task${extLinked.length===1?'':'s'} linked" style="display:inline-flex;align-items:center;gap:2px;font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;background:var(--s3);color:var(--t2);margin-left:4px">${cfN?`<span style="color:#1f6feb">${cfN}CF</span>`:''}${cfN&&lsiN?'·':''}${lsiN?`<span style="color:#9333ea">${lsiN}LSI</span>`:''}</span>`
       :'';
     return`<div class="gantt-row" style="display:flex;align-items:center;gap:8px;padding:8px 6px;border-bottom:1px solid var(--bd1);border-radius:7px">
-      <div style="width:170px;flex-shrink:0;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="openProjectDetail(${p.id})" title="${esc(p.name)} · ${hp.label}">
+      <div style="width:170px;flex-shrink:0;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="openProject(${p.id})" title="${esc(p.name)} · ${hp.label}">
         <span style="width:7px;height:7px;border-radius:2px;background:${p.color};display:inline-block;margin-right:5px"></span>${p.pinned?'<span style="color:var(--warn);margin-right:3px">★</span>':''}${esc(p.name)}${extBadge}
       </div>
       <div style="flex:1;position:relative;height:22px;background:var(--s3);border-radius:6px;overflow:hidden">

@@ -1736,7 +1736,7 @@ function _linkAutoProjectsToPrograms(){
     toast({type:'info',title:'All auto-synced projects are already in a program.'});
   }
   _renderAutoProjectsMaint();
-  if(curScreen==='programs'&&typeof renderPrograms==='function')renderPrograms();
+  if(curScreen==='pm'&&typeof renderPrograms==='function')renderPrograms();
 }
 function _cleanupEmptyAutoProjects(){
   const counts=_autoProjectTaskCounts();
@@ -1754,7 +1754,7 @@ function _cleanupEmptyAutoProjects(){
   toast({type:'success',title:`✓ Deleted ${toDelete.length} empty project${toDelete.length===1?'':'s'}`,duration:2400});
   _renderAutoProjectsMaint();
   if(curScreen==='projects'&&typeof renderProjects==='function')renderProjects();
-  if(curScreen==='programs'&&typeof renderPrograms==='function')renderPrograms();
+  if(curScreen==='pm'&&typeof renderPrograms==='function')renderPrograms();
 }
 async function _aiFillAutoProjectDescriptions(){
   const all=(D.projects||[]).filter(p=>p&&p.autoCreatedBy&&!(p.desc||'').trim());
@@ -9743,9 +9743,9 @@ function _luPhoneCSS(){
 ' #lu-rr-back.on{display:block}',
 '}',
 '@media (max-width:700px){',
-' .pm-tabs,#s-money .fin-tabs{flex-wrap:nowrap!important;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none}',
-' .pm-tabs::-webkit-scrollbar,#s-money .fin-tabs::-webkit-scrollbar{display:none}',
-' .pm-tabs>.pm-tab,#s-money .fin-tabs>.fin-tab{flex-shrink:0;white-space:nowrap}',
+' .pm-tabs,.pm-subtabs,#s-money .fin-tabs,#s-money .fin-subtabs{flex-wrap:nowrap!important;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none}',
+' .pm-tabs::-webkit-scrollbar,.pm-subtabs::-webkit-scrollbar,#s-money .fin-tabs::-webkit-scrollbar,#s-money .fin-subtabs::-webkit-scrollbar{display:none}',
+' .pm-tabs>.pm-tab,.pm-subtabs>.pm-sub,#s-money .fin-tabs>.fin-tab,#s-money .fin-subtabs>.fin-sub{flex-shrink:0;white-space:nowrap}',
 ' #pm-main table:not(.pm-scroll table),#s-money table{display:block;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}',
 ' [id^="tasks-view-"]{height:40px!important;width:44px!important}',
 ' button[onclick^="bulkAction("],button[onclick^="toggleBulkMode"]{min-height:36px!important}',
@@ -9784,7 +9784,7 @@ if(typeof document!=='undefined'&&!window._luPhoneWired){
   }catch(_){}
   try{
     let _tabT=0;
-    new MutationObserver(()=>{if(_tabT)return;_tabT=requestAnimationFrame(()=>{_tabT=0;document.querySelectorAll('.pm-tabs>.pm-tab.on,#s-money .fin-tabs>.fin-tab.on').forEach(b=>{const p=b.parentElement;if(p&&p.scrollWidth>p.clientWidth+2){const l=b.offsetLeft-p.offsetLeft,r=l+b.offsetWidth;if(l<p.scrollLeft||r>p.scrollLeft+p.clientWidth)p.scrollLeft=Math.max(0,l-24);}});});}).observe(document.body,{childList:true,subtree:true});
+    new MutationObserver(()=>{if(_tabT)return;_tabT=requestAnimationFrame(()=>{_tabT=0;document.querySelectorAll('.pm-tabs>.pm-tab.on,.pm-subtabs>.pm-sub.on,#s-money .fin-tabs>.fin-tab.on,#s-money .fin-subtabs>.fin-sub.on').forEach(b=>{const p=b.parentElement;if(p&&p.scrollWidth>p.clientWidth+2){const l=b.offsetLeft-p.offsetLeft,r=l+b.offsetWidth;if(l<p.scrollLeft||r>p.scrollLeft+p.clientWidth)p.scrollLeft=Math.max(0,l-24);}});});}).observe(document.body,{childList:true,subtree:true});
   }catch(_){}
 }
 // ── Today (-267, Audit 2 Phase 5) ───────────────────────────────────────────
@@ -9831,6 +9831,29 @@ function _luCopyStandup(){renderStandup();_copyStandup();}
   paintAfter('renderStandup','standup-main','w');
   paintAfter('renderCommandCenter','command-main','x');
 })();
+// ── Grouped tabs (-269, Audit 2 Phase 5) ────────────────────────────────────
+// groups: [{id,label,tabs:[id,…]}]. Advanced tabs stay out of the way below
+// detail level 4, unless one is the tab you're on (a deep link must never land
+// on a tab that isn't there) or you asked to see them ("+N more").
+function _luGroupTabs(groups,active,advanced,showAdvanced){
+  const vis=t=>showAdvanced||advanced.indexOf(t)<0||t===active;
+  const current=groups.find(g=>g.tabs.indexOf(active)>=0)||groups[0];
+  return {
+    current,
+    groups:groups.filter(g=>g.tabs.some(vis)),
+    sub:current.tabs.filter(vis),
+    hidden:current.tabs.filter(t=>!vis(t)).length,
+    first:g=>g.tabs.find(vis)||g.tabs[0],
+  };
+}
+function _luAdvTabsOn(){
+  if(_luAdvancedOn())return true;
+  try{return localStorage.getItem('lu_adv_tabs')==='1';}catch(_){return false;}
+}
+function _luShowAdvTabs(rerender){
+  try{localStorage.setItem('lu_adv_tabs','1');}catch(_){}
+  rerender();
+}
 function _backupStatusHtml(b){
   if(!b)return 'No automatic backup has run yet.';
   const when=_pd(b.at).toLocaleString();
@@ -15722,6 +15745,22 @@ function _atlasSpawnTask(type,id){
    All writes go through _finSave(); every mutating handler checks _finRO().
    ═════════════════════════════════════════════════════════════════════ */
 let _finTab='overview';
+const _FIN_TAB_GROUPS=[
+  {id:'overview',label:'Overview',tabs:['overview','review']},
+  {id:'spending',label:'Spending',tabs:['transactions','budgets','bills']},
+  {id:'accounts',label:'Income & accounts',tabs:['income','accounts']},
+  {id:'plan',label:'Goals & forecast',tabs:['goals','forecast']},
+  {id:'insights',label:'Reports & agents',tabs:['reports','agents']},
+];
+const _FIN_TAB_ADVANCED=['forecast','agents'];
+const _finGroupLast={};
+function _finGoGroup(id){
+  const gt=_luGroupTabs(_FIN_TAB_GROUPS,_finTab,_FIN_TAB_ADVANCED,_luAdvTabsOn());
+  const g=_FIN_TAB_GROUPS.find(x=>x.id===id);if(!g)return;
+  const last=_finGroupLast[id];
+  _finTab=last&&g.tabs.indexOf(last)>=0&&(_luAdvTabsOn()||_FIN_TAB_ADVANCED.indexOf(last)<0)?last:gt.first(g);
+  renderMoney();
+}
 let _finMonth=(function(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');})();
 let _finShared=null;            // null = my budget; else index into D._sharedBudgets
 let _sharedFinLoaded=false;
@@ -16124,6 +16163,10 @@ function _finCSS(){
 '#s-money .fin-tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:14px}',
 '#s-money .fin-tab{height:30px;padding:0 12px;font-size:12px;font-weight:600;border-radius:8px;border:1px solid var(--bd1);background:var(--s2);color:var(--t2);cursor:pointer}',
 '#s-money .fin-tab.on{background:var(--ac);border-color:var(--ac);color:#fff}',
+'#s-money .fin-subtabs{display:flex;gap:2px;flex-wrap:wrap;margin:-6px 0 14px;border-bottom:1px solid var(--bd1)}',
+'#s-money .fin-sub{height:30px;padding:0 11px;font-size:12px;font-weight:500;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;background:none;color:var(--t2);cursor:pointer;white-space:nowrap;font-family:inherit}',
+'#s-money .fin-sub:hover{color:var(--t1)}',
+'#s-money .fin-sub.on{color:var(--t1);border-bottom-color:var(--ac);font-weight:650}',
 '#s-money .fin-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;align-items:start}',
 '#s-money .fin-card{background:var(--s2);border:1px solid var(--bd1);border-radius:10px;padding:12px 14px;min-width:0}',
 '#s-money .fin-card h3{font-size:12px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:6px}',
@@ -16340,7 +16383,7 @@ function renderMoney(){
       <button class="btn btn-s" style="height:28px;font-size:11px" onclick="finExport()">📤 Export</button>`}
       ${ro?'':`<button class="btn btn-p" style="height:28px;font-size:11px" onclick="finOpenTx()">+ Transaction</button>`}
     </div></div>
-    <div class="fin-tabs">${tabs.map(t=>`<button class="fin-tab ${_finTab===t[0]?'on':''}" onclick="_finTab='${t[0]}';renderMoney()">${t[1]}</button>`).join('')}</div>
+    ${(()=>{const gt=_luGroupTabs(_FIN_TAB_GROUPS,_finTab,_FIN_TAB_ADVANCED,_luAdvTabsOn());_finGroupLast[gt.current.id]=_finTab;const lbl=id=>(tabs.find(t=>t[0]===id)||[id,id])[1];return `<div class="fin-tabs" role="tablist" aria-label="Money sections">${gt.groups.map(g=>`<button class="fin-tab ${g===gt.current?'on':''}" role="tab" aria-selected="${g===gt.current}" onclick="_finGoGroup('${g.id}')">${g.label}${g.id==='overview'&&_rvN&&g!==gt.current?` <span class="fin-chip" style="margin-left:2px;padding:0 6px">${_rvN}</span>`:''}</button>`).join('')}</div>${gt.sub.length>1||gt.hidden?`<div class="fin-subtabs" role="tablist" aria-label="${esc(gt.current.label)}">${gt.sub.map(id=>`<button class="fin-sub ${_finTab===id?'on':''}" role="tab" aria-selected="${_finTab===id}" onclick="_finTab='${id}';renderMoney()">${lbl(id)}</button>`).join('')}${gt.hidden?`<button class="fin-sub" onclick="_luShowAdvTabs(renderMoney)" title="Show the advanced tabs (detail level below 4 hides them)">+${gt.hidden} more</button>`:''}</div>`:''}`;})()}
     <div id="fin-body">${_finTabInsightsHtml(_finTab)}${_finTab==='overview'?_finOverviewHtml():_finTab==='review'?_finReviewHtml():_finTab==='income'?_finIncomeHtml():_finTab==='transactions'?_finTxHtml():_finTab==='budgets'?_finBudgetsHtml():_finTab==='bills'?_finBillsHtml():_finTab==='accounts'?_finAccountsHtml():_finTab==='forecast'?_finForecastHtml():_finTab==='agents'?_finAgentsHtml():_finTab==='reports'?_finReportsHtml():_finGoalsHtml()}</div>`;
 }
 function _finSwitchBudget(v){ _finShared=(v==='mine')?null:Number(v); _finTab='overview'; renderMoney(); }

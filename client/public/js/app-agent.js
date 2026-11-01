@@ -206,7 +206,7 @@ function _agentOpen(ref){
   try{
     switch(ref.type){
       case 'task':{var t=(D.tasks||[]).find(function(x){return String(x.id)===String(id);});if(!t)return false;if(curScreen!=='tasks'&&curScreen!=='myday')nav('tasks');setTimeout(function(){openDrawer('task',t);},250);return true;}
-      case 'project':nav('projects');setTimeout(function(){openProjectDetail(id);},250);return true;
+      case 'project':if(typeof openProject==='function'){openProject(id);return true;}nav('projects');setTimeout(function(){openProjectDetail(id);},250);return true;
       case 'program':nav('programs');setTimeout(function(){openProgramDetail(id);},250);return true;
       case 'note':nav('notes');setTimeout(function(){showNoteInEditor(id);},300);return true;
       case 'goal':nav('goals');setTimeout(function(){openGoalDetail(id);},250);return true;
@@ -702,7 +702,7 @@ function _agentPageId(ref){
   var pages=typeof LU_PAGES!=='undefined'?LU_PAGES:[];
   var byLabel=pages.find(function(p){return String(p.label||'').toLowerCase()===s;});
   if(byLabel)return byLabel.id;
-  var syn={'planner':'myday','my day':'myday','today':'myday','dashboard':'home','deals':'pipeline','sales':'pipeline','budget':'money','finance':'money','finances':'money','mind maps':'mindmaps','mind map':'mindmaps','mindmap':'mindmaps','gtd':'process','inbox':'process','command center':'command','knowledge graph':'graph','week':'myweek','year':'myyear','people':'contacts','email':'mail','help':'help','learning':'help','preferences':'settings'};
+  var syn={'planner':'myday','my day':'myday','today':'myday','dashboard':'home','deals':'pipeline','sales':'pipeline','budget':'money','finance':'money','finances':'money','mind maps':'mindmaps','mind map':'mindmaps','mindmap':'mindmaps','gtd':'process','inbox':'process','command center':'command','pm workspace':'pm','project management':'pm','knowledge graph':'graph','week':'myweek','year':'myyear','people':'contacts','email':'mail','help':'help','learning':'help','preferences':'settings'};
   if(syn[s]&&(typeof SM==='undefined'||SM[syn[s]]))return syn[s];
   var loose=pages.filter(function(p){return String(p.label||'').toLowerCase().indexOf(s)>=0||p.id.indexOf(s)===0;});
   if(loose.length===1)return loose[0].id;

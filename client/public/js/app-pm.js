@@ -41,10 +41,16 @@ function _pmCSS(){
     '#pm-main{max-width:none!important;width:100%;min-width:0}',
     '.pm-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}',
     '.pm-top h1{font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px;margin:0}',
+    '.pm-prog-grid{display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:16px;align-items:start}',
+    '@media(max-width:1000px){.pm-prog-grid{grid-template-columns:minmax(0,1fr)}}',
     '.pm-tabs{display:flex;gap:2px;flex-wrap:wrap;border-bottom:1px solid var(--bd1);margin:12px 0 14px}',
     '.pm-tab{padding:7px 11px;border:none;background:none;color:var(--t2);font-size:12.5px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;font-family:inherit}',
     '.pm-tab:hover{color:var(--t1)}',
     '.pm-tab.on{color:var(--t1);border-bottom-color:var(--page-accent,var(--ac));font-weight:650}',
+    '.pm-subtabs{display:flex;gap:4px;flex-wrap:wrap;margin:-6px 0 14px}',
+    '.pm-sub{display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 10px;border:1px solid transparent;border-radius:7px;background:none;color:var(--t2);font-size:12px;cursor:pointer;white-space:nowrap;font-family:inherit}',
+    '.pm-sub:hover{color:var(--t1);background:var(--s2)}',
+    '.pm-sub.on{color:var(--t1);background:var(--s2);border-color:var(--bd2);font-weight:600}',
     '.pm-grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px}',
     '.pm-split{display:grid;grid-template-columns:minmax(260px,330px) minmax(0,1fr);gap:12px}',
     '.pm-split.wide{grid-template-columns:minmax(280px,430px) minmax(0,1fr)}',
@@ -419,6 +425,7 @@ var PM_TABS=[
 ];
 var PM_ALL_TABS=[
   {id:'portfolio',label:'Portfolio',icon:'layers'},
+  {id:'programs',label:'Programs',icon:'layers'},
   {id:'waiting',label:'Waiting on',icon:'clock'},
   {id:'raid',label:'RAID',icon:'alertTriangle'},
   {id:'resources',label:'Resources',icon:'barChart'},
@@ -426,6 +433,29 @@ var PM_ALL_TABS=[
   {id:'templates',label:'Templates',icon:'bookOpen'},
   {id:'settings',label:'Settings',icon:'settings'},
 ];
+// -269: 15 tabs (7 at Portfolio level) grouped into 5 (4). Tab ids are unchanged.
+var PM_TAB_GROUPS=[
+  {id:'plan',label:'Plan',tabs:['overview','schedule','ims']},
+  {id:'people',label:'People',tabs:['waiting','raci','stakeholders','resources']},
+  {id:'riskmoney',label:'Risk & money',tabs:['health','raid','budget','contract','changes']},
+  {id:'reports',label:'Reports',tabs:['reports','lessons']},
+  {id:'settings',label:'Settings',tabs:['settings']},
+];
+var PM_ALL_TAB_GROUPS=[
+  {id:'portfolio',label:'Portfolio',tabs:['portfolio','programs']},
+  {id:'people',label:'People',tabs:['waiting','people','resources']},
+  {id:'risk',label:'Risk',tabs:['raid']},
+  {id:'settings',label:'Settings',tabs:['templates','settings']},
+];
+var PM_TAB_ADVANCED=['ims','raci','stakeholders','contract','changes','lessons'];
+var _pmGroupLast={};
+function pmGoGroup(id){
+  var groups=_pmState.proj==='all'?PM_ALL_TAB_GROUPS:PM_TAB_GROUPS;
+  var g=groups.find(function(x){return x.id===id;});if(!g)return;
+  var gt=_luGroupTabs(groups,_pmState.tab,PM_TAB_ADVANCED,_luAdvTabsOn());
+  var last=_pmGroupLast[(_pmState.proj==='all'?'a:':'p:')+id];
+  pmGo(null,last&&g.tabs.indexOf(last)>=0&&(_luAdvTabsOn()||PM_TAB_ADVANCED.indexOf(last)<0)?last:gt.first(g));
+}
 var _pmState=(function(){try{return JSON.parse(localStorage.getItem('lu_pm_state')||'{}')||{};}catch(_){return {};}})();
 if(!_pmState.proj)_pmState.proj='all';
 if(!_pmState.tab)_pmState.tab='portfolio';
@@ -440,6 +470,15 @@ function pmGo(proj,tab){
   pmRender();
 }
 function openPM(projKey,tab){pmGo(projKey||'all',tab||null);if(typeof curScreen==='undefined'||curScreen!=='pm')nav('pm');}
+function _pmTabRows(proj,tabs){
+  var groups=proj==='all'?PM_ALL_TAB_GROUPS:PM_TAB_GROUPS;
+  var gt=_luGroupTabs(groups,_pmState.tab,PM_TAB_ADVANCED,_luAdvTabsOn());
+  _pmGroupLast[(proj==='all'?'a:':'p:')+gt.current.id]=_pmState.tab;
+  var def=function(id){return tabs.find(function(t){return t.id===id;})||{id:id,label:id,icon:'list'};};
+  return '<div class="pm-tabs" role="tablist" aria-label="Sections">'+gt.groups.map(function(g){var on=g===gt.current;return '<button class="pm-tab'+(on?' on':'')+'" role="tab" aria-selected="'+on+'" onclick="pmGoGroup(\''+g.id+'\')">'+g.label+'</button>';}).join('')+'</div>'+
+    (gt.sub.length>1||gt.hidden?'<div class="pm-subtabs" role="tablist" aria-label="'+_pmE(gt.current.label)+'">'+gt.sub.map(function(id){var t=def(id),on=id===_pmState.tab;return '<button class="pm-sub'+(on?' on':'')+'" role="tab" aria-selected="'+on+'" onclick="pmGo(null,\''+id+'\')">'+_pmIcon(t.icon,13)+' '+t.label+'</button>';}).join('')+
+      (gt.hidden?'<button class="pm-sub" onclick="_luShowAdvTabs(pmRender)" title="Show the advanced tabs (detail level below 4 hides them)">+'+gt.hidden+' more</button>':'')+'</div>':'');
+}
 function pmRender(){
   var main=document.getElementById('pm-main');if(!main)return;
   _pmMemoClear(); // tasks, Atlas or settings may have changed since the last render
@@ -455,18 +494,19 @@ function pmRender(){
   if(!tabs.some(function(t){return t.id===_pmState.tab;}))_pmState.tab=tabs[0].id;
   var projects=pmProjects();
   var sel='<select class="inp" title="Pick a project" style="width:auto;min-width:220px;max-width:min(420px,100%)" onchange="pmGo(this.value)">'+
-    '<option value="all"'+(proj==='all'?' selected':'')+'>All projects — portfolio</option>'+
+    '<option value="all"'+(proj==='all'?' selected':'')+'>Portfolio — all projects</option>'+
     (projects.some(function(p){return p.source==='native';})?'<optgroup label="LevelUp projects">'+projects.filter(function(p){return p.source==='native';}).map(function(p){return '<option value="'+_pmE(p.key)+'"'+(p.key===proj?' selected':'')+'>'+_pmE(p.name)+'</option>';}).join('')+'</optgroup>':'')+
     (projects.some(function(p){return p.source==='atlas';})?'<optgroup label="Atlas (CommunityForce)">'+projects.filter(function(p){return p.source==='atlas';}).map(function(p){return '<option value="'+_pmE(p.key)+'"'+(p.key===proj?' selected':'')+'>'+_pmE(p.name)+(p.category&&p.category!=='project'?' ('+_pmE(p.category)+')':'')+'</option>';}).join('')+'</optgroup>':'')+
     '</select>';
   var pr=proj==='all'?null:pmProject(proj);
   var sub=pr?(pr.source==='atlas'?'Atlas · read-only work items · your PM layer on top':(pr.status||'')):'Every project, delegation and risk in one place';
-  main.innerHTML='<div class="pm-top"><h1>'+_pmIcon('briefcase',22,'var(--page-accent)')+' Project Management</h1>'+sel+
+  main.innerHTML='<div class="pm-top">'+(pr?'<button class="btn btn-s" onclick="nav(\'projects\')" title="Back to all your projects">← Projects</button>':'')+'<h1>'+_pmIcon('briefcase',22,'var(--page-accent)')+' '+(pr?_pmE(pr.name):'Portfolio')+'</h1>'+sel+
     '<span class="pm-muted">'+_pmE(sub)+'</span><span style="flex:1"></span>'+
     (pr&&pr.source==='native'?'<button class="btn btn-s" onclick="openProjectDetail&&openProjectDetail('+JSON.stringify(pr.id).replace(/"/g,'&quot;')+')">Project details</button>':'')+
     '<button class="btn btn-s" onclick="pmLoad(true).then(pmRender)" title="Reload project data">'+_pmIcon('refresh',14)+'</button></div>'+
-    '<div class="pm-tabs" role="tablist">'+tabs.map(function(t){return '<button class="pm-tab'+(t.id===_pmState.tab?' on':'')+'" role="tab" aria-selected="'+(t.id===_pmState.tab)+'" onclick="pmGo(null,\''+t.id+'\')">'+_pmIcon(t.icon,13)+' '+t.label+'</button>';}).join('')+'</div>'+
+    _pmTabRows(proj,tabs)+
     '<div id="pm-body"></div>';
+  try{document.querySelectorAll('#s-pm .si').forEach(function(i){i.classList.toggle('on',i.dataset.n===(proj==='all'?'pm':'projects'));});}catch(_){}
   var body=document.getElementById('pm-body');
   try{
     var fn=window['pmTab_'+_pmState.tab];
@@ -782,6 +822,8 @@ function pmTab_overview(key){
   return html;
 }
 
+function pmTab_programs(){return '<div class="pm-prog-grid"><div id="prog-main" style="min-width:0"></div><aside id="prog-rail" style="min-width:0"></aside></div>';}
+function pmTabAfter_programs(){if(typeof renderPrograms==='function')renderPrograms();}
 function pmTab_portfolio(){
   var projects=pmProjects();var today=_pmToday();
   var rows=projects.map(function(p){
@@ -3023,11 +3065,11 @@ async function pmExportAll(key){
   try{
     if(tpl&&tpl.content&&!tpl.content.querySelector('.si[data-n="pm"]')){
       var after=tpl.content.querySelector('.si[data-n="projects"]');
-      var html='<div class="si" data-n="pm" title="Project management — delegation, RACI, schedule, risks, budget"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><path d="M2 13h20"/></svg><span class="l">PM Workspace</span></div>';
+      var html='<div class="si" data-n="pm" title="Portfolio — every project and program, delegation, risks and resources"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><path d="M2 13h20"/></svg><span class="l">Portfolio</span></div>';
       if(after)after.insertAdjacentHTML('afterend',html);
     }
   }catch(_){}
-  try{if(typeof LU_PAGES!=='undefined'&&Array.isArray(LU_PAGES)&&!LU_PAGES.some(function(p){return p.id==='pm';})){var i=LU_PAGES.findIndex(function(p){return p.id==='projects';});LU_PAGES.splice(i>=0?i+1:LU_PAGES.length,0,{id:'pm',label:'PM Workspace',group:'work',nav:true,core:false,rail:false});}}catch(_){}
+  try{if(typeof LU_PAGES!=='undefined'&&Array.isArray(LU_PAGES)&&!LU_PAGES.some(function(p){return p.id==='pm';})){var i=LU_PAGES.findIndex(function(p){return p.id==='projects';});LU_PAGES.splice(i>=0?i+1:LU_PAGES.length,0,{id:'pm',label:'Portfolio',group:'work',nav:true,core:false,rail:false});}}catch(_){}
   if(typeof renderScreen==='function'){
     var orig=renderScreen;
     window.renderScreen=function(s){var r=orig.apply(this,arguments);if(s==='pm'){try{pmRender();}catch(e){console.error('[pm] render failed',e);}}return r;};
@@ -3057,8 +3099,8 @@ async function pmExportAll(key){
   // Help Center article (the assistant reads Help through _luKnowledgeHits)
   try{if(typeof HC_ARTICLES!=='undefined'&&Array.isArray(HC_ARTICLES)&&!HC_ARTICLES.some(function(a){return a.slug==='project-management';})){
     HC_ARTICLES.push({id:65,slug:'project-management',catId:10,title:'Project management — delegation, RACI, schedule, risks and budget',
-      summary:'The PM Workspace: track work you hand to others (even people without LevelUp), RACI, RAID log and risk matrix, stakeholders and status reports, Gantt with critical path and baselines, WBS / DoD IMS with MS Project export, resources, budget with earned value, change requests, lessons, templates and meeting notes → action items.',
+      summary:'A project\'s workspace and the Portfolio: track work you hand to others (even people without LevelUp), RACI, RAID log and risk matrix, stakeholders and status reports, Gantt with critical path and baselines, WBS / DoD IMS with MS Project export, resources, budget with earned value, change requests, lessons, templates and meeting notes → action items.',
       tags:['project','projects','pm','project management','program','delegate','delegated','delegation','waiting','raci','raid','risk','risks','issue','stakeholder','status report','gantt','drag','schedule','critical path','baseline','ims','wbs','ms project','dod','dcma','schedule health','monte carlo','p80','contract','clin','cdrl','deliverable','invoice','funding','period of performance','control account','management reserve','earned schedule','p50','schedule risk','import','mpp','14 point','status date','actual start','actual finish','percent complete','cpli','bei','resource','resources','budget','evm','earned value','cpi','spi','change request','lessons','template','meeting notes','action items'],
-      body:'## Project management\n\nOpen **PM Workspace** in the sidebar (under Work), or **💼 PM workspace** in a project\'s details. Pick a project at the top — LevelUp projects and **Atlas (CommunityForce)** projects are both listed — or **All projects** for the portfolio.\n\n## Delegate and track (Waiting on)\n\nIn any task press **🤝 Delegate** (or **Delegate something** on the Waiting on tab). Choose the person — a team member, someone from your Contacts, or anyone you add with an email address; they do **not** need LevelUp. Set when you expect it back and when to follow up. Tick **Email them now** to send the details.\n\n**Waiting on** lists everything you have handed off, grouped by person or project, with what is late and what is due a follow-up. **Follow up** emails the person; they just **reply** ("done", "Friday", "blocked on the client") and LevelUp reads the reply, updates the delegation and tells you. A "done" marks the task done. Turn on **Automatic follow-up emails** in the project\'s Settings tab to have LevelUp send follow-ups on the date for you. Your coach mentions late delegated work in its check-ins.\n\n## RACI\n\nAdd people as columns, then click a cell to mark **R**esponsible, **A**ccountable (exactly one), **C**onsulted, **I**nformed. The Check column flags rows with no or several Accountables. **Fill from assignments** starts it from task assignees and delegations. Export to Excel or print.\n\n## RAID log\n\nRisks (with a 5×5 probability × impact matrix), Issues, Assumptions and Decisions. A risk that happens becomes an issue in one click.\n\n## Stakeholders and reports\n\nPlace stakeholders on the influence/interest grid and plan who hears what and how often. **Reports → New status report** drafts a red/amber/green report from live data with AI; edit it, then **Email** it, save a **PDF**, or turn it into a **Slides** deck.\n\n## Schedule, WBS and IMS\n\n**Schedule** is a Gantt with dependency arrows, the **critical path** in red, float, milestones and **baselines** (save one, then see how far each item has slipped). Drag a bar to move it, drag its right edge to change its length, and drag its ● onto another bar to make that one follow it; click an arrow to change or remove a link. Arrow keys move a selected bar (Shift changes its length), and each drag can be undone. **WBS / IMS** holds the outline with durations in work days and predecessors ("3", "3SS", "3FS+2"). Two styles: **MS Project-style WBS** or **DoD IMS** (event → significant accomplishment → accomplishment criteria → task). Build it from the project\'s tasks, from your milestones, or draft it with AI. Export to **Excel** or **MS Project XML** (open it in Microsoft Project). **Import XML** brings a schedule in from Microsoft Project (save it there with File → Save As → XML): the outline, durations, links and lags, % complete, actual dates and its baseline.\n\n## Progress and schedule health\n\nOn **WBS / IMS** set each row\'s **% done**, **Actual start** and **Actual finish** — an actual finish marks the row done, and the schedule moves the rest of the plan from the real dates. The **Health** tab runs the DCMA 14-point check on the schedule against a **status date** you choose: missing logic, leads and lags, link types, constraints, high float, negative float, long tasks, dates that are already past, unassigned work, missed tasks, the critical path, CPLI and BEI. Each failing check lists the rows to fix. Save a baseline on the Schedule tab first for the last three. The MS Project XML export carries % done, actual dates and the baseline. **Schedule risk** (also on Health) runs 1,000 simulations with each open task somewhere between its optimistic and pessimistic length, and shows the P50 and P80 finish dates, the chance of making the planned, baseline or a target date, and which tasks most often drive the finish.\n\n## Resources and budget\n\n**Resources** shows each person\'s load per week against their capacity (allocations plus estimated work they own; Atlas team plans too). **Budget** holds planned lines and actual costs and works out **earned value**: CPI (cost efficiency), SPI (schedule efficiency) and the estimate at completion. Approved **change requests** add to the budget. Put a budget line on a WBS element to make it a **control account** (cost performance per part of the work), and mark a line **management reserve** to hold it outside the plan. The Budget tab also shows cost and schedule variance, three estimates at completion, the cost efficiency still needed (TCPI) and **earned schedule** — SPI(t) and the finish date at the current pace.\n\n## Contract\n\nThe **Contract** tab holds the contract number, customer, type, period of performance, ceiling, funding, CO and COR, plus CLINs, invoices and deliverables (CDRLs — one-off or monthly / quarterly / yearly; marking a recurring one submitted moves it to its next due date). It works out spending against funding, the monthly burn, when the funds run out, what is earned but not yet billed, and warns you — also on the Overview and in status reports — when funding will run out before the period of performance ends, the forecast needs more funding, a deliverable is overdue or an invoice is unpaid after 30 days.\n\n## Templates and meeting notes\n\n**All projects → Templates** creates a project with tasks, dependencies, RACI roles and risks from a template (client onboarding, ATO package, software release, proposal response — or save your own). **Action items from meeting notes** reads a note, finds who committed to what, and creates the tasks and delegations.'});
+      body:'## Project management\n\nClick any project on the **Projects** page to open its workspace, or open **Portfolio** in the sidebar for every project and program together (the Programs page moved there too). Pick a project at the top — LevelUp projects and **Atlas (CommunityForce)** projects are both listed — or **All projects** for the portfolio.\n\n## Delegate and track (Waiting on)\n\nIn any task press **🤝 Delegate** (or **Delegate something** on the Waiting on tab). Choose the person — a team member, someone from your Contacts, or anyone you add with an email address; they do **not** need LevelUp. Set when you expect it back and when to follow up. Tick **Email them now** to send the details.\n\n**Waiting on** lists everything you have handed off, grouped by person or project, with what is late and what is due a follow-up. **Follow up** emails the person; they just **reply** ("done", "Friday", "blocked on the client") and LevelUp reads the reply, updates the delegation and tells you. A "done" marks the task done. Turn on **Automatic follow-up emails** in the project\'s Settings tab to have LevelUp send follow-ups on the date for you. Your coach mentions late delegated work in its check-ins.\n\n## RACI\n\nAdd people as columns, then click a cell to mark **R**esponsible, **A**ccountable (exactly one), **C**onsulted, **I**nformed. The Check column flags rows with no or several Accountables. **Fill from assignments** starts it from task assignees and delegations. Export to Excel or print.\n\n## RAID log\n\nRisks (with a 5×5 probability × impact matrix), Issues, Assumptions and Decisions. A risk that happens becomes an issue in one click.\n\n## Stakeholders and reports\n\nPlace stakeholders on the influence/interest grid and plan who hears what and how often. **Reports → New status report** drafts a red/amber/green report from live data with AI; edit it, then **Email** it, save a **PDF**, or turn it into a **Slides** deck.\n\n## Schedule, WBS and IMS\n\n**Schedule** is a Gantt with dependency arrows, the **critical path** in red, float, milestones and **baselines** (save one, then see how far each item has slipped). Drag a bar to move it, drag its right edge to change its length, and drag its ● onto another bar to make that one follow it; click an arrow to change or remove a link. Arrow keys move a selected bar (Shift changes its length), and each drag can be undone. **WBS / IMS** holds the outline with durations in work days and predecessors ("3", "3SS", "3FS+2"). Two styles: **MS Project-style WBS** or **DoD IMS** (event → significant accomplishment → accomplishment criteria → task). Build it from the project\'s tasks, from your milestones, or draft it with AI. Export to **Excel** or **MS Project XML** (open it in Microsoft Project). **Import XML** brings a schedule in from Microsoft Project (save it there with File → Save As → XML): the outline, durations, links and lags, % complete, actual dates and its baseline.\n\n## Progress and schedule health\n\nOn **WBS / IMS** set each row\'s **% done**, **Actual start** and **Actual finish** — an actual finish marks the row done, and the schedule moves the rest of the plan from the real dates. The **Health** tab runs the DCMA 14-point check on the schedule against a **status date** you choose: missing logic, leads and lags, link types, constraints, high float, negative float, long tasks, dates that are already past, unassigned work, missed tasks, the critical path, CPLI and BEI. Each failing check lists the rows to fix. Save a baseline on the Schedule tab first for the last three. The MS Project XML export carries % done, actual dates and the baseline. **Schedule risk** (also on Health) runs 1,000 simulations with each open task somewhere between its optimistic and pessimistic length, and shows the P50 and P80 finish dates, the chance of making the planned, baseline or a target date, and which tasks most often drive the finish.\n\n## Resources and budget\n\n**Resources** shows each person\'s load per week against their capacity (allocations plus estimated work they own; Atlas team plans too). **Budget** holds planned lines and actual costs and works out **earned value**: CPI (cost efficiency), SPI (schedule efficiency) and the estimate at completion. Approved **change requests** add to the budget. Put a budget line on a WBS element to make it a **control account** (cost performance per part of the work), and mark a line **management reserve** to hold it outside the plan. The Budget tab also shows cost and schedule variance, three estimates at completion, the cost efficiency still needed (TCPI) and **earned schedule** — SPI(t) and the finish date at the current pace.\n\n## Contract\n\nThe **Contract** tab holds the contract number, customer, type, period of performance, ceiling, funding, CO and COR, plus CLINs, invoices and deliverables (CDRLs — one-off or monthly / quarterly / yearly; marking a recurring one submitted moves it to its next due date). It works out spending against funding, the monthly burn, when the funds run out, what is earned but not yet billed, and warns you — also on the Overview and in status reports — when funding will run out before the period of performance ends, the forecast needs more funding, a deliverable is overdue or an invoice is unpaid after 30 days.\n\n## Templates and meeting notes\n\n**All projects → Templates** creates a project with tasks, dependencies, RACI roles and risks from a template (client onboarding, ATO package, software release, proposal response — or save your own). **Action items from meeting notes** reads a note, finds who committed to what, and creates the tasks and delegations.'});
   }}catch(_){}
 })();

@@ -8,6 +8,16 @@
 
 **LIVE 2026-10-31:** -253..-255 + migration **0061** (`user_app_data.prefs` text → mediumtext; prefs outgrew 64 KB and every prefs save failed with "Sync to server failed … update user_app_data set prefs") pushed e5d370d, CI green, live -255. Next migration **0062**.
 
+**-269 (2026-11-01) — AUDIT 2 PHASE 5: PM and Money tabs grouped.** No migration.
+- `_luGroupTabs(groups, active, advanced, showAdvanced)` (app-part2, pure) + `PM_TAB_GROUPS` (Plan · People · Risk & money · Reports · Settings), `PM_ALL_TAB_GROUPS` (Portfolio · People · Risk · Settings), `_FIN_TAB_GROUPS` (Overview · Spending · Income & accounts · Goals & forecast · Reports & agents). Tab ids are unchanged, so `pmGo(key,'contract')` and `_finTab='agents'` from anywhere still work; the group is derived from the active tab. A group click returns to the tab last used in it.
+- Below detail level 4: `PM_TAB_ADVANCED` (ims, raci, stakeholders, contract, changes, lessons) and `_FIN_TAB_ADVANCED` (forecast, agents) hide, unless active; "+N more" reveals them (`lu_adv_tabs`). The review count moves onto the Overview group when you're elsewhere.
+
+**-268 (2026-11-01) — AUDIT 2 PHASE 5: a project opens into its workspace; Programs moved into the Portfolio.** No migration.
+- `openProject(pid)` (app-4-work): project cards, list rows, timeline rows, program-drawer rows and the assistant's open-item go to `openPM('p:'+id,'overview')`. Falls back to the `openProjectDetail` drawer when `pm` is hidden or the project is archived (pmProjects skips archived). The drawer is the workspace's "Project details" button.
+- Sidebar: "PM Workspace" is **Portfolio** (label only, id still `pm`); inside a project the sidebar lights Projects and the header shows "← Projects" + the project's name.
+- `nav('programs')` redirects to `openPM('all','programs')`; the `s-programs` screen is gone. `pmTab_programs` provides `#prog-main` + `#prog-rail`, so renderPrograms draws there and quietly returns when the tab isn't showing. The `curScreen==='programs'` refresh checks became `'pm'`. `programs` is `nav:false core:true`, `rail:false`.
+- Not merged (proposal didn't cover them, still separate): the five timeline views, three risk lists, three budget places.
+
 **-267 (2026-11-01) — AUDIT 2 PHASE 5, owner said "Do 1 - 5": one Today screen.** No migration. -266 is LIVE (fff8483).
 - Sidebar has one **Today** entry (`data-n="home"`, carries `data-tour-id="nav-myday"` so tours still find it). `myday`, `focus`, `command`, `standup` are `nav:false core:true` in LU_PAGES and stay real routes: every link, key (D, F, W, Y), palette entry and stored pref still works. `initSidebars` lights Today for all of them. Stored `pages.myday.on=false` is ignored (core), so nobody loses it.
 - **Today bar** (app-part2, `_luTodayBar`, `_luTodayPaint`, `luToday`): Overview (home) · Plan / Do / Wrap (Planner sections, `D.prefs.myDaySection`, `mdSec(null,s)`; the Planner's own subnav is gone) · Across tools (command, hidden below detail level 4 via `_luAdvancedOn`). Painted by wrapping renderHome / renderMyDay / renderFocus / renderStandup / renderCommandCenter at load, so re-renders keep it.

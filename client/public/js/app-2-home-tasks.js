@@ -1404,7 +1404,6 @@ function autoCalcGoalPctBidirectional(g){
 const LU_PAGES=[
   {id:'home',     label:'Today',           group:'today', nav:true,  core:true,  rail:true },
   {id:'tasks',    label:'Tasks',           group:'work',  nav:true,  core:false, rail:true },
-  {id:'programs', label:'Programs',        group:'work',  nav:true,  core:false, rail:true },
   {id:'projects', label:'Projects',        group:'work',  nav:true,  core:false, rail:true },
   {id:'pipeline', label:'Pipeline',        group:'work',  nav:true,  core:false, rail:true },
   {id:'atlas',    label:'Atlas',           group:'work',  nav:true,  core:false, rail:true },
@@ -1432,6 +1431,7 @@ const LU_PAGES=[
   {id:'myday',    label:'Planner',         group:'today', nav:false, core:true,  rail:true },
   {id:'focus',    label:'Focus',           group:'today', nav:false, core:true,  rail:false},
   {id:'command',  label:'Across tools',    group:'today', nav:false, core:true,  rail:true },
+  {id:'programs', label:'Programs',        group:'work',  nav:false, core:true,  rail:false},
   {id:'clusters', label:'Clusters',        group:'work',  nav:false, core:true,  rail:true },
   {id:'standup',  label:'Standup',         group:'work',  nav:false, core:true,  rail:false},
   {id:'myweek',   label:'My Week',         group:'today', nav:false, core:true,  rail:false},
@@ -3080,7 +3080,7 @@ async function _takeOwnership(idx,kind){
       toast({type:'success',title:'Ownership taken',msg:'This '+noun+' is now in your workspace.',duration:2600});
       try{document.getElementById('modal-capture').classList.remove('show');}catch(_){}
       if(typeof loadServerData==='function')loadServerData();
-      if(kind==='programs'){ if(typeof _loadSharedPrograms==='function')_loadSharedPrograms(); if(typeof renderPrograms==='function'&&typeof curScreen!=='undefined'&&curScreen==='programs')renderPrograms(); }
+      if(kind==='programs'){ if(typeof _loadSharedPrograms==='function')_loadSharedPrograms(); if(typeof renderPrograms==='function'&&typeof curScreen!=='undefined'&&curScreen==='pm')renderPrograms(); }
       else if(kind==='mindmaps'){ if(typeof _loadSharedMindMaps==='function')_loadSharedMindMaps(); if(typeof renderMindmaps==='function'&&typeof curScreen!=='undefined'&&curScreen==='mindmaps')renderMindmaps(); }
       else if(kind==='notes'){ if(typeof _loadSharedNotes==='function')_loadSharedNotes(); if(typeof renderNotes==='function'&&typeof curScreen!=='undefined'&&curScreen==='notes')renderNotes(); }
       else if(kind==='projects'){ if(typeof _loadSharedProjects==='function')_loadSharedProjects(); if(typeof renderProjects==='function'&&typeof curScreen!=='undefined'&&curScreen==='projects')renderProjects(); }
@@ -3248,7 +3248,7 @@ async function _loadSharedPrograms(){
     const res=await _trpc('appData.sharedProgramsForMe',undefined,'query');
     if(res&&res.ok&&Array.isArray(res.programs)){
       D._sharedPrograms=res.programs.map((p,i)=>({...p,_idx:i}));
-      if(typeof curScreen!=='undefined'&&curScreen==='programs'&&typeof renderPrograms==='function')renderPrograms();
+      if(typeof curScreen!=='undefined'&&curScreen==='pm'&&typeof renderPrograms==='function')renderPrograms();
     }
   }catch(e){ /* non-fatal */ }
 }
@@ -3325,7 +3325,7 @@ async function _saveSharedProgram(idx){
       toast({type:'success',title:'Saved',msg:'Changes saved to the program owner.',duration:2200});
       document.getElementById('modal-capture').classList.remove('show');
       if(typeof _loadSharedPrograms==='function')_loadSharedPrograms();
-      else if(typeof renderPrograms==='function'&&curScreen==='programs')renderPrograms();
+      else if(typeof renderPrograms==='function'&&curScreen==='pm')renderPrograms();
     }else{ toast({type:'error',title:'Could not save',msg:(res&&res.error)||'Try again.'}); }
   }catch(e){ toast({type:'error',title:'Could not save',msg:String(e&&e.message||e)}); }
 }

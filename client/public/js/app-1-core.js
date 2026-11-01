@@ -2392,6 +2392,8 @@ var nextId=(arr)=>{let m=0;for(const x of (arr||[])){const v=Number(x&&x.id);if(
 const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',programs:'s-programs',clusters:'s-clusters',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',mindmaps:'s-mindmaps',focus:'s-focus',contacts:'s-contacts',help:'s-help',bookmarks:'s-bookmarks',reports:'s-reports',graph:'s-graph',command:'s-command',standup:'s-standup',pipeline:'s-pipeline',atlas:'s-atlas',money:'s-money'};
 var curScreen='home';
 function nav(s){
+  // -268: Programs is a tab of the Portfolio now. Old links land there.
+  if(s==='programs'){if(typeof openPM==='function'){openPM('all','programs');return;}s='projects';}
   // A hidden page can still be reached by a deep link, the command palette or
   // an in-app link. Turn it back on rather than dead-ending on a blank screen.
   if(s&&typeof luPageOn==='function'&&!luPageOn(s)){
@@ -5200,7 +5202,7 @@ function saveItem(type,id){
       prog.projectIds=Array.from(document.querySelectorAll('.prog-proj-cb:checked')).map(cb=>parseInt(cb.getAttribute('data-prog-pid'),10)).filter(Number.isFinite);
       save('programs');
       closeDrawer();
-      if(typeof renderPrograms==='function'&&curScreen==='programs')renderPrograms();
+      if(typeof renderPrograms==='function'&&curScreen==='pm')renderPrograms();
       toast({type:'success',title:'Program saved',duration:1500});
     }
     return;
@@ -5259,7 +5261,7 @@ function deleteItem(type,id){
   if(type==='task')D.tasks=D.tasks.filter(x=>x.id!==id);
   if(type==='note')D.notes=D.notes.filter(x=>x.id!==id);
   if(type==='project')D.projects=D.projects.filter(x=>x.id!==id);
-  if(type==='program'){D.programs=(D.programs||[]).filter(x=>x.id!==id);save('programs');closeDrawer();if(curScreen==='programs'&&typeof renderPrograms==='function')renderPrograms();toast({type:'info',title:'Program deleted',duration:1500});return;}
+  if(type==='program'){D.programs=(D.programs||[]).filter(x=>x.id!==id);save('programs');closeDrawer();if(curScreen==='pm'&&typeof renderPrograms==='function')renderPrograms();toast({type:'info',title:'Program deleted',duration:1500});return;}
   if(type==='goal')D.goals=D.goals.filter(x=>x.id!==id);
   if(type==='journal')D.journal=D.journal.filter(x=>x.id!==id);
   save(type==='task'?'tasks':type+'s');
