@@ -2393,16 +2393,8 @@ body.aurora.light-mode .scr.on > .bg::before{
      wouldn't break anything either, but this is belt-and-suspenders). -->
 <button id="topbar-token-refresh" style="display:none!important" aria-hidden="true" tabindex="-1"></button>
 <button class="bn" onclick="openModal('capture')">+ New</button>
-<!-- Single AI entry point: Ask (one-shot Q&A) + Chat (persistent panel) live in
-     one ✨ menu instead of two near-identical topbar icons. -->
-<div style="position:relative;display:inline-flex">
-  <button class="tbtn" id="topbar-ask-btn" onclick="event.stopPropagation();togglePopMenu('topbar-ai-menu')" aria-label="AI tools — Ask LevelUp (Ctrl+/) or AI Chat (Ctrl+J)" title="AI tools" style="color:#8b5cf6"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L13.5 8.5L20 10L13.5 11.5L12 18L10.5 11.5L4 10L10.5 8.5L12 2Z"/><circle cx="18" cy="6" r="1.5" fill="currentColor"/><circle cx="6" cy="18" r="1.5" fill="currentColor"/></svg></button>
-  <div id="topbar-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:38px;background:var(--s2);border:1px solid var(--bd2);border-radius:10px;padding:5px;z-index:var(--z-dropdown);min-width:230px;box-shadow:0 10px 32px rgba(0,0,0,.45)">
-    <button class="btn btn-s" style="display:flex;align-items:center;gap:9px;width:100%;justify-content:flex-start;height:32px;font-size:12px;background:transparent;border:none;text-align:left" onclick="closePopMenu('topbar-ai-menu');aiAskLevelup()">✨ Ask LevelUp <span style="margin-left:auto;font-size:11px;color:var(--t3)">Ctrl+/</span></button>
-    <button class="btn btn-s" style="display:flex;align-items:center;gap:9px;width:100%;justify-content:flex-start;height:32px;font-size:12px;background:transparent;border:none;text-align:left" onclick="closePopMenu('topbar-ai-menu');toggleAIPanel()">⚡ AI Chat <span style="margin-left:auto;font-size:11px;color:var(--t3)">Ctrl+J</span></button>
-    <button class="btn btn-s" style="display:flex;align-items:center;gap:9px;width:100%;justify-content:flex-start;height:32px;font-size:12px;background:transparent;border:none;text-align:left" onclick="closePopMenu('topbar-ai-menu');openCommandPalette()">⌘ Command Palette <span style="margin-left:auto;font-size:11px;color:var(--t3)">Ctrl+K</span></button>
-  </div>
-</div>
+<!-- One AI entry point (-271): the assistant. "With sources" in its footer, or Ctrl+/, is what Ask LevelUp was. -->
+<button class="tbtn" id="topbar-ask-btn" onclick="toggleAIPanel()" aria-label="LevelUp assistant (Ctrl+J). Ctrl+/ answers with sources." title="LevelUp assistant (Ctrl+J)" style="color:#8b5cf6"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L13.5 8.5L20 10L13.5 11.5L12 18L10.5 11.5L4 10L10.5 8.5L12 2Z"/><circle cx="18" cy="6" r="1.5" fill="currentColor"/><circle cx="6" cy="18" r="1.5" fill="currentColor"/></svg></button>
 <button class="tbtn" id="topbar-sync-btn" onclick="_topbarSyncNow()" aria-label="Sync NiftyPM" title="Sync NiftyPM" style="position:relative"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg><span id="topbar-sync-dot" style="display:none;position:absolute;top:6px;right:6px;width:6px;height:6px;border-radius:50%;background:var(--ok)"></span></button>
 <span id="topbar-sync-label" style="font-size:11px;color:var(--t3);align-self:center;cursor:pointer;display:none" onclick="nav('command')" title="Open Across tools"></span>
 <button id="topbar-push-btn" onclick="_pushPendingNow()" style="display:none;background:#f59e0b;color:#fff;border:none;height:30px;padding:0 10px;font-size:11px;font-weight:600;border-radius:6px;cursor:pointer" title="Push queued status changes to source">⬆ Push <span data-pcount>0</span></button>
@@ -2920,7 +2912,7 @@ body.sh-resizing{user-select:none!important}
         <div class="shortcuts-row"><span class="sr-label">Command Palette</span><span class="sr-keys"><kbd>⌘</kbd><kbd>K</kbd></span></div>
         <div class="shortcuts-row"><span class="sr-label">AI Chat Assistant</span><span class="sr-keys"><kbd>⌘</kbd><kbd>J</kbd></span></div>
         <div class="shortcuts-row"><span class="sr-label">New task (full form)</span><span class="sr-keys"><kbd>⌘</kbd><kbd>N</kbd></span></div>
-        <div class="shortcuts-row"><span class="sr-label">Ask LevelUp (answer with sources)</span><span class="sr-keys"><kbd>⌘</kbd><kbd>/</kbd></span></div>
+        <div class="shortcuts-row"><span class="sr-label">Assistant, answering with sources</span><span class="sr-keys"><kbd>⌘</kbd><kbd>/</kbd></span></div>
         <div class="shortcuts-row"><span class="sr-label">Show this overlay</span><span class="sr-keys"><kbd>?</kbd></span></div>
         <div class="shortcuts-row"><span class="sr-label">Close modal / panel</span><span class="sr-keys"><kbd>Esc</kbd></span></div>
       </div>
@@ -3016,7 +3008,8 @@ body.sh-resizing{user-select:none!important}
       </button>
     </div>
     <div class="ai-panel-foot-hint">
-      <span>Enter to send · Shift+Enter for newline</span>
+      <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer" title="Answer from your notes, tasks, journal and ideas, with citations you can click. Ctrl+/ turns this on."><input type="checkbox" id="ai-sources" onchange="_aiSourcesSet(this.checked)" style="margin:0"> With sources</label>
+      <span>Enter to send</span>
       <span id="ai-msg-count">0 messages</span>
     </div>
   </div>
@@ -3093,7 +3086,7 @@ body.sh-resizing{user-select:none!important}
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-11-01-269';
+  var APP_BUILD='2026-11-01-271';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   // vendor/purify.min.js (DOMPurify 3.3.0, self-hosted) loads first: every
   // bundle renders note/mail/assistant HTML through luSanitizeHtml().

@@ -2267,7 +2267,7 @@ function _gtdBuckets(){
   const me=D.creds.userName||'Idris Grant';
   const today=_todayStr;
   const snoozed=t=>t.snoozeUntil&&String(t.snoozeUntil).slice(0,10)>=today&&t.status!=='Done';
-  const delegated=t=>t.status!=='Done'&&(t.status==='Delegated'||(t.assignedTo&&t.assignedTo!==me));
+  const delegated=t=>t.status!=='Done'&&(t.status==='Delegated'||!!t.delegatedTo||(t.assignedTo&&t.assignedTo!==me));
   const dated=t=>!!(t.due||t.startDate);
   return {
     Inbox:t=>t.status==='Not Started'&&!dated(t)&&!delegated(t)&&!snoozed(t)&&!t.myDay,
@@ -2299,7 +2299,7 @@ function renderProcess(){
     Inbox:'Unprocessed captures. Triage each one below — that’s what feeds every other list.',
     'Do Next':'Your actionable next actions (flagged for My Day or already In Progress).',
     Calendar:'Date-bound actions — anything with a start or due date.',
-    Delegated:'Waiting on someone else (status Delegated or assigned to another person).',
+    Delegated:'Waiting on someone else: you handed it off, or it is assigned to another person.',
     Snoozed:'Deferred until a future date (Snooze sets the wake date).',
     Someday:'Maybe / not now. Review periodically and pull back when ready.',
     Done:'Completed tasks.',
@@ -2311,7 +2311,7 @@ function renderProcess(){
     const acts=inbox
       ?`<button class="btn btn-s gtd-a" title="Actionable now — adds to Do Next / My Day" onclick="event.stopPropagation();gtdDoNext(${_tidLit(t.id)})">⚡ Do Next</button>
         <button class="btn btn-s gtd-a" title="Give it a date" onclick="event.stopPropagation();gtdSchedule(${_tidLit(t.id)})">📅 Schedule</button>
-        <button class="btn btn-s gtd-a" title="Hand off to someone" onclick="event.stopPropagation();delegateTask(${_tidLit(t.id)})">📤 Delegate</button>
+        <button class="btn btn-s gtd-a" title="Hand off to someone" onclick="event.stopPropagation();handOff(${_tidLit(t.id)})">🤝 Hand off</button>
         <button class="btn btn-s gtd-a" title="Defer to a future date" onclick="event.stopPropagation();snoozeTask(${_tidLit(t.id)})">⏰ Snooze</button>
         <button class="btn btn-s gtd-a" title="Maybe / not now" onclick="event.stopPropagation();gtdSomeday(${_tidLit(t.id)})">🗓 Someday</button>
         <button class="btn btn-s gtd-a" style="color:var(--ok)" title="2-min rule: just do it" onclick="event.stopPropagation();gtdDone(${_tidLit(t.id)})">✓ Done</button>`
@@ -2324,7 +2324,7 @@ function renderProcess(){
   }
   const tabBarG=`<div class="tabs gtd-tabs">${_gtdOrder.map(name=>{
     const n=D.tasks.filter(_gtdB[name]).length;
-    return `<div class="tab ${_processGtdTab===name?'on':''}" onclick="setProcessGtdTab('${name.replace(/'/g,"\\'")}')">${_gtdIcons[name]} ${name}${n?` <span class="tc">${n}</span>`:''}</div>`;
+    return `<div class="tab ${_processGtdTab===name?'on':''}" onclick="setProcessGtdTab('${name.replace(/'/g,"\\'")}')">${_gtdIcons[name]} ${name==='Delegated'?'Waiting on':name}${n?` <span class="tc">${n}</span>`:''}</div>`;
   }).join('')}</div>`;
   const emptyMsg={
     Inbox:'🎉 Inbox zero — every capture has been clarified.',

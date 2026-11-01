@@ -385,7 +385,7 @@ function aiSuggestDelegate(id){
   ${top.map(({m:member,score,workload,matches})=>`<div style="padding:8px;margin-bottom:6px;border-radius:6px;background:var(--s2);display:flex;align-items:center;gap:10px">
     <div style="width:32px;height:32px;border-radius:50%;background:var(--ac);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">${member.name.split(' ').map(w=>w[0]).join('').slice(0,2)}</div>
     <div style="flex:1"><div style="font-size:12px;font-weight:600">${esc(member.name)}</div><div style="font-size:11px;color:var(--t3)">${esc(member.role)} · ${workload} active task${workload!==1?'s':''} · ${matches} keyword match${matches!==1?'es':''}</div></div>
-    <button class="btn btn-p" style="height:26px;font-size:11px" onclick="D.tasks.find(x=>x.id===${id}).assignedTo='${_jsAttr(member.name)}';save('tasks');renderScreen(curScreen);closeModal();toast('✓ Delegated to ${member.name}')">Assign</button>
+    <button class="btn btn-p" style="height:26px;font-size:11px" onclick="closeModal();handOff(${id},{name:'${_jsAttr(member.name)}'})">Hand off</button>
   </div>`).join('')}
   <button class="btn btn-s" style="margin-top:8px" onclick="closeModal()">Cancel</button>`;
   document.getElementById('modal-capture').classList.add('show');

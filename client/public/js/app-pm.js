@@ -560,11 +560,11 @@ function pmTab_waiting(key){
   var list=f==='late'?late:f==='due'?due:f==='risk'?risky:f==='done'?all.filter(function(r){return r.status==='done';}):f==='all'?all:open;
   var kpi=function(n,l,c,flt){return '<div class="pm-kpi" style="cursor:pointer'+(f===flt?';border-color:var(--page-accent)':'')+'" onclick="_pmState.dlgFilter=\''+flt+'\';pmRender()"><b style="color:'+c+'">'+n+'</b><span>'+l+'</span></div>';};
   var html='<div class="pm-kpis">'+kpi(open.length,'Open','var(--t1)','open')+kpi(late.length,'Past expected date','#dc2626','late')+kpi(due.length,'Follow-up due','#d97706','due')+kpi(risky.length,'Blocked / at risk','#d97706','risk')+kpi(done30.length,'Done (30 days)','#0891b2','done')+'</div>';
-  html+='<div class="pm-bar"><button class="btn btn-p" onclick="pmDelegateDialog({projectKey:'+(key==='all'?'null':'\''+_pmJ(key)+'\'')+'})">'+_pmIcon('plus',14,'#fff')+' Delegate something</button>'+
+  html+='<div class="pm-bar"><button class="btn btn-p" onclick="pmDelegateDialog({projectKey:'+(key==='all'?'null':'\''+_pmJ(key)+'\'')+'})">'+_pmIcon('plus',14,'#fff')+' Hand something off</button>'+
     (due.length?'<button class="btn btn-s" onclick="pmNudgeAllDue('+(key==='all'?'null':'\''+_pmJ(key)+'\'')+')">'+_pmIcon('mail',14)+' Follow up on all due ('+due.length+')</button>':'')+
     '<span class="sp"></span><span class="pm-muted">Group by</span>'+['person','project','none'].map(function(x){return '<button class="pm-chip'+(g===x?' on':'')+'" onclick="_pmState.dlgGroup=\''+x+'\';_pmSaveState();pmRender()">'+({person:'Person',project:'Project',none:'Nothing'})[x]+'</button>';}).join('')+'</div>';
   if(!list.length){
-    html+='<div class="pm-card pm-empty"><b>'+(all.length?'Nothing here':'You have not delegated anything yet')+'</b>'+(all.length?'Try another filter above.':'Open any task and press 🤝 Delegate, or use “Delegate something” above. The person does not need a LevelUp account — LevelUp can email them for updates and read their replies.')+'</div>';
+    html+='<div class="pm-card pm-empty"><b>'+(all.length?'Nothing here':'You have not handed anything off yet')+'</b>'+(all.length?'Try another filter above.':'Open any task and press 🤝 Delegate, or use “Delegate something” above. The person does not need a LevelUp account — LevelUp can email them for updates and read their replies.')+'</div>';
     return html;
   }
   var groups={};
@@ -595,7 +595,44 @@ function pmTab_waiting(key){
   return html;
 }
 
-/** Delegate dialog. o = {ref?, projectKey?, title?, recordId?} */
+/** The one Hand off dialog. o = {ref?, projectKey?, title?, recordId?, personName?} */
+function _pmPersonKeyByName(name){
+  if(!name)return '';
+  var low=String(name).trim().toLowerCase();
+  var hit=pmPeopleAll().find(function(p){return String(p.name||'').trim().toLowerCase()===low;});
+  return hit?hit.key:'';
+}
+/** Assign, Delegate and GTD Waiting in one: every "give this to someone" control for a task lands here. */
+async function handOff(id,o){
+  o=o||{};await pmLoad();
+  var t=(D.tasks||[]).find(function(x){return String(x.id)===String(id);});if(!t)return;
+  var ref='task:'+t.id;
+  var rec=PM.loaded?pmDelegationFor(ref):null;
+  if(rec){pmDelegationDetail(rec.id);return;}
+  pmDelegateDialog({ref:ref,projectKey:pmTaskProjectKey(t),personName:o.name});
+}
+// Puts the task in a teammate's LevelUp the way the drawer's picker does: by
+// user id, never by display name. Records what it did so cancelling undoes
+// only that, and an assignee who was already there stays.
+function _pmHandoffAssign(t,d,personKey){
+  var uid=String(personKey||'').indexOf('u:')===0?Number(String(personKey).slice(2)):NaN;
+  var m=isNaN(uid)||typeof _assigneeMembers!=='function'?null:_assigneeMembers().find(function(x){return Number(x.userId)===uid;});
+  if(!m)return;
+  t.assignees=Array.isArray(t.assignees)?t.assignees.map(Number):[];
+  t.assigneeNames=Array.isArray(t.assigneeNames)?t.assigneeNames:[];
+  if(t.assignees.indexOf(uid)<0){t.assignees.push(uid);t.assigneeNames.push(m.name);d.assignedUserId=uid;}
+  t.primaryAssigneeId=uid;t.assignedTo=m.name;
+}
+function _pmHandoffUnassign(t,d){
+  var uid=d.assignedUserId;if(uid==null)return;
+  delete d.assignedUserId;
+  var ids=Array.isArray(t.assignees)?t.assignees.map(Number):[],i=ids.indexOf(Number(uid));
+  if(i<0)return;
+  ids.splice(i,1);
+  var names=Array.isArray(t.assigneeNames)?t.assigneeNames.slice():[];names.splice(i,1);
+  t.assignees=ids;t.assigneeNames=names;
+  if(Number(t.primaryAssigneeId)===Number(uid)){t.primaryAssigneeId=ids.length?ids[0]:null;t.assignedTo=ids.length?(names[0]||null):null;}
+}
 async function pmDelegateDialog(o){
   o=o||{};await pmLoad();
   var rec=o.recordId?pmRec(o.recordId):(o.ref?pmDelegationFor(o.ref):null);
@@ -608,9 +645,9 @@ async function pmDelegateDialog(o){
   var follow=d.followUp||(exp?(_pmDays(today,exp)>3?_pmAddDays(exp,-2):today):_pmAddDays(today,3));
   var projOpts=pmProjects().map(function(p){return '<option value="'+_pmE(p.key)+'"'+(p.key===pkey?' selected':'')+'>'+_pmE(p.name)+(p.source==='atlas'?' (Atlas)':'')+'</option>';}).join('');
   var auto=d.autoNudge===true?'on':d.autoNudge===false?'off':'project';
-  pmModal('<h3>'+_pmIcon('users',18)+' '+(rec?'Edit delegation':'Delegate')+'<button class="x" onclick="pmCloseModal()">×</button></h3>'+
+  pmModal('<h3>'+_pmIcon('users',18)+' '+(rec?'Edit hand-off':'Hand off')+'<button class="x" onclick="pmCloseModal()">×</button></h3>'+
     (o.ref||rec&&rec.refType!=='text'?'<div class="pm-row"><label>Task</label><div><b>'+_pmE(title)+'</b></div></div>':'<div class="pm-row"><label>What is it?</label><input class="inp" id="pmd-title" value="'+_pmE(title)+'" placeholder="e.g. Draft the SOW for the Air Force renewal"></div>')+
-    '<div class="pm-row"><label>Delegate to</label>'+pmPersonSelect('pmd-person',d.personKey||'')+'</div>'+
+    '<div class="pm-row"><label>Hand off to</label><div>'+pmPersonSelect('pmd-person',d.personKey||_pmPersonKeyByName(o.personName))+(o.ref&&String(o.ref).indexOf('task:')===0?'<div class="pm-muted" style="margin-top:4px">Team members also get the task in their own LevelUp. It moves to Waiting on until it comes back.</div>':'')+'</div></div>'+
     '<div class="pm-row"><label>Project</label><select class="inp" id="pmd-proj"><option value="">— none —</option>'+projOpts+'</select></div>'+
     '<div class="pm-row"><label>Expected back by</label><input class="inp" type="date" id="pmd-exp" value="'+_pmE(exp)+'"></div>'+
     '<div class="pm-row"><label>Follow up on</label><input class="inp" type="date" id="pmd-follow" value="'+_pmE(follow)+'"></div>'+
@@ -618,7 +655,7 @@ async function pmDelegateDialog(o){
     '<div class="pm-row"><label>Auto follow-up email</label><select class="inp" id="pmd-auto"><option value="project"'+(auto==='project'?' selected':'')+'>Use the project setting</option><option value="on"'+(auto==='on'?' selected':'')+'>On — LevelUp emails them on the follow-up date</option><option value="off"'+(auto==='off'?' selected':'')+'>Off — I will press Follow up myself</option></select></div>'+
     '<div class="pm-row" style="align-items:start"><label>Instructions</label><textarea class="inp" id="pmd-note" rows="3" placeholder="What done looks like, links, context">'+_pmE(d.note||'')+'</textarea></div>'+
     (rec?'':'<label style="display:flex;gap:8px;align-items:center;font-size:12.5px;margin-top:6px"><input type="checkbox" id="pmd-send" checked> Email them now with the task and instructions</label>')+
-    '<div class="pm-acts">'+(rec?'<button class="btn btn-s" style="margin-right:auto;color:#dc2626" onclick="pmDelegationCancel(\''+_pmJ(rec._lk)+'\')">Cancel delegation</button>':'')+'<button class="btn btn-s" onclick="pmCloseModal()">Close</button><button class="btn btn-p" id="pmd-save">'+(rec?'Save':'Delegate')+'</button></div>');
+    '<div class="pm-acts">'+(rec?'<button class="btn btn-s" style="margin-right:auto;color:#dc2626" onclick="pmDelegationCancel(\''+_pmJ(rec._lk)+'\')">Cancel hand-off</button>':'')+'<button class="btn btn-s" onclick="pmCloseModal()">Close</button><button class="btn btn-p" id="pmd-save">'+(rec?'Save':'Hand off')+'</button></div>');
   var wire=function(){
     pmWirePersonSelect('pmd-person');
     document.getElementById('pmd-save').onclick=function(){_pmDelegateSave(o,rec);};
@@ -649,12 +686,20 @@ async function _pmDelegateSave(o,rec){
   d.expectedBy=v('pmd-exp')||null;d.followUp=v('pmd-follow')||null;d.cadenceDays=Number(v('pmd-cad'))||0;
   d.autoNudge=autoSel==='on'?true:autoSel==='off'?false:null;d.note=v('pmd-note');
   rec.title=title;
-  d.updates=(d.updates||[]).concat(isNew?[{at:now,by:'owner',text:'Delegated to '+(person?person.name:'someone')}]:(prevPerson&&prevPerson!==personKey?[{at:now,by:'owner',text:'Re-assigned to '+(person?person.name:'someone')}]:[]));
+  d.updates=(d.updates||[]).concat(isNew?[{at:now,by:'owner',text:'Handed off to '+(person?person.name:'someone')}]:(prevPerson&&prevPerson!==personKey?[{at:now,by:'owner',text:'Re-assigned to '+(person?person.name:'someone')}]:[]));
   pmCloseModal(true);
+  var t=rec.refType==='task'?(D.tasks||[]).find(function(x){return String(x.id)===String(rec.refId);}):null;
+  if(t&&isNew&&t.status==='Not Started')d.setDelegatedStatus=true;
+  if(t){if(prevPerson&&prevPerson!==personKey)_pmHandoffUnassign(t,d);if(isNew||prevPerson!==personKey)_pmHandoffAssign(t,d,personKey);}
   try{await pmPut(rec);}catch(_){return;}
   // the task itself records who has it (an existing task field)
-  if(rec.refType==='task'){var t=(D.tasks||[]).find(function(x){return String(x.id)===String(rec.refId);});if(t){t.delegatedTo=d.personName;t.updatedAt=now;try{save('tasks');}catch(_){}}}
-  _pmToast('🤝 Delegated to '+(person?person.name:'them'));
+  if(t){
+    t.delegatedTo=d.personName;t.updatedAt=now;
+    if(d.setDelegatedStatus&&t.status==='Not Started')t.status='Delegated';
+    if(isNew){t.comments=t.comments||[];t.comments.push({id:Date.now(),author:D.creds.userName||'',ts:new Date().toLocaleString(),text:'Handed off to '+(person?person.name:'someone'),type:'delegation'});}
+    try{save('tasks');}catch(_){}
+  }
+  _pmToast('🤝 Handed off to '+(person?person.name:'them'));
   if(isNew&&sendNow){
     if(!person||!person.email)_pmToast('No email address for '+(person?person.name:'them')+' — add one in People to send follow-ups','warn');
     else{try{await _trpc('pm.nudge',{recordId:rec.id,note:d.note||'',intro:true},'mutation');_pmToast('✉️ Sent the details to '+person.name);await pmRefreshChanged();}catch(e){_pmToast('Email not sent: '+(e&&e.message||e),'error');}}
@@ -662,10 +707,10 @@ async function _pmDelegateSave(o,rec){
   pmRender();try{if(typeof renderCurrentTaskView==='function'&&curScreen==='tasks')renderCurrentTaskView();}catch(_){}
 }
 async function pmDelegationCancel(id){
-  var r=pmRec(id);if(!r)return;if(!confirm('Cancel this delegation? It stays in the history as cancelled.'))return;
-  r.status='cancelled';r.data=Object.assign({},r.data);r.data.updates=(r.data.updates||[]).concat([{at:new Date().toISOString(),by:'owner',text:'Delegation cancelled'}]);
+  var r=pmRec(id);if(!r)return;if(!confirm('Cancel this hand-off? It stays in the history as cancelled.'))return;
+  r.status='cancelled';r.data=Object.assign({},r.data);r.data.updates=(r.data.updates||[]).concat([{at:new Date().toISOString(),by:'owner',text:'Hand-off cancelled'}]);
   pmCloseModal(true);await pmPut(r);
-  if(r.refType==='task'){var t=(D.tasks||[]).find(function(x){return String(x.id)===String(r.refId);});if(t&&t.delegatedTo){delete t.delegatedTo;try{save('tasks');}catch(_){}}}
+  if(r.refType==='task'){var t=(D.tasks||[]).find(function(x){return String(x.id)===String(r.refId);});if(t){delete t.delegatedTo;if(r.data.setDelegatedStatus&&t.status==='Delegated')t.status='Not Started';_pmHandoffUnassign(t,r.data);try{save('tasks');}catch(_){}try{await pmPut(r);}catch(_){}}}
   pmRender();
 }
 function pmNudgeDialog(id){
@@ -755,9 +800,9 @@ function _pmDrawerButton(t){
   var row=document.querySelector('#drawer-content .dr-actions');if(!row||row.querySelector('.pm-dlg-btn'))return;
   var b=document.createElement('button');b.className='btn btn-s pm-dlg-btn';b.type='button';
   var ref='task:'+t.id;
-  var set=function(){var rec=PM.loaded?pmDelegationFor(ref):null;b.textContent=rec?'🤝 With '+String((rec.data||{}).personName||'someone').split(' ')[0]:'🤝 Delegate';b.title=rec?'Delegated — open the delegation':'Hand this to someone and track it';};
+  var set=function(){var rec=PM.loaded?pmDelegationFor(ref):null;b.textContent=rec?'🤝 With '+String((rec.data||{}).personName||'someone').split(' ')[0]:'🤝 Hand off';b.title=rec?'Handed off — open it':'Hand this to someone and track it';};
   set();if(!PM.loaded)pmLoad().then(set);
-  b.onclick=function(e){e.preventDefault();var rec=pmDelegationFor(ref);if(rec)pmDelegationDetail(rec.id);else pmDelegateDialog({ref:ref,projectKey:pmTaskProjectKey(t)});};
+  b.onclick=function(e){e.preventDefault();handOff(t.id);};
   var del=Array.prototype.find.call(row.querySelectorAll('button'),function(x){return /delete/i.test(x.textContent||'');});
   row.insertBefore(b,del||null);
 }
@@ -817,7 +862,7 @@ function pmTab_overview(key){
     card('Upcoming milestones','target',li(ms.slice(0,6),function(m){var lateM=m.date&&m.date<today;return '<div style="font-size:12.5px"><b>'+_pmE(m.name)+'</b> <span class="pm-muted">· '+(m.date?_pmDate(m.date):'no date')+'</span>'+(lateM?' '+_pmPill('late','#dc2626'):'')+'</div>';},'No milestones yet — add them on the Schedule tab.'),'schedule')+
     card('Open issues','alertCircle',li(issues.slice(0,6),function(r){return '<div style="font-size:12.5px;cursor:pointer" onclick="pmRaidDialog(\'issue\','+r.id+')"><b>'+_pmE(r.title)+'</b>'+((r.data||{}).priority?' <span class="pm-muted">· '+_pmE(r.data.priority)+'</span>':'')+'</div>';},'No open issues.'),'raid')+
     card('RACI gaps','users',li(raciGaps.slice(0,6),function(g){return '<div style="font-size:12.5px"><b>'+_pmE(g.title)+'</b> <span class="pm-muted">· '+_pmE(g.problem)+'</span></div>';},pmRecs('raci',key).length?'Every row has one Accountable and at least one Responsible.':'No RACI yet.'),'raci')+
-    card('Quick actions','zap','<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-s" onclick="pmDelegateDialog({projectKey:\''+_pmJ(key)+'\'})">Delegate</button><button class="btn btn-s" onclick="pmRaidDialog(\'risk\',null,\''+_pmJ(key)+'\')">Add a risk</button><button class="btn btn-s" onclick="pmGo(null,\'reports\');setTimeout(function(){pmReportNew(\''+_pmJ(key)+'\')},50)">Status report</button><button class="btn btn-s" onclick="pmBaselineSave(\''+_pmJ(key)+'\')">Save a baseline</button><button class="btn btn-s" onclick="pmMeetingNotesDialog(\''+_pmJ(key)+'\')">Actions from meeting notes</button></div>')+
+    card('Quick actions','zap','<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-s" onclick="pmDelegateDialog({projectKey:\''+_pmJ(key)+'\'})">Hand off</button><button class="btn btn-s" onclick="pmRaidDialog(\'risk\',null,\''+_pmJ(key)+'\')">Add a risk</button><button class="btn btn-s" onclick="pmGo(null,\'reports\');setTimeout(function(){pmReportNew(\''+_pmJ(key)+'\')},50)">Status report</button><button class="btn btn-s" onclick="pmBaselineSave(\''+_pmJ(key)+'\')">Save a baseline</button><button class="btn btn-s" onclick="pmMeetingNotesDialog(\''+_pmJ(key)+'\')">Actions from meeting notes</button></div>')+
   '</div>';
   return html;
 }
@@ -3080,7 +3125,7 @@ async function pmExportAll(key){
     var oc=_cmdpActions;
     window._cmdpActions=function(){var list=oc();try{
       [['pm-portfolio','Portfolio of projects',function(){openPM('all','portfolio');}],['pm-waiting','Waiting on (delegated work)',function(){openPM(_pmState.proj||'all','waiting');}],
-       ['pm-delegate','Delegate something',function(){pmDelegateDialog({projectKey:_pmState.proj&&_pmState.proj!=='all'?_pmState.proj:null});}],
+       ['pm-delegate','Hand something off',function(){pmDelegateDialog({projectKey:_pmState.proj&&_pmState.proj!=='all'?_pmState.proj:null});}],
        ['pm-meeting','Action items from meeting notes',function(){pmMeetingNotesDialog(_pmState.proj!=='all'?_pmState.proj:'');}],
        ['pm-template','New project from a template',function(){pmLoad().then(function(){pmTemplateNewProject();});}]].reverse().forEach(function(x){list.unshift({id:x[0],group:'Project management',icon:'💼',title:'PM: '+x[1],run:x[2]});});
     }catch(_){}return list;};

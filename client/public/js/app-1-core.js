@@ -2389,7 +2389,7 @@ function setAccent(c){
 var nextId=(arr)=>{let m=0;for(const x of (arr||[])){const v=Number(x&&x.id);if(Number.isFinite(v)&&v>m)m=v;}return m+1;};
 
 // ====== NAVIGATION ======
-const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',programs:'s-programs',clusters:'s-clusters',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',mindmaps:'s-mindmaps',focus:'s-focus',contacts:'s-contacts',help:'s-help',bookmarks:'s-bookmarks',reports:'s-reports',graph:'s-graph',command:'s-command',standup:'s-standup',pipeline:'s-pipeline',atlas:'s-atlas',money:'s-money'};
+const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',programs:'s-pm',clusters:'s-clusters',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',mindmaps:'s-mindmaps',focus:'s-focus',contacts:'s-contacts',help:'s-help',bookmarks:'s-bookmarks',reports:'s-reports',graph:'s-graph',command:'s-command',standup:'s-standup',pipeline:'s-pipeline',atlas:'s-atlas',money:'s-money'};
 var curScreen='home';
 function nav(s){
   // -268: Programs is a tab of the Portfolio now. Old links land there.
@@ -3423,52 +3423,16 @@ function _askLuPrefill(q){
  *
  * Cmd+/ shortcut or topbar button to invoke.
  */
-async function aiAskLevelup(prefillQuery){
-  // Show the modal with an input first; submit triggers the actual AI call.
-  const existing = document.getElementById('ask-lu-ov');
-  if(existing) existing.remove();
-  const ov = document.createElement('div');
-  ov.id = 'ask-lu-ov';
-  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:flex-start;justify-content:center;padding-top:80px';
-  ov.onclick = (e) => { if(e.target === ov) ov.remove(); };
-  ov.innerHTML = `<div style="background:var(--s1);color:var(--t1);border:1px solid var(--bd2);border-radius:12px;box-shadow:0 12px 48px rgba(0,0,0,0.5);width:680px;max-width:95vw;max-height:80vh;overflow:hidden;display:flex;flex-direction:column">
-    <div style="padding:14px 16px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:10px">
-      <span style="font-size:20px">✨</span>
-      <input id="ask-lu-input" type="text" placeholder="Ask anything about your workspace… (e.g., 'what did I decide about hiring?')" value="${esc(prefillQuery||'')}" autocomplete="off" data-1p-ignore data-lpignore="true" style="flex:1;background:transparent;border:none;outline:none;color:var(--t1);font-size:15px">
-      <button class="btn btn-s" style="font-size:11px" onclick="document.getElementById('ask-lu-ov')?.remove()">Esc</button>
-    </div>
-    <div id="ask-lu-suggest" style="padding:10px 16px;border-bottom:1px solid var(--bd1);font-size:11px;color:var(--t3);display:flex;flex-wrap:wrap;gap:6px">
-      <span style="font-weight:600;color:var(--t2)">Try:</span>
-      ${['What did I decide about hiring?','Summarize my open Air Force opportunities.','What recurring themes are in my recent journal entries?','What is blocking my goals this week?','What are my unfinished follow-ups from notes?'].map(s=>`<button class="btn btn-s" style="font-size:11px;padding:2px 8px;height:22px" onclick="_askLuPrefill('${_jsAttr(s)}')">${esc(s)}</button>`).join('')}
-    </div>
-    <div id="ask-lu-body" style="flex:1;overflow:auto;padding:16px;font-size:13px;line-height:1.6;color:var(--t2)">
-      <div style="text-align:center;color:var(--t3);padding:30px 20px">
-        <div style="font-size:36px;margin-bottom:10px">🧠</div>
-        <div>Type a question above. LevelUp will read your notes, tasks, journal entries, ideas, and opportunities to answer with citations.</div>
-      </div>
-    </div>
-  </div>`;
-  document.body.appendChild(ov);
-  const inp = document.getElementById('ask-lu-input');
-  setTimeout(() => { try { inp?.focus(); inp?.select(); } catch(_){} }, 50);
-  const submit = async () => {
-    const q = inp.value.trim();
-    if(!q) return;
-    const body = document.getElementById('ask-lu-body');
-    body.innerHTML = `<div style="color:var(--t3);text-align:center;padding:30px"><div class="lu-spin" style="display:inline-block;width:24px;height:24px;border:3px solid var(--bd2);border-top-color:var(--ac);border-radius:50%;animation:spin 1s linear infinite"></div><div style="margin-top:10px;font-size:11px">Gathering relevant content and thinking…</div></div>`;
-    try {
-      // Gather candidates — pull more than we'll use, with modest body
-      // snippets per item. We trim the assembled prompt to ~3500 chars
-      // total (server enforces 4000-char systemPrompt limit). Smaller
-      // snippets per item mean more items can fit.
+// -271: Ask LevelUp is the assistant with "With sources" on (_aiAskInPanel,
+// app-agent.js). This is its answer step: read the workspace, cite what it used.
+async function _askWithSources(q){
       let hits = _gatherRelevantContent(q, {limit:10, maxBodyChars:240});
       // Questions about the APP have no match in the user's data. Answer those
       // from the Help Center instead of dead-ending on 'nothing found'.
       const _luKnow = (typeof _luKnowledgeHits==='function' && (!hits.length || _luIsProductQuestion(q)))
         ? _luKnowledgeHits(q, hits.length ? 700 : 1600) : '';
       if(!hits.length && !_luKnow){
-        body.innerHTML = `<div style="text-align:center;color:var(--t3);padding:30px">No relevant content found in your workspace. Try keywords from a note title, task name, or journal entry.</div>`;
-        return;
+        return {answer:'No relevant content found in your workspace. Try keywords from a note title, task name, or journal entry.',hits:[]};
       }
       // Build the source block under a hard budget. Add items until we
       // exceed 2800 chars (leaving ~700 for the system-prompt boilerplate).
@@ -3496,29 +3460,10 @@ async function aiAskLevelup(prefillQuery){
         provider: cfg.provider || 'manus',
       }, 'mutation');
       const answer = String(res?.result || res?.text || '').trim() || '(no answer returned)';
-      const answerHtml = esc(answer).replace(/\[(\d+)\]/g, (_, n) => {
-        const i = parseInt(n, 10) - 1;
-        const h = hits[i];
-        if(!h) return `[${n}]`;
-        return `<a href="javascript:void(0)" onclick="document.getElementById('ask-lu-ov')?.remove();setTimeout(()=>{${h.openFn}},80)" style="background:var(--acs);color:var(--ac);padding:1px 5px;border-radius:8px;font-size:11px;font-weight:600;text-decoration:none;border:1px solid color-mix(in srgb,var(--ac) 30%,transparent)" title="${esc(h.title)}">${h.icon} ${n}</a>`;
-      }).replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>');
-      body.innerHTML = `<div style="margin-bottom:16px">${answerHtml}</div>
-        <div style="border-top:1px solid var(--bd1);padding-top:12px;margin-top:12px">
-          <div style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--t3);margin-bottom:6px;font-weight:600">Sources (${hits.length}) — click any [n] in the answer above</div>
-          <div style="display:flex;flex-direction:column;gap:6px">${hits.map((h,i)=>`<div style="font-size:11px;padding:6px 8px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1);cursor:pointer" onclick="document.getElementById('ask-lu-ov')?.remove();setTimeout(()=>{${h.openFn}},80)" title="Open">
-            <div style="display:flex;align-items:center;gap:6px"><span style="background:var(--s3);color:var(--t2);padding:1px 5px;border-radius:8px;font-weight:600">${i+1}</span><span>${h.icon}</span><span style="font-weight:600;color:var(--t1)">${esc(h.title)}</span>${h.meta?`<span style="color:var(--t3);font-size:11px;margin-left:auto">${esc(h.meta)}</span>`:''}</div>
-            <div style="color:var(--t3);margin-top:3px;font-size:11px;line-height:1.4">${esc(h.snippet.slice(0,200))}${h.snippet.length>200?'…':''}</div>
-          </div>`).join('')}</div>
-        </div>`;
-    } catch(err){
-      body.innerHTML = `<div style="color:var(--red);padding:20px;background:rgba(239,68,68,0.08);border-radius:6px">⚠ Failed to answer: ${esc(err.message || String(err))}</div>`;
-    }
-  };
-  inp.addEventListener('keydown', (e) => {
-    if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); submit(); }
-    if(e.key === 'Escape'){ ov.remove(); }
-  });
-  if(prefillQuery) submit();
+      return {answer,hits};
+}
+function aiAskLevelup(prefillQuery){
+  if(typeof _aiAskInPanel==='function')_aiAskInPanel(prefillQuery);
 }
 
 /**
@@ -4433,7 +4378,7 @@ function renderDrawer(type,item){
       <div class="field"><label>Linked Goal</label><select class="inp" id="dr-goal"><option value="">None</option>${D.goals.map(g=>`<option value="${g.id}" ${item.linkedGoalId===g.id?'selected':''}>${g.icon} ${esc(g.title)}</option>`).join('')}</select></div>
     </div>
     <div class="field-row">
-      <div class="field"><label>Assignees <span style="font-size:11px;color:var(--t3);font-weight:400">★=Primary</span></label>${buildMultiAssignee('dr-ma',item)}</div>
+      <div class="field"><label>Shared with <span style="font-size:11px;color:var(--t3);font-weight:400">★=Primary</span></label>${buildMultiAssignee('dr-ma',item)}</div>
       <div class="field"><label>Created By</label><input class="inp" value="${esc(item.createdBy||D.creds.userName||'Idris Grant')}" id="dr-createdby" readonly style="background:var(--s2);color:var(--t3)"></div>
     </div>
     <div class="field">
@@ -5833,7 +5778,7 @@ function taskRow(t,showActs=true){
   const _subChip=_subs.length?`<span class="lu-subtask-chip ${_subDone===_subs.length?'done':''}" title="${_subDone} of ${_subs.length} subtask${_subs.length===1?'':'s'} done">☑ ${_subDone}/${_subs.length}</span>`:'';
   // E: clickable priority + status pills with inline picker
   const priPillClickable=`<span class="pill ${pillClass(t.priority)} lu-pill-clickable" title="Click to change priority" onclick="event.stopPropagation();_taskPillPicker(event,${_tidLit(t.id)},'priority')">${t.priority}</span>`;
-  return `<div class="lr ${isOverdueTask?'lr-overdue':''}" data-task-id="${t.id}" style="${_bulkSelected.has(t.id)?'background:var(--acs)':isOverdueTask?'border-left:2px solid var(--red)':isBlocked?'border-left:2px solid var(--red)':''}" onclick="${_bulkMode?`toggleBulkSelect(${_tidLit(t.id)},event)`:`openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))`}">${bulkChk}<span class="rt" style="${_tcStyle}">${esc(t.title)}</span>${_subChip}${isOverdueTask?`<span style="font-size:11px;color:var(--red);white-space:nowrap;font-weight:600">⚠ Overdue</span>`:''} ${blockedLabel}${priPillClickable}<span class="rm" style="${isOverdueTask?'color:var(--red);font-weight:600':''}">${t.due?fmtDate(t.due):''}</span>${t.assignedTo?`<span style="font-size:11px;color:var(--t3);white-space:nowrap">${esc(t.assignedTo.split(' ')[0])}</span>`:''} ${timeLabel}${showActs?`<span class="acts">${timerBtn}<button class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px" title="Snooze…" onclick="event.stopPropagation();_taskSnoozePopover(event,${_tidLit(t.id)})">⏰</button><button class="lr-row-acts-toggle" title="More actions" onclick="event.stopPropagation();_taskRowMoreToggle(event,${_tidLit(t.id)})">⋮</button><div class="lr-row-acts-pop" id="lr-row-acts-${t.id}">${blockBtn ? `<button onclick="event.stopPropagation();_closeAllRowActs();blockTaskTime(${_tidLit(t.id)})">${_icon('calendar',12,'currentColor')} Block time in Calendar</button>`:''}<button onclick="event.stopPropagation();_closeAllRowActs();delegateTask(${_tidLit(t.id)})">📤 Delegate</button><button onclick="event.stopPropagation();_closeAllRowActs();aiSuggestDelegate(${_tidLit(t.id)})">🤖 AI suggest delegate</button>${t.blockedBy?`<button onclick="event.stopPropagation();_closeAllRowActs();aiUnblockTask(${_tidLit(t.id)})">🔓 AI unblock</button>`:''}<button onclick="event.stopPropagation();_closeAllRowActs();moveSomeday(${_tidLit(t.id)})">${isSomeday?'📥 Move to Inbox':'💤 Move to Someday'}</button><button onclick="event.stopPropagation();_closeAllRowActs();openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))">✏ Full edit</button><button onclick="event.stopPropagation();_closeAllRowActs();deleteItem('task',${_tidLit(t.id)})" style="color:var(--red)">✕ Delete</button></div></span>`:''}</div>`;
+  return `<div class="lr ${isOverdueTask?'lr-overdue':''}" data-task-id="${t.id}" style="${_bulkSelected.has(t.id)?'background:var(--acs)':isOverdueTask?'border-left:2px solid var(--red)':isBlocked?'border-left:2px solid var(--red)':''}" onclick="${_bulkMode?`toggleBulkSelect(${_tidLit(t.id)},event)`:`openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))`}">${bulkChk}<span class="rt" style="${_tcStyle}">${esc(t.title)}</span>${_subChip}${isOverdueTask?`<span style="font-size:11px;color:var(--red);white-space:nowrap;font-weight:600">⚠ Overdue</span>`:''} ${blockedLabel}${priPillClickable}<span class="rm" style="${isOverdueTask?'color:var(--red);font-weight:600':''}">${t.due?fmtDate(t.due):''}</span>${t.assignedTo?`<span style="font-size:11px;color:var(--t3);white-space:nowrap">${esc(t.assignedTo.split(' ')[0])}</span>`:''} ${timeLabel}${showActs?`<span class="acts">${timerBtn}<button class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px" title="Snooze…" onclick="event.stopPropagation();_taskSnoozePopover(event,${_tidLit(t.id)})">⏰</button><button class="lr-row-acts-toggle" title="More actions" onclick="event.stopPropagation();_taskRowMoreToggle(event,${_tidLit(t.id)})">⋮</button><div class="lr-row-acts-pop" id="lr-row-acts-${t.id}">${blockBtn ? `<button onclick="event.stopPropagation();_closeAllRowActs();blockTaskTime(${_tidLit(t.id)})">${_icon('calendar',12,'currentColor')} Block time in Calendar</button>`:''}<button onclick="event.stopPropagation();_closeAllRowActs();handOff(${_tidLit(t.id)})">Hand off</button><button onclick="event.stopPropagation();_closeAllRowActs();aiSuggestDelegate(${_tidLit(t.id)})">🤖 AI suggest delegate</button>${t.blockedBy?`<button onclick="event.stopPropagation();_closeAllRowActs();aiUnblockTask(${_tidLit(t.id)})">🔓 AI unblock</button>`:''}<button onclick="event.stopPropagation();_closeAllRowActs();moveSomeday(${_tidLit(t.id)})">${isSomeday?'📥 Move to Inbox':'💤 Move to Someday'}</button><button onclick="event.stopPropagation();_closeAllRowActs();openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))">✏ Full edit</button><button onclick="event.stopPropagation();_closeAllRowActs();deleteItem('task',${_tidLit(t.id)})" style="color:var(--red)">✕ Delete</button></div></span>`:''}</div>`;
 }
 function addTaskComment(taskId){
   const inp=document.getElementById('new-comment');
@@ -5908,23 +5853,7 @@ function deleteTaskComment(taskId,ci){
   }
   toast('🗑 Comment deleted');
 }
+// -270: one Hand off dialog (handOff, app-pm.js) instead of a numbered prompt.
 function delegateTask(id){
-  const t=D.tasks.find(x=>x.id===id);
-  if(!t)return;
-  const members=D.teams.flatMap(tm=>tm.members).filter(m=>m.name!==(D.creds.userName||'Idris Grant'));
-  if(!members.length){toast('No other team members to delegate to');return;}
-  const opts=members.map((m,i)=>`${i+1}. ${m.name} (${m.role})`).join('\n');
-  const choice=prompt(`Delegate "${t.title}" to:\n${opts}\n\nEnter number:`);
-  if(!choice)return;
-  const idx=parseInt(choice)-1;
-  if(isNaN(idx)||idx<0||idx>=members.length){toast('Invalid selection');return;}
-  const assignee=members[idx].name;
-  t.assignedTo=assignee;
-  t.status=t.status==='Not Started'?'Delegated':t.status;
-  t.comments=t.comments||[];
-  const ts=new Date().toLocaleString();
-  t.comments.push({id:Date.now(),author:D.creds.userName||'Idris Grant',ts,text:`Delegated to ${assignee}`,type:'delegation'});
-  save('tasks');
-  toast(`📤 Task delegated to ${assignee}`);
-  renderScreen(curScreen);
+  if(typeof handOff==='function')handOff(id);
 }

@@ -42,7 +42,7 @@ var _agentUndoSeq=0;
 function _luAgentCSS(){
   if(document.getElementById('lu-agent-css'))return;
   var s=document.createElement('style');s.id='lu-agent-css';
-  s.textContent=[
+  s.textContent=['.ai-src-cite{background:var(--acs);color:var(--ac);padding:0 4px;border-radius:4px;font-size:.85em;text-decoration:none;font-weight:600}.ai-src-list{margin-top:10px;padding-top:8px;border-top:1px solid var(--bd1);display:flex;flex-direction:column;gap:4px}.ai-src-h{font-size:11px;font-weight:600;color:var(--t3)}.ai-src{display:block;width:100%;text-align:left;font:inherit;font-size:11px;color:var(--t2);background:var(--s2);border:1px solid var(--bd1);border-radius:6px;padding:5px 7px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ai-src:hover{color:var(--t1)}'+
   '.agent-card{margin:8px 0 2px;border:1px solid var(--bd2);border-radius:10px;background:var(--s1);overflow:hidden;font-size:12px;max-width:100%}',
   '.agent-card-h{display:flex;align-items:center;gap:8px;padding:8px 10px;background:color-mix(in srgb,var(--ac) 10%,var(--s2));border-bottom:1px solid var(--bd1);font-weight:650}',
   '.agent-card-h small{font-weight:400;color:var(--t3);margin-left:auto}',
@@ -1119,7 +1119,9 @@ window._renderAIChatHistory=function(){
         if(m.tool||m.hidden){var n=(String(m.content||'').match(/\n/g)||[]).length;return '<div class="ai-chat-msg tool">↳ relayed '+Math.max(1,n)+' result'+(n===1?'':'s')+' to the assistant</div>';}
         return '<div class="ai-chat-msg user">'+esc(m.content)+'<div class="ai-chat-msg-meta">'+_fmtChatTime(m.ts)+'</div></div>';
       }
-      var body=m.content?('<div class="agent-say">'+(typeof renderMd==='function'?renderMd(m.content):esc(m.content))+'</div>'):'';
+      var _say=m.content?(typeof renderMd==='function'?renderMd(m.content):esc(m.content)):'';
+      if(Array.isArray(m.sources))_say=_aiSourcesHtml(m,mi,_say);
+      var body=_say?('<div class="agent-say">'+_say+'</div>'):'';
       return '<div class="ai-chat-msg bot">'+body+_agentRenderActions(m,m.id||('idx'+mi))+_agentRenderAsk(m)+'<div class="ai-chat-msg-meta">'+_fmtChatTime(m.ts)+(m.fallback?' · answer-only mode':'')+'</div></div>';
     }).join('');
   }
@@ -1128,6 +1130,7 @@ window._renderAIChatHistory=function(){
   _renderAISuggestions();
   if(typeof _updateAIMsgCount==='function')_updateAIMsgCount();
   _agentEnsureHeader();
+  _aiSourcesSync();
 };
 window._renderAISuggestions=function(){
   var el=document.getElementById('ai-suggestions');if(!el)return;
@@ -1158,8 +1161,71 @@ window.sendAIMsg=async function(){
   var msg=(inp&&inp.value||'').trim();
   if(!msg||_agentBusy)return;
   inp.value='';try{autoSizeAIInput(inp);}catch(_){}
-  await _agentSend(msg);
+  if(_aiSourcesOn())await _agentSendWithSources(msg);
+  else await _agentSend(msg);
 };
+// ── With sources (-271): what Ask LevelUp was. Answers come from the content of
+// notes, tasks, journal and ideas, with citations. It takes no actions, so
+// nothing it reads can make it do anything.
+function _aiSourcesOn(){try{return localStorage.getItem('lu_ai_sources')==='1';}catch(_){return false;}}
+function _aiSourcesSync(){
+  var on=_aiSourcesOn(),cb=document.getElementById('ai-sources'),inp=document.getElementById('ai-input');
+  if(cb)cb.checked=on;
+  if(inp)inp.placeholder=on?'Ask about your notes, tasks and journal… (answers cite sources)':'Ask anything about your workspace…';
+}
+function _aiSourcesSet(on){
+  try{if(on)localStorage.setItem('lu_ai_sources','1');else localStorage.removeItem('lu_ai_sources');}catch(_){}
+  _aiSourcesSync();
+}
+function _aiAskInPanel(q){
+  _aiSourcesSet(true);
+  var p=document.getElementById('ai-panel');
+  if(p&&!p.classList.contains('show')&&typeof toggleAIPanel==='function')toggleAIPanel();
+  var inp=document.getElementById('ai-input');if(!inp)return;
+  if(q){inp.value=String(q);window.sendAIMsg();return;}
+  setTimeout(function(){try{inp.focus();}catch(_){}},280);
+}
+async function _agentSendWithSources(text){
+  if(_agentBusy)return;
+  _luAgentCSS();
+  _agentPush({role:'user',content:text});
+  _renderAIChatHistory();
+  _agentBusy=true;var sendBtn=document.getElementById('ai-send-btn');if(sendBtn)sendBtn.disabled=true;
+  _agentTyping(true);_agentSetStatus('Reading your workspace…');
+  try{
+    var r=await _askWithSources(text);
+    _agentPush({role:'assistant',content:r.answer,sources:(r.hits||[]).map(function(h){return {type:h.type,id:h.id,source:h.source||null,title:String(h.title||'').slice(0,120),icon:h.icon||''};})});
+  }catch(e){
+    _agentPush({role:'assistant',content:'⚠ Could not answer: '+String(e&&e.message||e)});
+  }finally{
+    _agentBusy=false;if(sendBtn)sendBtn.disabled=false;
+    _agentTyping(false);_agentSetStatus('Ready · I can act on your workspace');
+    _renderAIChatHistory();
+  }
+}
+// Sources are opened by type and id, never by running a stored string.
+function _aiOpenSource(mi,n){
+  var m=_aiChatHistory()[mi],src=m&&m.sources&&m.sources[n-1];if(!src)return;
+  var p=document.getElementById('ai-panel');
+  if(p&&p.classList.contains('show')&&typeof toggleAIPanel==='function')toggleAIPanel();
+  if(src.type==='ext-task'){
+    var et=(D.externalTasks||[]).find(function(x){return String(x.externalId)===String(src.id);});
+    if(et&&typeof _openExternalAnnotateModal==='function')_openExternalAnnotateModal(et.source,et.externalId);
+    return;
+  }
+  _agentOpen({type:src.type,id:src.id});
+}
+function _aiSourcesHtml(m,mi,bodyHtml){
+  var linked=String(bodyHtml).replace(/\[(\d{1,2})\]/g,function(all,n){
+    var i=Number(n);
+    if(!m.sources[i-1])return all;
+    return '<a href="javascript:void(0)" onclick="_aiOpenSource('+mi+','+i+')" class="ai-src-cite">['+i+']</a>';
+  });
+  if(!m.sources.length)return linked;
+  return linked+'<div class="ai-src-list"><div class="ai-src-h">Sources ('+m.sources.length+')</div>'+m.sources.map(function(h,i){
+    return '<button type="button" class="ai-src" onclick="_aiOpenSource('+mi+','+(i+1)+')"><b>'+(i+1)+'</b> '+esc(h.icon||'')+' '+esc(h.title||'')+'</button>';
+  }).join('')+'</div>';
+}
 // header: ⚙ settings popover + ↶ undo
 function _agentEnsureHeader(){
   var h=document.querySelector('#ai-panel .ai-panel-h-actions');if(!h||document.getElementById('agent-cfg-btn'))return;
