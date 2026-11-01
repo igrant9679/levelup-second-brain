@@ -5242,7 +5242,17 @@ function saveItem(type,id){
     j.mood=$('#dr-mood').value;j.body=$('#dr-body').value;const drRte=document.getElementById('dr-diary-rte');if(drRte)j.diaryBody=drRte.innerHTML;save('journal')}}
   closeDrawer();toast('Saved!');renderScreen(curScreen);
 }
+// Delete with Undo (build -265; it asked "Delete this item?" and could not be
+// taken back - notes already worked this way). Notes keep their own Trash.
 function deleteItem(type,id){
+  const _key={task:'tasks',project:'projects',goal:'goals',journal:'journal'}[type];
+  if(_key&&typeof _luUndoToast==='function'){
+    const arr=D[_key]||[];const i=arr.findIndex(x=>x.id===id);if(i<0)return;
+    const x=arr[i];arr.splice(i,1);
+    save(_key);closeDrawer();renderScreen(curScreen);
+    _luUndoToast(_key,[{x,i}],{task:'Task',project:'Project',goal:'Goal',journal:'Journal entry'}[type]+' deleted',x.title||x.name||'');
+    return;
+  }
   if(!confirm('Delete this item?'))return;
   if(type==='task')D.tasks=D.tasks.filter(x=>x.id!==id);
   if(type==='note')D.notes=D.notes.filter(x=>x.id!==id);

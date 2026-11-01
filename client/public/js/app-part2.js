@@ -3969,7 +3969,7 @@ function _cmdpActions(){
   const profs=(D.prefs.themeProfiles||[]);
   return [
     {id:'nav-home',group:'Navigate',icon:'🏠',title:'Go to Home',run:()=>nav('home')},
-    {id:'nav-myday',group:'Navigate',icon:'☀',title:'Go to My Day',run:()=>nav('myday')},
+    {id:'nav-myday',group:'Navigate',icon:'☀',title:'Go to Planner',run:()=>nav('myday')},
     {id:'nav-tasks',group:'Navigate',icon:'📋',title:'Go to Tasks',run:()=>nav('tasks')},
     {id:'nav-notes',group:'Navigate',icon:'📝',title:'Go to Notes',run:()=>nav('notes')},
     {id:'nav-projects',group:'Navigate',icon:'📁',title:'Go to Projects',run:()=>nav('projects')},
@@ -3987,6 +3987,7 @@ function _cmdpActions(){
     {id:'nav-focus',group:'Navigate',icon:'⏱',title:'Go to Focus / Pomodoro',run:()=>nav('focus')},
     {id:'nav-process',group:'Navigate',icon:'⚡',title:'Go to Process (GTD)',run:()=>nav('process')},
     {id:'nav-settings',group:'Navigate',icon:'⚙',title:'Open Settings',run:()=>nav('settings')},
+    ..._cmdpRegistryPages(),
     {id:'create-task',group:'Create',icon:'📋',title:'Add new task…',shortcut:(_isMac?'⌘N':'Ctrl+N'),run:()=>openFA('task')},
     {id:'create-note',group:'Create',icon:'📝',title:'Add new note…',run:()=>openFA('note')},
     {id:'create-project',group:'Create',icon:'📁',title:'Add new project…',run:()=>openFA('project')},
@@ -4006,6 +4007,17 @@ function _cmdpActions(){
   ];
 }
 
+// Every page the registry knows (LU_PAGES, incl. PM which registers itself
+// later) that the hand-written list above doesn't already cover (-265: Money,
+// Pipeline, Atlas, Programs, Command Center, Team, My Week, My Year, Standup,
+// … were missing, and for some the palette is the only way in). Pages hidden
+// in Settings → Workspace stay out.
+const _CMDP_PAGE_ICON={myday:'☀',command:'🛰',programs:'🗂',pipeline:'💼',atlas:'🧭',mindmaps:'🧠',money:'💰',coach:'🧭',team:'👥',archive:'🗄',help:'❓',standup:'🗣',myweek:'🗓',myyear:'📆',pm:'📐'};
+function _cmdpRegistryPages(){
+  if(typeof LU_PAGES==='undefined'||!Array.isArray(LU_PAGES))return [];
+  const have=new Set(['home','myday','tasks','notes','projects','goals','habits','calendar','mail','journal','ideas','bookmarks','graph','clusters','contacts','reports','focus','process','settings']);
+  return LU_PAGES.filter(p=>p&&p.id&&!have.has(p.id)&&(typeof luPageOn!=='function'||luPageOn(p.id))).map(p=>({id:'nav-'+p.id,group:'Navigate',icon:_CMDP_PAGE_ICON[p.id]||'▸',title:'Go to '+p.label,run:()=>nav(p.id)}));
+}
 function openCommandPalette(){
   const ov=document.getElementById('cmdp-overlay');if(!ov)return;
   ov.classList.add('show');
@@ -9685,6 +9697,96 @@ async function _downloadMigrationBackup(){
   }
   if(btn){btn.disabled=false;btn.textContent='💾 Download backup';}
 }
+// ── Delete with Undo (build -265) ─────────────────────────────────────────
+// Tasks, projects, goals, journal entries, sheets, decks and one-off calendar
+// events: removed at once, with an 8-second Undo that puts each back at its
+// place (skipped if it's already back, e.g. from another device). The same
+// shape notes have had since -242 (they also keep a server-side Trash).
+function _luUndoToast(key,removed,title,name,rerender){
+  if(typeof toast!=='function')return;
+  const label=name?'“'+String(name).slice(0,60)+'”':'';
+  toast({type:'info',title,msg:label,duration:8000,actions:[{label:'Undo',primary:true,onClick:()=>{
+    const arr=key==='calGrid'?_calEvents:(D[key]=D[key]||[]);
+    let back=0;
+    removed.slice().sort((a,b)=>a.i-b.i).forEach(({x,i})=>{
+      if(arr.some(y=>y&&String(y.id)===String(x.id)))return;
+      arr.splice(Math.min(i<0?arr.length:i,arr.length),0,x);back++;
+    });
+    if(!back)return;
+    if(key==='calGrid'){if(typeof _calPersist==='function')_calPersist();}
+    else (window.save||save)(key);
+    try{if(rerender)rerender();else if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);}catch(_){}
+    toast('↩ Restored');
+  }}]});
+}
+// ── Phones and narrow iPads (build -265) ───────────────────────────────────
+// The right rail (.rr: Planner's Up Next and meetings, the Money / Coach /
+// Habits sidebars, "Customize this page", …) was display:none at ≤900px —
+// the comment promised a toggle that was never built. Now it is a bottom
+// sheet: a 46px "More for this page" bar; tap it (or swipe it up) to open,
+// tap the bar, the backdrop or change page to close. Rails a user switched
+// off in Settings stay hidden (that rule is id-scoped and wins), empty rails
+// show no bar. PM's 15 tabs and Money's 11 wrapped into 4-5 rows: one
+// scrolling strip now (active tab kept in view), and any PM / Money table
+// that isn't in a scroll box scrolls sideways instead of being cut off.
+function _luPhoneCSS(){
+  if(document.getElementById('lu-phone-css'))return;
+  const st=document.createElement('style');st.id='lu-phone-css';
+  st.textContent=[
+'@media (max-width:900px){',
+' .scr.on .bg>.rr:not(:empty){display:block!important;position:fixed;left:0;right:0;bottom:0;z-index:70;max-height:min(74vh,640px);overflow-y:auto;overscroll-behavior:contain;border-left:0!important;border-top:1px solid var(--bd2);border-radius:14px 14px 0 0;box-shadow:0 -10px 34px rgba(0,0,0,.32);padding:0 14px calc(18px + env(safe-area-inset-bottom,0px));transform:translateY(calc(100% - 46px - env(safe-area-inset-bottom,0px)));transition:transform .22s ease;background:var(--s1)}',
+' .scr.on .bg>.rr.lu-rr-open{transform:none}',
+' .scr.on .bg>.rr:not(:empty)::before{content:"▴  More for this page";position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:center;height:46px;margin:0 -14px 10px;background:var(--s1);border-bottom:1px solid var(--bd1);border-radius:14px 14px 0 0;font-size:13px;font-weight:600;color:var(--t2);cursor:pointer}',
+' .scr.on .bg>.rr.lu-rr-open::before{content:"▾  Hide"}',
+' .scr.on .bg:has(>.rr:not(:empty))>.mn{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!important}',
+' #lu-rr-back{position:fixed;inset:0;z-index:69;background:rgba(0,0,0,.38);display:none}',
+' #lu-rr-back.on{display:block}',
+'}',
+'@media (max-width:700px){',
+' .pm-tabs,#s-money .fin-tabs{flex-wrap:nowrap!important;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none}',
+' .pm-tabs::-webkit-scrollbar,#s-money .fin-tabs::-webkit-scrollbar{display:none}',
+' .pm-tabs>.pm-tab,#s-money .fin-tabs>.fin-tab{flex-shrink:0;white-space:nowrap}',
+' #pm-main table:not(.pm-scroll table),#s-money table{display:block;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}',
+' [id^="tasks-view-"]{height:40px!important;width:44px!important}',
+' button[onclick^="bulkAction("],button[onclick^="toggleBulkMode"]{min-height:36px!important}',
+'}'].join('\n');
+  document.head.appendChild(st);
+}
+function _luRailSheet(open){
+  const rr=document.querySelector('.scr.on .bg>.rr');
+  document.querySelectorAll('.rr.lu-rr-open').forEach(r=>{if(r!==rr||!open)r.classList.remove('lu-rr-open');});
+  let back=document.getElementById('lu-rr-back');
+  if(!back){back=document.createElement('div');back.id='lu-rr-back';back.addEventListener('click',()=>_luRailSheet(false));document.body.appendChild(back);}
+  if(rr&&open){rr.classList.add('lu-rr-open');back.classList.add('on');}
+  else{back.classList.remove('on');if(rr)rr.scrollTop=0;}
+}
+function _luRailNarrow(){return window.matchMedia&&window.matchMedia('(max-width:900px)').matches;}
+if(typeof document!=='undefined'&&!window._luPhoneWired){
+  window._luPhoneWired=true;
+  try{_luPhoneCSS();}catch(_){}
+  // The bar is the rail's ::before: a tap in its top 46px toggles the sheet.
+  document.addEventListener('click',e=>{
+    if(!_luRailNarrow())return;
+    const rr=e.target&&e.target.closest&&e.target.closest('.scr.on .bg>.rr');
+    if(!rr)return;
+    const top=rr.getBoundingClientRect().top;
+    if(e.clientY-top<=46&&rr.scrollTop<4){e.preventDefault();e.stopPropagation();_luRailSheet(!rr.classList.contains('lu-rr-open'));}
+  },true);
+  // Swipe the bar up to open, the open sheet's bar down to close.
+  let _sy=null;
+  document.addEventListener('touchstart',e=>{const rr=e.target&&e.target.closest&&e.target.closest('.scr.on .bg>.rr');_sy=rr&&_luRailNarrow()&&e.touches[0].clientY-rr.getBoundingClientRect().top<=46?{y:e.touches[0].clientY,rr}:null;},{passive:true});
+  document.addEventListener('touchend',e=>{if(!_sy)return;const dy=(e.changedTouches[0]||{}).clientY-_sy.y;const open=_sy.rr.classList.contains('lu-rr-open');if(dy<-30&&!open)_luRailSheet(true);else if(dy>30&&open)_luRailSheet(false);_sy=null;},{passive:true});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.querySelector('.rr.lu-rr-open'))_luRailSheet(false);});
+  // Changing page closes it; keep the active PM / Money tab in view.
+  try{
+    const _navPrev=window.nav;
+    if(typeof _navPrev==='function'&&!_navPrev._luSheet){window.nav=function(){try{_luRailSheet(false);}catch(_){}return _navPrev.apply(this,arguments);};window.nav._luSheet=true;}
+  }catch(_){}
+  try{
+    let _tabT=0;
+    new MutationObserver(()=>{if(_tabT)return;_tabT=requestAnimationFrame(()=>{_tabT=0;document.querySelectorAll('.pm-tabs>.pm-tab.on,#s-money .fin-tabs>.fin-tab.on').forEach(b=>{const p=b.parentElement;if(p&&p.scrollWidth>p.clientWidth+2){const l=b.offsetLeft-p.offsetLeft,r=l+b.offsetWidth;if(l<p.scrollLeft||r>p.scrollLeft+p.clientWidth)p.scrollLeft=Math.max(0,l-24);}});});}).observe(document.body,{childList:true,subtree:true});
+  }catch(_){}
+}
 function _backupStatusHtml(b){
   if(!b)return 'No automatic backup has run yet.';
   const when=_pd(b.at).toLocaleString();
@@ -13706,10 +13808,11 @@ async function shOpenShared(i){
 }
 function shClose(){ _sheetCurrent=null; renderSheetsSection(); }
 function shDeleteSheet(id){
-  if(!confirm('Delete this sheet? This cannot be undone.'))return;
-  ensureSheets(); D.sheets=D.sheets.filter(x=>Number(x.id)!==Number(id));
+  ensureSheets(); const _i=D.sheets.findIndex(x=>Number(x.id)===Number(id)); const _x=D.sheets[_i];
+  D.sheets=D.sheets.filter(x=>Number(x.id)!==Number(id));
   if(_sheetCurrent&&Number(_sheetCurrent.id)===Number(id))_sheetCurrent=null;
-  (window.save||save)('sheets'); renderSheetsSection(); toast('🗑 Sheet deleted');
+  (window.save||save)('sheets'); renderSheetsSection();
+  if(_x)_luUndoToast('sheets',[{x:_x,i:_i}],'Sheet deleted',_x.name||_x.title||'',()=>renderSheetsSection());else toast('🗑 Sheet deleted');
 }
 
 // ─── Formula engine (Excel-style A1 refs + functions) ────────────────────────
@@ -14273,7 +14376,7 @@ function dkCreateFromTemplate(key){
 function dkOpen(id){ ensureDecks(); const d=D.decks.find(x=>Number(x.id)===Number(id)); if(!d)return toast('Deck not found'); _deckCurrent=d; _deckSlide=0; _deckSelEl=null; _deckUndo=[];_deckRedo=[]; renderDecksSection(); }
 async function dkOpenShared(i){ let d=(D._sharedDecks||[])[i]; if(!d){ await _loadSharedDecks(); d=(D._sharedDecks||[])[i]; } if(!d)return toast('Shared deck unavailable'); _deckCurrent=d; _deckSlide=0; _deckSelEl=null; _deckUndo=[];_deckRedo=[]; renderDecksSection(); }
 function dkClose(){ _deckCurrent=null; _deckSelEl=null; renderDecksSection(); }
-function dkDeleteDeck(id){ if(!confirm('Delete this deck? This cannot be undone.'))return; ensureDecks(); D.decks=D.decks.filter(x=>Number(x.id)!==Number(id)); if(_deckCurrent&&Number(_deckCurrent.id)===Number(id))_deckCurrent=null; (window.save||save)('decks'); renderDecksSection(); toast('🗑 Deck deleted'); }
+function dkDeleteDeck(id){ ensureDecks(); const _i=D.decks.findIndex(x=>Number(x.id)===Number(id)); const _x=D.decks[_i]; if(_x)setTimeout(()=>_luUndoToast('decks',[{x:_x,i:_i}],'Deck deleted',_x.name||_x.title||'',()=>renderDecksSection()),0); D.decks=D.decks.filter(x=>Number(x.id)!==Number(id)); if(_deckCurrent&&Number(_deckCurrent.id)===Number(id))_deckCurrent=null; (window.save||save)('decks'); renderDecksSection(); if(!_x)toast('🗑 Deck deleted'); }
 async function _loadSharedDecks(){ try{ if(typeof _trpc!=='function')return; _sharedDecksLoaded=true; const res=await _trpc('appData.sharedDecksForMe',undefined,'query'); if(res&&res.ok&&Array.isArray(res.decks)){ D._sharedDecks=res.decks.map((p,i)=>Object.assign({},p,{_idx:i,_shared:true})); if(_notesModeIsSlides()&&!_deckCurrent)renderDecksSection(); } }catch(e){} }
 
 // ─── Editor shell ────────────────────────────────────────────────────────────

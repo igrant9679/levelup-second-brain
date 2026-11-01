@@ -2045,7 +2045,15 @@ async function deleteCalEvent(id){
     removeRow=_calApplyDelete(row,hit.occ,scope);
     if(!removeRow)msg=scope==='one'?'✓ This occurrence deleted':'✓ This and later occurrences deleted';
     else if(scope!=='all')msg='✓ Series deleted';
-  }else if(!confirm('Delete "'+row.title+'"'+(row.source==='microsoft'&&row.extId?' from Outlook too':'')+'? This cannot be undone.'))return;
+  }else if(row.source==='microsoft'&&row.extId){if(!confirm('Delete "'+row.title+'" from Outlook too? This cannot be undone.'))return;}
+  else{
+    // A one-off event of your own: gone at once, with Undo (-265).
+    const idx=_calEvents.indexOf(row);if(idx>-1)_calEvents.splice(idx,1);
+    _calPersist();closeModal();renderCal();
+    if(typeof _luUndoToast==='function')_luUndoToast('calGrid',[{x:row,i:idx}],'Event deleted',row.title||'',()=>renderCal());else toast(msg);
+    if(row.dbId){try{await _trpc('oauthSync.deleteCalendarEvent',{id:row.dbId},'mutate');}catch(e){console.warn('Server delete failed:',e.message);}}
+    return;
+  }
   if(removeRow&&row.source==='microsoft'&&row.extId&&typeof _calQueuePush==='function'){
     // Hidden now, removed once Outlook confirms (-237).
     _calQueuePush(row,'delete');
