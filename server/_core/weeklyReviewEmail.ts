@@ -30,6 +30,7 @@ import { readEntityArray } from "../routers/appData";
 import { allowedRecipient } from "./recipient";
 import { userTz, userNow, toMinutes, dayIn, shiftDays, fmtDay, type UserNow } from "./userTime";
 import { claimSend, releaseSend } from "./sendLedger";
+import { prefsRows, fullRow } from "./prefsScan";
 
 interface WeeklyPref {
   enabled?: boolean;
@@ -399,12 +400,11 @@ export async function processWeeklyReview(opts?: { userId?: number; force?: bool
   const db = await getDb();
   if (!db) return { scanned: 0, sent: 0, skipped: 0, errors: 0 };
 
-  const rows = opts?.userId
-    ? await db.select().from(userAppData).where(eq(userAppData.userId, opts.userId))
-    : await db.select().from(userAppData);
+  const rows = await prefsRows(db, opts?.userId);
 
   let sent = 0, skipped = 0, errors = 0;
-  for (const row of rows) {
+  for (const lite of rows) {
+    let row: any = lite;
     try {
       const prefs = parsePrefs(row.prefs);
       const wp = (prefs.weeklyReview as WeeklyPref | undefined) || {};
@@ -413,6 +413,7 @@ export async function processWeeklyReview(opts?: { userId?: number; force?: bool
       if (!opts?.force && !weeklyDue(wp, local)) { skipped++; continue; }
       const claimed = await claimSend(db, row.userId, 'weekly', local.ymd);
       if (!claimed && !opts?.force) { skipped++; continue; }
+      row = await fullRow(db, lite);
 
       const [userRow] = await db.select().from(users).where(eq(users.id, row.userId)).limit(1);
       if (!userRow) { skipped++; continue; }

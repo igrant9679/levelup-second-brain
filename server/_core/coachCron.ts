@@ -43,6 +43,7 @@ import { ENV } from "./env";
 import { delegationSnapshotLines } from "./pmDelegation";
 import { allowedRecipient } from "./recipient";
 import { calOccurrencesBetween } from "./calRecur";
+import { prefsRows, fullRow } from "./prefsScan";
 
 interface SlotDef { label: string; time: string; goal: string; day?: number; words?: number }
 export type CoachSlot = "morning" | "midmorning" | "midday" | "afternoon" | "evening" | "weekly" | "money";
@@ -503,11 +504,10 @@ async function earlierToday(db: any, userId: number, local: Local): Promise<stri
 export async function processCoachCheckins(opts?: { userId?: number; force?: CoachSlot | "moneyalert" }): Promise<{ scanned: number; created: number; errors: number; lastId?: number; lastError?: string }> {
   const db = await getDb();
   if (!db) return { scanned: 0, created: 0, errors: 0 };
-  const rows = opts?.userId
-    ? await db.select().from(userAppData).where(eq(userAppData.userId, opts.userId))
-    : await db.select().from(userAppData);
+  const rows = await prefsRows(db, opts?.userId);
   let created = 0, errors = 0, lastId: number | undefined, lastError: string | undefined;
-  for (const row of rows) {
+  for (const lite of rows) {
+    let row: any = lite;
     try {
       const prefs = parseJSON<Record<string, any>>(row.prefs, {});
       const coach: CoachPrefs = prefs.coach || {};
@@ -516,6 +516,7 @@ export async function processCoachCheckins(opts?: { userId?: number; force?: Coa
       const kinds: string[] = opts?.force ? [opts.force] : dueSlots(c, local);
       if (!opts?.force && moneyAlertWindow(c, local)) kinds.push("moneyalert");
       if (!kinds.length) continue;
+      row = await fullRow(db, lite);
       const autonomy = autonomyOf(prefs);
       for (const kind of kinds) {
         const force = opts?.force === kind;

@@ -289,10 +289,14 @@ class SDKServer {
       throw ForbiddenError("User not found");
     }
 
-    await db.upsertUser({
-      openId: user.openId,
-      lastSignedIn: signedInAt,
-    });
+    // Every request used to write lastSignedIn; once an hour is enough.
+    const last = user.lastSignedIn ? new Date(user.lastSignedIn as any).getTime() : 0;
+    if (!last || signedInAt.getTime() - last > 60 * 60 * 1000) {
+      await db.upsertUser({
+        openId: user.openId,
+        lastSignedIn: signedInAt,
+      });
+    }
 
     return user;
   }

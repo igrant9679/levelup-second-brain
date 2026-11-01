@@ -548,6 +548,59 @@ async function _bumpFinanceRev(db: any, userId: number, json: string): Promise<s
   } catch { return json; }
 }
 
+/** Everything loadEntities returns: tasks / notes / ideas + the per-item blobs. */
+async function _loadEntityLists(db: any, userId: number): Promise<Record<string, unknown>> {
+  const out: Record<string, unknown> = {
+    tasks: (await readTasks(db, userId)).tasks,
+    notes: (await readNotes(db, userId)).notes,
+    ideas: (await readIdeas(db, userId)).ideas,
+  };
+  const [row] = await db.select().from(userAppData).where(eq(userAppData.userId, userId)).limit(1);
+  for (const k of [...BLOB_LIST_KINDS, ...BLOB_OBJECT_KINDS]) {
+    const raw = row ? (row as any)[k] : null;
+    try { out[k] = raw != null ? JSON.parse(raw) : null; } catch { out[k] = null; }
+  }
+  out.updatedAt = row?.updatedAt ?? null;
+  return out;
+}
+
+const _OBJ_KINDS = new Set<string>(BLOB_OBJECT_KINDS as readonly string[]);
+/**
+ * Per key, what the client is missing (build -262). Items are hashed exactly
+ * as the client hashes them (_luHash(JSON.stringify(item)), object keys as
+ * {id:key, v:value}). A key the client sent no hashes for, or whose list has
+ * an element without a unique id, comes back whole.
+ */
+export function entityDelta(lists: Record<string, unknown>, known: Record<string, Record<string, string>>) {
+  const out: Record<string, any> = {};
+  for (const k of ['tasks', 'notes', 'ideas', ...BLOB_LIST_KINDS, ...BLOB_OBJECT_KINDS]) {
+    const v = lists[k];
+    const kn = known[k];
+    if (!kn || v == null) { out[k] = { full: v ?? null }; continue; }
+    let items: any[];
+    if (_OBJ_KINDS.has(k)) {
+      if (typeof v !== 'object' || Array.isArray(v)) { out[k] = { full: v }; continue; }
+      items = Object.keys(v as any).filter((key) => (v as any)[key] !== undefined).map((key) => ({ id: key, v: (v as any)[key] }));
+    } else {
+      if (!Array.isArray(v)) { out[k] = { full: v }; continue; }
+      items = v;
+    }
+    const seen = new Set<string>();
+    let loose = false;
+    for (const x of items) {
+      const ok = x && x.id != null && x.id === x.id && String(x.id) !== '';
+      if (!ok || seen.has(String(x.id))) { loose = true; break; }
+      seen.add(String(x.id));
+    }
+    if (loose) { out[k] = { full: v }; continue; }
+    const changed: any[] = [];
+    for (const x of items) if (kn[String(x.id)] !== _itemHash(JSON.stringify(x))) changed.push(x);
+    if (!changed.length && seen.size === Object.keys(kn).length) { out[k] = { same: 1 }; continue; }
+    out[k] = { order: items.map((x) => String(x.id)), changed };
+  }
+  return out;
+}
+
 export const appDataRouter = router({
   /**
    * Load all saved data blobs for the current user.
@@ -707,19 +760,24 @@ export const appDataRouter = router({
   loadEntities: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) return null;
-    const out: Record<string, unknown> = {
-      tasks: (await readTasks(db, ctx.user.id)).tasks,
-      notes: (await readNotes(db, ctx.user.id)).notes,
-      ideas: (await readIdeas(db, ctx.user.id)).ideas,
-    };
-    const [row] = await db.select().from(userAppData).where(eq(userAppData.userId, ctx.user.id)).limit(1);
-    for (const k of [...BLOB_LIST_KINDS, ...BLOB_OBJECT_KINDS]) {
-      const raw = row ? (row as any)[k] : null;
-      try { out[k] = raw != null ? JSON.parse(raw) : null; } catch { out[k] = null; }
-    }
-    out.updatedAt = row?.updatedAt ?? null;
-    return out;
+    return _loadEntityLists(db, ctx.user.id);
   }),
+
+  /**
+   * The focus refresh, sending only what changed (build -262). The client
+   * passes, per list it holds cleanly (nothing unpushed, every item as the
+   * server last confirmed), its per-item hashes; the answer per key is
+   * {same:1}, {order, changed} (only items whose hash differs) or {full}.
+   * POST because the hash maps don't fit in a query string.
+   */
+  pullChanges: protectedProcedure
+    .input(z.object({ known: z.record(z.string(), z.record(z.string(), z.string().max(16))).optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return null;
+      const lists = await _loadEntityLists(db, ctx.user.id);
+      return { keys: entityDelta(lists, input.known || {}), updatedAt: (lists as any).updatedAt ?? null };
+    }),
 
   /**
    * Relational row counts per entity, for Settings → Admin → Migration Health.

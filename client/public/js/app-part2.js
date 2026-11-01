@@ -2383,7 +2383,28 @@ async function _extSubmitNiftyWatch(){
   }catch(e){toast({type:'warn',title:'Save failed',msg:e.message||String(e)});}
 }
 // ====== EXPORT / IMPORT ======
+// JSZip and pdf.js load when first needed (build -262; they were two
+// render-blocking CDN scripts on every start). Resolves either way — callers
+// check the global and fall back as they always did.
+const _LU_LIBS={
+  jszip:{src:'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',ok:()=>typeof JSZip!=='undefined'},
+  pdfjs:{src:'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',ok:()=>typeof pdfjsLib!=='undefined',
+    after:()=>{pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}},
+};
+const _luLibP={};
+function _luLoadLib(name){
+  const L=_LU_LIBS[name];
+  if(!L||L.ok())return Promise.resolve();
+  if(!_luLibP[name])_luLibP[name]=new Promise(res=>{
+    const s=document.createElement('script');s.src=L.src;s.async=true;
+    s.onload=()=>{try{if(L.ok()&&L.after)L.after();}catch(_){}res();};
+    s.onerror=()=>{delete _luLibP[name];res();};
+    document.head.appendChild(s);
+  });
+  return _luLibP[name];
+}
 function exportData(){
+  if(!_LU_LIBS.jszip.ok()&&!exportData._tried){exportData._tried=true;toast('Preparing export…');_luLoadLib('jszip').then(()=>exportData());return;}
   // Build JSON backup
   const ts=_ymd(new Date());
   const payload={version:1,exported:new Date().toISOString(),tasks:D.tasks,notes:D.notes,projects:D.projects,goals:D.goals,journal:D.journal,habits:D.habits,teams:D.teams,aiTopics:D.aiTopics};
@@ -2626,6 +2647,7 @@ async function _storeOriginalFile(arrayBuffer,fileName,mimeType){
   catch(e){ console.warn('[import] original not stored:',e&&e.message); return null; }
 }
 async function extractPdfText(arrayBuffer){
+  await _luLoadLib('pdfjs');
   // Use pdf.js if available (best quality)
   if(typeof pdfjsLib!=='undefined'){
     try{
@@ -4813,13 +4835,11 @@ function doLoginSuccess(member){
   // Hide login overlay
   const ov=document.getElementById('login-overlay');
   if(ov)ov.classList.add('hidden');
-  // Check for expiring OAuth tokens and show banner if needed
-  setTimeout(()=>checkTokenExpiryBanner(),1500);
-  // Re-check every 60 seconds so the button state stays current
-  // One timer per signed-in session; doLogout clears it (it used to keep
-  // polling oauthSync.status → a 401 a minute on the login screen).
+  // Check for expiring OAuth tokens (the check schedules its own next run —
+  // _tokenBannerNext). One timer per signed-in session; doLogout clears it
+  // (clearInterval also clears a timeout).
   if(window._tokenBannerTimer)clearInterval(window._tokenBannerTimer);
-  window._tokenBannerTimer=setInterval(()=>checkTokenExpiryBanner(),60*1000);
+  window._tokenBannerTimer=setTimeout(()=>checkTokenExpiryBanner(),1500);
   // Seed example tasks ONCE only — guarded by a localStorage flag so deleted tasks stay deleted
   const _seedKey='lu_examples_seeded_v1';
   if(!localStorage.getItem(_seedKey)){
@@ -9162,12 +9182,35 @@ async function syncAllProviders(){
 }
 /** Check OAuth token expiry, update topbar button state, show Connected-as label, and auto-refresh if <5 min.
  * Button is hidden when healthy, orange within 5 min, red when expired. */
+// When to look again (build -262; it polled oauthSync.status every minute,
+// hidden tabs included): just before a Microsoft token enters its 5-minute
+// refresh window, else every 15 minutes; after a failed check 2, 4 … 30
+// minutes. A hidden tab doesn't poll — coming back checks if it's due.
+let _tokenBannerDueAt=0,_tokenBannerFails=0;
+function _tokenBannerNext(ms){
+  if(window._tokenBannerTimer)clearTimeout(window._tokenBannerTimer);
+  _tokenBannerDueAt=Date.now()+ms;
+  window._tokenBannerTimer=setTimeout(()=>checkTokenExpiryBanner(),ms);
+}
+if(typeof document!=='undefined'&&!window._tokenBannerVisWired){
+  window._tokenBannerVisWired=true;
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='visible'&&window._tokenBannerTimer&&Date.now()>=_tokenBannerDueAt)checkTokenExpiryBanner();
+  });
+}
 async function checkTokenExpiryBanner(){
   const btn=document.getElementById('topbar-token-refresh');
   const connLabel=document.getElementById('topbar-connected-as');
   if(!btn)return;
+  if(typeof document!=='undefined'&&document.visibilityState==='hidden'){_tokenBannerDueAt=0;return;} // checked on return
+  _tokenBannerNext(15*60*1000);
   try{
     const status=await _trpc('oauthSync.status',undefined,'query');
+    _tokenBannerFails=0;
+    if(status?.microsoft?.connected&&status.microsoft.expiresAt){
+      const until=_pd(status.microsoft.expiresAt).getTime()-Date.now()-5*60*1000;
+      if(until>0&&until<15*60*1000)_tokenBannerNext(Math.max(30*1000,until+5*1000));
+    }
     // Connected-as label intentionally hidden — login email is shown in the
     // bottom-left sidebar instead. The Microsoft 365 email is still visible
     // in Settings → Accounts for users who need to see it.
@@ -9218,7 +9261,9 @@ async function checkTokenExpiryBanner(){
     // We just record the provider so a future refresh attempt can target it.
     btn._expiringProvider=soonest.key;
   }catch{
-    // Silently ignore — button is non-critical
+    // Silently ignore — button is non-critical; back off
+    _tokenBannerFails++;
+    _tokenBannerNext(Math.min(30,2*Math.pow(2,_tokenBannerFails-1))*60*1000);
   }
 }
 /** Handle Refresh Token click from the expiry banner (legacy — kept for compat) */
@@ -11379,6 +11424,29 @@ function _luEditing(){
   const a=document.activeElement;
   return !!(a&&(a.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)));
 }
+// What this device sends instead of downloading a list again (build -262):
+// its per-item hashes — only when the list in memory is exactly what the
+// server last confirmed, so an item the server didn't change can be taken
+// from memory. Anything else (unpushed edits, loose ids, no base) → null,
+// and the server sends that list whole.
+function _luKnownFor(k){
+  if(!_luItemsSafe(k))return null;
+  const b=_luBaseGet(k);if(!b)return null;
+  const L=_luItemMap(_luItemsOf(k));
+  if(L.size!==Object.keys(b).length)return null;
+  for(const [id,x] of L){if(b[id]!==_luHash(JSON.stringify(x)))return null;}
+  return b;
+}
+// One key of a pullChanges answer as the server's list/object: undefined =
+// unchanged (skip it), null = can't be rebuilt here (ask for everything).
+function _luFromDelta(k,d){
+  if(!d||d.same)return undefined;
+  if('full' in d)return d.full==null?undefined:d.full;
+  const L=_luItemMap(_luItemsOf(k)),C=_luItemMap(d.changed||[]);
+  const arr=[];
+  for(const id of (d.order||[])){const x=C.get(id)||L.get(id);if(!x)return null;arr.push(x);}
+  return _luFromItems(k,arr);
+}
 // Pull other devices' changes when the tab comes back into view (at most
 // every 45s), merging them in without touching anything edited here.
 let _luLastPull=0,_luPulling=false;
@@ -11391,7 +11459,23 @@ async function _luPullItems(){
     // A push that failed leaves its key dirty: merging now could bring back
     // something deleted here, so wait for the next successful push.
     if([..._LU_ITEM_KEYS].some(k=>_dirtyKeys.has(k)))return;
-    const sd=await _trpc('appData.loadEntities',undefined,'query');
+    let sd=null,delta=null;
+    if(!window._luDeltaOff){
+      const known={};
+      for(const k of _LU_ITEM_KEYS){const b=_luKnownFor(k);if(b)known[k]=b;}
+      try{const r=await _trpc('appData.pullChanges',{known},'mutation');if(r&&r.keys)delta=r.keys;}
+      catch(e){if(/procedure|not.?found|404/i.test(String(e&&e.message||e)))window._luDeltaOff=true;else throw e;}
+    }
+    if(delta){
+      sd={};
+      for(const k of _LU_ITEM_KEYS){
+        if(_dirtyKeys.has(k))continue;
+        const v=_luFromDelta(k,delta[k]);
+        if(v===null){delta=null;sd=null;break;} // can't rebuild: take the whole copy this time
+        if(v!==undefined)sd[k]=v;
+      }
+    }
+    if(!sd)sd=await _trpc('appData.loadEntities',undefined,'query');
     if(!sd)return;
     let changed=false,prefsChanged=false;
     for(const k of _LU_ITEM_KEYS){
