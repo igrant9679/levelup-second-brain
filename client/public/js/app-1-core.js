@@ -4997,17 +4997,20 @@ function fmtDateTime(d){
   return fmtDate(d)+' '+fmtTime(d);
 }
 
+// One formatter kept on the function (build -263): toLocaleDateString built a
+// new one per call - 0.36 ms each, ~200 ms on a 600-note list. Same text.
 function fmtNoteDate(raw){
   if(!raw&&raw!==0)return '';
+  const _fmtNoteDF=d=>(fmtNoteDate._df||(fmtNoteDate._df=new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric',year:'numeric'}))).format(d);
   // Handle numeric ms-since-epoch timestamps from Word imports
   if(typeof raw==='number'||(/^\d{10,}$/.test(String(raw)))){
     const d=new Date(Number(raw));
-    if(!isNaN(d.getTime()))return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    if(!isNaN(d.getTime()))return _fmtNoteDF(d);
   }
   // ISO timestamps (what notes store since -240) → "Oct 27, 2026"
   if(/^\d{4}-\d{2}-\d{2}T/.test(String(raw))){
     const d=new Date(String(raw));
-    if(!isNaN(d.getTime()))return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    if(!isNaN(d.getTime()))return _fmtNoteDF(d);
   }
   // Already a human-readable string
   return String(raw);

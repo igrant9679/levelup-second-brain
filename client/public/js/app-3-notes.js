@@ -1162,6 +1162,23 @@ function _noteHighlightOpen(){
     '::highlight(lu-search){background-color:color-mix(in srgb,var(--warn) 45%,transparent);color:inherit}';
   document.head.appendChild(s);
 })();
+// Per-note card facts (build -263): the snippet text, first image, reading
+// time and the [[links]] a note makes — each a regex pass over the whole body,
+// and the list ran them for every card (and every note's links) on every
+// render. Kept per note object until its body / bodyHtml strings change.
+const _noteCardC=new WeakMap();
+function _noteCardInfo(n){
+  const c=_noteCardC.get(n);
+  if(c&&c.b===n.body&&c.h===n.bodyHtml)return c;
+  let s=String(n.bodyHtml?n.bodyHtml.replace(/<[^>]+>/g,' '):(n.body||''));
+  s=s.replace(/!\[[^\]]*\]\([^)]*\)/g,'').replace(/\[\[([^\]]+)\]\]/g,'$1')
+     .replace(/[#>*_`~]/g,'').replace(/\s+/g,' ').trim();
+  const text=(n.body||'')+' '+(n.bodyHtml||'');
+  const links=(text.match(/\[\[([^\]\n]+)\]\]/g)||[]).map(x=>x.slice(2,-2).trim());
+  const v={b:n.body,h:n.bodyHtml,plain:s,img:_noteFirstImage(n.bodyHtml||n.body||''),mins:_readingTime(n.body||n.bodyHtml||'').mins,links};
+  _noteCardC.set(n,v);
+  return v;
+}
 function applyNotesFilters(){
   const me=D.creds.userName||'Idris Grant';
   let notes=_notesMyOnly?D.notes.filter(n=>!n.createdBy||n.createdBy===me):D.notes;
@@ -1282,27 +1299,18 @@ function applyNotesFilters(){
   function hi(str){return q?_noteMark(str||'',pq):esc(str||'');}
   // Precompute backlink counts once (notes whose body [[links]] to a title).
   const _blCount={};
-  D.notes.forEach(n=>{
-    const text=(n.body||'')+' '+(n.bodyHtml||'');
-    (text.match(/\[\[([^\]\n]+)\]\]/g)||[]).forEach(s=>{const t=s.slice(2,-2).trim();_blCount[t]=(_blCount[t]||0)+1;});
-  });
-  // Clean plain-text snippet from a note body (strips html/markdown/wiki).
-  function _noteSnippet(n){
-    let s=String(n.bodyHtml?n.bodyHtml.replace(/<[^>]+>/g,' '):(n.body||''));
-    s=s.replace(/!\[[^\]]*\]\([^)]*\)/g,'').replace(/\[\[([^\]]+)\]\]/g,'$1')
-       .replace(/[#>*_`~]/g,'').replace(/\s+/g,' ').trim();
-    return s;
-  }
+  D.notes.forEach(n=>{_noteCardInfo(n).links.forEach(t=>{_blCount[t]=(_blCount[t]||0)+1;});});
   function noteCard(n,i){
     const st=_noteStatusMeta(_noteStatus(n));
-    let snippet=_noteSnippet(n);
+    const info=_noteCardInfo(n);
+    let snippet=info.plain;
     const plain=snippet;
     if(q){
       snippet=_noteSearchSnippet(n,pq,140);
     } else {
       snippet=esc(plain.slice(0,130))+(plain.length>130?'…':'');
     }
-    const img=_noteFirstImage(n.bodyHtml||n.body||'');
+    const img=info.img;
     const thumb=img?`<img class="nc-thumb" src="${esc(img)}" loading="lazy" onerror="this.style.display='none'" alt="">`:'';
     const colorDot=n.color?`<span class="nc-color" style="background:${esc(n.color)};color:${esc(n.color)}" title="Color tag"></span>`:'';
     const pin=n.pinned?'<span class="nc-pin" title="Pinned">📌</span>':'';
@@ -1313,7 +1321,7 @@ function applyNotesFilters(){
       ?`onclick="toggleNotesBulkSelect(${_tidLit(n.id)},event)"`
       :(isGrid?`onclick="openDrawer('note',D.notes.find(x=>x.id==${_tidLit(n.id)}))"`:`onclick="showNoteInEditor(${_tidLit(n.id)})"`);
     const bl=_blCount[n.title]||0;
-    const {mins}=_readingTime(n.body||n.bodyHtml||'');
+    const mins=info.mins;
     const metaBits=[];
     metaBits.push(`<span class="nc-status" style="color:color-mix(in srgb,${st.color} 42%,var(--t1));background:color-mix(in srgb,${st.color} 14%,transparent);border:1px solid color-mix(in srgb,${st.color} 28%,transparent)">${st.icon} ${st.label}</span>`);
     if(bl)metaBits.push(`<span title="${bl} note${bl===1?'':'s'} link here">⛓ ${bl}</span>`);
@@ -1493,9 +1501,13 @@ function renderNotesList_html(myOnly){
 function renderNotesList(){
   applyNotesFilters();
 }
+// Typing in the search box: a big list re-renders once the typing pauses
+// (build -263; each keystroke redrew every card).
 function filterNotesList(q){
   _notesFilterText=q||'';
-  applyNotesFilters();
+  clearTimeout(filterNotesList._t);
+  if(!_notesFilterText||(D.notes||[]).length<=150){applyNotesFilters();return;}
+  filterNotesList._t=setTimeout(applyNotesFilters,140);
 }
 function filterNotesByTag(tag){
   // Routes through the unified filter engine (_notesFilterTags) instead of
