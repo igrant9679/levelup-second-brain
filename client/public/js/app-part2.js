@@ -3968,8 +3968,8 @@ function _cmdpActions(){
   const isDark=D.prefs.darkMode!==false;
   const profs=(D.prefs.themeProfiles||[]);
   return [
-    {id:'nav-home',group:'Navigate',icon:'🏠',title:'Go to Home',run:()=>nav('home')},
-    {id:'nav-myday',group:'Navigate',icon:'☀',title:'Go to Planner',run:()=>nav('myday')},
+    {id:'nav-home',group:'Navigate',icon:'🏠',title:'Go to Today',run:()=>nav('home')},
+    {id:'nav-myday',group:'Navigate',icon:'☀',title:'Go to Today: Plan and do',run:()=>nav('myday')},
     {id:'nav-tasks',group:'Navigate',icon:'📋',title:'Go to Tasks',run:()=>nav('tasks')},
     {id:'nav-notes',group:'Navigate',icon:'📝',title:'Go to Notes',run:()=>nav('notes')},
     {id:'nav-projects',group:'Navigate',icon:'📁',title:'Go to Projects',run:()=>nav('projects')},
@@ -9787,6 +9787,50 @@ if(typeof document!=='undefined'&&!window._luPhoneWired){
     new MutationObserver(()=>{if(_tabT)return;_tabT=requestAnimationFrame(()=>{_tabT=0;document.querySelectorAll('.pm-tabs>.pm-tab.on,#s-money .fin-tabs>.fin-tab.on').forEach(b=>{const p=b.parentElement;if(p&&p.scrollWidth>p.clientWidth+2){const l=b.offsetLeft-p.offsetLeft,r=l+b.offsetWidth;if(l<p.scrollLeft||r>p.scrollLeft+p.clientWidth)p.scrollLeft=Math.max(0,l-24);}});});}).observe(document.body,{childList:true,subtree:true});
   }catch(_){}
 }
+// ── Today (-267, Audit 2 Phase 5) ───────────────────────────────────────────
+// Home, Planner, Focus, Standup and the old Command Center are one sidebar
+// entry. The routes and their stored settings are unchanged, so every link,
+// key and saved preference still works; what's new is this bar across the top
+// of each. "Do" is the Planner's Execute section (its timer is the Focus
+// widget, nav('focus') the full view); "Wrap" holds Copy as standup.
+function _luAdvancedOn(){
+  try{const l=luCurrentLevel();return !(l>=1&&l<4);}catch(_){return true;}
+}
+const _LU_TODAY_MODES=[['o','Overview'],['p','Plan'],['e','Do'],['w','Wrap'],['x','Across tools']];
+function _luTodayBar(mode){
+  const modes=_LU_TODAY_MODES.filter(m=>m[0]!=='x'||mode==='x'||_luAdvancedOn());
+  return '<div class="subnav lu-today-bar" role="tablist" aria-label="Today">'+modes.map(m=>'<button type="button" class="sn'+(m[0]===mode?' on':'')+'" role="tab" aria-selected="'+(m[0]===mode)+'" onclick="luToday(\''+m[0]+'\')">'+m[1]+'</button>').join('')+'</div>';
+}
+function _luTodayPaint(id,mode){
+  const el=document.getElementById(id);if(!el)return;
+  if(!document.getElementById('lu-today-css')){
+    const st=document.createElement('style');st.id='lu-today-css';
+    st.textContent='.lu-today-bar{width:fit-content;max-width:100%;overflow-x:auto;scrollbar-width:none}.lu-today-bar::-webkit-scrollbar{display:none}.lu-today-bar .sn{border:none;background:none;font-family:inherit;white-space:nowrap;flex-shrink:0;padding:6px 14px;font-size:12px}.lu-today-bar .sn.on{background:var(--ac);color:#fff}@media(max-width:700px){.lu-today-bar{width:auto}.lu-today-bar .sn{min-height:38px;flex:1 0 auto;padding:6px 9px}}';
+    document.head.appendChild(st);
+  }
+  const old=el.querySelector(':scope > .lu-today-bar');if(old)old.remove();
+  el.insertAdjacentHTML('afterbegin',_luTodayBar(mode));
+}
+function luToday(m){
+  if(m==='o'){nav('home');return;}
+  if(m==='x'){nav('command');return;}
+  if(curScreen==='myday'){mdSec(null,m);return;}
+  D.prefs=D.prefs||{};
+  if(D.prefs.myDaySection!==m){D.prefs.myDaySection=m;save('prefs');}
+  nav('myday');
+}
+function _luCopyStandup(){renderStandup();_copyStandup();}
+(function(){
+  const paintAfter=(name,id,mode)=>{
+    const f=window[name];if(typeof f!=='function')return;
+    window[name]=function(){const r=f.apply(this,arguments);try{_luTodayPaint(id,typeof mode==='function'?mode():mode);}catch(e){console.warn('[today] bar failed',e);}return r;};
+  };
+  paintAfter('renderHome','home-main','o');
+  paintAfter('renderMyDay','myday-main',()=>(D.prefs&&D.prefs.myDaySection)||'e');
+  paintAfter('renderFocus','focus-main','e');
+  paintAfter('renderStandup','standup-main','w');
+  paintAfter('renderCommandCenter','command-main','x');
+})();
 function _backupStatusHtml(b){
   if(!b)return 'No automatic backup has run yet.';
   const when=_pd(b.at).toLocaleString();

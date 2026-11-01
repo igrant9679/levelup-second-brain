@@ -1673,8 +1673,7 @@ function renderArchive(){
 function renderMyDay(){
 // Restore the user's last subnav choice; default to Execute (most-used view).
 const _mdSec=(D.prefs&&D.prefs.myDaySection)||'e';
-$('myday-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('sun',22,'var(--page-accent)')}Planner</h1><p style="font-size:12px;color:var(--t2)">${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · ${D.tasks.filter(t=>t.myDay).length} selected</p>${_focusViewTabs('myday')}</div><div style="display:flex;gap:4px"><button class="btn btn-s" onclick="startFreshMyDay()" title="Clear all My Day flags and start fresh for today">🔄 Start Fresh</button><button class="btn btn-s" onclick="D.tasks.forEach(t=>t.myDay=false);save('tasks');renderScreen('myday')">Clear All</button><button class="btn btn-p" onclick="openFA('task')">+ Full Add</button></div></div>
-<div class="subnav"><span class="sn ${_mdSec==='p'?'on':''}" onclick="mdSec(this,'p')">📋 Plan</span><span class="sn ${_mdSec==='e'?'on':''}" onclick="mdSec(this,'e')">⚡ Execute</span><span class="sn ${_mdSec==='w'?'on':''}" onclick="mdSec(this,'w')">🌙 Wrap-Up</span></div>
+$('myday-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('sun',22,'var(--page-accent)')}Today</h1><p style="font-size:12px;color:var(--t2)">${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · ${D.tasks.filter(t=>t.myDay).length} selected</p>${_focusViewTabs('myday')}</div><div style="display:flex;gap:4px"><button class="btn btn-s" onclick="startFreshMyDay()" title="Clear all My Day flags and start fresh for today">🔄 Start Fresh</button><button class="btn btn-s" onclick="D.tasks.forEach(t=>t.myDay=false);save('tasks');renderScreen('myday')">Clear All</button><button class="btn btn-p" onclick="openFA('task')">+ Full Add</button></div></div>
 <div id="md-p" style="display:${_mdSec==='p'?'':'none'}">${_renderCapacityIndicator()}<div class="sec-h" style="display:flex;align-items:center;justify-content:space-between"><span>📋 Plan — Select tasks for today</span><div style="display:flex;gap:5px"><button class="btn btn-s" style="font-size:11px;height:24px;color:var(--purp);border-color:var(--purp)" onclick="aiSmartSchedule()" title="AI builds a time-blocked schedule that respects your calendar + peak focus hours">🧠 AI Smart Plan</button><button class="btn btn-s" style="font-size:11px;height:24px" onclick="scheduleMyDay()" title="Linear auto-assign (basic) — ignores calendar events">🗓 Basic Schedule</button></div></div>
 <div class="cd">${D.tasks.filter(t=>t.status!=='Done').map(t=>`<div class="lr" onclick="openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))"><div class="chk ${t.myDay?'on':''}" onclick="event.stopPropagation();D.tasks.find(x=>x.id==${_tidLit(t.id)}).myDay=!D.tasks.find(x=>x.id==${_tidLit(t.id)}).myDay;save('tasks');renderScreen('myday')"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${t.context}</span><span style="cursor:pointer;font-size:12px" title="Toggle My Day">${t.myDay?'☀️':'○'}</span></div>`).join('')}</div></div>
 <div id="md-e" style="display:${_mdSec==='e'?'':'none'}">
@@ -1691,16 +1690,17 @@ $('myday-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1
   <div style="display:flex;gap:6px;flex-wrap:wrap">
     <button class="btn btn-p" id="pomo-btn" onclick="pomoToggle()" style="min-width:64px">▶ Start</button>
     <button class="btn btn-s" onclick="pomoReset()">↺ Reset</button>
+    <button class="btn btn-s" onclick="nav('focus')" title="The big timer, with your focus history">Full focus view</button>
     <select class="inp" id="pomo-mode" aria-label="Focus timer mode" onchange="pomoSetMode(this.value)" style="font-size:11px;padding:2px 6px;height:26px">
       ${[['25','25 min Focus'],['50','50 min Deep Work'],['5','5 min Break'],['15','15 min Long Break']]
         .map(([v,l])=>`<option value="${v}" ${String(Math.round(_pomoTotal/60))===v?'selected':''}>${l}</option>`).join('')}
     </select>
   </div>
 </div>
-<div class="sec-h">⚡ Execute — My Day tasks</div>
+<div class="sec-h">⚡ Do — My Day tasks</div>
 <div class="tabs"><div class="tab on" onclick="mdExecFilter(this,'all')">All</div><div class="tab" onclick="mdExecFilter(this,'high')">High Priority</div><div class="tab" onclick="mdExecFilter(this,'quickwin')">⚡ Quick Wins</div><div class="tab" onclick="mdExecFilter(this,'pending')">Pending</div><div class="tab" onclick="mdExecFilter(this,'done')">Done</div></div>
 <div id="md-exec-summary">${getMdExecSummary('all')}</div><div id="md-exec-list">${renderMdExecList('all')}</div></div>
-<div id="md-w" style="display:${_mdSec==='w'?'':'none'}"><div class="sec-h">🌙 Wrap-Up</div>
+<div id="md-w" style="display:${_mdSec==='w'?'':'none'}"><div class="sec-h" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap"><span>🌙 Wrap-Up</span><span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-s" onclick="_luCopyStandup()" title="Yesterday, today and blockers, ready to paste into Slack, Teams or email">📋 Copy as standup</button><button class="btn btn-s" onclick="nav('standup')">See the standup</button></span></div>
 <div class="g3" style="margin-bottom:12px">
   <div class="stat"><div class="stat-n" style="color:var(--ok)">${D.tasks.filter(t=>t.status==='Done'&&t.completedAt&&_dayOf(t.completedAt)===_todayStr).length}</div><div class="stat-l">Done today</div></div>
   <div class="stat"><div class="stat-n" style="color:var(--warn)">${D.tasks.filter(t=>t.myDay&&t.status!=='Done').length}</div><div class="stat-l">Carried over</div></div>
@@ -1747,7 +1747,7 @@ function _populateMyDayRail(){
     const colors={High:'#ef4444',Medium:'#f59e0b',Low:'#10b981'};
     const dot=`<span style="width:6px;height:6px;border-radius:50%;background:${colors[t.priority]||'var(--t3)'};flex-shrink:0"></span>`;
     const time=t.startTime?`<span style="font-size:11px;color:var(--ac);font-weight:600;margin-left:4px">⏰ ${esc(t.startTime)}</span>`:'';
-    return `<div class="lr" style="cursor:pointer;padding:5px 6px" onclick="pomoSelectTask(${_tidLit(t.id)});mdSec(document.querySelector('#s-myday .sn:nth-child(2)'),'e')" title="Focus on this task">${dot}<span class="rt" style="font-size:11px">${esc(t.title)}</span>${time}</div>`;
+    return `<div class="lr" style="cursor:pointer;padding:5px 6px" onclick="pomoSelectTask(${_tidLit(t.id)});mdSec(null,'e')" title="Focus on this task">${dot}<span class="rt" style="font-size:11px">${esc(t.title)}</span>${time}</div>`;
   }).join(''):`<div style="font-size:11px;color:var(--t3);padding:6px;text-align:center">All My Day tasks done — go celebrate. 🎉</div>`;
   // Today's meetings
   const meetings=_calMeetingsOn(today).sort((a,b)=>(a.start||'').localeCompare(b.start||'')).slice(0,4);
@@ -1818,7 +1818,7 @@ function _mdRailCaptureNote(){
   ta.value='';
   toast('📝 Saved to Notes');
 }
-function mdSec(el,s){el.parentElement.querySelectorAll('.sn').forEach(x=>x.classList.remove('on'));el.classList.add('on');['p','e','w'].forEach(x=>document.getElementById('md-'+x).style.display=x===s?'':'none');D.prefs=D.prefs||{};D.prefs.myDaySection=s;save('prefs');}
+function mdSec(el,s){['p','e','w'].forEach(x=>document.getElementById('md-'+x).style.display=x===s?'':'none');D.prefs=D.prefs||{};D.prefs.myDaySection=s;save('prefs');if(typeof _luTodayPaint==='function')_luTodayPaint('myday-main',s);}
 // Wrap-Up reflection drafts (-260): leaving the page lost what was typed. Kept
 // per day on this device until the wrap-up is saved.
 function _wrapupDraftKey(){return 'lu_wrapup_draft_'+_todayStr;}
@@ -2393,8 +2393,7 @@ function renderFocus(){
       <p style="font-size:12px;color:var(--t2)">Pomodoro timer · ${todaySessions.length} session${todaySessions.length===1?'':'s'} today · ${Math.round(totalMins/60)}h ${totalMins%60}m total · ${_focusRunning?'<span style="color:var(--red);font-weight:600">● Running</span>':'<span style="color:var(--t3)">Idle</span>'}</p>
     </div>
     <div style="display:flex;gap:6px;align-items:center">
-      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="nav('myday')" title="Pick today's tasks">☀ My Day</button>
-      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="nav('tasks')" title="Browse all tasks">📋 Tasks</button>
+            <button class="btn btn-s" style="height:28px;font-size:11px" onclick="nav('tasks')" title="Browse all tasks">📋 Tasks</button>
     </div>
   </div>
   <div style="max-width:600px;margin:0 auto;padding:0 24px 24px">

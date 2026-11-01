@@ -4094,6 +4094,8 @@ function _icon(name, size, color){
 }
 
 function initSidebars(a){
+  // -267: these views live inside Today, so Today stays lit in the sidebar.
+  a={myday:'home',focus:'home',standup:'home',command:'home'}[a]||a;
   const t=document.getElementById('sb-tpl');
   document.querySelectorAll('[data-sb]').forEach(sb=>{
     sb.innerHTML=t.innerHTML;

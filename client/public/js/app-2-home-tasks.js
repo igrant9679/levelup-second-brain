@@ -1402,10 +1402,8 @@ function autoCalcGoalPctBidirectional(g){
 // themselves out. `rail` mirrors which screens carry a .bg.wr right rail in
 // index.html — keep in sync with that markup.
 const LU_PAGES=[
-  {id:'home',     label:'Home',            group:'today', nav:true,  core:true,  rail:true },
-  {id:'myday',    label:'Planner',         group:'today', nav:true,  core:false, rail:true },
+  {id:'home',     label:'Today',           group:'today', nav:true,  core:true,  rail:true },
   {id:'tasks',    label:'Tasks',           group:'work',  nav:true,  core:false, rail:true },
-  {id:'command',  label:'Command Center',  group:'work',  nav:true,  core:false, rail:true },
   {id:'programs', label:'Programs',        group:'work',  nav:true,  core:false, rail:true },
   {id:'projects', label:'Projects',        group:'work',  nav:true,  core:false, rail:true },
   {id:'pipeline', label:'Pipeline',        group:'work',  nav:true,  core:false, rail:true },
@@ -1413,7 +1411,6 @@ const LU_PAGES=[
   {id:'notes',    label:'Notes',           group:'mind',  nav:true,  core:false, rail:false},
   {id:'mindmaps', label:'Mind Maps',       group:'mind',  nav:true,  core:false, rail:false},
   {id:'ideas',    label:'Ideas',           group:'mind',  nav:true,  core:false, rail:true },
-  {id:'focus',    label:'Focus',           group:'mind',  nav:true,  core:false, rail:false},
   {id:'calendar', label:'Calendar',        group:'life',  nav:true,  core:false, rail:true },
   {id:'goals',    label:'Goals',           group:'life',  nav:true,  core:false, rail:false},
   {id:'habits',   label:'Habits',          group:'life',  nav:true,  core:false, rail:true },
@@ -1431,6 +1428,10 @@ const LU_PAGES=[
   // Reached from in-app links / the command palette rather than the sidebar.
   // They get rail + section control but no visibility checkbox — hiding a page
   // with no nav entry would only break the links that point at it.
+  // -267: Plan / Do (Focus) / Wrap (Standup) / Across tools are views inside Today.
+  {id:'myday',    label:'Planner',         group:'today', nav:false, core:true,  rail:true },
+  {id:'focus',    label:'Focus',           group:'today', nav:false, core:true,  rail:false},
+  {id:'command',  label:'Across tools',    group:'today', nav:false, core:true,  rail:true },
   {id:'clusters', label:'Clusters',        group:'work',  nav:false, core:true,  rail:true },
   {id:'standup',  label:'Standup',         group:'work',  nav:false, core:true,  rail:false},
   {id:'myweek',   label:'My Week',         group:'today', nav:false, core:true,  rail:false},
@@ -1661,7 +1662,7 @@ const LU_PRESETS=[
    pages:['home','myday','tasks','notes','calendar','projects','goals','habits','journal']},
   {id:'exec',      label:'Executive', desc:'Today, tasks, calendar, mail and notes, plus Atlas, pipeline, project management and reports.',
    pages:['home','myday','tasks','calendar','mail','notes','atlas','pipeline','pm','reports','programs','projects','command','team']},
-  {id:'pm',        label:'Project Manager', desc:'Delivery focus: the PM workspace, tasks, projects, programs, Atlas and the command center.',
+  {id:'pm',        label:'Project Manager', desc:'Delivery focus: the PM workspace, tasks, projects, programs and Atlas.',
    pages:['home','myday','tasks','pm','projects','programs','atlas','command','calendar','team','notes']},
   {id:'creator',   label:'Creator',   desc:'Thinking tools: notes, mind maps, ideas and focus sessions.',
    pages:['home','notes','mindmaps','ideas','focus','journal','goals','tasks']},
@@ -6080,7 +6081,7 @@ function _renderDailyCommandCenterCard(){
   };
   return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:14px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <span style="font-size:12px;font-weight:600">${_icon('target',16,'currentColor')} Today's Command Center</span>
+      <span style="font-size:12px;font-weight:600">${_icon('target',16,'currentColor')} Today across tools</span>
       <button class="btn btn-s" style="font-size:10px;padding:0 6px;height:20px" onclick="refreshExternalTasksNow()" title="Refresh CF + LSI">↻</button>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
