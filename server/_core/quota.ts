@@ -86,7 +86,7 @@ export async function trySpendQuota(userId: number, bucket: QuotaBucket, n = 1):
     return true;
   } catch (e) {
     if (e instanceof TRPCError && e.code === "TOO_MANY_REQUESTS") return false;
-    console.warn(`[quota] ${bucket} check failed for user ${userId}:`, e);
+    console.error(`[quota] ${bucket} check failed for user ${userId}:`, e);
     return true;
   }
 }

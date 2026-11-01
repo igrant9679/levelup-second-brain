@@ -16,9 +16,11 @@ on:
   pull_request:
   workflow_dispatch:
 
+# A newer push to a PR cancels the older run; pushes to main all run to the
+# end (-264: a quick second push used to cancel the first one's checks).
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.ref }}-${{ github.event_name == 'pull_request' && 'pr' || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   checks:

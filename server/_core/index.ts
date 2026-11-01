@@ -25,6 +25,7 @@ import { startPmCron } from "./pmDelegation";
 import { startSimplefinAutoSyncCron } from "./simplefinAutoSync";
 import { startAutomationCron } from "./automationEngine";
 import { startBackupCron } from "./backup";
+import { installShutdown } from "./lifecycle";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -51,6 +52,9 @@ async function startServer() {
   installServerErrorCapture();
   const app = express();
   const server = createServer(app);
+  // Deploys send SIGTERM: let running cron passes finish (up to 20 s) and
+  // hand unsent emails back to the ledger before exiting (-264).
+  installShutdown(server);
   // Trust the platform's reverse proxy (Railway, etc.) so req.protocol/req.secure
   // reflect the real client→edge protocol. This makes the session cookie's
   // `secure` flag get set correctly when the request came in over HTTPS.

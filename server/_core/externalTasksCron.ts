@@ -29,6 +29,7 @@ import { pullSmartsheet, type ExternalTaskInput, type OpportunityInput } from ".
 import { pullNiftyProject, type NiftyExternalTaskInput } from "./niftyAdapter";
 import { pullAtlasSnapshot } from "./atlasAdapter";
 import { insertScheduledTaskLog } from "../db";
+import { job } from "./lifecycle";
 
 const TOMBSTONE_GRACE_HOURS = 72; // 3 days
 
@@ -613,7 +614,7 @@ async function pullOneSmartsheet(
     return { projectsCreated };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.warn(`[ext-cron] smartsheet sheet ${cfg.sheetId} (user ${cfg.userId}) failed:`, msg);
+    console.error(`[ext-cron] smartsheet sheet ${cfg.sheetId} (user ${cfg.userId}) failed:`, msg);
     await db.update(smartsheetWatchedSheets)
       .set({ lastError: msg.slice(0, 4000), lastPulledAt: sql`CURRENT_TIMESTAMP` })
       .where(eq(smartsheetWatchedSheets.id, cfg.id));
@@ -644,7 +645,7 @@ async function pullOneNifty(
       .where(eq(niftyWatchedProjects.id, cfg.id));
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.warn(`[ext-cron] nifty project ${cfg.projectId} (user ${cfg.userId}) failed:`, msg);
+    console.error(`[ext-cron] nifty project ${cfg.projectId} (user ${cfg.userId}) failed:`, msg);
     await db.update(niftyWatchedProjects)
       .set({ lastError: msg.slice(0, 4000), lastPulledAt: sql`CURRENT_TIMESTAMP` })
       .where(eq(niftyWatchedProjects.id, cfg.id));
@@ -834,9 +835,9 @@ export function startExternalTasksCron(): void {
   _cronStarted = true;
   const HOUR_MS = 60 * 60 * 1000;
   setTimeout(() => {
-    processExternalTaskPull().catch(err => console.error('[ext-cron] initial run failed:', err));
+    job('ext-cron', () => processExternalTaskPull()).catch(err => console.error('[ext-cron] initial run failed:', err));
     setInterval(() => {
-      processExternalTaskPull().catch(err => console.error('[ext-cron] tick failed:', err));
+      job('ext-cron', () => processExternalTaskPull()).catch(err => console.error('[ext-cron] tick failed:', err));
     }, HOUR_MS);
   }, 60_000);
   console.log('[ext-cron] external-tasks cron registered — first run in 60s, then hourly');

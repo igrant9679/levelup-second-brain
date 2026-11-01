@@ -19,8 +19,9 @@ import { sendEmail } from "./sendEmail";
 import { insertScheduledTaskLog } from "../db";
 import { readEntityArray } from "../routers/appData";
 import { userTz, userNow, toMinutes, dayIn, shiftDays, fmtDay, type UserNow } from "./userTime";
-import { claimSend, releaseSend } from "./sendLedger";
+import { claimSend, settleClaims, releaseSend } from "./sendLedger";
 import { prefsRows, fullRow } from "./prefsScan";
+import { job, isShuttingDown } from "./lifecycle";
 
 type Task = { status?: string; priority?: string; due?: string; completedAt?: string; createdAt?: string; title?: string; project?: string; tags?: string[] };
 type Goal = { title?: string; pct?: number; category?: string; dueDate?: string };
@@ -273,6 +274,8 @@ export async function processScheduledReports(): Promise<{ usersChecked: number;
   const appUrl = (process.env.VITE_OAUTH_PORTAL_URL || 'https://levelupnow.tools').replace(/\/+$/, '');
 
   for (const lite of rows) {
+    settleClaims('reports');
+    if (isShuttingDown()) break;
     let row: any = lite;
     stats.usersChecked++;
     const prefs = safeParse<any>(row.prefs, null);
@@ -285,7 +288,7 @@ export async function processScheduledReports(): Promise<{ usersChecked: number;
     const due: Array<{ report: SavedReport; period: string }> = [];
     for (const r of prefs.savedReports as SavedReport[]) {
       const period = reportPeriod(r.schedule, local);
-      if (period && r.id != null && await claimSend(db, row.userId, 'report:' + String(r.id), period)) due.push({ report: r, period });
+      if (period && r.id != null && await claimSend(db, row.userId, 'report:' + String(r.id), period, 'reports')) due.push({ report: r, period });
     }
     if (due.length === 0) continue;
     row = await fullRow(db, lite);
@@ -349,6 +352,7 @@ export async function processScheduledReports(): Promise<{ usersChecked: number;
     // from this copy could undo a change an open tab just made.
   }
 
+  settleClaims('reports');
   const durationMs = Date.now() - startMs;
   await insertScheduledTaskLog({
     taskName: 'scheduled-reports',
@@ -374,9 +378,9 @@ export function startScheduledReportsCron(): void {
   _schedulerStarted = true;
   const HOUR_MS = 60 * 60 * 1000;
   setTimeout(() => {
-    processScheduledReports().catch(err => console.error('[scheduled-reports] initial run failed:', err));
+    job('scheduled-reports', () => processScheduledReports()).catch(err => console.error('[scheduled-reports] initial run failed:', err));
     setInterval(() => {
-      processScheduledReports().catch(err => console.error('[scheduled-reports] tick failed:', err));
+      job('scheduled-reports', () => processScheduledReports()).catch(err => console.error('[scheduled-reports] tick failed:', err));
     }, HOUR_MS);
   }, 30_000);
   console.log('[scheduled-reports] cron registered — first run in 30s, then hourly');

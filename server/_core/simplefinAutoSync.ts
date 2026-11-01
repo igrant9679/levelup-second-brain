@@ -26,6 +26,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "../db";
 import { billReconcile } from "./billSchedule";
 import { userAppData } from "../../drizzle/schema";
+import { job } from "./lifecycle";
 
 interface PullResult { linked: number; added: number; balances: number; }
 
@@ -229,9 +230,9 @@ export function startSimplefinAutoSyncCron(): void {
   _started = true;
   const HALF_HOUR = 30 * 60 * 1000;
   setTimeout(() => {
-    runSimplefinAutoSync().catch(err => console.error('[simplefin-sync] initial run failed:', err));
+    job('simplefin-sync', () => runSimplefinAutoSync()).catch(err => console.error('[simplefin-sync] initial run failed:', err));
     setInterval(() => {
-      runSimplefinAutoSync().catch(err => console.error('[simplefin-sync] tick failed:', err));
+      job('simplefin-sync', () => runSimplefinAutoSync()).catch(err => console.error('[simplefin-sync] tick failed:', err));
     }, HALF_HOUR);
   }, 180_000);
   console.log('[simplefin-sync] cron registered — first run in 3min, then every 30min (10h per-user freshness gate)');

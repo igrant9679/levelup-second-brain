@@ -25,8 +25,9 @@ import { buildMoneySectionHtml } from "./financeEmail";
 import { readEntityArray } from "../routers/appData";
 import { allowedRecipient } from "./recipient";
 import { userTz, userNow, toMinutes, fmtDay, type UserNow } from "./userTime";
-import { claimSend, releaseSend } from "./sendLedger";
+import { claimSend, settleClaims, releaseSend } from "./sendLedger";
 import { prefsRows, fullRow } from "./prefsScan";
+import { job, isShuttingDown } from "./lifecycle";
 
 interface DigestPref {
   enabled?: boolean;
@@ -255,6 +256,8 @@ export async function processDailyDigest(opts?: { userId?: number; force?: boole
 
   let sent = 0, skipped = 0, errors = 0;
   for (const lite of rows) {
+    settleClaims('digest');
+    if (isShuttingDown()) break;
     let row: any = lite;
     try {
       const prefs = parsePrefs(row.prefs);
@@ -264,7 +267,7 @@ export async function processDailyDigest(opts?: { userId?: number; force?: boole
       if (!opts?.force && !digestDue(digestPref, local)) { skipped++; continue; }
       // Claim today's digest. A manual send (force) claims too, so the
       // scheduled one doesn't follow it the same day; it never skips.
-      const claimed = await claimSend(db, row.userId, 'digest', local.ymd);
+      const claimed = await claimSend(db, row.userId, 'digest', local.ymd, 'digest');
       if (!claimed && !opts?.force) { skipped++; continue; }
       row = await fullRow(db, lite);
 
@@ -317,6 +320,7 @@ export async function processDailyDigest(opts?: { userId?: number; force?: boole
       console.error(`[daily-digest] user ${row.userId} failed:`, err);
     }
   }
+  settleClaims('digest');
   console.log(`[daily-digest] pass complete: scanned=${rows.length} sent=${sent} skipped=${skipped} errors=${errors}`);
   return { scanned: rows.length, sent, skipped, errors };
 }
@@ -331,9 +335,9 @@ export function startDailyDigestCron(): void {
   _digestStarted = true;
   const QUARTER_HOUR = 15 * 60 * 1000;
   setTimeout(() => {
-    processDailyDigest().catch(err => console.error('[daily-digest] initial run failed:', err));
+    job('daily-digest', () => processDailyDigest()).catch(err => console.error('[daily-digest] initial run failed:', err));
     setInterval(() => {
-      processDailyDigest().catch(err => console.error('[daily-digest] tick failed:', err));
+      job('daily-digest', () => processDailyDigest()).catch(err => console.error('[daily-digest] tick failed:', err));
     }, QUARTER_HOUR);
   }, 90_000);
   console.log('[daily-digest] cron registered — first run in 90s, then every 15min');

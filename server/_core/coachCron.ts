@@ -32,7 +32,7 @@
  */
 import { isRetiredSource } from "./retiredSources";
 import { createHmac } from "crypto";
-import { and, desc, eq, gte, like } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, like, lt, or } from "drizzle-orm";
 import { getDb } from "../db";
 import { coachMessages, externalTasks, userAppData, users } from "../../drizzle/schema";
 import { sendEmail } from "./sendEmail";
@@ -44,6 +44,7 @@ import { delegationSnapshotLines } from "./pmDelegation";
 import { allowedRecipient } from "./recipient";
 import { calOccurrencesBetween } from "./calRecur";
 import { prefsRows, fullRow } from "./prefsScan";
+import { job, isShuttingDown } from "./lifecycle";
 
 interface SlotDef { label: string; time: string; goal: string; day?: number; words?: number }
 export type CoachSlot = "morning" | "midmorning" | "midday" | "afternoon" | "evening" | "weekly" | "money";
@@ -500,13 +501,57 @@ async function earlierToday(db: any, userId: number, local: Local): Promise<stri
   return rows.filter((r: any) => localNow(local.tz, new Date(r.createdAt)).ymd === local.ymd).map((r: any) => `${r.kind}: ${r.title} — ${r.pushText || ""}`);
 }
 
+// ─── delivery that didn't happen (-264) ────────────────────────────────────
+// A check-in is stored first and emailed / pushed after; a deploy in between
+// (or a mail server that was down) left it unsent, and nothing tried again.
+// Each pass retries messages 3 min – 3 h old whose email or push is still
+// missing, at most 3 times per message per server run. Replies are left out
+// (they're sent inside the user's email thread).
+const _redeliverTries = new Map<number, number>();
+export async function redeliverPending(db: any): Promise<number> {
+  const now = Date.now();
+  const rows = await db.select().from(coachMessages).where(and(
+    gte(coachMessages.createdAt, new Date(now - 3 * 3600e3)),
+    lt(coachMessages.createdAt, new Date(now - 3 * 60e3)),
+    or(isNull(coachMessages.emailedAt), isNull(coachMessages.pushedAt)),
+  )).limit(50);
+  let tried = 0;
+  for (const r of rows) {
+    if (isShuttingDown()) break;
+    if (r.kind === "reply" || r.kind === "delegate") continue;
+    const chs = String(r.channels || "").split(",");
+    const email = chs.includes("email") && !r.emailedAt;
+    const push = chs.includes("push") && !r.pushedAt && !!_pushHook;
+    if (!email && !push) continue;
+    const n = _redeliverTries.get(r.id) || 0;
+    if (n >= 3) continue;
+    _redeliverTries.set(r.id, n + 1);
+    if (_redeliverTries.size > 5000) _redeliverTries.clear();
+    try {
+      const [ad] = await db.select({ prefs: userAppData.prefs }).from(userAppData).where(eq(userAppData.userId, r.userId)).limit(1);
+      const prefs = parseJSON<Record<string, any>>(ad?.prefs, {});
+      const c: CheckinPrefs = (prefs.coach || {}).checkins || {};
+      const [u] = email ? await db.select().from(users).where(eq(users.id, r.userId)).limit(1) : [null];
+      const to = u ? (await allowedRecipient(u, c.recipientEmail)) || undefined : undefined;
+      const msg: CoachMsg = { title: r.title, body: r.body, push: r.pushText || "", actions: parseJSON(r.actions, [] as CoachMsg["actions"]) };
+      await deliver(db, { userId: r.userId, id: r.id, kind: r.kind, msg, autonomy: autonomyOf(prefs), ch: { email, push }, to });
+      tried++;
+    } catch (e) {
+      console.error(`[coach] re-delivery of message ${r.id} failed:`, e);
+    }
+  }
+  return tried;
+}
+
 // ─── one pass ──────────────────────────────────────────────────────────────
 export async function processCoachCheckins(opts?: { userId?: number; force?: CoachSlot | "moneyalert" }): Promise<{ scanned: number; created: number; errors: number; lastId?: number; lastError?: string }> {
   const db = await getDb();
   if (!db) return { scanned: 0, created: 0, errors: 0 };
+  if (!opts?.userId && !opts?.force) await redeliverPending(db).catch((e) => console.error("[coach] re-delivery pass failed:", e));
   const rows = await prefsRows(db, opts?.userId);
   let created = 0, errors = 0, lastId: number | undefined, lastError: string | undefined;
   for (const lite of rows) {
+    if (isShuttingDown()) break;
     let row: any = lite;
     try {
       const prefs = parseJSON<Record<string, any>>(row.prefs, {});
@@ -622,8 +667,8 @@ export function startCoachCron(): void {
   _coachStarted = true;
   const FIVE_MIN = 5 * 60 * 1000;
   setTimeout(() => {
-    processCoachCheckins().catch((e) => console.error("[coach] initial run failed:", e));
-    setInterval(() => { processCoachCheckins().catch((e) => console.error("[coach] tick failed:", e)); }, FIVE_MIN);
+    job("coach", () => processCoachCheckins()).catch((e) => console.error("[coach] initial run failed:", e));
+    setInterval(() => { job("coach", () => processCoachCheckins()).catch((e) => console.error("[coach] tick failed:", e)); }, FIVE_MIN);
   }, 150_000);
   import("./coachReplies").then((m) => m.startCoachReplyPoller()).catch((e) => console.error("[coach] reply poller failed to start:", e));
   void resolveWorkspaceAI().then((a) => console.log(`[coach] cron registered — every 5 min; AI ${a.configured ? a.provider : "NOT configured (fallback messages only)"}`)).catch(() => {});

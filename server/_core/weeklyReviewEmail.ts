@@ -29,8 +29,9 @@ import { buildMoneySectionHtml } from "./financeEmail";
 import { readEntityArray } from "../routers/appData";
 import { allowedRecipient } from "./recipient";
 import { userTz, userNow, toMinutes, dayIn, shiftDays, fmtDay, type UserNow } from "./userTime";
-import { claimSend, releaseSend } from "./sendLedger";
+import { claimSend, settleClaims, releaseSend } from "./sendLedger";
 import { prefsRows, fullRow } from "./prefsScan";
+import { job, isShuttingDown } from "./lifecycle";
 
 interface WeeklyPref {
   enabled?: boolean;
@@ -404,6 +405,8 @@ export async function processWeeklyReview(opts?: { userId?: number; force?: bool
 
   let sent = 0, skipped = 0, errors = 0;
   for (const lite of rows) {
+    settleClaims('weekly');
+    if (isShuttingDown()) break;
     let row: any = lite;
     try {
       const prefs = parsePrefs(row.prefs);
@@ -411,7 +414,7 @@ export async function processWeeklyReview(opts?: { userId?: number; force?: bool
       const tz = userTz(prefs);
       const local = userNow(tz);
       if (!opts?.force && !weeklyDue(wp, local)) { skipped++; continue; }
-      const claimed = await claimSend(db, row.userId, 'weekly', local.ymd);
+      const claimed = await claimSend(db, row.userId, 'weekly', local.ymd, 'weekly');
       if (!claimed && !opts?.force) { skipped++; continue; }
       row = await fullRow(db, lite);
 
@@ -454,6 +457,7 @@ export async function processWeeklyReview(opts?: { userId?: number; force?: bool
       console.error(`[weekly-review] user ${row.userId} failed:`, err);
     }
   }
+  settleClaims('weekly');
   console.log(`[weekly-review] pass complete: scanned=${rows.length} sent=${sent} skipped=${skipped} errors=${errors}`);
   return { scanned: rows.length, sent, skipped, errors };
 }
@@ -467,9 +471,9 @@ export function startWeeklyReviewCron(): void {
   _weeklyStarted = true;
   const HALF_HOUR = 30 * 60 * 1000;
   setTimeout(() => {
-    processWeeklyReview().catch(err => console.error('[weekly-review] initial run failed:', err));
+    job('weekly-review', () => processWeeklyReview()).catch(err => console.error('[weekly-review] initial run failed:', err));
     setInterval(() => {
-      processWeeklyReview().catch(err => console.error('[weekly-review] tick failed:', err));
+      job('weekly-review', () => processWeeklyReview()).catch(err => console.error('[weekly-review] tick failed:', err));
     }, HALF_HOUR);
   }, 120_000);
   console.log('[weekly-review] cron registered — first run in 120s, then every 30min');

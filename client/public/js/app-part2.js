@@ -9689,7 +9689,10 @@ function _backupStatusHtml(b){
   if(!b)return 'No automatic backup has run yet.';
   const when=_pd(b.at).toLocaleString();
   if(!b.ok)return '<span style="color:var(--red)">✗ Last backup failed</span> · '+esc(when)+' · '+esc(b.error||'unknown error');
-  return '<span style="color:var(--ok)">✓ Verified</span> · '+esc(when)+' · '+(b.tables||0)+' tables, '+(b.rows||0).toLocaleString()+' rows, '+((b.bytes||0)/1048576).toFixed(1)+' MB encrypted · saved to '+(b.provider==='drive'?'Google Drive':esc(b.provider||'storage'))+' (private)';
+  // -264: the key a backup needs. JWT_SECRET = the sign-in secret, which may
+  // be rotated one day — that would make every backup made with it unreadable.
+  const key=b.keySource==='JWT_SECRET'?'<div style="margin-top:6px;color:var(--amber,#b45309)">⚠ Encrypted with the sign-in secret (JWT_SECRET). Set a separate <b>BACKUP_KEY</b> on Railway and keep a copy of it somewhere safe — if JWT_SECRET is ever changed, backups made with it can no longer be opened.</div>':(b.keySource?'<div style="margin-top:6px;color:var(--t3)">Key: BACKUP_KEY'+(b.keyId?' · id '+esc(b.keyId):'')+'</div>':'');
+  return '<span style="color:var(--ok)">✓ Verified</span> · '+esc(when)+' · '+(b.tables||0)+' tables, '+(b.rows||0).toLocaleString()+' rows, '+((b.bytes||0)/1048576).toFixed(1)+' MB encrypted · saved to '+(b.provider==='drive'?'Google Drive':esc(b.provider||'storage'))+' (private)'+key;
 }
 async function _loadBackupStatus(){
   const el=document.getElementById('backup-status');if(el)el.textContent='Checking…';

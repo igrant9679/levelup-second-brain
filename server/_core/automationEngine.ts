@@ -30,6 +30,7 @@ import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { getDb } from "../db";
 import { userAppData, externalTasks, externalTaskOverrides, automationRules, type AutomationRule } from "../../drizzle/schema";
 import { readEntityArray, writeEntityArray } from "../routers/appData";
+import { job } from "./lifecycle";
 
 interface NativeTask {
   id?: number | string;
@@ -190,9 +191,9 @@ export function startAutomationCron(): void {
   _autoStarted = true;
   const FIFTEEN_MIN = 15 * 60 * 1000;
   setTimeout(() => {
-    processAutomations().catch(err => console.error('[automations] initial run failed:', err));
+    job('automations', () => processAutomations()).catch(err => console.error('[automations] initial run failed:', err));
     setInterval(() => {
-      processAutomations().catch(err => console.error('[automations] tick failed:', err));
+      job('automations', () => processAutomations()).catch(err => console.error('[automations] tick failed:', err));
     }, FIFTEEN_MIN);
   }, 90_000);
   console.log('[automations] cron registered — first run in 90s, then every 15min');

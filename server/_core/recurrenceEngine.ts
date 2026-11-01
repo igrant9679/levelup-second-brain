@@ -32,6 +32,7 @@
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { getDb } from "../db";
 import { tasksTable, type TaskRow } from "../../drizzle/schema";
+import { job } from "./lifecycle";
 
 interface RecurrenceRule {
   freq: 'daily' | 'weekly' | 'monthly' | 'yearly';
@@ -223,7 +224,7 @@ export async function processRecurrence(opts?: { userId?: number }): Promise<{
     try {
       created += await generateForTemplate(db, t);
     } catch (err) {
-      console.warn(`[recurrence] template ${t.taskId} failed:`, err);
+      console.error(`[recurrence] template ${t.taskId} failed:`, err);
     }
   }
   console.log(`[recurrence] pass complete: ${templates.length} templates, ${created} instances created`);
@@ -242,9 +243,9 @@ export function startRecurrenceCron(): void {
   _recStarted = true;
   const DAY_MS = 24 * 60 * 60 * 1000;
   setTimeout(() => {
-    processRecurrence().catch(err => console.error('[recurrence] initial run failed:', err));
+    job('recurrence', () => processRecurrence()).catch(err => console.error('[recurrence] initial run failed:', err));
     setInterval(() => {
-      processRecurrence().catch(err => console.error('[recurrence] tick failed:', err));
+      job('recurrence', () => processRecurrence()).catch(err => console.error('[recurrence] tick failed:', err));
     }, DAY_MS);
   }, 5 * 60 * 1000);
   console.log('[recurrence] cron registered — first run in 5min, then every 24h');

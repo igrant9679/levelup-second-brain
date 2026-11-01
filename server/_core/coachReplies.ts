@@ -29,6 +29,7 @@ import { coachMessages, pmRecords, smtpImapAccounts, userAppData, users } from "
 import { coachToken, parseCoachRef, processCoachReply } from "./coachCron";
 import { parsePmRef, processDelegateReply } from "./pmDelegation";
 import { isOwner } from "./ownerGuard";
+import { job } from "./lifecycle";
 
 const POLL_MS = 3 * 60 * 1000;
 const LOOKBACK_DAYS = 3;
@@ -242,7 +243,7 @@ export async function pollCoachReplies(opts?: { force?: boolean }): Promise<{ ok
   } catch (e) {
     result.error = String((e as Error)?.message || e).slice(0, 300);
     state.lastError = result.error;
-    console.warn("[coach-replies] poll failed:", result.error);
+    console.error("[coach-replies] poll failed:", result.error);
   } finally {
     try { imap?.end(); } catch { /* ignore */ }
     _polling = false;
@@ -256,8 +257,8 @@ export function startCoachReplyPoller(): void {
   if (_started) return;
   _started = true;
   setTimeout(() => {
-    pollCoachReplies().catch(() => {});
-    setInterval(() => { pollCoachReplies().catch(() => {}); }, POLL_MS);
+    job("coach-replies", () => pollCoachReplies()).catch((e) => console.error("[coach-replies] poll crashed:", e));
+    setInterval(() => { job("coach-replies", () => pollCoachReplies()).catch((e) => console.error("[coach-replies] poll crashed:", e)); }, POLL_MS);
   }, 200_000);
   console.log("[coach-replies] reply poller registered — every 3 min");
 }

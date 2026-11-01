@@ -96,7 +96,7 @@ export async function recordNoteVersion(db: any, userId: number, v: VersionInput
     await pruneNote(db, userId, noteId);
     return true;
   } catch (e: any) {
-    console.warn("[noteVersions] could not record a version:", e?.message || e);
+    console.error("[noteVersions] could not record a version:", e?.message || e);
     return false;
   }
 }
@@ -117,6 +117,6 @@ export async function pruneTrash(db: any, userId: number, now = new Date()) {
     const cutoff = new Date(now.getTime() - TRASH_DAYS * 86400000);
     await db.delete(noteVersions).where(and(eq(noteVersions.userId, userId), eq(noteVersions.kind, "deleted"), lt(noteVersions.savedAt, cutoff)));
   } catch (e: any) {
-    console.warn("[noteVersions] trash prune failed:", e?.message || e);
+    console.error("[noteVersions] trash prune failed:", e?.message || e);
   }
 }

@@ -19,7 +19,12 @@
  *                     result in system_settings.lastBackup.
  *
  * Encryption key: sha256 of BACKUP_KEY (or JWT_SECRET if unset). Keep that
- * value safe — scripts/decrypt-backup.mjs needs it to read a backup.
+ * value safe — scripts/decrypt-backup.mjs / restore-backup.mjs need it. Each
+ * result records keySource + keyId (first 8 hex of sha256 of the key) so a
+ * file can be matched to its key later; Settings warns while backups still
+ * fall back to JWT_SECRET (rotating it would make them unreadable).
+ * Compression runs on the thread pool (-264; gzipSync blocked every request
+ * for the whole compress of a multi-MB dump).
  * File format: "LUBK1" | iv(12) | tag(16) | ciphertext(gzip(JSON)).
  */
 import crypto from "crypto";
@@ -27,6 +32,7 @@ import zlib from "zlib";
 import { sql } from "drizzle-orm";
 import { getDb, getSystemSetting, setSystemSetting } from "../db";
 import { ENV } from "./env";
+import { job } from "./lifecycle";
 
 const MAGIC = Buffer.from("LUBK1");
 const SECRET_COL = /(password|secret|token|api_?key|accessurl|refresh|vapidprivate|clientsecret)/i;
@@ -38,6 +44,31 @@ function backupKey(): Buffer {
   const base = process.env.BACKUP_KEY || ENV.cookieSecret || "";
   if (!base) throw new Error("Set BACKUP_KEY (or JWT_SECRET) before running backups.");
   return crypto.createHash("sha256").update("levelup-backup:" + base).digest();
+}
+export function backupKeyInfo(): { keySource: "BACKUP_KEY" | "JWT_SECRET"; keyId: string } {
+  return { keySource: process.env.BACKUP_KEY ? "BACKUP_KEY" : "JWT_SECRET", keyId: crypto.createHash("sha256").update(backupKey()).digest("hex").slice(0, 8) };
+}
+const gzipA = (b: Buffer) => new Promise<Buffer>((ok, bad) => zlib.gzip(b, { level: 9 }, (e, r) => (e ? bad(e) : ok(r))));
+const gunzipA = (b: Buffer) => new Promise<Buffer>((ok, bad) => zlib.gunzip(b, (e, r) => (e ? bad(e) : ok(r))));
+function sealGz(gz: Buffer): Buffer {
+  const iv = crypto.randomBytes(12);
+  const c = crypto.createCipheriv("aes-256-gcm", backupKey(), iv);
+  const ct = Buffer.concat([c.update(gz), c.final()]);
+  return Buffer.concat([MAGIC, iv, c.getAuthTag(), ct]);
+}
+function openGz(buf: Buffer): Buffer {
+  if (!buf.subarray(0, 5).equals(MAGIC)) throw new Error("Not a LevelUp backup file");
+  const iv = buf.subarray(5, 17), tag = buf.subarray(17, 33), ct = buf.subarray(33);
+  const d = crypto.createDecipheriv("aes-256-gcm", backupKey(), iv);
+  d.setAuthTag(tag);
+  return Buffer.concat([d.update(ct), d.final()]);
+}
+/** Same bytes format as encryptBackup, without blocking the event loop. */
+export async function encryptBackupAsync(dump: BackupDump): Promise<Buffer> {
+  return sealGz(await gzipA(Buffer.from(JSON.stringify(dump), "utf-8")));
+}
+export async function decryptBackupAsync(buf: Buffer): Promise<BackupDump> {
+  return JSON.parse((await gunzipA(openGz(buf))).toString("utf-8"));
 }
 function tableHash(rows: any[]): string {
   return crypto.createHash("sha256").update(JSON.stringify(rows)).digest("hex").slice(0, 32);
@@ -75,24 +106,20 @@ export async function dumpAllTables(db?: any): Promise<BackupDump> {
 }
 
 export function encryptBackup(dump: BackupDump): Buffer {
-  const gz = zlib.gzipSync(Buffer.from(JSON.stringify(dump), "utf-8"), { level: 9 });
-  const iv = crypto.randomBytes(12);
-  const c = crypto.createCipheriv("aes-256-gcm", backupKey(), iv);
-  const ct = Buffer.concat([c.update(gz), c.final()]);
-  return Buffer.concat([MAGIC, iv, c.getAuthTag(), ct]);
+  return sealGz(zlib.gzipSync(Buffer.from(JSON.stringify(dump), "utf-8"), { level: 9 }));
 }
 export function decryptBackup(buf: Buffer): BackupDump {
-  if (!buf.subarray(0, 5).equals(MAGIC)) throw new Error("Not a LevelUp backup file");
-  const iv = buf.subarray(5, 17), tag = buf.subarray(17, 33), ct = buf.subarray(33);
-  const d = crypto.createDecipheriv("aes-256-gcm", backupKey(), iv);
-  d.setAuthTag(tag);
-  const gz = Buffer.concat([d.update(ct), d.final()]);
-  return JSON.parse(zlib.gunzipSync(gz).toString("utf-8"));
+  return JSON.parse(zlib.gunzipSync(openGz(buf)).toString("utf-8"));
 }
 
 /** Restore test: the bytes decrypt, decompress, parse, and every table matches. */
 export function verifyBackup(buf: Buffer, source: BackupDump): { ok: boolean; tables: number; rows: number; mismatches: string[] } {
-  const back = decryptBackup(buf);
+  return compareDump(decryptBackup(buf), source);
+}
+export async function verifyBackupAsync(buf: Buffer, source: BackupDump) {
+  return compareDump(await decryptBackupAsync(buf), source);
+}
+function compareDump(back: BackupDump, source: BackupDump): { ok: boolean; tables: number; rows: number; mismatches: string[] } {
   const mismatches: string[] = [];
   let rows = 0;
   for (const [name, t] of Object.entries(source.tables)) {
@@ -105,7 +132,7 @@ export function verifyBackup(buf: Buffer, source: BackupDump): { ok: boolean; ta
   return { ok: mismatches.length === 0, tables: Object.keys(source.tables).length, rows, mismatches };
 }
 
-export type BackupResult = { at: string; ok: boolean; tables?: number; rows?: number; bytes?: number; provider?: string; fileId?: string; key?: string; error?: string; mismatches?: string[] };
+export type BackupResult = { at: string; ok: boolean; tables?: number; rows?: number; bytes?: number; provider?: string; fileId?: string; key?: string; keySource?: "BACKUP_KEY" | "JWT_SECRET"; keyId?: string; error?: string; mismatches?: string[] };
 
 let _running = false;
 export async function runBackup(reason: "nightly" | "manual"): Promise<BackupResult> {
@@ -115,12 +142,12 @@ export async function runBackup(reason: "nightly" | "manual"): Promise<BackupRes
   let result: BackupResult;
   try {
     const dump = await dumpAllTables();
-    const buf = encryptBackup(dump);
-    const v = verifyBackup(buf, dump);
+    const buf = await encryptBackupAsync(dump);
+    const v = await verifyBackupAsync(buf, dump);
     if (!v.ok) throw Object.assign(new Error("Backup verification failed"), { mismatches: v.mismatches });
     const { storagePutPrivate } = await import("../storage");
     const up = await storagePutPrivate(`backups/levelup-${at.slice(0, 10)}-${reason}.lubk`, buf, "application/octet-stream");
-    result = { at, ok: true, tables: v.tables, rows: v.rows, bytes: buf.length, provider: up.provider, fileId: up.id, key: up.key };
+    result = { at, ok: true, tables: v.tables, rows: v.rows, bytes: buf.length, provider: up.provider, fileId: up.id, key: up.key, ...backupKeyInfo() };
     console.log(`[backup] ${reason}: ${v.tables} tables, ${v.rows} rows, ${(buf.length / 1048576).toFixed(1)} MB → ${up.provider} ${up.id}`);
   } catch (e: any) {
     result = { at, ok: false, error: String(e?.message || e).slice(0, 300), mismatches: e?.mismatches };
@@ -148,6 +175,6 @@ export function startBackupCron() {
       await runBackup("nightly");
     } catch (e) { console.error("[backup] cron tick failed:", e); }
   };
-  setTimeout(tick, 5 * 60 * 1000);
-  setInterval(tick, 60 * 60 * 1000);
+  setTimeout(() => { void job("backup", tick); }, 5 * 60 * 1000);
+  setInterval(() => { void job("backup", tick); }, 60 * 60 * 1000);
 }

@@ -31,6 +31,7 @@ import { sendEmail } from "./sendEmail";
 import { callWorkspaceAI } from "./workspaceAI";
 import { ENV } from "./env";
 import { trySpendQuota } from "./quota";
+import { job } from "./lifecycle";
 
 const HOST = "levelupnow.tools";
 const DAY = 86400000;
@@ -248,7 +249,7 @@ export async function processDelegationNudges(onlyUserId?: number): Promise<{ se
       if (!(await trySpendQuota(r.userId, "email"))) continue; // daily email cap reached
       const res = await sendDelegateNudge(r.userId, r.id, { auto: true });
       if (res.ok) sent++; else errors++;
-    } catch (e) { errors++; console.warn("[pm] nudge failed:", (e as Error)?.message); }
+    } catch (e) { errors++; console.error("[pm] nudge failed:", (e as Error)?.message); }
   }
   if (sent || errors) console.log(`[pm] auto follow-ups: sent=${sent} errors=${errors}`);
   return { sent, errors };
@@ -276,7 +277,7 @@ export function startPmCron(): void {
   _started = true;
   setTimeout(() => {
     processDelegationNudges().catch(() => {});
-    setInterval(() => { processDelegationNudges().catch(() => {}); }, 30 * 60 * 1000);
+    setInterval(() => { job("pm-nudges", () => processDelegationNudges()).catch((e) => console.error("[pm] nudge pass crashed:", e)); }, 30 * 60 * 1000);
   }, 240_000);
   console.log("[pm] delegation follow-up cron registered — every 30 min");
 }

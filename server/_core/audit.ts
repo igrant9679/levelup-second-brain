@@ -47,7 +47,7 @@ export async function audit(ctx: Ctx, action: string, t: AuditTarget = {}): Prom
       ip: clientIp(ctx?.req),
     });
   } catch (e) {
-    console.warn("[audit] could not record", action, (e as Error)?.message);
+    console.error("[audit] could not record", action, (e as Error)?.message);
   }
 }
 
