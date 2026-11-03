@@ -50,7 +50,7 @@ function renderCommandCenter(){
     return `<div class="cd cc-proj-tile" style="padding:11px 13px;border-left:3px solid ${accent};cursor:pointer;transition:transform .12s ease,background .12s ease" onclick="_ccDrillIntoProject('${_jsAttr(name)}','${_jsAttr(src)}')" title="Click to open these tasks in the Tasks view">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px">
         <div style="font-size:12px;font-weight:600;color:var(--t1);min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(name)}</div>
-        <span style="font-size:11px;font-weight:600;letter-spacing:.04em;color:#fff;background:${accent};padding:2px 6px;border-radius:3px">${rows[0]?(rows[0].sourceLabel||'').toUpperCase():''}</span>
+        <span style="font-size:11px;font-weight:600;letter-spacing:.04em;color:#fff;background:${_luFillSafe(accent)};padding:2px 6px;border-radius:3px">${rows[0]?(rows[0].sourceLabel||'').toUpperCase():''}</span>
       </div>
       <div style="display:flex;gap:10px;font-size:11px;color:var(--t2);margin-bottom:6px">
         <span><strong style="color:var(--t1)">${rows.length}</strong> open</span>
@@ -66,7 +66,7 @@ function renderCommandCenter(){
     const srcBadge=(t.source==='smartsheet'||t.source==='atlas')?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#1f6feb;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">CF</span>':t.source==='nifty'?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#9333ea;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">LSI</span>':'';
     // Badge is clickable — drills into Tasks filtered to that kind + current hat.
     const kindMeta=kind==='overdue'?{e:'⚠',l:'overdue',c:'var(--red)'}:kind==='today'?{e:'📅',l:'today',c:'var(--warn)'}:{e:'💤',l:'stalled',c:'var(--t3)'};
-    const kindBadge=`<span style="color:${kindMeta.c};font-size:11px;font-weight:${kind==='stalled'?'400':'600'};cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px" onclick="event.stopPropagation();_ccDrillIntoKind('${_jsAttr(kind)}')" title="Click to see all ${kindMeta.l} tasks in the current hat">${kindMeta.e} ${kindMeta.l}</span>`;
+    const kindBadge=`<span style="color:${_luAccentText(kindMeta.c)};font-size:11px;font-weight:${kind==='stalled'?'400':'600'};cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px" onclick="event.stopPropagation();_ccDrillIntoKind('${_jsAttr(kind)}')" title="Click to see all ${kindMeta.l} tasks in the current hat">${kindMeta.e} ${kindMeta.l}</span>`;
     const dueDays=t.due?_daysUntil(t.due):null;
     const dueLabel=t.due?(dueDays===0?'today':dueDays<0?`${-dueDays}d ago`:`${dueDays}d`):'—';
     const extId=t._ext?t._ext.externalId:'';
@@ -107,7 +107,7 @@ function renderCommandCenter(){
 
   // Recently shipped (last 7d).
   const shippedBody=shipped.length?shipped.slice(0,10).map(t=>{
-    const srcBadge=(t.source==='smartsheet'||t.source==='atlas')?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#1f6feb;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">CF</span>':t.source==='nifty'?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#9333ea;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">LSI</span>':'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#10b981;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">YOU</span>';
+    const srcBadge=(t.source==='smartsheet'||t.source==='atlas')?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#1f6feb;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">CF</span>':t.source==='nifty'?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#9333ea;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">LSI</span>':'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#0c875e;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">YOU</span>';
     const when=t.completedAt?_relTime(t.completedAt):'';
     return `<div class="lr" style="padding:7px 10px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:8px">
       <span style="font-size:13px;color:var(--ok);flex-shrink:0">✓</span>
@@ -130,7 +130,7 @@ function renderCommandCenter(){
   // Chip switcher
   const chip=(key,label,color)=>{
     const on=hat===key;
-    return `<button class="btn btn-s" onclick="setCcContext('${_jsAttr(key)}')" style="height:26px;padding:0 12px;font-size:11px;border:1px solid ${on?color:'var(--bd2)'};background:${on?color:'transparent'};color:${on?'#fff':'var(--t2)'};border-radius:13px;font-weight:${on?600:500}">${label}</button>`;
+    return `<button class="btn btn-s" onclick="setCcContext('${_jsAttr(key)}')" style="height:26px;padding:0 12px;font-size:11px;border:1px solid ${on?color:'var(--bd2)'};background:${_luFillSafe(on?color:'transparent')};color:${on?'#fff':'var(--t2)'};border-radius:13px;font-weight:${on?600:500}">${label}</button>`;
   };
 
   // CF work comes from Atlas since Smartsheet was retired (-223); counted here since -260
@@ -163,12 +163,12 @@ function renderCommandCenter(){
 
   <!-- KPI strip -->
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px">
-    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #ef4444;cursor:pointer" onclick="_ccDrillIntoKind('overdue')" title="Click to see all overdue tasks in this hat"><div style="font-size:22px;font-weight:750;color:#ef4444;line-height:1">${overdue.length}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Overdue</div></div>
-    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #f59e0b;cursor:pointer" onclick="_ccDrillIntoKind('today')" title="Click to see all due-today tasks in this hat"><div style="font-size:22px;font-weight:750;color:#f59e0b;line-height:1">${dueToday.length}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Due Today</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #ef4444;cursor:pointer" onclick="_ccDrillIntoKind('overdue')" title="Click to see all overdue tasks in this hat"><div style="font-size:22px;font-weight:750;color:var(--red);line-height:1">${overdue.length}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Overdue</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #f59e0b;cursor:pointer" onclick="_ccDrillIntoKind('today')" title="Click to see all due-today tasks in this hat"><div style="font-size:22px;font-weight:750;color:var(--warn);line-height:1">${dueToday.length}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Due Today</div></div>
     <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #64748b;cursor:pointer" onclick="_ccDrillIntoKind('stalled')" title="Click to see all stalled tasks in this hat"><div style="font-size:22px;font-weight:750;color:var(--t2);line-height:1">${stalled.length}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Stalled (7d+)</div></div>
-    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #10b981"><div style="font-size:22px;font-weight:750;color:#10b981;line-height:1">${shipped.length}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Shipped (7d)</div></div>
-    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #06b6d4"><div style="font-size:22px;font-weight:750;color:#06b6d4;line-height:1">${open.length}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Open Total</div></div>
-    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #0ea5e9" title="Sum of timer minutes in the last 7 days (current hat)"><div style="font-size:22px;font-weight:750;color:#0ea5e9;line-height:1">${timeLabel}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Time Tracked (7d)</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #10b981"><div style="font-size:22px;font-weight:750;color:var(--ok);line-height:1">${shipped.length}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Shipped (7d)</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #06b6d4"><div style="font-size:22px;font-weight:750;color:var(--ach);line-height:1">${open.length}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Open Total</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #0ea5e9" title="Sum of timer minutes in the last 7 days (current hat)"><div style="font-size:22px;font-weight:750;color:var(--ach);line-height:1">${timeLabel}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Time Tracked (7d)</div></div>
     ${(function(){
       // Capacity tile — only visible on All Hats / Personal where today's tasks live.
       if(hat==='cf'||hat==='lsi')return '';
@@ -176,9 +176,9 @@ function renderCommandCenter(){
       if(!c.taskCount)return '';
       const cColor=c.deltaMins>15?'#ef4444':c.deltaMins<-15?'#10b981':'#f59e0b';
       const cVerdict=c.deltaMins>15?'over':c.deltaMins<-15?'on track':'tight';
-      return `<div class="cd" style="padding:12px;text-align:center;border-left:3px solid ${cColor};cursor:pointer" onclick="_openCapacityDetail()" title="${c.taskCount} task${c.taskCount===1?'':'s'} (${_fmtHm(c.plannedMins)}) vs ${_fmtHm(c.freeMins)} free in working hours — click for details"><div style="font-size:18px;font-weight:750;color:${cColor};line-height:1">${_fmtHm(c.plannedMins)}/${_fmtHm(c.freeMins)}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Capacity · ${cVerdict}</div></div>`;
+      return `<div class="cd" style="padding:12px;text-align:center;border-left:3px solid ${cColor};cursor:pointer" onclick="_openCapacityDetail()" title="${c.taskCount} task${c.taskCount===1?'':'s'} (${_fmtHm(c.plannedMins)}) vs ${_fmtHm(c.freeMins)} free in working hours — click for details"><div style="font-size:18px;font-weight:750;color:${_luAccentText(cColor)};line-height:1">${_fmtHm(c.plannedMins)}/${_fmtHm(c.freeMins)}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Capacity · ${cVerdict}</div></div>`;
     })()}
-    ${pendingRows.length?`<div class="cd" style="padding:12px;text-align:center;border-left:3px solid #f97316;cursor:pointer" onclick="openPushQueueDrawer()" title="Click to preview"><div style="font-size:22px;font-weight:750;color:#f97316;line-height:1">${pendingRows.length}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Pending Push</div></div>`:''}
+    ${pendingRows.length?`<div class="cd" style="padding:12px;text-align:center;border-left:3px solid #f97316;cursor:pointer" onclick="openPushQueueDrawer()" title="Click to preview"><div style="font-size:22px;font-weight:750;color:var(--warn);line-height:1">${pendingRows.length}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Pending Push</div></div>`:''}
   </div>
 
   ${_renderBriefingCard()}
@@ -209,7 +209,7 @@ function renderCommandCenter(){
     ${pendingRows.length?`<div class="cd" style="padding:0;overflow:hidden;border-left:3px solid #f97316">
       <div style="padding:11px 13px;border-bottom:1px solid var(--bd1);display:flex;justify-content:space-between;align-items:center">
         <div style="font-size:12px;font-weight:600">⬆ Pending Push to Source</div>
-        <button class="btn btn-s" style="height:22px;font-size:11px;background:#f97316;color:#fff;border:none" onclick="openPushQueueDrawer()">Preview</button>
+        <button class="btn btn-s" style="height:22px;font-size:11px;background:#bd5711;color:#fff;border:none" onclick="openPushQueueDrawer()">Preview</button>
       </div>
       <div style="max-height:380px;overflow-y:auto">${pendingPushBody}</div>
     </div>`:`<div class="cd" style="padding:14px;text-align:center;color:var(--t3);font-size:11px"><div style="font-size:18px;margin-bottom:6px">📥</div>Push queue clear — every status change is live on the source.</div>`}
@@ -230,7 +230,7 @@ function renderCommandCenter(){
       <div style="display:flex;flex-direction:column;gap:6px">
         <button id="cc-briefing-btn" class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left;color:var(--purp);border-color:var(--purp)" onclick="aiPortfolioBriefing()" title="Generate an AI weekly portfolio briefing for the current hat">📝 Generate weekly briefing</button>
         <button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left" onclick="refreshExternalTasksNow()">↻ Force sync now</button>
-        ${pendingRows.length?`<button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left;color:#f97316;border-color:#f97316" onclick="openPushQueueDrawer()">⬆ Preview push queue (${pendingRows.length})</button>`:''}
+        ${pendingRows.length?`<button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left;color:var(--warn);border-color:#f97316" onclick="openPushQueueDrawer()">⬆ Preview push queue (${pendingRows.length})</button>`:''}
         <button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left" onclick="nav('standup')">📋 See the standup</button>
         <button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left" onclick="nav('clusters')">⬡ Clusters dashboard</button>
         <button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left" onclick="nav('process')">⚡ Process (GTD)</button>
@@ -249,7 +249,7 @@ function renderCommandCenter(){
     </div>
     <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px">
       <div style="font-size:11px;font-weight:600;margin-bottom:6px">💡 Tip</div>
-      <div style="font-size:11px;color:var(--t3);line-height:1.6">Pin a project here by linking its <em>defaultProjectId</em> in <a href="#" onclick="nav('settings');return false" style="color:var(--ac)">Settings → Integrations</a>. Pending pushes show up automatically when queue mode is on.</div>
+      <div style="font-size:11px;color:var(--t3);line-height:1.6">Pin a project here by linking its <em>defaultProjectId</em> in <a href="#" onclick="nav('settings');return false" style="color:var(--ach)">Settings → Integrations</a>. Pending pushes show up automatically when queue mode is on.</div>
     </div>`;
   }
 }
@@ -309,18 +309,18 @@ function renderStandup(){
     return lines.join('\n');
   };
   const hat=_ccHat();
-  const chip=(key,label,color)=>{const on=hat===key;return `<button class="btn btn-s" onclick="setCcContext('${_jsAttr(key)}');renderStandup()" style="height:24px;padding:0 10px;font-size:11px;border:1px solid ${on?color:'var(--bd2)'};background:${on?color:'transparent'};color:${on?'#fff':'var(--t2)'};border-radius:12px;font-weight:${on?600:500}">${label}</button>`;};
+  const chip=(key,label,color)=>{const on=hat===key;return `<button class="btn btn-s" onclick="setCcContext('${_jsAttr(key)}');renderStandup()" style="height:24px;padding:0 10px;font-size:11px;border:1px solid ${on?color:'var(--bd2)'};background:${_luFillSafe(on?color:'transparent')};color:${on?'#fff':'var(--t2)'};border-radius:12px;font-weight:${on?600:500}">${label}</button>`;};
   m.innerHTML=`<div class="ph-r" style="margin-bottom:14px;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap">
     <div>
       <h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('list',22,'var(--page-accent)')}Daily Standup</h1>
-      <p style="font-size:12px;color:var(--t2)">What you closed yesterday, what's on today, and what's blocked across CF + LSI + Personal.${hat!=='all'?` <strong style="color:var(--page-accent)">Filtered to ${hat.toUpperCase()}</strong>`:''}</p>
+      <p style="font-size:12px;color:var(--t2)">What you closed yesterday, what's on today, and what's blocked across CF + LSI + Personal.${hat!=='all'?` <strong style="color:var(--pa-t)">Filtered to ${hat.toUpperCase()}</strong>`:''}</p>
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
       ${chip('all','All','#14b8a6')}
       ${chip('cf','CF','#1f6feb')}
       ${chip('lsi','LSI','#9333ea')}
       ${chip('personal','Personal','#10b981')}
-      <button class="btn btn-s" onclick="_standupWindow24h=!_standupWindow24h;renderStandup()" title="${_standupWindow24h?'Currently showing the last 24 hours of completions. Click to switch back to yesterday\'s date only.':'Currently showing yesterday\'s date only. Click to widen the window to the last 24 hours (catches late-night completions).'}" style="${_standupWindow24h?'background:color-mix(in srgb,var(--ac) 22%,transparent);color:var(--ac);border-color:var(--ac)':''}">⏳ ${_standupWindow24h?'24h':'Yesterday'}</button>
+      <button class="btn btn-s" onclick="_standupWindow24h=!_standupWindow24h;renderStandup()" title="${_standupWindow24h?'Currently showing the last 24 hours of completions. Click to switch back to yesterday\'s date only.':'Currently showing yesterday\'s date only. Click to widen the window to the last 24 hours (catches late-night completions).'}" style="${_standupWindow24h?'background:color-mix(in srgb,var(--ac) 22%,transparent);color:var(--ach);border-color:var(--ac)':''}">⏳ ${_standupWindow24h?'24h':'Yesterday'}</button>
       <button class="btn btn-s" onclick="_copyStandup()" title="Copy markdown to clipboard">📋 Copy</button>
       <button class="btn btn-s" onclick="nav('command')">→ Across tools</button>
     </div>
@@ -510,10 +510,10 @@ function renderPipeline(){
   </div>`;
   // KPI strip.
   const kpis=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px">
-    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #3b82f6"><div style="font-size:20px;font-weight:750;color:#3b82f6;line-height:1">${_fmtMoney(totalPipelineValue)}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Pipeline Value</div></div>
-    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #10b981"><div style="font-size:20px;font-weight:750;color:#10b981;line-height:1">${_fmtMoney(weighted)}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Weighted Forecast</div></div>
-    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #f59e0b"><div style="font-size:20px;font-weight:750;color:#f59e0b;line-height:1">${open.length}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Open Opps</div></div>
-    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #16a34a"><div style="font-size:20px;font-weight:750;color:#16a34a;line-height:1">${winRate}%</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Win Rate</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #3b82f6"><div style="font-size:20px;font-weight:750;color:var(--ach);line-height:1">${_fmtMoney(totalPipelineValue)}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Pipeline Value</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #10b981"><div style="font-size:20px;font-weight:750;color:var(--ok);line-height:1">${_fmtMoney(weighted)}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Weighted Forecast</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #f59e0b"><div style="font-size:20px;font-weight:750;color:var(--warn);line-height:1">${open.length}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Open Opps</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #16a34a"><div style="font-size:20px;font-weight:750;color:var(--ok);line-height:1">${winRate}%</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Win Rate</div></div>
   </div>`;
   let body='';
   if(_pipelineView==='kanban'){
@@ -547,7 +547,7 @@ function renderPipeline(){
             <span style="color:var(--t2);font-weight:600">${_fmtMoney(o.value||0)}</span>
             <span style="color:var(--t3)">${closeLabel}</span>
           </div>
-          ${taskN?`<div style="font-size:11px;color:var(--ac);margin-top:3px">📋 ${taskN} active task${taskN===1?'':'s'}</div>`:''}
+          ${taskN?`<div style="font-size:11px;color:var(--ach);margin-top:3px">📋 ${taskN} active task${taskN===1?'':'s'}</div>`:''}
         </div>`;
       }).join('')||'<div style="font-size:11px;color:var(--t3);font-style:italic;padding:8px 0;text-align:center">empty</div>';
       return `<div class="pipe-col" style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;min-height:300px" data-drop="pipe" data-drop-v="${esc(s.key)}">
@@ -567,7 +567,7 @@ function renderPipeline(){
       return `<tr style="cursor:pointer;border-bottom:1px solid var(--bd1)" onclick="openOpportunityDetail(${o.id})">
         <td style="padding:8px 10px;font-size:12px;color:var(--t1);font-weight:600">${esc(o.name||'(unnamed)')}</td>
         <td style="padding:8px 10px;font-size:11px;color:var(--t2)">${esc(o.accountName||'')}</td>
-        <td style="padding:8px 10px;font-size:11px"><span style="padding:2px 7px;border-radius:3px;background:color-mix(in srgb,${s.color} 18%,transparent);color:${s.color};font-weight:600">${esc(o.stage||'Lead')}</span></td>
+        <td style="padding:8px 10px;font-size:11px"><span style="padding:2px 7px;border-radius:3px;background:color-mix(in srgb,${s.color} 18%,transparent);color:${_luAccentText(s.color)};font-weight:600">${esc(o.stage||'Lead')}</span></td>
         <td style="padding:8px 10px;font-size:11px;text-align:right;font-variant-numeric:tabular-nums">${_fmtMoney(o.value||0)}</td>
         <td style="padding:8px 10px;font-size:11px;text-align:right;color:var(--ok)">${_fmtMoney(_weightedValue(o))}</td>
         <td style="padding:8px 10px;font-size:11px;color:var(--t2)">${closeLabel}</td>
@@ -877,7 +877,7 @@ function _reportQuarterlyBooking(open){
     <p style="font-size:11px;color:var(--t3);margin:0 0 10px">Open deals closing in the next 90 days. Use this as your Q forecast — weighted is the expected commit.</p>
     <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 11px;background:color-mix(in srgb,#10b981 10%,transparent);border-radius:6px;margin-bottom:10px">
       <div style="font-size:11px;color:var(--t2)">Q forecast</div>
-      <div style="text-align:right"><div style="font-size:16px;font-weight:700;color:#10b981">${_fmtMoney(totalWeighted)}</div><div style="font-size:11px;color:var(--t3)">weighted · ${_fmtMoney(totalValue)} unweighted</div></div>
+      <div style="text-align:right"><div style="font-size:16px;font-weight:700;color:var(--ok)">${_fmtMoney(totalWeighted)}</div><div style="font-size:11px;color:var(--t3)">weighted · ${_fmtMoney(totalValue)} unweighted</div></div>
     </div>
     ${bars}
   </div>`;
@@ -918,7 +918,7 @@ function _reportCoverage(openAll){
       <button class="btn btn-p" style="font-size:11px" onclick="_openPipelineQuotaSettings()">⚙ Configure quota</button>
     </div>`
     :`<div style="text-align:center;margin-bottom:12px">
-      <div style="font-size:28px;font-weight:800;color:${statusColor};line-height:1">${isFinite(coverage)?coverage.toFixed(1)+'x':'✓ met'}</div>
+      <div style="font-size:28px;font-weight:800;color:${_luAccentText(statusColor)};line-height:1">${isFinite(coverage)?coverage.toFixed(1)+'x':'✓ met'}</div>
       <div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:3px">coverage · target ${target}x · ${esc(statusLabel)}</div>
     </div>
     <div style="height:10px;background:var(--s3);border-radius:5px;overflow:hidden;margin-bottom:10px"><div style="height:100%;width:${gaugePct}%;background:${statusColor};border-radius:5px"></div></div>
@@ -931,7 +931,7 @@ function _reportCoverage(openAll){
     <div style="font-size:11px;color:var(--t3);margin-top:10px;text-align:center">Deals closing ${esc(win.start)} → ${esc(win.end)}${wonValue?` · ${_fmtMoney(wonValue)} already won counts toward the target`:''}${outside?` · ${outside} open deal${outside===1?'':'s'} outside the period or on hold not counted`:''}. ${target}x is the usual rule of thumb.</div>
     <div style="margin-top:8px;text-align:center"><button class="btn btn-s" style="font-size:11px" onclick="_openPipelineQuotaSettings()">⚙ Adjust quota</button></div>`;
   return `<div class="cd" style="padding:13px 15px;border-left:3px solid ${statusColor}">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:13px;font-weight:600">🎯 Pipeline Coverage</div><div style="font-size:11px;color:${statusColor};font-weight:600">${esc(statusLabel)}</div></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:13px;font-weight:600">🎯 Pipeline Coverage</div><div style="font-size:11px;color:${_luAccentText(statusColor)};font-weight:600">${esc(statusLabel)}</div></div>
     <p style="font-size:11px;color:var(--t3);margin:0 0 10px">Total open pipeline value divided by your revenue quota. The 3x rule of thumb assumes you'll win roughly a third of your pipeline.</p>
     ${body}
   </div>`;
@@ -1017,7 +1017,7 @@ function openOpportunityDetail(oppId,opts){
   // Stage progression buttons — quick-advance through non-terminal stages.
   const stageButtons=fromAtlas?`<span style="font-size:11px;color:var(--t3)">Set in Atlas</span>`:_PIPELINE_STAGES.map(s=>{
     const active=s.key===o.stage;
-    return `<button class="btn btn-s" style="height:24px;font-size:11px;padding:0 9px;background:${active?s.color:'transparent'};color:${active?'#fff':s.color};border-color:${s.color}" onclick="_setOpportunityStage(${o.id},'${_jsAttr(s.key)}')">${esc(s.label)}</button>`;
+    return `<button class="btn btn-s" style="height:24px;font-size:11px;padding:0 9px;background:${_luFillSafe(active?s.color:'transparent')};color:${active?'#fff':s.color};border-color:${s.color}" onclick="_setOpportunityStage(${o.id},'${_jsAttr(s.key)}')">${esc(s.label)}</button>`;
   }).join('');
   // Form fields — always editable inline.
   const field=(label,id,type,value,extra)=>{
@@ -1026,12 +1026,12 @@ function openOpportunityDetail(oppId,opts){
   };
   d.innerHTML=`<h2 style="display:flex;align-items:center;gap:8px;margin:0 0 6px"><span style="width:11px;height:11px;border-radius:3px;background:${stage.color}"></span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(o.name||'(unnamed)')}</span><button class="close" onclick="dismissDrawer()">✕</button></h2>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
-      <span class="pill" style="background:color-mix(in srgb,${stage.color} 18%,transparent);color:${stage.color};font-weight:700">${esc(stage.label)}</span>
+      <span class="pill" style="background:color-mix(in srgb,${stage.color} 18%,transparent);color:${_luAccentText(stage.color)};font-weight:700">${esc(stage.label)}</span>
       <span style="font-size:11px;color:var(--t2);align-self:center;font-weight:600">💰 ${_fmtMoney(o.value||0)}</span>
       <span style="font-size:11px;color:var(--ok);align-self:center">⚖ ${_fmtMoney(_weightedValue(o))} weighted</span>
       ${o.closeDate?`<span style="font-size:11px;color:var(--t3);align-self:center">📅 ${esc(o.closeDate)}</span>`:''}
-      ${o.source==='smartsheet'?`<span class="pill" style="background:color-mix(in srgb,#1f6feb 16%,transparent);color:#1f6feb;font-weight:600;font-size:11px" title="Was synced from Smartsheet (retired)">📊 Smartsheet</span>`:''}
-      ${fromAtlas?`<span class="pill" style="background:color-mix(in srgb,#0ea5e9 16%,transparent);color:#0369a1;font-weight:600;font-size:11px">🗺 From Atlas${o.atlasGone?' · no longer in Atlas':''}</span>`:''}
+      ${o.source==='smartsheet'?`<span class="pill" style="background:color-mix(in srgb,#1f6feb 16%,transparent);color:var(--ach);font-weight:600;font-size:11px" title="Was synced from Smartsheet (retired)">📊 Smartsheet</span>`:''}
+      ${fromAtlas?`<span class="pill" style="background:color-mix(in srgb,#0ea5e9 16%,transparent);color:var(--ach);font-weight:600;font-size:11px">🗺 From Atlas${o.atlasGone?' · no longer in Atlas':''}</span>`:''}
     </div>
     ${fromAtlas?`<div style="font-size:11px;color:var(--t3);margin:-4px 0 10px">Name, customer, stage, value, close date and owner follow Atlas. Notes, probability, contact and tasks here are yours.</div>`:''}
     <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Stage</div>
@@ -1181,7 +1181,7 @@ Pick exactly 3 actions. Avoid actions already in existingTasks. Be specific (men
     const mm=raw.match(/\{[\s\S]*\}/);if(!mm)throw new Error('AI returned no JSON');
     const out=JSON.parse(mm[0]);
     const actionRows=(out.actions||[]).slice(0,3).map((a,i)=>`<div style="padding:9px 11px;background:var(--s3);border-radius:6px;margin-bottom:6px">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:6px"><div style="font-size:12px;color:var(--t1);font-weight:600">${i+1}. ${esc(a.title||'')}</div><button class="btn btn-s" style="height:22px;font-size:11px;color:var(--ac)" onclick='_addAiActionToOpp(${oppId},${JSON.stringify(a).replace(/"/g,"&quot;")})'>+ Add task</button></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:6px"><div style="font-size:12px;color:var(--t1);font-weight:600">${i+1}. ${esc(a.title||'')}</div><button class="btn btn-s" style="height:22px;font-size:11px;color:var(--ach)" onclick='_addAiActionToOpp(${oppId},${JSON.stringify(a).replace(/"/g,"&quot;")})'>+ Add task</button></div>
       ${a.owner?`<div style="font-size:11px;color:var(--t3);margin-top:2px">👤 ${esc(a.owner)}</div>`:''}
       ${a.why?`<div style="font-size:11px;color:var(--t2);margin-top:3px">${esc(a.why)}</div>`:''}
     </div>`).join('');
@@ -1268,10 +1268,10 @@ function openPushQueueDrawer(){
     const checked=_pushQueueSel.has(key);
     return `<div class="lr" style="padding:9px 11px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:9px;${checked?'background:color-mix(in srgb,var(--ac) 8%,transparent)':''}">
       <div class="chk ${checked?'on':''}" style="flex-shrink:0" onclick="_togglePushQueueRow('${_jsAttr(key)}');this.classList.toggle('on');this.parentElement.style.background=this.classList.contains('on')?'color-mix(in srgb,var(--ac) 8%,transparent)':''"></div>
-      <span style="display:inline-block;padding:2px 6px;border-radius:3px;background:${srcColor};color:#fff;font-size:11px;font-weight:600;letter-spacing:.4px">${srcLabel}</span>
+      <span style="display:inline-block;padding:2px 6px;border-radius:3px;background:${_luFillSafe(srcColor)};color:#fff;font-size:11px;font-weight:600;letter-spacing:.4px">${srcLabel}</span>
       <span style="flex:1;font-size:12px;color:var(--t1);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(et.title||'')}</span>
       <span style="font-size:11px;color:var(--t3)">${esc(et.status||'')}</span>
-      <span style="font-size:11px;color:var(--ac);font-weight:600">→ ${esc(ovr.pendingStatus||'')}</span>
+      <span style="font-size:11px;color:var(--ach);font-weight:600">→ ${esc(ovr.pendingStatus||'')}</span>
       <button class="btn btn-s" style="height:22px;font-size:11px" onclick="_dropPushItem('${_jsAttr(et.source)}','${_jsAttr(et.externalId)}')" title="Drop from queue">✕</button>
     </div>`;
   }).join(''):`<div style="padding:24px;text-align:center;color:var(--t3);font-size:12px">No pending pushes — every status change has been delivered.</div>`;
@@ -1516,7 +1516,7 @@ function _renderBriefingCard(){
     if(!items||!items.length)return '';
     return `<div style="margin-top:10px"><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${emoji} ${title}</div><ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px">${items.slice(0,5).map(it=>{
       if(typeof it==='string')return `<li style="font-size:12px;color:var(--t1);padding:4px 8px;background:var(--s3);border-radius:4px">${esc(it)}</li>`;
-      const sub=opts==='risk'?(it.action?`<div style="font-size:11px;color:var(--ac);margin-top:2px">→ ${esc(it.action)}</div>`:''):'';
+      const sub=opts==='risk'?(it.action?`<div style="font-size:11px;color:var(--ach);margin-top:2px">→ ${esc(it.action)}</div>`:''):'';
       const srcBadge=it.source?` <span style="font-size:11px;color:var(--t3)">[${esc(it.source)}]</span>`:'';
       return `<li style="font-size:12px;color:var(--t1);padding:5px 8px;background:var(--s3);border-radius:4px"><div style="font-weight:600">${esc(it.title||'')}${srcBadge}</div>${it.why?`<div style="font-size:11px;color:var(--t2);margin-top:2px">${esc(it.why)}</div>`:''}${sub}</li>`;
     }).join('')}</ul></div>`;
@@ -1773,7 +1773,7 @@ function _renderPortfolioTimeline(){
       const overdue=!t.done&&e<todayMs;
       const bg=t.done?'color-mix(in srgb, '+t.color+' 35%, transparent)':t.color;
       const border=overdue?'2px solid #ef4444':'1px solid color-mix(in srgb,'+t.color+' 60%, #000)';
-      return `<div title="${esc(t.title)} (${esc(t.start)} → ${esc(t.end)})" style="position:absolute;left:${x}px;width:${w}px;top:4px;bottom:4px;background:${bg};border:${border};border-radius:4px;padding:0 6px;font-size:10px;color:#fff;line-height:18px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;${t.done?'opacity:.7':''}">${esc(t.title)}</div>`;
+      return `<div title="${esc(t.title)} (${esc(t.start)} → ${esc(t.end)})" style="position:absolute;left:${x}px;width:${w}px;top:4px;bottom:4px;background:${_luFillSafe(bg)};border:${border};border-radius:4px;padding:0 6px;font-size:10px;color:#fff;line-height:18px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;${t.done?'opacity:.7':''}">${esc(t.title)}</div>`;
     }).join('');
     return `<div style="display:flex;border-bottom:1px solid var(--bd1);min-height:30px">
       <div style="width:180px;padding:6px 9px;font-size:11px;color:var(--t1);flex-shrink:0;border-right:1px solid var(--bd1);background:var(--s2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="openProjectDetail(${project.id})">
@@ -1795,7 +1795,7 @@ function _renderPortfolioTimeline(){
   return `<div class="cd" style="padding:11px 13px;margin-top:18px;overflow:hidden">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
       <div style="font-size:12px;font-weight:600">📅 Portfolio Timeline</div>
-      <div style="font-size:11px;color:var(--t3)">${projIds.length} project${projIds.length===1?'':'s'} on chart${hiddenN?` · <span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;color:var(--ac)" onclick="_drillIntoDatelessTasks()" title="Filter Tasks to dateless rows so you can add dates in batch">${hiddenN} hidden (no dates)</span>`:''}</div>
+      <div style="font-size:11px;color:var(--t3)">${projIds.length} project${projIds.length===1?'':'s'} on chart${hiddenN?` · <span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;color:var(--ach)" onclick="_drillIntoDatelessTasks()" title="Filter Tasks to dateless rows so you can add dates in batch">${hiddenN} hidden (no dates)</span>`:''}</div>
     </div>
     <div style="display:flex;gap:10px;font-size:11px;color:var(--t3);margin-bottom:6px;flex-wrap:wrap">
       <span><span style="display:inline-block;width:10px;height:10px;background:#1f6feb;border-radius:2px;vertical-align:middle"></span> Smartsheet</span>
@@ -1833,7 +1833,7 @@ function openProgramDetail(pid){
   const totalN=nativeTasks.length+extLinked.length;
   const pct=totalN?Math.round(doneN/totalN*100):0;
   const overdueN=nativeTasks.filter(t=>t.status!=='Done'&&t.due&&t.due<_todayStr).length;
-  const statChip=(n,l,c)=>`<div style="flex:1;min-width:64px;background:var(--s2);border:1px solid var(--bd1);border-radius:9px;padding:9px;text-align:center"><div style="font-size:18px;font-weight:750;color:${c||'var(--t1)'};line-height:1">${n}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;margin-top:3px">${l}</div></div>`;
+  const statChip=(n,l,c)=>`<div style="flex:1;min-width:64px;background:var(--s2);border:1px solid var(--bd1);border-radius:9px;padding:9px;text-align:center"><div style="font-size:18px;font-weight:750;color:${_luAccentText(c||'var(--t1)')};line-height:1">${n}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;margin-top:3px">${l}</div></div>`;
   const projRows=projs.length?projs.map(p=>{
     const pt=_topLevelTasks(D.tasks).filter(t=>t.projectId===p.id);
     const pdone=pt.filter(t=>t.status==='Done').length;
@@ -1891,8 +1891,8 @@ function renderProjects(){
   const dn=ps.filter(p=>!p.archived&&(p.status==='Completed'||p.status==='Done')).length;
   const ar=ps.filter(p=>p.archived).length;
   const subtitle=`${a} active${oh?` · ${oh} on hold`:''}${dn?` · ${dn} completed`:''}${ar?` · ${ar} archived`:''}`||`${ps.length} project${ps.length!==1?'s':''}`;
-  const aiMenu=`<div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:11px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('proj-ai-menu')" title="AI tools">✨ AI ▾</button><div id="proj-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)">
-    <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('proj-ai-menu');aiProjectHealth()">🩺 Health Summary</button>
+  const aiMenu=`<div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:11px;color:var(--ach)" onclick="event.stopPropagation();togglePopMenu('proj-ai-menu')" title="AI tools">✨ AI ▾</button><div id="proj-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)">
+    <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ach);background:transparent;border:none;text-align:left" onclick="closePopMenu('proj-ai-menu');aiProjectHealth()">🩺 Health Summary</button>
     <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('proj-ai-menu');aiProjectNextMilestone()">🎯 Suggest Next Milestone</button>
     <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--red);background:transparent;border:none;text-align:left" onclick="closePopMenu('proj-ai-menu');aiProjectRisks()">⚠️ Identify Risks</button>
   </div></div>`;
@@ -1941,7 +1941,7 @@ function renderProjectsTeamKanban(header){
     const done=pool.filter(t=>t.status==='Done'&&(col.key===null?(t.assignedTo==null||t.assignedTo===''):(t.assignedTo===col.key))).length;
     return`<div style="flex:1;min-width:200px;max-width:280px">
       <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:6px 6px 0 0;background:var(--s3);margin-bottom:6px">
-        <div style="width:22px;height:22px;border-radius:50%;background:${col.color};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">${col.initials}</div>
+        <div style="width:22px;height:22px;border-radius:50%;background:${_luFillSafe(col.color)};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">${col.initials}</div>
         <span style="font-size:11px;font-weight:600;flex:1">${col.label}</span>
         <span style="font-size:11px;color:var(--t3)">${tasks.length} active · ${done} done</span>
       </div>
@@ -1983,7 +1983,7 @@ function _projPortfolioStrip(){
   let msOverdue=0,msTotal=0;
   all.forEach(p=>(Array.isArray(p.milestones)?p.milestones:[]).forEach(m=>{msTotal++;if(!m.done&&m.due&&m.due<today)msOverdue++;}));
   const avgPct=all.length?Math.round(all.reduce((s,p)=>s+(p.pct||0),0)/all.length):0;
-  const cell=(big,lbl,col)=>`<div class="pf-cell"><div class="pf-n" style="${col?`color:${col}`:''}">${big}</div><div class="pf-l">${lbl}</div></div>`;
+  const cell=(big,lbl,col)=>`<div class="pf-cell"><div class="pf-n" style="${col?`color:${_luAccentText(col)}`:''}">${big}</div><div class="pf-l">${lbl}</div></div>`;
   return `<div class="pf-strip">
     ${cell(all.length,'Projects')}
     ${cell(active.length,'Active','var(--ac)')}
@@ -2032,7 +2032,7 @@ function renderProjectsList(header){
         <span class="pc-name" style="${p.archived?'text-decoration:line-through':''}">${p.icon?esc(p.icon)+' ':''}${esc(p.name||'Untitled project')}</span>
       </div>
       <div class="pc-pills">
-        <span class="pc-health" style="color:${health.color};background:color-mix(in srgb,${health.color} 16%,transparent)">${health.icon} ${health.label}</span>
+        <span class="pc-health" style="color:${_luAccentText(health.color)};background:color-mix(in srgb,${health.color} 16%,transparent)">${health.icon} ${health.label}</span>
         <span class="pill ${statusPill(p.status)}">${p.status||'—'}</span>
         ${overdue?`<span class="pc-health" style="color:var(--red);background:color-mix(in srgb,var(--red) 16%,transparent)">⚠ ${overdue} overdue</span>`:''}
       </div>
@@ -2126,7 +2126,7 @@ function openProjectDetail(pid){
   const pct=p.pctManual?Math.max(0,Math.min(100,p.pct||0)):(autoPct!==null?autoPct:Math.max(0,Math.min(100,p.pct||0)));
   const goalIds=[...new Set(pts.map(t=>t.linkedGoalId).filter(Boolean))];
   const goals=(D.goals||[]).filter(g=>goalIds.includes(g.id)||g.projectId===pid);
-  const statChip=(n,l,c)=>`<div style="flex:1;min-width:64px;background:var(--s2);border:1px solid var(--bd1);border-radius:9px;padding:9px;text-align:center"><div style="font-size:18px;font-weight:750;color:${c||'var(--t1)'};line-height:1">${n}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;margin-top:3px">${l}</div></div>`;
+  const statChip=(n,l,c)=>`<div style="flex:1;min-width:64px;background:var(--s2);border:1px solid var(--bd1);border-radius:9px;padding:9px;text-align:center"><div style="font-size:18px;font-weight:750;color:${_luAccentText(c||'var(--t1)')};line-height:1">${n}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;margin-top:3px">${l}</div></div>`;
   const msRows=ms.length?ms.map((m,i)=>{
     const od=!m.done&&(m.date||m.due)&&(m.date||m.due)<_todayStr;
     return `<div class="lr" style="padding:7px 0;border-bottom:1px solid var(--bd1);align-items:center">
@@ -2148,14 +2148,14 @@ function openProjectDetail(pid){
     </div>`}).join('');
   d.innerHTML=`<h2 style="display:flex;align-items:center;gap:8px"><span style="width:11px;height:11px;border-radius:3px;background:${p.color}"></span>${p.icon?`<span style="font-size:18px;flex-shrink:0">${esc(p.icon)}</span>`:''}<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</span><button class="close" onclick="dismissDrawer()">✕</button></h2>
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
-    <span class="pill" style="background:color-mix(in srgb,${health.color} 16%,transparent);color:${health.color};font-weight:700">${health.icon} ${health.label}</span>
+    <span class="pill" style="background:color-mix(in srgb,${health.color} 16%,transparent);color:${_luAccentText(health.color)};font-weight:700">${health.icon} ${health.label}</span>
     <span class="pill ${statusPill(p.status)}">${p.status||'—'}</span>
     ${p.autoCreatedBy?(function(){
       const src=(p.autoSyncSource&&p.autoSyncSource.source)||(p.autoCreatedBy==='nifty-sync'?'nifty':'smartsheet');
       const label=src==='nifty'?'LSI · NiftyPM':'CF · Smartsheet';
       const color=src==='nifty'?'#9333ea':'#1f6feb';
       const sheetName=(p.autoSyncSource&&p.autoSyncSource.sheetName)?` · ${esc(p.autoSyncSource.sheetName)}`:'';
-      return `<span class="pill" style="background:color-mix(in srgb,${color} 16%,transparent);color:${color};font-weight:600;font-size:11px" title="Auto-synced from ${esc(label)}${sheetName}">📊 Auto-synced${sheetName}</span>`;
+      return `<span class="pill" style="background:color-mix(in srgb,${color} 16%,transparent);color:${_luAccentText(color)};font-weight:600;font-size:11px" title="Auto-synced from ${esc(label)}${sheetName}">📊 Auto-synced${sheetName}</span>`;
     })():''}
     ${p.owner?`<span style="font-size:11px;color:var(--t3);align-self:center">👤 ${esc(p.owner)}</span>`:''}
     <span style="font-size:11px;color:${p.due&&p.due!=='TBD'&&p.due<_todayStr?'var(--red)':'var(--t3)'};align-self:center">📅 ${esc(p.due||'No due date')}</span>
@@ -2185,7 +2185,7 @@ function openProjectDetail(pid){
     <button class="btn btn-p" onclick="closeDrawer();openDrawer('project',D.projects.find(x=>x.id===${pid}))">✏ Edit Project</button>
     <button class="btn btn-s" onclick="closeDrawer();openFA('task')">+ Add task</button>
     <button class="btn btn-s" onclick="_openExternalTaskPicker(${pid})" title="Pick CF/LSI tasks to include in this project">🔗 Link external task</button>
-    ${p.autoCreatedBy&&p.autoCreatedBy!=='smartsheet-sync'?`<button class="btn btn-s" style="color:#1f6feb;border-color:#1f6feb" onclick="_resyncProjectSource(${pid})" title="Pull fresh data from the originating Smartsheet/Nifty source">↻ Resync source</button>`:''}
+    ${p.autoCreatedBy&&p.autoCreatedBy!=='smartsheet-sync'?`<button class="btn btn-s" style="color:var(--ach);border-color:#1f6feb" onclick="_resyncProjectSource(${pid})" title="Pull fresh data from the originating Smartsheet/Nifty source">↻ Resync source</button>`:''}
     <button class="btn btn-s" style="color:var(--purp)" onclick="_aiProjectCoach(${pid})" title="AI health summary + blockers + suggested next milestone for this project">🩺 AI Coach</button>
     <button class="btn btn-s" style="color:var(--purp)" onclick="_aiProjectStatusUpdate(${pid})" title="AI-generated stakeholder summary you can paste into an email">✨ Status update</button>
     <button class="btn btn-s" onclick="closeDrawer()">Close</button>
@@ -2286,7 +2286,7 @@ Pick 0-4 blockers (only real ones), exactly 3 recommendedFocus items. Items in b
           <h2 style="font-size:15px;font-weight:650;margin:0">🩺 AI Coach · ${esc(p.name||'')}</h2>
           ${freshness?`<div style="font-size:11px;color:var(--t3);margin-top:2px">Generated ${esc(freshness)}</div>`:''}
         </div>
-        <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:11px;background:color-mix(in srgb,${hc} 18%,transparent);color:${hc};text-transform:uppercase;letter-spacing:.05em">${esc(coach.health||'unknown')}</span>
+        <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:11px;background:color-mix(in srgb,${hc} 18%,transparent);color:${_luAccentText(hc)};text-transform:uppercase;letter-spacing:.05em">${esc(coach.health||'unknown')}</span>
       </div>
       <div style="font-size:13px;color:var(--t1);font-style:italic;padding:10px 12px;background:color-mix(in srgb,${hc} 10%,transparent);border-left:3px solid ${hc};border-radius:4px;margin-bottom:10px">"${esc(coach.headline||'')}"</div>
       <div style="font-size:12px;color:var(--t2);line-height:1.6">${esc(coach.summary||'')}</div>
@@ -2838,7 +2838,7 @@ function renderProjectsGantt(header){
     const cfN=extLinked.filter(t=>t.source==='smartsheet').length;
     const lsiN=extLinked.filter(t=>t.source==='nifty').length;
     const extBadge=extLinked.length
-      ?`<span title="${cfN?cfN+' CF':''}${cfN&&lsiN?' · ':''}${lsiN?lsiN+' LSI':''} external task${extLinked.length===1?'':'s'} linked" style="display:inline-flex;align-items:center;gap:2px;font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;background:var(--s3);color:var(--t2);margin-left:4px">${cfN?`<span style="color:#1f6feb">${cfN}CF</span>`:''}${cfN&&lsiN?'·':''}${lsiN?`<span style="color:#9333ea">${lsiN}LSI</span>`:''}</span>`
+      ?`<span title="${cfN?cfN+' CF':''}${cfN&&lsiN?' · ':''}${lsiN?lsiN+' LSI':''} external task${extLinked.length===1?'':'s'} linked" style="display:inline-flex;align-items:center;gap:2px;font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;background:var(--s3);color:var(--t2);margin-left:4px">${cfN?`<span style="color:var(--ach)">${cfN}CF</span>`:''}${cfN&&lsiN?'·':''}${lsiN?`<span style="color:var(--purp)">${lsiN}LSI</span>`:''}</span>`
       :'';
     return`<div class="gantt-row" style="display:flex;align-items:center;gap:8px;padding:8px 6px;border-bottom:1px solid var(--bd1);border-radius:7px">
       <div style="width:170px;flex-shrink:0;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="openProject(${p.id})" title="${esc(p.name)} · ${hp.label}">

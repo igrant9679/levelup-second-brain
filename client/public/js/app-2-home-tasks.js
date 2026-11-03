@@ -407,7 +407,7 @@ function aiUnblockTask(id){
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">🔓 AI Unblock Suggestions</h2>
   <div style="font-size:11px;color:var(--t2);margin-bottom:4px">Blocked task: <strong>${esc(t.title)}</strong></div>
   <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Blocked by: <em>${esc(blockerTitle)}</em></div>
-  <div style="max-height:240px;overflow-y:auto">${suggestions.map((s,i)=>`<div style="padding:7px 10px;margin-bottom:5px;border-radius:6px;background:var(--s2);font-size:12px;display:flex;gap:8px;align-items:flex-start"><span style="color:var(--ac);font-weight:700;flex-shrink:0">${i+1}.</span><span>${esc(s)}</span></div>`).join('')}</div>
+  <div style="max-height:240px;overflow-y:auto">${suggestions.map((s,i)=>`<div style="padding:7px 10px;margin-bottom:5px;border-radius:6px;background:var(--s2);font-size:12px;display:flex;gap:8px;align-items:flex-start"><span style="color:var(--ach);font-weight:700;flex-shrink:0">${i+1}.</span><span>${esc(s)}</span></div>`).join('')}</div>
   <div style="display:flex;gap:8px;margin-top:12px">
   <button class="btn btn-p" onclick="const task=D.tasks.find(x=>x.id===${id});if(task){task.blockedBy=null;task.status='Not Started';save('tasks');renderScreen(curScreen);closeModal();toast('🔓 Task unblocked!')}">Mark as Unblocked</button>
   <button class="btn btn-s" onclick="closeModal()">Close</button>
@@ -483,7 +483,7 @@ function _taskPillPicker(e,id,field){
   pop.id='task-pill-pop';pop.className='lu-pill-pop';
   pop.style.left=Math.min(window.innerWidth-150,r.left)+'px';
   pop.style.top=(r.bottom+6)+'px';
-  pop.innerHTML=opts.map(o=>`<button data-v="${esc(o)}" ${t[field]===o?'style="background:var(--acs);color:var(--ac)"':''}>${esc(o)}</button>`).join('');
+  pop.innerHTML=opts.map(o=>`<button data-v="${esc(o)}" ${t[field]===o?'style="background:var(--acs);color:var(--ach)"':''}>${esc(o)}</button>`).join('');
   document.body.appendChild(pop);
   pop.querySelectorAll('button').forEach(b=>{
     b.onclick=ev=>{
@@ -654,7 +654,7 @@ function _renderDowOverrideGrid(){
     const isOff=o&&o.nonWorking;
     const label=isOff?'OFF':isOverride?`${String(o.start).padStart(2,'0')}–${String(o.end).padStart(2,'0')}`:'default';
     const color=isOff?'#ef4444':isOverride?'#3b82f6':'var(--t3)';
-    return `<button class="btn btn-s" style="height:auto;padding:6px 4px;font-size:11px;display:flex;flex-direction:column;align-items:center;gap:2px;border-color:${isOverride?color:'var(--bd2)'};color:${color}" onclick="_openDowOverride(${dow})" title="Click to set working hours for ${nm}"><span style="font-weight:600">${nm}</span><span style="font-size:11px">${label}</span></button>`;
+    return `<button class="btn btn-s" style="height:auto;padding:6px 4px;font-size:11px;display:flex;flex-direction:column;align-items:center;gap:2px;border-color:${isOverride?color:'var(--bd2)'};color:${_luAccentText(color)}" onclick="_openDowOverride(${dow})" title="Click to set working hours for ${nm}"><span style="font-weight:600">${nm}</span><span style="font-size:11px">${label}</span></button>`;
   }).join('');
 }
 function _openDowOverride(dow){
@@ -811,13 +811,13 @@ function _renderCapacityIndicator(check, opts){
   if(compact){
     return `<span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--t2)" title="${c.taskCount} task${c.taskCount===1?'':'s'} (${planned}) vs ${free} free in working hours">
       <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color}"></span>
-      <strong style="color:${color}">${planned} planned</strong> · ${free} free · ${verdict}
+      <strong style="color:${_luAccentText(color)}">${planned} planned</strong> · ${free} free · ${verdict}
     </span>`;
   }
   return `<div class="cd" style="padding:11px 14px;border-left:3px solid ${color};margin-bottom:10px;cursor:pointer" onclick="_openCapacityDetail()" title="Click for details">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
       <div style="font-size:12px;font-weight:600">${_icon('barChart',16,'currentColor')} Today's Capacity</div>
-      <div style="font-size:11px;color:${color};font-weight:600">${verdict}</div>
+      <div style="font-size:11px;color:${_luAccentText(color)};font-weight:600">${verdict}</div>
     </div>
     <div style="display:flex;gap:14px;font-size:11px;color:var(--t2);margin-top:6px;flex-wrap:wrap">
       <span>📋 <strong style="color:var(--t1)">${planned}</strong> planned (${c.taskCount} task${c.taskCount===1?'':'s'})</span>
@@ -1004,7 +1004,7 @@ function _renderSmartScheduleModal(record){
     const title=(record.taskTitles&&record.taskTitles[String(b.taskId)])||'(task)';
     const dur=Number(b.durationMins)||30;
     return `<div class="lr" style="padding:8px 11px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:9px">
-      <span style="font-size:11px;color:var(--ac);font-weight:600;min-width:96px">${fmtMins(b.startMins)} → ${fmtMins(b.startMins+dur)}</span>
+      <span style="font-size:11px;color:var(--ach);font-weight:600;min-width:96px">${fmtMins(b.startMins)} → ${fmtMins(b.startMins+dur)}</span>
       <div style="flex:1;min-width:0">
         <div style="font-size:12px;color:var(--t1);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(title)}</div>
         ${b.reason?`<div style="font-size:11px;color:var(--t3);margin-top:2px">${esc(b.reason)}</div>`:''}
@@ -1030,7 +1030,7 @@ function _renderSmartScheduleModal(record){
       <button class="btn btn-s" onclick="aiSmartSchedule({force:true})" title="Regenerate with current data">↻ Refresh</button>
       <button class="btn btn-s" onclick="_copyScheduleToClipboard()" title="Copy as markdown">📋 Copy</button>
       <button class="btn btn-p" style="background:var(--ac)" onclick="_applyScheduleToCalendar()" title="Add blocks to LevelUp's local calendar">📅 Apply to Calendar</button>
-      <button class="btn btn-s" style="color:#9333ea;border-color:#9333ea" onclick="_pushScheduleToOAuthCalendar()" title="Create matching events in your connected Outlook / Google calendar">📤 Push to Outlook</button>
+      <button class="btn btn-s" style="color:var(--purp);border-color:#9333ea" onclick="_pushScheduleToOAuthCalendar()" title="Create matching events in your connected Outlook / Google calendar">📤 Push to Outlook</button>
       <button class="btn btn-s" onclick="closeModal()">Close</button>
     </div>
   </div>`;
@@ -1137,7 +1137,7 @@ function _applyScheduleToCalendar(){
       title:`▶ ${title}`,
       hour:startH,
       endHour:endH+(endM?1:0), // round up to next full hour for the bar
-      color:'var(--ac)',
+      color:'var(--ach)',
       dateStr:ds,
       linkedTaskId:b.taskId,
       _planned:true,
@@ -1195,7 +1195,7 @@ function openTimeBlockPicker(taskId,ymd){
   const dayChips=days.map((x,i)=>{
     const k=_ymd(x),on=k===day,off=_workingHours(x).nonWorking;
     const lbl=i===0?'Today':i===1?'Tomorrow':x.toLocaleDateString('en-US',{weekday:'short',day:'numeric'});
-    return `<button class="btn btn-s" style="height:26px;font-size:11px;padding:0 8px;${on?'background:var(--acs);color:var(--ac);font-weight:700;':''}${off?'opacity:.6;':''}"${_act('openTimeBlockPicker',[t.id,k])} aria-pressed="${on}">${lbl}</button>`;
+    return `<button class="btn btn-s" style="height:26px;font-size:11px;padding:0 8px;${on?'background:var(--acs);color:var(--ach);font-weight:700;':''}${off?'opacity:.6;':''}"${_act('openTimeBlockPicker',[t.id,k])} aria-pressed="${on}">${lbl}</button>`;
   }).join('');
   const dayLabel=day===today?'today':fmtDate(day);
   const slotButtons=slots.length?slots.slice(0,24).map(s=>`<button class="btn btn-s" style="height:30px;font-size:11px;padding:0 10px;justify-content:flex-start" onclick="_blockTaskAt(${_jsArg(taskId)},${s.startMins},${s.endMins},'${_jsAttr(day)}')">${fmt(s.startMins)} – ${fmt(s.endMins)}</button>`).join(''):`<div style="font-size:11px;color:var(--t3);font-style:italic;padding:8px">${wh.nonWorking?'Not a working day (Settings → General → Working Hours).':'No free slots fit '+_fmtHm(dur)+' '+esc(dayLabel)+'. Pick another day above, or drag the task onto the calendar.'}</div>`;
@@ -1225,7 +1225,7 @@ function _blockTaskAt(taskId,startMins,endMins,ymd){
     hour:Math.floor(startMins/60),minute:startMins%60,
     endHour:Math.ceil(endMins/60), // the grid cell the block reaches
     start:hm(startMins),time:hm(startMins),end:hm(endMins),
-    color:'var(--ac)',
+    color:'var(--ach)',
     linkedTaskId:String(taskId),
     _planned:true,
   });
@@ -2205,10 +2205,10 @@ function renderHome(){
   // so the hero always feels "their" theme regardless of time of day.
   const _accent=(getComputedStyle(document.documentElement).getPropertyValue('--ac')||'#5b21b6').trim()||'#5b21b6';
   const _phaseGrad={
-    morning:`linear-gradient(125deg,#fb923c 0%,${_accent} 50%,#a855f7 100%)`,
-    afternoon:`linear-gradient(125deg,#0ea5e9 0%,${_accent} 50%,#7c3aed 100%)`,
-    evening:`linear-gradient(125deg,#1e3a8a 0%,${_accent} 45%,#9d174d 100%)`,
-    night:`linear-gradient(125deg,#020617 0%,#1e1b4b 50%,${_accent} 100%)`,
+    morning:`linear-gradient(125deg,${_luHeroStop('#fb923c')} 0%,${_luHeroStop(_accent)} 50%,${_luHeroStop('#a855f7')} 100%)`,
+    afternoon:`linear-gradient(125deg,${_luHeroStop('#0ea5e9')} 0%,${_luHeroStop(_accent)} 50%,${_luHeroStop('#7c3aed')} 100%)`,
+    evening:`linear-gradient(125deg,#1e3a8a 0%,${_luHeroStop(_accent)} 45%,#9d174d 100%)`,
+    night:`linear-gradient(125deg,#020617 0%,#1e1b4b 50%,${_luHeroStop(_accent)} 100%)`,
   };
   const _heroGradient=_phaseGrad[_greetWord]||_phaseGrad.evening;
   // Compute today's primary stats.
@@ -2313,7 +2313,7 @@ function renderHome(){
       ${_tiles.map((s,i)=>`<div class="home-hero-tile" data-tile-idx="${i}" onclick="nav('${_jsAttr(s.navTo)}')" onmouseenter="_heroTilePopShow(event)" onmouseleave="_heroTilePopHide()" style="display:flex;align-items:center;gap:9px;padding:8px 11px;background:rgba(10,14,28,.72);border:1px solid color-mix(in srgb,${s.color} 50%,transparent);border-radius:10px;backdrop-filter:blur(14px);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)">
         <div style="width:30px;height:30px;border-radius:8px;background:color-mix(in srgb,${s.color} 28%,rgba(0,0,0,.25));display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;border:1px solid color-mix(in srgb,${s.color} 35%,transparent)">${s.icon}</div>
         <div style="min-width:0;flex:1">
-          <div style="font-size:18px;font-weight:800;color:${s.color};line-height:1;text-shadow:0 1px 8px color-mix(in srgb,${s.color} 35%,transparent)">${s.val}</div>
+          <div style="font-size:18px;font-weight:800;color:${_luTextOnDark(s.color)};line-height:1;text-shadow:0 1px 8px color-mix(in srgb,${s.color} 35%,transparent)">${s.val}</div>
           <div style="font-size:11px;color:rgba(255,255,255,.78);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-top:2px">${s.label}</div>
         </div>
       </div>`).join('')}
@@ -2330,7 +2330,7 @@ function renderHome(){
     const col=(icon,title,navRoute,inner)=>`<div class="cd" style="padding:12px;min-width:0">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <span style="font-size:12px;font-weight:700">${icon} ${title}</span>
-        <span style="font-size:11px;color:var(--ac);cursor:pointer" onclick="nav('${_jsAttr(navRoute)}')">Open →</span>
+        <span style="font-size:11px;color:var(--ach);cursor:pointer" onclick="nav('${_jsAttr(navRoute)}')">Open →</span>
       </div>${inner}</div>`;
     const taskRows=myday.length?myday.map(t=>`<div class="lr" style="padding:3px 0">
         <div class="chk" onclick="event.stopPropagation();toggleTask(${_tidLit(t.id)});setTimeout(renderHome,80)" title="Mark done"></div>
@@ -2339,7 +2339,7 @@ function renderHome(){
       </div>`).join('')
       :`<div style="font-size:11px;color:var(--t3);padding:6px 0">No My Day tasks yet — star tasks into My Day to plan your day.</div>`;
     const evRows=evs.length?evs.map(e=>`<div style="display:flex;gap:8px;align-items:baseline;padding:3px 0;border-bottom:1px solid var(--bd1)">
-        <span style="font-size:11px;font-weight:700;color:var(--ac);min-width:38px">${esc((e.start||'').slice(11,16)||'—')}</span>
+        <span style="font-size:11px;font-weight:700;color:var(--ach);min-width:38px">${esc((e.start||'').slice(11,16)||'—')}</span>
         <span style="font-size:12px;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.title||e.subject||'(untitled)')}</span>
       </div>`).join('')
       :`<div style="font-size:11px;color:var(--t3);padding:6px 0">No events scheduled today.</div>`;
@@ -2351,8 +2351,8 @@ function renderHome(){
       ${col('✅',`Habits ${daily.length?`<span style="font-size:11px;color:var(--t3);font-weight:400">${daily.filter(h=>h.doneToday).length}/${daily.length}</span>`:''}`,'habits',habitChips)}
     </div>`;
   })()}
-  <div class="cd" style="display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px;align-items:center"><span style="font-size:12px;font-weight:600;color:var(--ac);margin-right:4px">${_icon('zap',15,'var(--page-accent)')} Quick Add</span>
-  ${[['Task','#22c55e'],['Note','#f97316'],['Project','#a855f7'],['Goal','#dc2626'],['Journal','#f43f5e'],['Habit','#10b981']].map(([t,c])=>`<span style="font-size:11px;color:${c};cursor:pointer;padding:4px 10px;border-radius:6px;border:1px solid color-mix(in srgb,${c} 25%,var(--bd2));background:color-mix(in srgb,${c} 8%,transparent);font-weight:500;transition:filter .12s,transform .1s" onmouseover="this.style.filter='brightness(1.2)';this.style.transform='translateY(-1px)'" onmouseout="this.style.filter='';this.style.transform=''" onclick="openFA('${t.toLowerCase()}')">+ ${t}</span>`).join('')}</div>
+  <div class="cd" style="display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px;align-items:center"><span style="font-size:12px;font-weight:600;color:var(--ach);margin-right:4px">${_icon('zap',15,'var(--page-accent)')} Quick Add</span>
+  ${[['Task','#22c55e'],['Note','#f97316'],['Project','#a855f7'],['Goal','#dc2626'],['Journal','#f43f5e'],['Habit','#10b981']].map(([t,c])=>`<span style="font-size:11px;color:${_luAccentText(c)};cursor:pointer;padding:4px 10px;border-radius:6px;border:1px solid color-mix(in srgb,${c} 25%,var(--bd2));background:color-mix(in srgb,${c} 8%,transparent);font-weight:500;transition:filter .12s,transform .1s" onmouseover="this.style.filter='brightness(1.2)';this.style.transform='translateY(-1px)'" onmouseout="this.style.filter='';this.style.transform=''" onclick="openFA('${t.toLowerCase()}')">+ ${t}</span>`).join('')}</div>
   ${(()=>{
     const cardHtml={
       tasks:(()=>{
@@ -2418,15 +2418,15 @@ function renderHome(){
         const activeFocusTask=D.tasks.find(t=>t.id===(_focusTaskId||null));
         return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('clock',15,'currentColor')} Focus</div><span class="cd-a" onclick="nav('focus')">Open Focus</span></div>
           <div style="display:flex;gap:16px;align-items:center;padding:8px 0;border-bottom:1px solid var(--bd1);margin-bottom:10px">
-            <div style="text-align:center"><div style="font-size:24px;font-weight:700;color:var(--ac)">${todaySessions}</div><div style="font-size:11px;color:var(--t3)">Sessions</div></div>
-            <div style="text-align:center"><div style="font-size:24px;font-weight:700;color:var(--ac)">${todayMins}</div><div style="font-size:11px;color:var(--t3)">Minutes Today</div></div>
+            <div style="text-align:center"><div style="font-size:24px;font-weight:700;color:var(--ach)">${todaySessions}</div><div style="font-size:11px;color:var(--t3)">Sessions</div></div>
+            <div style="text-align:center"><div style="font-size:24px;font-weight:700;color:var(--ach)">${todayMins}</div><div style="font-size:11px;color:var(--t3)">Minutes Today</div></div>
             <div style="text-align:center"><div style="font-size:24px;font-weight:700;color:var(--t2)">${weekMins}</div><div style="font-size:11px;color:var(--t3)">This Week</div></div>
           </div>
           ${activeFocusTask?`<div style="font-size:11px;color:var(--t2);margin-bottom:8px">Current: <strong>${esc(activeFocusTask.title)}</strong></div>`:'<div style="font-size:11px;color:var(--t3);margin-bottom:8px">No task selected</div>'}
           <button class="btn btn-p" style="width:100%;height:30px;font-size:11px" onclick="nav('focus')">▶ Start Focus Session</button>
         </div>`;
       })(),
-      files:`<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('folder',15,'#3b82f6')} Recent Files</div><span class="cd-a" onclick="nav('mail')">Open Files</span></div><div style="padding:14px 8px;text-align:center;color:var(--t3);font-size:11px">File sync requires a connected cloud account.<br><span style="color:var(--ac);cursor:pointer" onclick="nav('settings')">Connect in Settings →</span></div></div>`,
+      files:`<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('folder',15,'#3b82f6')} Recent Files</div><span class="cd-a" onclick="nav('mail')">Open Files</span></div><div style="padding:14px 8px;text-align:center;color:var(--t3);font-size:11px">File sync requires a connected cloud account.<br><span style="color:var(--ach);cursor:pointer" onclick="nav('settings')">Connect in Settings →</span></div></div>`,
       reports:(()=>{
         const today=new Date();
         const todayKey=_ymd(today);
@@ -2436,7 +2436,7 @@ function renderHome(){
         const counts=days.map(d=>{const k=_ymd(d);return (D.tasks||[]).filter(t=>t.status==='Done'&&_dayOf(t.completedAt)===k).length;});
         const maxC=Math.max(...counts,1);
         const totalC=counts.reduce((a,b)=>a+b,0);
-        const bars=counts.map((c,i)=>{const h=Math.round(c/maxC*48)+2;const isToday=i===6;return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px"><div style="width:100%;background:${isToday?'var(--ac)':'var(--s3)'};border-radius:3px 3px 0 0;height:${h}px;min-height:3px;position:relative" title="${c} done"><span style="position:absolute;top:-14px;left:0;right:0;text-align:center;font-size:11px;font-weight:600;color:${isToday?'var(--ac)':'var(--t3)'}">${c||''}</span></div><div style="font-size:11px;color:${isToday?'var(--ac)':'var(--t3)'};font-weight:${isToday?'600':'400'}">${dayLabels[days[i].getDay()]}</div></div>`;}).join('');
+        const bars=counts.map((c,i)=>{const h=Math.round(c/maxC*48)+2;const isToday=i===6;return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px"><div style="width:100%;background:${isToday?'var(--ac)':'var(--s3)'};border-radius:3px 3px 0 0;height:${h}px;min-height:3px;position:relative" title="${c} done"><span style="position:absolute;top:-14px;left:0;right:0;text-align:center;font-size:11px;font-weight:600;color:${isToday?'var(--ach)':'var(--t3)'}">${c||''}</span></div><div style="font-size:11px;color:${isToday?'var(--ach)':'var(--t3)'};font-weight:${isToday?'600':'400'}">${dayLabels[days[i].getDay()]}</div></div>`;}).join('');
         // Goal progress (avg)
         const gs=D.goals||[];
         const avgGoal=gs.length?Math.round(gs.reduce((s,g)=>s+(g.pct||0),0)/gs.length):0;
@@ -2454,7 +2454,7 @@ function renderHome(){
         return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('barChart',15,'#3b82f6')} Reports & Insights</div><span class="cd-a" onclick="openExportPicker()">Export</span></div>
           <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:14px;align-items:start">
             <div>
-              <div style="font-size:11px;color:var(--t3);margin-bottom:18px">Tasks completed — last 7 days <strong style="color:var(--ac)">(${totalC} total)</strong></div>
+              <div style="font-size:11px;color:var(--t3);margin-bottom:18px">Tasks completed — last 7 days <strong style="color:var(--ach)">(${totalC} total)</strong></div>
               <div style="display:flex;align-items:flex-end;gap:5px;height:64px">${bars}</div>
             </div>
             <div style="display:flex;flex-direction:column;gap:10px">
@@ -2463,7 +2463,7 @@ function renderHome(){
                 <div><div style="font-size:11px;font-weight:600">All-time done</div><div style="font-size:11px;color:var(--t3)">${totalDone} of ${totalAll} tasks</div></div>
               </div>
               <div>
-                <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span>Goals avg</span><strong style="color:var(--ac)">${avgGoal}%</strong></div>
+                <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span>Goals avg</span><strong style="color:var(--ach)">${avgGoal}%</strong></div>
                 <div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${avgGoal}%;background:var(--ac);border-radius:3px"></div></div>
               </div>
               <div>
@@ -2531,7 +2531,7 @@ function renderHome(){
         }else{ // 'recent' default
           maps=(D.mindmaps||[]).slice(-5).reverse();
         }
-        const body=maps.length?maps.map(m=>`<div class="lr" style="cursor:pointer" onclick="nav('mindmaps');setTimeout(()=>typeof mmOpen==='function'&&mmOpen(${m.id}),100)"><span style="font-size:14px;flex-shrink:0">🧠</span><span class="rt" style="font-size:11px">${esc(m.title||m.name||'Untitled')}</span><span class="rm">${(m.nodes||[]).length} nodes</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No mind maps yet.<br><span style="color:var(--ac);cursor:pointer" onclick="nav(\'mindmaps\')">Create one →</span></div>';
+        const body=maps.length?maps.map(m=>`<div class="lr" style="cursor:pointer" onclick="nav('mindmaps');setTimeout(()=>typeof mmOpen==='function'&&mmOpen(${m.id}),100)"><span style="font-size:14px;flex-shrink:0">🧠</span><span class="rt" style="font-size:11px">${esc(m.title||m.name||'Untitled')}</span><span class="rm">${(m.nodes||[]).length} nodes</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No mind maps yet.<br><span style="color:var(--ach);cursor:pointer" onclick="nav(\'mindmaps\')">Create one →</span></div>';
         return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('brain',15,'#ec4899')} Mind Maps</div><span class="cd-a" onclick="nav('mindmaps')">View all</span></div>${body}<div class="add-c" onclick="nav('mindmaps')">+ New Mind Map</div></div>`;
       })(),
       // ── Recent Bookmarks ──
@@ -2543,7 +2543,7 @@ function renderHome(){
         }else{ // 'recent' default
           bks=(D.bookmarks||[]).slice().sort((a,b)=>(Date.parse(b.createdAt||0)||b.id||0)-(Date.parse(a.createdAt||0)||a.id||0)).slice(0,5);
         }
-        const body=bks.length?bks.map(b=>`<div class="lr" style="cursor:pointer" onclick="_luOpenUrl('${_jsAttr(b.url||'')}')" title="${esc(b.url||'')}"><span style="font-size:14px;flex-shrink:0">🔖</span><span class="rt" style="font-size:11px">${esc(b.title||b.url||'(untitled)')}</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No bookmarks yet.<br><span style="color:var(--ac);cursor:pointer" onclick="nav(\'bookmarks\')">Add one →</span></div>';
+        const body=bks.length?bks.map(b=>`<div class="lr" style="cursor:pointer" onclick="_luOpenUrl('${_jsAttr(b.url||'')}')" title="${esc(b.url||'')}"><span style="font-size:14px;flex-shrink:0">🔖</span><span class="rt" style="font-size:11px">${esc(b.title||b.url||'(untitled)')}</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No bookmarks yet.<br><span style="color:var(--ach);cursor:pointer" onclick="nav(\'bookmarks\')">Add one →</span></div>';
         return `<div class="cd"><div class="cd-h"><div class="cd-t">🔖 Bookmarks</div><span class="cd-a" onclick="nav('bookmarks')">View all</span></div>${body}</div>`;
       })(),
       // ── Upcoming Deadlines (horizon configurable per-card mode) ──
@@ -2578,12 +2578,12 @@ function renderHome(){
         const ovd=(D.tasks||[]).filter(t=>t.status!=='Done'&&t.due&&t.due<todayKey).length;
         const overduePenalty=Math.min(ovd*2,10);
         const score=Math.max(0,Math.min(100,Math.round(habsScore+tasksScore+focusScore-overduePenalty+10)));
-        const grade=score>=90?{l:'A+',c:'var(--ok)'}:score>=80?{l:'A',c:'var(--ok)'}:score>=70?{l:'B',c:'var(--ac)'}:score>=60?{l:'C',c:'var(--warn)'}:{l:'D',c:'var(--red)'};
+        const grade=score>=90?{l:'A+',c:'var(--ok)'}:score>=80?{l:'A',c:'var(--ok)'}:score>=70?{l:'B',c:'var(--ach)'}:score>=60?{l:'C',c:'var(--warn)'}:{l:'D',c:'var(--red)'};
         return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('barChart',15,'#3b82f6')} Productivity Score</div><span class="cd-a" onclick="nav('reports')">Reports</span></div>
           <div style="display:flex;gap:14px;align-items:center">
             <div style="text-align:center;flex-shrink:0">
-              <div style="font-size:38px;font-weight:700;color:${grade.c};line-height:1">${score}</div>
-              <div style="font-size:18px;color:${grade.c};font-weight:600">${grade.l}</div>
+              <div style="font-size:38px;font-weight:700;color:${_luAccentText(grade.c)};line-height:1">${score}</div>
+              <div style="font-size:18px;color:${_luAccentText(grade.c)};font-weight:600">${grade.l}</div>
             </div>
             <div style="flex:1">
               <div style="height:8px;background:var(--s3);border-radius:4px;overflow:hidden;margin-bottom:10px"><div style="height:100%;width:${score}%;background:${grade.c};border-radius:4px;transition:width .6s"></div></div>
@@ -2612,16 +2612,16 @@ function renderHome(){
       weekAhead:(()=>{
         const days=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()+i);return d;});
         const weekdays=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-        const cells=days.map(d=>{const k=_ymd(d);const dayTasks=(D.tasks||[]).filter(t=>t.status!=='Done'&&(t.due===k||t.startDate===k));const dayEvents=_calMeetingsOn(k);const isToday=k===_ymd(new Date());return `<div style="border:1px solid ${isToday?'var(--ac)':'var(--bd1)'};border-radius:6px;padding:8px;background:${isToday?'rgba(59,130,246,.05)':'var(--s2)'};min-height:62px"><div style="display:flex;justify-content:space-between;font-size:11px;font-weight:600;color:${isToday?'var(--ac)':'var(--t2)'};margin-bottom:4px"><span>${weekdays[d.getDay()]}</span><span>${d.getDate()}</span></div>${dayTasks.length?`<div style="font-size:11px;color:var(--t1);margin-bottom:2px">📋 ${dayTasks.length}</div>`:''}${dayEvents.length?`<div style="font-size:11px;color:var(--t1)">📅 ${dayEvents.length}</div>`:''}${(!dayTasks.length&&!dayEvents.length)?'<div style="font-size:11px;color:var(--t3)">—</div>':''}</div>`;}).join('');
+        const cells=days.map(d=>{const k=_ymd(d);const dayTasks=(D.tasks||[]).filter(t=>t.status!=='Done'&&(t.due===k||t.startDate===k));const dayEvents=_calMeetingsOn(k);const isToday=k===_ymd(new Date());return `<div style="border:1px solid ${isToday?'var(--ac)':'var(--bd1)'};border-radius:6px;padding:8px;background:${isToday?'rgba(59,130,246,.05)':'var(--s2)'};min-height:62px"><div style="display:flex;justify-content:space-between;font-size:11px;font-weight:600;color:${isToday?'var(--ach)':'var(--t2)'};margin-bottom:4px"><span>${weekdays[d.getDay()]}</span><span>${d.getDate()}</span></div>${dayTasks.length?`<div style="font-size:11px;color:var(--t1);margin-bottom:2px">📋 ${dayTasks.length}</div>`:''}${dayEvents.length?`<div style="font-size:11px;color:var(--t1)">📅 ${dayEvents.length}</div>`:''}${(!dayTasks.length&&!dayEvents.length)?'<div style="font-size:11px;color:var(--t3)">—</div>':''}</div>`;}).join('');
         return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('calendar',15,'#6366f1')} Week Ahead</div><span class="cd-a" onclick="nav('myweek')">My Week</span></div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">${cells}</div></div>`;
       })(),
       // ── Ideas Pipeline (counts by stage) ──
       ideasPipeline:(()=>{
         const ideas=D.ideas||[];
-        const stages=[{k:'spark',label:'💥 Spark',c:'var(--warn)'},{k:'develop',label:'🌱 Develop',c:'var(--ac)'},{k:'stress_test',label:'🧪 Stress Test',c:'var(--purp)'},{k:'promoted',label:'🚀 Promoted',c:'var(--ok)'},{k:'parked',label:'⏸ Parked',c:'var(--t3)'},{k:'graveyard',label:'🪦 Graveyard',c:'var(--t3)'}];
+        const stages=[{k:'spark',label:'💥 Spark',c:'var(--warn)'},{k:'develop',label:'🌱 Develop',c:'var(--ach)'},{k:'stress_test',label:'🧪 Stress Test',c:'var(--purp)'},{k:'promoted',label:'🚀 Promoted',c:'var(--ok)'},{k:'parked',label:'⏸ Parked',c:'var(--t3)'},{k:'graveyard',label:'🪦 Graveyard',c:'var(--t3)'}];
         const counts=stages.map(s=>({...s,c2:s.c,n:ideas.filter(i=>i.stage===s.k).length}));
         const max=Math.max(...counts.map(c=>c.n),1);
-        const body=ideas.length?counts.filter(c=>c.n>0).map(c=>`<div style="margin-bottom:5px"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px"><span>${c.label}</span><strong style="color:${c.c}">${c.n}</strong></div><div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${c.n/max*100}%;background:${c.c};border-radius:3px"></div></div></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No ideas yet.<br><span style="color:var(--ac);cursor:pointer" onclick="nav(\'ideas\')">Capture one →</span></div>';
+        const body=ideas.length?counts.filter(c=>c.n>0).map(c=>`<div style="margin-bottom:5px"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px"><span>${c.label}</span><strong style="color:${_luAccentText(c.c)}">${c.n}</strong></div><div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${c.n/max*100}%;background:${c.c};border-radius:3px"></div></div></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No ideas yet.<br><span style="color:var(--ach);cursor:pointer" onclick="nav(\'ideas\')">Capture one →</span></div>';
         return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('lightbulb',15,'#eab308')} Ideas Pipeline</div><span class="cd-a" onclick="nav('ideas')">All ideas</span></div>${body}</div>`;
       })(),
       // ── Task Velocity (this week vs last week) ──
@@ -2638,10 +2638,10 @@ function renderHome(){
         const dColor=delta>0?'var(--ok)':delta<0?'var(--red)':'var(--t3)';
         return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('zap',15,'#ef4444')} Task Velocity</div><span class="cd-a" onclick="nav('reports')">Reports</span></div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:center">
-            <div style="background:var(--s2);border-radius:8px;padding:14px"><div style="font-size:24px;font-weight:700;color:var(--ac)">${thisWeek}</div><div style="font-size:11px;color:var(--t3)">This week</div></div>
+            <div style="background:var(--s2);border-radius:8px;padding:14px"><div style="font-size:24px;font-weight:700;color:var(--ach)">${thisWeek}</div><div style="font-size:11px;color:var(--t3)">This week</div></div>
             <div style="background:var(--s2);border-radius:8px;padding:14px"><div style="font-size:24px;font-weight:700;color:var(--t2)">${lastWeek}</div><div style="font-size:11px;color:var(--t3)">Last week</div></div>
           </div>
-          <div style="text-align:center;margin-top:10px;font-size:13px;color:${dColor};font-weight:600">${arrow} ${Math.abs(delta)} task${Math.abs(delta)===1?'':'s'} ${delta>0?'more':delta<0?'less':'same'} than last week</div>
+          <div style="text-align:center;margin-top:10px;font-size:13px;color:${_luAccentText(dColor)};font-weight:600">${arrow} ${Math.abs(delta)} task${Math.abs(delta)===1?'':'s'} ${delta>0?'more':delta<0?'less':'same'} than last week</div>
         </div>`;
       })(),
       // ── Tag Cloud (across tasks, notes, journal) ──
@@ -2759,7 +2759,7 @@ function renderHome(){
         const top=hours[0];
         return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('target',15,'#ef4444')} Peak Focus Hour</div></div>
           <div style="padding:4px;font-size:12px;color:var(--t1);line-height:1.55">
-            Your peak focus is around <strong style="color:var(--page-accent)">${fmt(top[0])}</strong> — ${top[1]} minutes logged in this hour across all sessions.
+            Your peak focus is around <strong style="color:var(--pa-t)">${fmt(top[0])}</strong> — ${top[1]} minutes logged in this hour across all sessions.
             <div style="font-size:11px;color:var(--t3);margin-top:8px">Other strong hours: ${hours.slice(1).map(h=>fmt(h[0])+' ('+h[1]+'m)').join(' · ')||'(none yet)'}</div>
             <button class="btn btn-s" style="margin-top:8px;font-size:11px;height:24px" onclick="nav('focus')">Start a focus session →</button>
           </div></div>`;
@@ -2809,7 +2809,7 @@ function renderHome(){
         let html=_renderWidget(w,i);
         _reportWidgets=saved;
         // Replace the report-context toolbar with a smaller Unpin-only toolbar
-        html=html.replace(/<div class="no-print"[\s\S]*?<\/div>\s*<\/div>/, `<div class="no-print" style="display:flex;gap:3px"><button class="btn btn-s" style="height:22px;font-size:11px;color:var(--ac)" onclick="nav('reports')" title="Edit in Reports">✏</button><button class="btn btn-d" style="height:22px;font-size:11px" onclick="unpinHomeWidget(${w.id})" title="Unpin">✕</button></div></div>`);
+        html=html.replace(/<div class="no-print"[\s\S]*?<\/div>\s*<\/div>/, `<div class="no-print" style="display:flex;gap:3px"><button class="btn btn-s" style="height:22px;font-size:11px;color:var(--ach)" onclick="nav('reports')" title="Edit in Reports">✏</button><button class="btn btn-d" style="height:22px;font-size:11px" onclick="unpinHomeWidget(${w.id})" title="Unpin">✕</button></div></div>`);
         // Make pinned widgets non-draggable on Home (drag handlers reference _reportWidgets which would be wrong).
         html=html.replace(/draggable="true"[^>]*?ondragstart="[^"]*"[^>]*?ondragover="[^"]*"[^>]*?ondragleave="[^"]*"[^>]*?ondrop="[^"]*"[^>]*?ondragend="[^"]*"/,'draggable="false"');
         return html;
@@ -2831,7 +2831,7 @@ function renderHome(){
   const _chartVals=_chartDays.map(d=>_focusLog[_ymd(d)]||0);
   const _chartMax=Math.max(..._chartVals,1);
   const _todayIdx=6;
-  const focusChartHtml=`<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:12px;font-weight:600">⏱ Focus Time (7 days)</span><span style="font-size:11px;color:var(--t3)">${_chartVals.reduce((a,b)=>a+b,0)}m total</span></div><div style="display:flex;align-items:flex-end;gap:4px;height:52px">${_chartVals.map((v,i)=>`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:100%;background:${i===_todayIdx?'var(--ac)':'var(--s3)'};border-radius:3px 3px 0 0;height:${Math.round((v/_chartMax)*40)+2}px;min-height:2px;transition:height .3s" title="${v}m"></div><div style="font-size:9px;color:${i===_todayIdx?'var(--ac)':'var(--t3)'}">${_dayNames[_chartDays[i].getDay()]}</div></div>`).join('')}</div></div>`;
+  const focusChartHtml=`<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:12px;font-weight:600">⏱ Focus Time (7 days)</span><span style="font-size:11px;color:var(--t3)">${_chartVals.reduce((a,b)=>a+b,0)}m total</span></div><div style="display:flex;align-items:flex-end;gap:4px;height:52px">${_chartVals.map((v,i)=>`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:100%;background:${i===_todayIdx?'var(--ac)':'var(--s3)'};border-radius:3px 3px 0 0;height:${Math.round((v/_chartMax)*40)+2}px;min-height:2px;transition:height .3s" title="${v}m"></div><div style="font-size:9px;color:${i===_todayIdx?'var(--ach)':'var(--t3)'}">${_dayNames[_chartDays[i].getDay()]}</div></div>`).join('')}</div></div>`;
   // Daily cross-source command-center card — Today across CF / LSI / Personal.
   // Always rendered on Home; collapses to a single line when external sources
   // aren't configured yet (still useful as a personal-tasks-today summary).
@@ -3023,7 +3023,7 @@ async function _openSharedTaskView(idx){
     <div class="field"><label>Notes</label><textarea class="inp" id="st-notes" style="min-height:90px">${esc(notes)}</textarea></div>
     <div class="dr-actions" style="margin-top:14px;flex-wrap:wrap">
       <button class="btn btn-p" onclick="_saveSharedTask(${Number(idx)||0})">Save</button>
-      ${adminSh&&!t._delegated?`<button class="btn btn-s" style="border-color:var(--ac);color:var(--ac)" onclick="_takeOwnership(${Number(idx)||0},'tasks')" title="Move this task into your workspace; the current owner stays an assignee">⬇ Take ownership</button>`:''}
+      ${adminSh&&!t._delegated?`<button class="btn btn-s" style="border-color:var(--ac);color:var(--ach)" onclick="_takeOwnership(${Number(idx)||0},'tasks')" title="Move this task into your workspace; the current owner stays an assignee">⬇ Take ownership</button>`:''}
       ${adminSh?`<button class="btn btn-d" onclick="_deleteSharedItem(${Number(idx)||0},'tasks','st')">Delete</button>`:''}
       <button class="btn btn-s" onclick="document.getElementById('modal-capture').classList.remove('show')">Cancel</button>
     </div>
@@ -3211,7 +3211,7 @@ async function _openSharedProjectView(idx){
     <div class="field"><label>Description</label><textarea class="inp" id="sp-desc" style="min-height:90px">${esc(desc)}</textarea></div>
     <div class="dr-actions" style="margin-top:14px;flex-wrap:wrap">
       <button class="btn btn-p" onclick="_saveSharedProject(${Number(idx)||0})">Save</button>
-      ${adminSh&&!p._delegated?`<button class="btn btn-s" style="border-color:var(--ac);color:var(--ac)" onclick="_takeOwnership(${Number(idx)||0},'projects')" title="Move this project into your workspace; the current owner stays an assignee">⬇ Take ownership</button>`:''}
+      ${adminSh&&!p._delegated?`<button class="btn btn-s" style="border-color:var(--ac);color:var(--ach)" onclick="_takeOwnership(${Number(idx)||0},'projects')" title="Move this project into your workspace; the current owner stays an assignee">⬇ Take ownership</button>`:''}
       ${adminSh?`<button class="btn btn-d" onclick="_deleteSharedItem(${Number(idx)||0},'projects')">Delete</button>`:''}
       <button class="btn btn-s" onclick="document.getElementById('modal-capture').classList.remove('show')">Cancel</button>
     </div>
@@ -3301,7 +3301,7 @@ async function _openSharedProgramView(idx){
     <div class="field"><label>Description</label><textarea class="inp" id="sg-desc" style="min-height:90px">${esc(desc)}</textarea></div>
     <div class="dr-actions" style="margin-top:14px;flex-wrap:wrap">
       <button class="btn btn-p" onclick="_saveSharedProgram(${Number(idx)||0})">Save</button>
-      ${adminSh&&!p._delegated?`<button class="btn btn-s" style="border-color:var(--ac);color:var(--ac)" onclick="_takeOwnership(${Number(idx)||0},'programs')" title="Move this program into your workspace; the current owner stays an assignee">⬇ Take ownership</button>`:''}
+      ${adminSh&&!p._delegated?`<button class="btn btn-s" style="border-color:var(--ac);color:var(--ach)" onclick="_takeOwnership(${Number(idx)||0},'programs')" title="Move this program into your workspace; the current owner stays an assignee">⬇ Take ownership</button>`:''}
       ${adminSh?`<button class="btn btn-d" onclick="_deleteSharedItem(${Number(idx)||0},'programs')">Delete</button>`:''}
       <button class="btn btn-s" onclick="document.getElementById('modal-capture').classList.remove('show')">Cancel</button>
     </div>
@@ -3439,7 +3439,7 @@ async function _openSharedNoteView(idx){
     <div class="field"><label>Assignees <span style="font-size:11px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('snt-ma',p)}</div>
     <div class="dr-actions" style="margin-top:14px;flex-wrap:wrap">
       <button class="btn btn-p" onclick="_saveSharedNote(${Number(idx)||0})">Save</button>
-      ${adminSh&&!p._delegated?`<button class="btn btn-s" style="border-color:var(--ac);color:var(--ac)" onclick="_takeOwnership(${Number(idx)||0},'notes')" title="Move this note into your workspace; the current owner stays an assignee">⬇ Take ownership</button>`:''}
+      ${adminSh&&!p._delegated?`<button class="btn btn-s" style="border-color:var(--ac);color:var(--ach)" onclick="_takeOwnership(${Number(idx)||0},'notes')" title="Move this note into your workspace; the current owner stays an assignee">⬇ Take ownership</button>`:''}
       ${adminSh?`<button class="btn btn-d" onclick="_deleteSharedItem(${Number(idx)||0},'notes')">Delete</button>`:''}
       <button class="btn btn-s" onclick="document.getElementById('modal-capture').classList.remove('show')">Cancel</button>
     </div>
@@ -3634,7 +3634,7 @@ function _renderSourceFilterChips(){
   const lsiCount=ext.filter(t=>t.source==='nifty'&&!(t.override&&t.override.tombstoned)).length;
   // Hide CF/LSI chips when those sources have no data — keeps the UI clean
   // for users who haven't connected them.
-  const chip=(on,active,color,label,count,key)=>`<button class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;background:${active?color:'transparent'};color:${active?'#fff':'var(--t2)'};border:1px solid ${active?color:'var(--bd2)'};border-radius:11px" onclick="toggleSourceFilter('${_jsAttr(key)}')" title="${active?'Click to hide':'Click to show'} ${label}">${label}${count?` <span style="opacity:.85">${count}</span>`:''}</button>`;
+  const chip=(on,active,color,label,count,key)=>`<button class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;background:${active?_luFillSafe(color):'transparent'};color:${active?'#fff':'var(--t2)'};border:1px solid ${active?color:'var(--bd2)'};border-radius:11px" onclick="toggleSourceFilter('${_jsAttr(key)}')" title="${active?'Click to hide':'Click to show'} ${label}">${label}${count?` <span>${count}</span>`:''}</button>`;
   const personalCount=(D.tasks||[]).filter(t=>t.status!=='Done'&&t.status!=='Someday').length;
   // CF fold-all chip — only appears when there's at least one CF
   // project group on the Tasks list (i.e. at least one orphan-subtask
@@ -3658,7 +3658,7 @@ function _renderSourceFilterChips(){
     if(allCollapsed){ label='⤢ Expand all CF'; fn='_expandAllCfProjects()'; }
     else if(anyCollapsed){ label=`⤢ Expand all (${collapsedCount}/${totalLabels} folded)`; fn='_expandAllCfProjects()'; }
     else { label='⤡ Fold all CF'; fn='_foldAllCfProjects()'; }
-    return `<button class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;background:transparent;color:#1f6feb;border:1px solid color-mix(in srgb,#1f6feb 35%,transparent);border-radius:11px;margin-left:4px" onclick="${fn}" title="${allCollapsed?'Expand every CF project section':(anyCollapsed?'Expand all currently-folded CF project sections':'Fold every CF project section')}">${label}</button>`;
+    return `<button class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;background:transparent;color:var(--ach);border:1px solid color-mix(in srgb,#1f6feb 35%,transparent);border-radius:11px;margin-left:4px" onclick="${fn}" title="${allCollapsed?'Expand every CF project section':(anyCollapsed?'Expand all currently-folded CF project sections':'Fold every CF project section')}">${label}</button>`;
   })();
   return `<div style="display:flex;align-items:center;gap:6px;margin:6px 0;flex-wrap:wrap">
     <span style="font-size:11px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Sources</span>
@@ -3955,7 +3955,7 @@ function renderTaskList(){
   if(!filtered.length){list.innerHTML=groupBar+renderEmptyState({icon:'list',title:'Inbox zero — for now ✨',hint:'No tasks match your current filter. Capture the next thing on your plate, or relax the filter to see what else is around.',ctaLabel:'+ Add a task',ctaFn:"openFA('task')"});return;}
   const today=_todayStr;
   const priColors={High:'rgba(239,68,68,0.15)',Medium:'rgba(245,158,11,0.15)',Low:'rgba(34,197,94,0.15)'};
-  const priText={High:'#F87171',Medium:'#FBBF24',Low:'#86EFAC'};
+  const priText={High:'var(--red)',Medium:'var(--warn)',Low:'var(--ok)'};
   const statusColors={Done:'rgba(34,197,94,0.15)','In Progress':'rgba(59,130,246,0.15)','Not Started':'rgba(148,163,184,0.15)',Someday:'rgba(245,158,11,0.15)'};
   const statusText={Done:'#86EFAC','In Progress':'#93C5FD','Not Started':'var(--t2)',Someday:'#FBBF24'};
   const projects=D.projects||[];
@@ -3969,7 +3969,7 @@ function renderTaskList(){
   const headCell=c=>{
     if(c.fixed)return '<div></div>';
     const active=_taskListSortBy===c.sort;
-    return `<div class="tl-hc" style="position:relative;cursor:pointer;user-select:none;color:${active?'var(--ac)':'var(--t2)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap" onclick="setTaskListSort('${_jsAttr(c.sort)}')" title="Click to sort · drag right edge to resize">${c.label}${arrow(c.sort)}<span class="tl-resizer" title="Drag to resize column" onpointerdown="_tlResizeStart(event,'${c.k}')" onclick="event.stopPropagation()"></span></div>`;
+    return `<div class="tl-hc" style="position:relative;cursor:pointer;user-select:none;color:${active?'var(--ach)':'var(--t2)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap" onclick="setTaskListSort('${_jsAttr(c.sort)}')" title="Click to sort · drag right edge to resize">${c.label}${arrow(c.sort)}<span class="tl-resizer" title="Drag to resize column" onpointerdown="_tlResizeStart(event,'${c.k}')" onclick="event.stopPropagation()"></span></div>`;
   };
   const header=`<div class="tl-row tl-head" style="display:grid;grid-template-columns:${colTpl};gap:8px;padding:8px 12px;min-width:${rowMinW}px;background:var(--s2);border:1px solid var(--bd1);border-radius:6px 6px 0 0;font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;align-items:center;position:sticky;top:0;z-index:5">
     ${_TASK_COLS.map(headCell).join('')}
@@ -3996,7 +3996,7 @@ function renderTaskList(){
       <span class="tl-drag" title="Drag to reorder" onclick="event.stopPropagation()">⋮⋮</span>
       ${bulkChk}
       <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
-        <span style="font-weight:500;${done?'text-decoration:line-through;color:var(--t3)':(t.titleColor?`color:${t.titleColor};font-weight:700`:'color:var(--t1)')};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</span>
+        <span style="font-weight:500;${done?'text-decoration:line-through;color:var(--t3)':(t.titleColor?`color:${_luAccentText(t.titleColor)};font-weight:700`:'color:var(--t1)')};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</span>
         ${(t.tags||[]).length?`<div style="display:flex;gap:3px;flex-wrap:wrap">${(t.tags||[]).slice(0,3).map(tg=>`<span style="font-size:11px;color:var(--t3);background:var(--s3);padding:1px 5px;border-radius:8px">#${esc(tg)}</span>`).join('')}</div>`:''}
       </div>
       <span class="lu-pill-clickable" title="Click to change priority" onclick="event.stopPropagation();_taskPillPicker(event,${_tidLit(t.id)},'priority')" style="background:${priColors[pri]||priColors.Medium};color:${priText[pri]||priText.Medium};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;text-align:center;width:fit-content">${pri}</span>
@@ -4077,7 +4077,7 @@ function renderTaskList(){
           <div style="font-size:11px">${_extSourceBadge(t._source)}</div>
         </div>
         <div class="tlc-body">
-          <div class="tlc-t" style="${doneExt?'text-decoration:line-through;color:var(--t3)':''}">${isSubtask?'<span style="color:var(--t3);margin-right:4px" title="Subtask">↳</span>':''}<a ${_extOpenAttrs(url)} onclick="event.stopPropagation()" style="color:${doneExt?'var(--t3)':'var(--t1)'};text-decoration:none">${esc(t.title||'Untitled')}</a>${myDay&&!doneExt?' <span title="My Day" style="color:#f59e0b">☀</span>':''} ${breadcrumb}</div>
+          <div class="tlc-t" style="${doneExt?'text-decoration:line-through;color:var(--t3)':''}">${isSubtask?'<span style="color:var(--t3);margin-right:4px" title="Subtask">↳</span>':''}<a ${_extOpenAttrs(url)} onclick="event.stopPropagation()" style="color:${doneExt?'var(--t3)':'var(--t1)'};text-decoration:none">${esc(t.title||'Untitled')}</a>${myDay&&!doneExt?' <span title="My Day" style="color:var(--warn)">☀</span>':''} ${breadcrumb}</div>
           ${(t.tags||[]).length?`<div class="tlc-tags">${(t.tags||[]).slice(0,4).map(tg=>`<span>#${esc(tg)}</span>`).join('')}</div>`:''}
           <div class="tlc-m">
             ${doneExt?'':`<span class="lu-pill-clickable" style="background:${priColors[t.priority]||priColors.Medium};color:${priText[t.priority]||priText.Medium}">${t.priority||'Medium'}</span>`}
@@ -4115,7 +4115,7 @@ function renderTaskList(){
       ${_bulkMode?'':`<span class="tlc-drag" title="Drag to reorder" onclick="event.stopPropagation()">⋮⋮</span>`}
       ${chk}
       <div class="tlc-body">
-        <div class="tlc-t" style="${done?'text-decoration:line-through;color:var(--t3)':(t.titleColor?`color:${t.titleColor};font-weight:700`:'')}">${esc(t.title||'Untitled')}</div>
+        <div class="tlc-t" style="${done?'text-decoration:line-through;color:var(--t3)':(t.titleColor?`color:${_luAccentText(t.titleColor)};font-weight:700`:'')}">${esc(t.title||'Untitled')}</div>
         ${subs.length?`<div class="tlc-sub"><div class="tlc-sub-bar"><div style="width:${Math.round(subDone/subs.length*100)}%"></div></div><span>${subDone}/${subs.length}</span></div>`:''}
         ${(t.tags||[]).length?`<div class="tlc-tags">${(t.tags||[]).slice(0,4).map(tg=>`<span>#${esc(tg)}</span>`).join('')}</div>`:''}
         <div class="tlc-m">
@@ -4126,7 +4126,7 @@ function renderTaskList(){
           ${projName?`<span>${projColor?`<i style="display:inline-block;width:7px;height:7px;border-radius:2px;background:${projColor};margin-right:4px;vertical-align:middle"></i>`:''}${esc(projName)}</span>`:''}
           ${initials?`<span title="${esc(assigned)}">👤 ${esc(assigned.split(' ')[0])}</span>`:''}
           ${(()=>{const cl=t.clusterId!=null?(D.clusters||[]).find(c=>String(c.id)===String(t.clusterId)):null;return _bulkMode?'':`<span class="lu-pill-clickable" title="${cl?'Cluster: '+esc(cl.name)+' · click to change':'Move to a cluster'}" onclick="event.stopPropagation();openTaskClusterPicker(${_tidLit(t.id)},event)" style="${cl?'':'opacity:.55'}">⬡${cl?' '+esc((cl.icon?cl.icon+' ':'')+cl.name):''}</span>`;})()}
-          ${t.pushedTo&&t.pushedTo.source==='nifty'?`<a title="Pushed to Nifty${t.pushedTo.projectName?' · '+esc(t.pushedTo.projectName):''} · open" style="color:#a78bfa;text-decoration:none" ${t.pushedTo.url?`href="${esc(t.pushedTo.url)}" target="_blank" rel="noopener"`:''} onclick="event.stopPropagation()">↗ Nifty</a>`:''}
+          ${t.pushedTo&&t.pushedTo.source==='nifty'?`<a title="Pushed to Nifty${t.pushedTo.projectName?' · '+esc(t.pushedTo.projectName):''} · open" style="color:var(--purp);text-decoration:none" ${t.pushedTo.url?`href="${esc(t.pushedTo.url)}" target="_blank" rel="noopener"`:''} onclick="event.stopPropagation()">↗ Nifty</a>`:''}
         </div>
       </div>
       <span class="tlc-go">›</span>
@@ -4144,7 +4144,7 @@ function renderTaskList(){
     const safe=label; // escaped where it is used (_jsAttr)
     const projName=esc(label);
     return `<div class="cf-proj-header" data-cf-project="${esc(label)}" style="display:flex;align-items:center;gap:8px;padding:8px 10px;margin:10px 0 4px;background:linear-gradient(to right,rgba(31,111,235,.10),rgba(31,111,235,.02));border:1px solid color-mix(in srgb,#1f6feb 25%,transparent);border-left:3px solid #1f6feb;border-radius:6px;cursor:pointer;user-select:none" onclick="_toggleCfProjectCollapsed('${_jsAttr(safe)}')" title="Click to ${collapsed?'expand':'collapse'} this project">
-      <span style="font-size:13px;color:#1f6feb;width:14px;display:inline-flex;align-items:center;justify-content:center">${collapsed?'▸':'▾'}</span>
+      <span style="font-size:13px;color:var(--ach);width:14px;display:inline-flex;align-items:center;justify-content:center">${collapsed?'▸':'▾'}</span>
       <span style="font-size:12px;font-weight:600;color:var(--t1);flex:1">${_icon('folder',12,'currentColor')} ${projName}</span>
       <span style="font-size:11px;color:var(--t3)">${count} task${count===1?'':'s'}${doneCount?` · ${doneCount} done`:''}</span>
       ${projectId?`<button class="btn btn-s" style="height:22px;font-size:11px;padding:0 6px" onclick="event.stopPropagation();openDrawer('project',D.projects.find(x=>x.id===${projectId}))" title="Open this project's LevelUp page">→</button>`:''}
@@ -4301,7 +4301,7 @@ function renderTaskFocus(){
       </div>
     </div>`;
   }
-  const section=(icon,label,arr,color)=>arr.length?`<div class="tf-sec"><div class="tf-sec-h"><span style="color:${color}">${icon} ${label}</span><span class="tf-sec-n">${arr.length}</span></div>${arr.map(row).join('')}</div>`:'';
+  const section=(icon,label,arr,color)=>arr.length?`<div class="tf-sec"><div class="tf-sec-h"><span style="color:${_luAccentText(color)}">${icon} ${label}</span><span class="tf-sec-n">${arr.length}</span></div>${arr.map(row).join('')}</div>`:'';
   let html=`<div class="tf-wrap">
     <div class="tf-hero">
       <div><div class="tf-hero-big">${totalQueued}</div><div class="tf-hero-l">to do now</div></div>
@@ -4389,7 +4389,7 @@ function renderTaskCards(){
   const priColors={High:'#ef4444',Medium:'#f59e0b',Low:'#10b981'};
   const priBg={High:'rgba(239,68,68,.12)',Medium:'rgba(245,158,11,.12)',Low:'rgba(16,185,129,.12)'};
   const statusColors={'Not Started':'var(--s3)','In Progress':'rgba(59,130,246,.15)','Done':'rgba(34,197,94,.15)','Someday':'rgba(148,163,184,.15)','Blocked':'rgba(239,68,68,.15)'};
-  const statusText={'Not Started':'var(--t2)','In Progress':'var(--ac)','Done':'var(--ok)','Someday':'var(--t3)','Blocked':'var(--red)'};
+  const statusText={'Not Started':'var(--t2)','In Progress':'var(--ach)','Done':'var(--ok)','Someday':'var(--t3)','Blocked':'var(--red)'};
   const projOf=t=>{const p=(D.projects||[]).find(x=>x.id===t.projectId||x.name===t.project);return p||(t.project?{name:t.project,color:null}:null);};
   function nativeCard(t){
     const subs=t.subtasks||[];const subDone=subs.filter(s=>s.done).length;
@@ -4398,14 +4398,14 @@ function renderTaskCards(){
     const isOverdue=t.due&&t.due<today&&!done;
     const proj=projOf(t);const projName=proj?proj.name:'';const projColor=proj?proj.color:null;
     const assigned=t.assignedTo||t.createdBy||'';
-    const titleStyle=done?'text-decoration:line-through;color:var(--t3)':(t.titleColor?`color:${t.titleColor}`:'color:var(--t1)');
+    const titleStyle=done?'text-decoration:line-through;color:var(--t3)':(t.titleColor?`color:${_luAccentText(t.titleColor)}`:'color:var(--t1)');
     return `<div class="lu-task-card" data-task-id="${t.id}" onclick="openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))" style="background:var(--s2);border:1px solid var(--bd1);border-left:3px solid ${pc};border-radius:10px;padding:12px 14px;cursor:pointer;display:flex;flex-direction:column;gap:8px;transition:transform .1s,box-shadow .15s;${done?'opacity:.62':''}" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 14px rgba(0,0,0,.18)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
       <div style="display:flex;align-items:flex-start;gap:8px">
         <div class="tlc-chk ${done?'on':''}" style="margin-top:2px;flex-shrink:0" onclick="event.stopPropagation();toggleTask(${_tidLit(t.id)});setTimeout(renderCurrentTaskView,100)" title="Mark done"></div>
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:600;line-height:1.35;${titleStyle}">${esc(t.title||'Untitled')}</div>
           <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;align-items:center">
-            <span class="lu-pill-clickable" onclick="event.stopPropagation();_taskPillPicker(event,${_tidLit(t.id)},'priority')" style="background:${priBg[pri]};color:${pc};font-size:11px;font-weight:600;padding:1px 7px;border-radius:8px">${pri}</span>
+            <span class="lu-pill-clickable" onclick="event.stopPropagation();_taskPillPicker(event,${_tidLit(t.id)},'priority')" style="background:${priBg[pri]};color:${_luAccentText(pc)};font-size:11px;font-weight:600;padding:1px 7px;border-radius:8px">${pri}</span>
             <span class="lu-pill-clickable" onclick="event.stopPropagation();_taskPillPicker(event,${_tidLit(t.id)},'status')" style="background:${statusColors[status]||statusColors['Not Started']};color:${statusText[status]||statusText['Not Started']};font-size:11px;font-weight:600;padding:1px 7px;border-radius:8px">${status}</span>
             ${t.due?`<span style="font-size:11px;color:${isOverdue?'var(--red)':'var(--t2)'};${isOverdue?'font-weight:600':''}">📅 ${fmtDate(t.due)}</span>`:''}
           </div>
@@ -4442,14 +4442,14 @@ function renderTaskCards(){
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:600;line-height:1.35;${done?'text-decoration:line-through;color:var(--t3)':'color:var(--t1)'}">${esc(c.title||'Untitled')}</div>
           <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;align-items:center">
-            <span style="background:${priBg[pri]};color:${pc};font-size:11px;font-weight:600;padding:1px 7px;border-radius:8px">${pri}</span>
+            <span style="background:${priBg[pri]};color:${_luAccentText(pc)};font-size:11px;font-weight:600;padding:1px 7px;border-radius:8px">${pri}</span>
             <span style="background:${statusColors[status]||statusColors['Not Started']};color:${statusText[status]||statusText['Not Started']};font-size:11px;font-weight:600;padding:1px 7px;border-radius:8px">${esc(c._rawStatus||status)}</span>
             ${c.due?`<span style="font-size:11px;color:${isOverdue?'var(--red)':'var(--t2)'};${isOverdue?'font-weight:600':''}">📅 ${fmtDate(c.due)}</span>`:''}
           </div>
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:6px;margin-top:auto;padding-top:6px;border-top:1px solid var(--bd1);font-size:11px;color:var(--t3)">
-        <span style="background:color-mix(in srgb,${sourceColor} 12%,transparent);color:${sourceColor};font-size:11px;font-weight:700;padding:1px 6px;border-radius:6px;flex-shrink:0">${sourceLabel}</span>
+        <span style="background:color-mix(in srgb,${sourceColor} 12%,transparent);color:${_luAccentText(sourceColor)};font-size:11px;font-weight:700;padding:1px 6px;border-radius:6px;flex-shrink:0">${sourceLabel}</span>
         ${c.project?`<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.project)}</span>`:''}
         ${c.assignedTo?`<span style="flex-shrink:0">· 👤 ${esc(c.assignedTo.split(' ')[0])}</span>`:''}
         <span style="flex:1"></span>
@@ -4458,7 +4458,7 @@ function renderTaskCards(){
     </div>`;
   }
   const cards=nativeTasks.map(nativeCard).concat(extCards.map(extCard));
-  const addBtn=`<div onclick="openFA('task')" style="background:transparent;border:1.5px dashed var(--bd2);border-radius:10px;padding:24px 14px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--t3);font-size:12px;min-height:120px;transition:border-color .15s,color .15s" onmouseover="this.style.borderColor='var(--ac)';this.style.color='var(--ac)'" onmouseout="this.style.borderColor='var(--bd2)';this.style.color='var(--t3)'">+ Add Task</div>`;
+  const addBtn=`<div onclick="openFA('task')" style="background:transparent;border:1.5px dashed var(--bd2);border-radius:10px;padding:24px 14px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--t3);font-size:12px;min-height:120px;transition:border-color .15s,color .15s" onmouseover="this.style.borderColor='var(--ac)';this.style.color='var(--ach)'" onmouseout="this.style.borderColor='var(--bd2)';this.style.color='var(--t3)'">+ Add Task</div>`;
   const emptyMsg='<div style="text-align:center;padding:48px 20px;color:var(--t3)"><div style="font-size:42px;margin-bottom:10px">🎴</div><div style="font-size:15px;font-weight:600;color:var(--t1);margin-bottom:4px">No tasks in this view</div><div style="font-size:12px">Try switching tabs or clearing the priority filter.</div></div>';
   const countLabel=cards.length?`<div style="font-size:11px;color:var(--t3);margin-bottom:10px">${nativeTasks.length} task${nativeTasks.length===1?'':'s'}${extCards.length?` · ${extCards.length} external`:''}</div>`:'';
   // Layout: CSS multi-column flow (masonry-like) instead of CSS grid. Grid
@@ -4494,7 +4494,7 @@ function renderTaskBoard(){
     {id:'ns',label:'Not Started',status:'Not Started',color:'var(--t3)'},
     {id:'pd',label:'Pending',status:'Pending',color:'var(--purp)'},
     {id:'sc',label:'Scheduled',status:'Scheduled',color:'var(--ac2,var(--ac))'},
-    {id:'ip',label:'In Progress',status:'In Progress',color:'var(--ac)'},
+    {id:'ip',label:'In Progress',status:'In Progress',color:'var(--ach)'},
     {id:'dn',label:'Done',status:'Done',color:'var(--ok)'},
     {id:'sd',label:'Someday',status:'Someday',color:'var(--warn)'}
   ];
@@ -4511,7 +4511,7 @@ function renderTaskBoard(){
     const cards=colTasks.map(t=>{
       const isBlocked=(t.predecessorIds||[]).length>0&&(t.predecessorIds||[]).some(pid=>{const pred=D.tasks.find(x=>x.id===pid);return pred&&pred.status!=='Done';});
       return `<div data-drag="task" data-drag-id="${esc(String(t.id))}" title="Drag to another column to change its status" style="background:var(--s2);border:1px solid var(--bd2);border-radius:7px;padding:8px 10px;margin-bottom:6px;cursor:pointer;transition:box-shadow .15s" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.18)'" onmouseout="this.style.boxShadow=''" onclick="openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))">
-        <div style="font-size:11px;font-weight:500;margin-bottom:4px;line-height:1.3;${t.titleColor?`color:${t.titleColor};font-weight:700`:''}">${esc(t.title)}</div>
+        <div style="font-size:11px;font-weight:500;margin-bottom:4px;line-height:1.3;${t.titleColor?`color:${_luAccentText(t.titleColor)};font-weight:700`:''}">${esc(t.title)}</div>
         <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
           <span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span>
            ${t.due?`<span style="font-size:11px;color:var(--t3)">${fmtDate(t.due)}</span>`:''}          ${t.project?`<span style="font-size:11px;color:var(--t3);white-space:nowrap">${_icon('folder',12,'currentColor')} ${esc(t.project)}</span>`:''}          ${isBlocked?`<span style="font-size:11px;color:var(--red);font-weight:600">🔒</span>`:''}
@@ -4555,7 +4555,7 @@ function renderTaskBoard(){
     const extCount=extInCol.length?`<span style="font-size:11px;color:var(--t3);margin-left:4px" title="${extInCol.length} from Smartsheet/Nifty">+${extInCol.length} ext</span>`:'';
     return `<div data-drop="board" data-drop-v="${esc(col.status)}" style="flex:1;min-width:160px;max-width:280px;min-height:140px;border-radius:8px;padding:2px">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid ${col.color}">
-        <span style="font-size:11px;font-weight:700;color:${col.color}">${col.label}</span>
+        <span style="font-size:11px;font-weight:700;color:${_luAccentText(col.color)}">${col.label}</span>
         <span style="font-size:11px;color:var(--t3);background:var(--s3);border-radius:10px;padding:1px 6px">${totalInCol}</span>
         ${extCount}
       </div>
@@ -4693,7 +4693,7 @@ function renderTaskMatrix(){
   };
   const quads={
     q1:{label:'Do First',sub:'High Impact · Low Effort (≤90m)',hint:'Tackle these now — biggest payoff for the time spent.',color:'var(--ok)',bg:'rgba(34,197,94,.08)',targetPriority:'High',targetMins:30,tasks:[]},
-    q2:{label:'Plan',sub:'High Impact · High Effort (>90m)',hint:'Schedule these — break into milestones, allocate deep-work blocks.',color:'var(--ac)',bg:'rgba(99,102,241,.08)',targetPriority:'High',targetMins:120,tasks:[]},
+    q2:{label:'Plan',sub:'High Impact · High Effort (>90m)',hint:'Schedule these — break into milestones, allocate deep-work blocks.',color:'var(--ach)',bg:'rgba(99,102,241,.08)',targetPriority:'High',targetMins:120,tasks:[]},
     q3:{label:'Quick Wins',sub:'Low Impact · Low Effort (≤90m)',hint:'Batch or delegate — small jobs that clear the deck.',color:'var(--warn)',bg:'rgba(245,158,11,.08)',targetPriority:'Low',targetMins:30,tasks:[]},
     q4:{label:'Eliminate',sub:'Low Impact · High Effort (>90m)',hint:'Cut, defer, or shrink — high cost for limited value.',color:'var(--red)',bg:'rgba(239,68,68,.08)',targetPriority:'Low',targetMins:120,tasks:[]}
   };
@@ -4736,7 +4736,7 @@ function renderTaskMatrix(){
         </div>`;
       }
       return `<div class="mtx-card" data-task-id="${t.id}" draggable="true" ondragstart="_mtxDragStart(event,${_tidLit(t.id)})" ondragend="_mtxDragEnd(event)" style="background:var(--s1);border:1px solid var(--bd1);border-radius:6px;padding:6px 8px;margin-bottom:5px;cursor:grab;font-size:11px" onclick="openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))">
-        <div style="font-weight:500;margin-bottom:2px;line-height:1.3;${t.titleColor?`color:${t.titleColor};font-weight:700`:''}">${esc(t.title)}</div>
+        <div style="font-weight:500;margin-bottom:2px;line-height:1.3;${t.titleColor?`color:${_luAccentText(t.titleColor)};font-weight:700`:''}">${esc(t.title)}</div>
         <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
           <span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span>
           <span style="font-size:11px;color:var(--t3)">${t.estimatedMins||30}m</span>
@@ -4748,7 +4748,7 @@ function renderTaskMatrix(){
     }).join('');
     return `<div class="mtx-quad" data-quad="${k}" data-target-priority="${q.targetPriority}" data-target-mins="${q.targetMins}" ondragover="_mtxDragOver(event)" ondragleave="_mtxDragLeave(event)" ondrop="_mtxDrop(event,'${q.targetPriority}',${q.targetMins})" style="flex:1;min-width:220px;background:${q.bg};border:1px solid var(--bd1);border-radius:10px;padding:12px;transition:outline .15s,background .15s">
       <div style="margin-bottom:6px">
-        <div style="font-size:13px;font-weight:700;color:${q.color}">${q.label}</div>
+        <div style="font-size:13px;font-weight:700;color:${_luAccentText(q.color)}">${q.label}</div>
         <div style="font-size:11px;color:var(--t3);margin-top:2px">${q.sub} · ${q.tasks.length} task${q.tasks.length!==1?'s':''}</div>
         <div style="font-size:11px;color:var(--t2);margin-top:4px;line-height:1.4">${q.hint}</div>
       </div>
@@ -4879,7 +4879,7 @@ function renderTaskGantt(){
     const isToday=d.toDateString()===today.toDateString();
     const dayNum=d.getDate();
     const isMonStart=dayNum===1;
-    headerCells+=`<div style="width:${dayPx}px;min-width:${dayPx}px;text-align:center;font-size:11px;color:${isToday?'var(--ac)':'var(--t3)'};font-weight:${isToday?'700':'400'};border-left:1px solid ${isMonStart?'var(--bd2)':'transparent'};padding:2px 0;flex-shrink:0">${isMonStart?d.toLocaleString('default',{month:'short'})+' ':''} ${dayNum}</div>`;
+    headerCells+=`<div style="width:${dayPx}px;min-width:${dayPx}px;text-align:center;font-size:11px;color:${isToday?'var(--ach)':'var(--t3)'};font-weight:${isToday?'700':'400'};border-left:1px solid ${isMonStart?'var(--bd2)':'transparent'};padding:2px 0;flex-shrink:0">${isMonStart?d.toLocaleString('default',{month:'short'})+' ':''} ${dayNum}</div>`;
   }
   // Build task rows
   const priorityColors={High:'var(--red)',Medium:'var(--ac)',Low:'var(--ok)'};
@@ -4898,12 +4898,12 @@ function renderTaskGantt(){
     const todayOffset=Math.round((today-minDate)/(1000*60*60*24));
     const isExt=t._source&&t._source!=='local';
     const titleClickHandler=isExt?(t._url&&/^https?:\/\//i.test(t._url)?`_luOpenUrl('${_jsAttr(t._url)}')`:`_openExternalAnnotateModal('${_jsAttr(t._source)}','${_jsAttr(t._externalId)}')`):`openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))`;
-    const barStyle=isExt?`background:transparent;border:2px dashed ${barColor};color:${barColor}`:`background:${barColor};color:#fff`;
+    const barStyle=isExt?`background:transparent;border:2px dashed ${barColor};color:${_luAccentText(barColor)}`:`background:${_luFillSafe(barColor)};color:#fff`;
     return `<div style="display:flex;align-items:center;border-bottom:1px solid var(--bd1);min-height:32px">
       <div style="width:200px;min-width:200px;padding:0 8px;font-size:11px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer" onclick="${titleClickHandler}" title="${esc(t.title)}${isExt?' (opens in source)':''}">
         ${isBlocked?'<span style="color:var(--red);margin-right:3px">🔒</span>':''}
         ${isExt?_extSourceBadge(t._source):''}
-        <span style="font-weight:500;${t.titleColor?`color:${t.titleColor};font-weight:700`:''}">${esc(t.title)}</span>
+        <span style="font-weight:500;${t.titleColor?`color:${_luAccentText(t.titleColor)};font-weight:700`:''}">${esc(t.title)}</span>
       </div>
       <div style="flex:1;position:relative;height:32px;overflow:hidden">
         <!-- Today line -->
@@ -5096,7 +5096,7 @@ function renderTaskCalendar(){
       });
     });
   }
-  const priText={High:'#F87171',Medium:'#FBBF24',Low:'#86EFAC'};
+  const priText={High:'var(--red)',Medium:'var(--warn)',Low:'var(--ok)'};
   const dows=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const header=`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--s2);border:1px solid var(--bd1);border-radius:6px 6px 0 0">
     <div style="display:flex;gap:6px;align-items:center">
@@ -5115,15 +5115,15 @@ function renderTaskCalendar(){
     const dim=c.inMonth?1:.4;
     const bg=isToday?'rgba(99,102,241,0.10)':'transparent';
     return `<div style="border-right:1px solid var(--bd1);border-bottom:1px solid var(--bd1);padding:4px 6px;opacity:${dim};background:${bg};min-height:96px;cursor:pointer" onclick="openFA('task');setTimeout(()=>{const i=document.getElementById('fa-due');if(i)i.value='${_jsAttr(k)}';},50)">
-      <div style="font-size:11px;color:${isToday?'var(--ac)':'var(--t2)'};font-weight:${isToday?'700':'500'};margin-bottom:2px">${c.date.getDate()}</div>
+      <div style="font-size:11px;color:${isToday?'var(--ach)':'var(--t2)'};font-weight:${isToday?'700':'500'};margin-bottom:2px">${c.date.getDate()}</div>
       ${items.slice(0,4).map(t=>{
         if(t._source&&t._source!=='local'){
           const url=t._url||'#';
           const badgeColor=t._source==='smartsheet'?'#1f6feb':'#9333ea';
           const badgeText=t._source==='smartsheet'?'CF':'LSI';
-          return `<div style="font-size:11px;line-height:1.3;padding:2px 4px;margin-bottom:2px;background:var(--s1);border-left:2px dashed ${badgeColor};border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(t.title)} (open in source)"><a ${_extOpenAttrs(url)} onclick="event.stopPropagation()" style="color:var(--t1);text-decoration:none"><span style="display:inline-block;padding:0 3px;border-radius:2px;background:${badgeColor};color:#fff;font-size:7px;font-weight:700;letter-spacing:.3px;margin-right:3px">${badgeText}</span>${esc(t.title)}</a></div>`;
+          return `<div style="font-size:11px;line-height:1.3;padding:2px 4px;margin-bottom:2px;background:var(--s1);border-left:2px dashed ${badgeColor};border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(t.title)} (open in source)"><a ${_extOpenAttrs(url)} onclick="event.stopPropagation()" style="color:var(--t1);text-decoration:none"><span style="display:inline-block;padding:0 3px;border-radius:2px;background:${_luFillSafe(badgeColor)};color:#fff;font-size:7px;font-weight:700;letter-spacing:.3px;margin-right:3px">${badgeText}</span>${esc(t.title)}</a></div>`;
         }
-        return `<div style="font-size:11px;line-height:1.3;padding:2px 4px;margin-bottom:2px;background:var(--s1);border-left:2px solid ${priText[t.priority]||'var(--t3)'};border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${t.status==='Done'?'text-decoration:line-through;opacity:.55;':(t.titleColor?`color:${t.titleColor};font-weight:700;`:'')}" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))" title="${esc(t.title)}">${esc(t.title)}</div>`;
+        return `<div style="font-size:11px;line-height:1.3;padding:2px 4px;margin-bottom:2px;background:var(--s1);border-left:2px solid ${priText[t.priority]||'var(--t3)'};border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${t.status==='Done'?'text-decoration:line-through;opacity:.55;':(t.titleColor?`color:${_luAccentText(t.titleColor)};font-weight:700;`:'')}" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))" title="${esc(t.title)}">${esc(t.title)}</div>`;
       }).join('')}
       ${items.length>4?`<div style="font-size:11px;color:var(--t3);padding:0 4px">+${items.length-4} more</div>`:''}
     </div>`;
@@ -5193,13 +5193,13 @@ function openTaskClusterPicker(taskId,ev){
   if(!ids.length){toast('Select at least one task first');return;}
   const single=ids.length===1?D.tasks.find(x=>x.id===ids[0]):null;
   const cur=single?single.clusterId:null;
-  const rows=(D.clusters||[]).map(cl=>`<div class="lu-cp-row${cur===cl.id?' on':''}" onclick="_clusterPickerApply(${_jsArg(ids)},${cl.id})"><span style="width:20px;text-align:center">${cl.icon||'📁'}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(cl.name)}</span>${cur===cl.id?'<span style="color:var(--ac)">✓</span>':''}</div>`).join('');
+  const rows=(D.clusters||[]).map(cl=>`<div class="lu-cp-row${cur===cl.id?' on':''}" onclick="_clusterPickerApply(${_jsArg(ids)},${cl.id})"><span style="width:20px;text-align:center">${cl.icon||'📁'}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(cl.name)}</span>${cur===cl.id?'<span style="color:var(--ach)">✓</span>':''}</div>`).join('');
   const html=`<div id="lu-cluster-pick" style="position:fixed;z-index:var(--z-dropdown,600);min-width:220px;max-width:300px;background:var(--s2);border:1px solid var(--bd2);border-radius:10px;box-shadow:0 10px 32px rgba(0,0,0,.35);padding:6px;font-size:12px" onclick="event.stopPropagation()">
     <div style="font-size:10.5px;color:var(--t3);padding:4px 8px 6px;text-transform:uppercase;letter-spacing:.04em">${ids.length===1?'Move to cluster':'Move '+ids.length+' tasks to cluster'}</div>
     <div style="max-height:260px;overflow-y:auto">${rows||'<div style="padding:6px 8px;color:var(--t3)">No clusters yet</div>'}</div>
     <div style="border-top:1px solid var(--bd1);margin-top:4px;padding-top:4px">
       <div class="lu-cp-row${cur==null&&single?' on':''}" onclick="_clusterPickerApply(${_jsArg(ids)},null)"><span style="width:20px;text-align:center">🗂</span><span style="flex:1">No cluster</span></div>
-      <div class="lu-cp-row" style="color:var(--ac)" onclick="_luClusterPickerClose();openClusterModal(null,{preselectTaskIds:${_jsArg(ids)}})"><span style="width:20px;text-align:center">＋</span><span style="flex:1">New cluster…</span></div>
+      <div class="lu-cp-row" style="color:var(--ach)" onclick="_luClusterPickerClose();openClusterModal(null,{preselectTaskIds:${_jsArg(ids)}})"><span style="width:20px;text-align:center">＋</span><span style="flex:1">New cluster…</span></div>
     </div>
   </div>`;
   if(!document.getElementById('lu-cluster-pick-css')){
@@ -5280,10 +5280,10 @@ function renderTaskClusters(){
   //   group-by control or the existing tabs, so we don't render dead pills.
   const pillBar=`<div style="display:flex;gap:6px;padding-bottom:10px;border-bottom:1px solid var(--bd1);margin-bottom:14px;align-items:center">
     <div style="font-size:11px;color:var(--t1);background:rgba(59,130,246,0.15);padding:5px 10px;border-radius:6px;display:flex;align-items:center;gap:6px;white-space:nowrap">
-      <span style="color:#60A5FA;font-size:12px;line-height:1">⬡</span>Grouped by Cluster
+      <span style="color:var(--ach);font-size:12px;line-height:1">⬡</span>Grouped by Cluster
     </div>
     <button class="btn btn-p" style="height:26px;font-size:11px;white-space:nowrap" title="Create a cluster (group) for tasks" onclick="openClusterModal(null)">＋ New Cluster</button>
-    <span style="font-size:11px;color:var(--t3)">Need a different lens? Switch to <a style="color:var(--ac);cursor:pointer;text-decoration:underline" onclick="setTaskView('list')">List view</a> and use Group: Project / Due / Status / Assignee.</span>
+    <span style="font-size:11px;color:var(--t3)">Need a different lens? Switch to <a style="color:var(--ach);cursor:pointer;text-decoration:underline" onclick="setTaskView('list')">List view</a> and use Group: Project / Due / Status / Assignee.</span>
   </div>`;
 
   function taskRow(t){
@@ -5291,8 +5291,8 @@ function renderTaskClusters(){
     const done=t.status==='Done';
     const pri=t.priority||'Medium';
     const priColors={
-      'High':{bg:'rgba(239,68,68,0.15)',fg:'#F87171'},
-      'Medium':{bg:'rgba(245,158,11,0.15)',fg:'#FBBF24'},
+      'High':{bg:'rgba(239,68,68,0.15)',fg:'var(--red)'},
+      'Medium':{bg:'rgba(245,158,11,0.15)',fg:'var(--warn)'},
       'Low':{bg:'rgba(148,163,184,0.15)',fg:'var(--t2)'}
     };
     const pc=priColors[pri]||priColors['Medium'];
@@ -5310,9 +5310,9 @@ function renderTaskClusters(){
     return `<div class="cl-task-row" data-task-id="${t.id}" draggable="${_bulkMode?'false':'true'}" ${_bulkMode?'':`ondragstart="_clusterTaskDragStart(event,${_tidLit(t.id)})" ondragend="_clusterTaskDragEnd(event)"`} style="display:flex;align-items:center;gap:12px;padding:10px 14px 10px 56px;border-top:1px solid var(--bd1);cursor:pointer;position:relative;${bulkBg}${isBulkChecked?'border-left:3px solid var(--ac);padding-left:53px':''}" onclick="${rowClick}">
       ${_bulkMode?'':`<span class="cl-task-grip" style="position:absolute;left:32px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--t3);cursor:grab;user-select:none;opacity:.6" title="Drag to another cluster">⋮⋮</span>`}
       ${checkboxHtml}
-      <span style="flex:1;font-size:12px;font-weight:500;${done?'text-decoration:line-through;color:var(--t3)':(t.titleColor?`color:${t.titleColor};font-weight:700`:'color:var(--t1)')};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}${(()=>{if(!_isSubtaskRow(t))return '';const p=D.tasks.find(x=>String(x.id)===String(t.parentTaskId));return `<span style="font-size:10px;color:var(--t3);font-weight:400;margin-left:6px" title="A subtask filed into this cluster directly">↳ ${esc(p?p.title:'subtask')}</span>`;})()}</span>
+      <span style="flex:1;font-size:12px;font-weight:500;${done?'text-decoration:line-through;color:var(--t3)':(t.titleColor?`color:${_luAccentText(t.titleColor)};font-weight:700`:'color:var(--t1)')};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}${(()=>{if(!_isSubtaskRow(t))return '';const p=D.tasks.find(x=>String(x.id)===String(t.parentTaskId));return `<span style="font-size:10px;color:var(--t3);font-weight:400;margin-left:6px" title="A subtask filed into this cluster directly">↳ ${esc(p?p.title:'subtask')}</span>`;})()}</span>
       ${_bulkMode?'':`<button class="btn btn-s" style="height:20px;font-size:11px;padding:0 6px;flex-shrink:0" title="Move to another cluster" onclick="openTaskClusterPicker(${_tidLit(t.id)},event)">⬡</button>`}
-      <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:${pc.bg};color:${pc.fg};font-weight:600;flex-shrink:0">${priShort}</span>
+      <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:${pc.bg};color:${_luAccentText(pc.fg)};font-weight:600;flex-shrink:0">${priShort}</span>
       ${(()=>{const ci=t.createdAt||(typeof t.id==='number'&&t.id>1e9?_pd(t.id).toISOString():'');return ci?`<span style="font-size:11px;color:var(--t3);min-width:70px;text-align:right;flex-shrink:0" title="Created ${esc(ci)}">🕒 ${fmtDate(ci.slice(0,10))}</span>`:'';})()}
       <span style="font-size:11px;${isOverdue?'color:var(--red);font-weight:600':'color:var(--t3)'};min-width:64px;text-align:right;flex-shrink:0">${dueLabel}</span>
     </div>`;
@@ -5322,7 +5322,7 @@ function renderTaskClusters(){
     const {cl,shown,done,total,pct,overdue,earliestDue,hiddenByFilter}=g;
     const activeTab=(()=>{try{const el=document.querySelector('#tasks-tabs > .tab.on');return el?el.textContent.trim():'';}catch(_){return '';}})();
     const emptyMsg=hiddenByFilter>0
-      ?`${hiddenByFilter} task${hiddenByFilter===1?' is':'s are'} in this cluster but hidden by the <b>${esc(activeTab||'current')}</b> tab${_taskMyOnly?' / My Items scope':''} · switch to <a style="color:var(--ac);cursor:pointer;text-decoration:underline" onclick="event.stopPropagation();setTaskTabIdx(0)">All Active</a> to see them`
+      ?`${hiddenByFilter} task${hiddenByFilter===1?' is':'s are'} in this cluster but hidden by the <b>${esc(activeTab||'current')}</b> tab${_taskMyOnly?' / My Items scope':''} · switch to <a style="color:var(--ach);cursor:pointer;text-decoration:underline" onclick="event.stopPropagation();setTaskTabIdx(0)">All Active</a> to see them`
       :'No tasks yet · use ⬡ on any task, or ⋯ to manage';
     const collapsed=!!_clusterCollapsed[cl.id];
     const ownerInitials=(cl.owner||'?').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
@@ -5344,12 +5344,12 @@ function renderTaskClusters(){
           <div style="font-size:13px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(cl.name)}</div>
           <div style="font-size:11px;color:var(--t3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${subtitle}</div>
         </div>
-        <div title="${esc(cl.owner||'')}" style="width:24px;height:24px;border-radius:50%;background:${accent}33;color:${accent};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0">${ownerInitials}</div>
+        <div title="${esc(cl.owner||'')}" style="width:24px;height:24px;border-radius:50%;background:${accent}33;color:${_luAccentText(accent)};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0">${ownerInitials}</div>
         <div style="width:120px;flex-shrink:0">
           <div style="height:4px;background:var(--s3);border-radius:999px;overflow:hidden">
             <div style="height:100%;width:${pct}%;background:${progressColor};border-radius:999px;transition:width .3s"></div>
           </div>
-          <div style="font-size:11px;color:${progressTextColor};text-align:right;margin-top:3px">${pct}%</div>
+          <div style="font-size:11px;color:${_luAccentText(progressTextColor)};text-align:right;margin-top:3px">${pct}%</div>
         </div>
         <button title="Edit cluster" style="height:24px;width:24px;padding:0;font-size:14px;background:transparent;border:none;color:var(--t3);cursor:pointer;flex-shrink:0;border-radius:4px" onclick="event.stopPropagation();openClusterModal(${cl.id})">⋯</button>
       </div>
@@ -5766,7 +5766,7 @@ function renderTaskRailHTML(){
   const widgets={
     quickStats:`<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px">
       <div style="background:var(--s2);border-radius:8px;padding:10px;text-align:center;border:1px solid var(--bd1)"><div style="font-size:20px;font-weight:700;color:var(--ok)">${doneToday}</div><div style="font-size:11px;color:var(--t3)">Done today</div></div>
-      <div style="background:var(--s2);border-radius:8px;padding:10px;text-align:center;border:1px solid var(--bd1)"><div style="font-size:20px;font-weight:700;color:var(--ac)">${myDay}</div><div style="font-size:11px;color:var(--t3)">My Day</div></div>
+      <div style="background:var(--s2);border-radius:8px;padding:10px;text-align:center;border:1px solid var(--bd1)"><div style="font-size:20px;font-weight:700;color:var(--ach)">${myDay}</div><div style="font-size:11px;color:var(--t3)">My Day</div></div>
       <div style="background:var(--s2);border-radius:8px;padding:10px;text-align:center;border:1px solid var(--bd1)"><div style="font-size:20px;font-weight:700;color:${overdue.length>0?'var(--red)':'var(--t3)'}">${overdue.length}</div><div style="font-size:11px;color:var(--t3)">Overdue</div></div>
       <div style="background:var(--s2);border-radius:8px;padding:10px;text-align:center;border:1px solid var(--bd1)"><div style="font-size:20px;font-weight:700;color:var(--purp)">${focusMins}m</div><div style="font-size:11px;color:var(--t3)">Focus</div></div>
     </div>`,
@@ -5776,13 +5776,13 @@ function renderTaskRailHTML(){
       const counts7=days7.map(d=>{const k=_ymd(d);return allTasks.filter(t=>t.status==='Done'&&_dayOf(t.completedAt)===k).length;});
       const max7=Math.max(...counts7,1);
       const total7=counts7.reduce((a,b)=>a+b,0);
-      const bars=counts7.map((c,i)=>{const h=Math.round(c/max7*52)+2;const isToday=i===6;return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:100%;background:${isToday?'var(--ac)':'var(--s3)'};border-radius:3px 3px 0 0;height:${h}px;min-height:3px;position:relative" title="${c} done"><span style="position:absolute;top:-13px;left:0;right:0;text-align:center;font-size:11px;font-weight:600;color:${isToday?'var(--ac)':'var(--t3)'}">${c||''}</span></div><div style="font-size:11px;color:${isToday?'var(--ac)':'var(--t3)'};font-weight:${isToday?'600':'400'}">${dayLabels[days7[i].getDay()]}</div></div>`;}).join('');
+      const bars=counts7.map((c,i)=>{const h=Math.round(c/max7*52)+2;const isToday=i===6;return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:100%;background:${isToday?'var(--ac)':'var(--s3)'};border-radius:3px 3px 0 0;height:${h}px;min-height:3px;position:relative" title="${c} done"><span style="position:absolute;top:-13px;left:0;right:0;text-align:center;font-size:11px;font-weight:600;color:${isToday?'var(--ach)':'var(--t3)'}">${c||''}</span></div><div style="font-size:11px;color:${isToday?'var(--ach)':'var(--t3)'};font-weight:${isToday?'600':'400'}">${dayLabels[days7[i].getDay()]}</div></div>`;}).join('');
       return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:4px">📈 Last 7 Days</div><div style="font-size:11px;color:var(--t3);margin-bottom:14px">${total7} task${total7===1?'':'s'} completed</div><div style="display:flex;align-items:flex-end;gap:5px;height:64px">${bars}</div></div>`;
     })(),
     statusDonut:(()=>{
       const sCounts={Done:allTasks.filter(t=>t.status==='Done').length,'In Progress':allTasks.filter(t=>t.status==='In Progress').length,'Not Started':allTasks.filter(t=>t.status==='Not Started').length,Someday:allTasks.filter(t=>t.status==='Someday').length};
       const sTotal=Object.values(sCounts).reduce((a,b)=>a+b,0)||1;
-      const sColors={'Done':'var(--ok)','In Progress':'var(--ac)','Not Started':'var(--t3)','Someday':'var(--warn)'};
+      const sColors={'Done':'var(--ok)','In Progress':'var(--ach)','Not Started':'var(--t3)','Someday':'var(--warn)'};
       let acc=0;const stops=Object.entries(sCounts).map(([k,v])=>{const start=acc/sTotal*100;acc+=v;const end=acc/sTotal*100;return `${sColors[k]} ${start}% ${end}%`;}).join(',');
       const legend=Object.entries(sCounts).filter(([,v])=>v>0).map(([k,v])=>`<div style="display:flex;align-items:center;gap:5px;font-size:11px"><span style="width:8px;height:8px;border-radius:2px;background:${sColors[k]};flex-shrink:0"></span><span style="color:var(--t2);flex:1">${k}</span><strong>${v}</strong></div>`).join('');
       return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">🍩 Status Breakdown</div>${sTotal>0?`<div style="display:flex;gap:10px;align-items:center"><div style="background:conic-gradient(${stops});width:80px;height:80px;border-radius:50%;flex-shrink:0"></div><div style="flex:1;display:flex;flex-direction:column;gap:3px">${legend}</div></div>`:'<div style="font-size:11px;color:var(--t3)">No tasks yet.</div>'}</div>`;
@@ -5810,7 +5810,7 @@ function renderTaskRailHTML(){
     })(),
     goalsSnapshot:(()=>{
       const gs=(D.goals||[]).slice(0,5);
-      const body=gs.length?gs.map(g=>{const pct=g.pct||0;const c=pct>=70?'var(--ok)':pct>=40?'var(--ac)':'var(--warn)';return `<div style="margin-bottom:6px;cursor:pointer" onclick="openDrawer('goal',D.goals.find(x=>x.id==${_tidLit(g.id)}))"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px"><span>${g.icon||'🎯'} ${esc(g.title)}</span><strong style="color:${c}">${pct}%</strong></div><div style="height:5px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${c}"></div></div></div>`;}).join(''):'<div style="font-size:11px;color:var(--t3)">No goals yet.</div>';
+      const body=gs.length?gs.map(g=>{const pct=g.pct||0;const c=pct>=70?'var(--ok)':pct>=40?'var(--ach)':'var(--warn)';return `<div style="margin-bottom:6px;cursor:pointer" onclick="openDrawer('goal',D.goals.find(x=>x.id==${_tidLit(g.id)}))"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px"><span>${g.icon||'🎯'} ${esc(g.title)}</span><strong style="color:${_luAccentText(c)}">${pct}%</strong></div><div style="height:5px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${c}"></div></div></div>`;}).join(''):'<div style="font-size:11px;color:var(--t3)">No goals yet.</div>';
       return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">${_icon('target',14,'currentColor')} Goals Snapshot</div>${body}</div>`;
     })(),
     projectVelocity:(()=>{
@@ -5819,14 +5819,14 @@ function renderTaskRailHTML(){
       allTasks.filter(t=>t.status==='Done'&&(t.completedAt||'')>=wkKey&&t.projectId).forEach(t=>{if(byProj[t.projectId])byProj[t.projectId].count++;});
       const arr=Object.values(byProj).filter(p=>p.count>0).sort((a,b)=>b.count-a.count).slice(0,5);
       const max=Math.max(...arr.map(p=>p.count),1);
-      const body=arr.length?arr.map(p=>`<div style="margin-bottom:5px"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px"><span>${esc(p.name)}</span><strong style="color:var(--ac)">${p.count}</strong></div><div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${p.count/max*100}%;background:var(--ac)"></div></div></div>`).join(''):'<div style="font-size:11px;color:var(--t3)">No completions this week.</div>';
+      const body=arr.length?arr.map(p=>`<div style="margin-bottom:5px"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px"><span>${esc(p.name)}</span><strong style="color:var(--ach)">${p.count}</strong></div><div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${p.count/max*100}%;background:var(--ac)"></div></div></div>`).join(''):'<div style="font-size:11px;color:var(--t3)">No completions this week.</div>';
       return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:2px">🚀 Project Velocity</div><div style="font-size:11px;color:var(--t3);margin-bottom:8px">Tasks done by project · last 7 days</div>${body}</div>`;
     })(),
     topTags:(()=>{
       const freq={};allTasks.forEach(t=>(t.tags||[]).forEach(tag=>{freq[tag]=(freq[tag]||0)+1;}));
       const arr=Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,15);
       const max=arr.length?arr[0][1]:1;const min=arr.length?arr[arr.length-1][1]:1;const range=Math.max(max-min,1);
-      const body=arr.length?arr.map(([t,c])=>{const sz=Math.round(9+(c-min)/range*4);return `<span style="display:inline-block;padding:2px 7px;margin:2px 3px 2px 0;background:var(--s3);border-radius:10px;font-size:${sz}px;color:var(--ac);cursor:pointer" onclick="toast('Tag: ${_jsAttr(t)} (${c})')">#${esc(t)}</span>`;}).join(''):'<div style="font-size:11px;color:var(--t3)">No tags yet.</div>';
+      const body=arr.length?arr.map(([t,c])=>{const sz=Math.round(9+(c-min)/range*4);return `<span style="display:inline-block;padding:2px 7px;margin:2px 3px 2px 0;background:var(--s3);border-radius:10px;font-size:${sz}px;color:var(--ach);cursor:pointer" onclick="toast('Tag: ${_jsAttr(t)} (${c})')">#${esc(t)}</span>`;}).join(''):'<div style="font-size:11px;color:var(--t3)">No tags yet.</div>';
       return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:6px">${_icon('tag',14,'currentColor')} Top Tags</div>${body}</div>`;
     })(),
     recentActivity:(()=>{
@@ -5847,11 +5847,11 @@ function renderTaskRailHTML(){
       const focusScore=Math.min(focusMins/2,20);
       const overduePenalty=Math.min(overdue.length*2,10);
       const score=Math.max(0,Math.min(100,Math.round(habsScore+tasksScore+focusScore-overduePenalty+10)));
-      const grade=score>=90?{l:'A+',c:'var(--ok)'}:score>=80?{l:'A',c:'var(--ok)'}:score>=70?{l:'B',c:'var(--ac)'}:score>=60?{l:'C',c:'var(--warn)'}:{l:'D',c:'var(--red)'};
+      const grade=score>=90?{l:'A+',c:'var(--ok)'}:score>=80?{l:'A',c:'var(--ok)'}:score>=70?{l:'B',c:'var(--ach)'}:score>=60?{l:'C',c:'var(--warn)'}:{l:'D',c:'var(--red)'};
       return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:14px;margin-bottom:12px;text-align:center">
         <div style="font-size:11px;font-weight:600;margin-bottom:8px">${_icon('barChart',14,'#3b82f6')} Productivity Score</div>
-        <div style="font-size:36px;font-weight:700;color:${grade.c};line-height:1">${score}</div>
-        <div style="font-size:18px;color:${grade.c};font-weight:600;margin-bottom:8px">${grade.l}</div>
+        <div style="font-size:36px;font-weight:700;color:${_luAccentText(grade.c)};line-height:1">${score}</div>
+        <div style="font-size:18px;color:${_luAccentText(grade.c)};font-weight:600;margin-bottom:8px">${grade.l}</div>
         <div style="height:8px;background:var(--s3);border-radius:4px;overflow:hidden"><div style="height:100%;width:${score}%;background:${grade.c};border-radius:4px;transition:width .6s"></div></div>
         <div style="font-size:11px;color:var(--t3);margin-top:8px">Tasks ${doneToday} · Habits ${habsDone}/${dailyHabits.length} · Focus ${focusMins}m</div>
       </div>`;
@@ -6074,7 +6074,7 @@ function _renderDailyCommandCenterCard(){
       ?`<span style="color:var(--red)">${c.overdue} overdue</span>`
       :(c.today>0?`${c.total} open total`:(c.total>0?'no due dates':'on track'));
     return `<div style="background:var(--s3);border-radius:6px;padding:8px;text-align:center">
-      <div style="font-size:11px;font-weight:600;color:${color};letter-spacing:.4px">${label}</div>
+      <div style="font-size:11px;font-weight:600;color:${_luAccentText(color)};letter-spacing:.4px">${label}</div>
       <div style="font-size:18px;font-weight:700;margin-top:2px">${headline}</div>
       <div style="font-size:11px;color:var(--t3)">${sub}</div>
     </div>`;
@@ -6158,7 +6158,7 @@ function _extPendingPill(ov){
   if(!ov||!ov.pendingStatus)return '';
   const err=ov.pendingError;
   const color=err?'#dc2626':'#f59e0b';
-  return `<span title="${err?'Push failed: '+esc(err).slice(0,200):'Queued — will push to source on next Push'}" style="font-size:11px;padding:1px 5px;border-radius:3px;background:${err?'rgba(220,38,38,.15)':'rgba(245,158,11,.18)'};color:${color};font-weight:600;cursor:help">${err?'⚠ ':''}→ ${esc(ov.pendingStatus)}</span>`;
+  return `<span title="${err?'Push failed: '+esc(err).slice(0,200):'Queued — will push to source on next Push'}" style="font-size:11px;padding:1px 5px;border-radius:3px;background:${err?'rgba(220,38,38,.15)':'rgba(245,158,11,.18)'};color:${_luAccentText(color)};font-weight:600;cursor:help">${err?'⚠ ':''}→ ${esc(ov.pendingStatus)}</span>`;
 }
 
 // Write-back: change external task status in the source (Smartsheet/Nifty).
@@ -6315,7 +6315,7 @@ function _openExternalAnnotateModal(source,externalId){
   const sourceLabel=source==='smartsheet'?'Smartsheet':'NiftyPM';
   const externalUrl=et.externalUrl||et._url||'';
   modal.innerHTML=`<div style="padding:14px;max-width:560px">
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">${badge}<span style="font-size:11px;color:var(--t3)">${sourceLabel}</span>${externalUrl?`<a href="${esc(externalUrl)}" target="_blank" rel="noopener" style="margin-left:auto;font-size:11px;color:var(--ac);text-decoration:none">Open in ${sourceLabel} ↗</a>`:''}</div>
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">${badge}<span style="font-size:11px;color:var(--t3)">${sourceLabel}</span>${externalUrl?`<a href="${esc(externalUrl)}" target="_blank" rel="noopener" style="margin-left:auto;font-size:11px;color:var(--ach);text-decoration:none">Open in ${sourceLabel} ↗</a>`:''}</div>
     <div style="font-size:14px;font-weight:600;margin-bottom:2px;line-height:1.3">${esc(et.title||'(untitled)')}</div>
     <div style="font-size:11px;color:var(--t3);margin-bottom:10px">${et.projectLabel?esc(et.projectLabel)+' · ':''}${et.status?esc(et.status):''}${et.due?' · due '+esc(et.due):''}${et.assignee?' · '+esc(et.assignee):''}</div>
     ${(function(){
@@ -6328,7 +6328,7 @@ function _openExternalAnnotateModal(source,externalId){
       const parent=(D.externalTasks||[]).find(x=>x.externalId===pid&&x.source===source);
       if(!parent)return '';
       return `<div style="padding:6px 8px;background:rgba(99,102,241,.10);border:1px solid rgba(99,102,241,.30);border-radius:4px;margin-bottom:8px;font-size:11px">
-        ↳ <strong>Subtask</strong> of <a href="javascript:void(0)" onclick="closeModal();setTimeout(()=>_openExternalAnnotateModal('${_jsAttr(source)}','${_jsAttr(pid)}'),50)" style="color:var(--ac);text-decoration:none">${esc(parent.title||'(untitled parent)')}</a>
+        ↳ <strong>Subtask</strong> of <a href="javascript:void(0)" onclick="closeModal();setTimeout(()=>_openExternalAnnotateModal('${_jsAttr(source)}','${_jsAttr(pid)}'),50)" style="color:var(--ach);text-decoration:none">${esc(parent.title||'(untitled parent)')}</a>
       </div>`;
     })()}
     <!-- Top action row: completion toggle pushes to source; Hide in
@@ -6488,11 +6488,11 @@ function _extAnnotationChips(ov){
   if(!ov)return '';
   const bits=[];
   if(ov.pendingStatus)bits.push(_extPendingPill(ov));
-  if(ov.localNote)bits.push(`<span title="${esc(ov.localNote).slice(0,200)}" style="font-size:11px;color:var(--ac);cursor:help">📝</span>`);
+  if(ov.localNote)bits.push(`<span title="${esc(ov.localNote).slice(0,200)}" style="font-size:11px;color:var(--ach);cursor:help">📝</span>`);
   if(ov.localPriority)bits.push(`<span class="pill ${pillClass(ov.localPriority)}" style="font-size:9px" title="Local priority override">${ov.localPriority}</span>`);
   if(ov.localTags){
     const tags=String(ov.localTags).split(',').map(t=>t.trim()).filter(Boolean).slice(0,3);
-    tags.forEach(t=>bits.push(`<span style="font-size:9px;padding:1px 4px;background:var(--s3);color:var(--ac);border-radius:3px">#${esc(t)}</span>`));
+    tags.forEach(t=>bits.push(`<span style="font-size:9px;padding:1px 4px;background:var(--s3);color:var(--ach);border-radius:3px">#${esc(t)}</span>`));
   }
   return bits.length?`<span style="display:inline-flex;gap:3px;align-items:center;flex-wrap:wrap">${bits.join('')}</span>`:'';
 }
@@ -6542,10 +6542,10 @@ function renderTasks(){
     const inOverflow=overflow.some(v=>v.k===_taskView);
     const seg=visible.map(v=>{const isOn=_taskView===v.k;return `<button id="tasks-view-${v.k}" class="btn" title="${v.label} view" style="border-radius:0;height:28px;width:36px;padding:0;font-size:14px;background:${isOn?'var(--ac)':'transparent'};color:${isOn?'#fff':'var(--t2)'};border:none" onclick="setTaskView('${_jsAttr(v.k)}')">${v.icon}</button>`;}).join('');
     const moreLabel=inOverflow?`${cur.icon} ${cur.label} ▾`:'⋯ More ▾';
-    return `<div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden">${seg}</div><div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:11px;padding:0 8px;background:${inOverflow?'var(--ac)':''};color:${inOverflow?'#fff':''}" onclick="event.stopPropagation();togglePopMenu('tasks-more-views')">${moreLabel}</button><div id="tasks-more-views" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:140px;box-shadow:0 4px 16px rgba(0,0,0,.35)">${overflow.map(v=>`<button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;background:transparent;border:none;text-align:left;color:${_taskView===v.k?'var(--ac)':'var(--t1)'}" onclick="closePopMenu('tasks-more-views');setTaskView('${_jsAttr(v.k)}')">${v.icon} ${v.label}${_taskView===v.k?' ✓':''}</button>`).join('')}</div></div>`;
-  })()}<div style="position:relative;display:inline-block"><button id="bulk-toggle-btn" class="btn btn-s" style="height:28px;font-size:11px" onclick="event.stopPropagation();toggleTaskAIMenu(event)" title="Tools menu">🛠 Tools ▾</button><div id="task-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();toggleBulkMode()">☑ Bulk Select Mode</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();window._syncDiagnose&&window._syncDiagnose()">🩺 Diagnose sync</button><div style="height:1px;background:var(--bd1);margin:4px 2px"></div><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();aiDecomposeGoal()">🧩 Decompose Goal</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--red);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();aiDeadlineRisk()">⚠️ Risk Check</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();aiAutoPriority()">✨ Auto-Priority</button><div style="height:1px;background:var(--bd1);margin:4px 2px"></div><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();exportTasks('csv')">⬇ Export CSV</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();exportTasks('html')">📄 Export HTML (Word-ready)</button></div></div><button class="btn btn-p" onclick="openFA('task')">+ Full Add Task</button></div></div>
+    return `<div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden">${seg}</div><div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:11px;padding:0 8px;background:${inOverflow?'var(--ac)':''};color:${inOverflow?'#fff':''}" onclick="event.stopPropagation();togglePopMenu('tasks-more-views')">${moreLabel}</button><div id="tasks-more-views" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:140px;box-shadow:0 4px 16px rgba(0,0,0,.35)">${overflow.map(v=>`<button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;background:transparent;border:none;text-align:left;color:${_taskView===v.k?'var(--ach)':'var(--t1)'}" onclick="closePopMenu('tasks-more-views');setTaskView('${_jsAttr(v.k)}')">${v.icon} ${v.label}${_taskView===v.k?' ✓':''}</button>`).join('')}</div></div>`;
+  })()}<div style="position:relative;display:inline-block"><button id="bulk-toggle-btn" class="btn btn-s" style="height:28px;font-size:11px" onclick="event.stopPropagation();toggleTaskAIMenu(event)" title="Tools menu">🛠 Tools ▾</button><div id="task-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();toggleBulkMode()">☑ Bulk Select Mode</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ach);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();window._syncDiagnose&&window._syncDiagnose()">🩺 Diagnose sync</button><div style="height:1px;background:var(--bd1);margin:4px 2px"></div><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();aiDecomposeGoal()">🧩 Decompose Goal</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--red);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();aiDeadlineRisk()">⚠️ Risk Check</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ach);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();aiAutoPriority()">✨ Auto-Priority</button><div style="height:1px;background:var(--bd1);margin:4px 2px"></div><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();exportTasks('csv')">⬇ Export CSV</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();exportTasks('html')">📄 Export HTML (Word-ready)</button></div></div><button class="btn btn-p" onclick="openFA('task')">+ Full Add Task</button></div></div>
   <div id="bulk-action-bar" style="display:none;align-items:center;gap:6px;padding:6px 0;margin-bottom:6px;background:var(--acs);border:1px solid var(--ac);border-radius:6px;padding:6px 10px">
-    <span id="bulk-count" style="font-size:11px;color:var(--ac);font-weight:600;flex:1">0 selected</span>
+    <span id="bulk-count" style="font-size:11px;color:var(--ach);font-weight:600;flex:1">0 selected</span>
     <button class="btn btn-p" style="height:24px;font-size:11px" onclick="bulkAction('done')">✓ Done</button>
     <button class="btn btn-s" style="height:24px;font-size:11px" onclick="bulkAction('someday')">💤 Someday</button>
     <button class="btn btn-s" style="height:24px;font-size:11px" onclick="bulkAction('project')">${_icon('folder',12,'currentColor')} Move</button>
@@ -6558,16 +6558,16 @@ function renderTasks(){
     // C: render saved views as additional tabs
     const saved=(D.prefs&&D.prefs.taskSavedViews)||[];
     if(!saved.length)return `<button class="btn btn-s" style="height:24px;font-size:11px;padding:0 8px;color:var(--t3);margin-left:6px" onclick="saveCurrentTaskView()" title="Save the current filter + view as a tab">⭐ Save view</button>`;
-    return `<div style="width:1px;height:18px;background:var(--bd2);margin:0 4px"></div>`+saved.map(v=>`<span class="task-saved-view" onclick="applySavedTaskView(${v.id})" title="Apply saved view">⭐ ${esc(v.name)}<span class="x" onclick="deleteSavedTaskView(${v.id},event)" title="Delete view">✕</span></span>`).join('')+`<button class="btn btn-s" style="height:24px;font-size:11px;padding:0 8px;color:var(--ac);margin-left:6px" onclick="saveCurrentTaskView()" title="Save current filter as a view">⭐ +</button>`;
+    return `<div style="width:1px;height:18px;background:var(--bd2);margin:0 4px"></div>`+saved.map(v=>`<span class="task-saved-view" onclick="applySavedTaskView(${v.id})" title="Apply saved view">⭐ ${esc(v.name)}<span class="x" onclick="deleteSavedTaskView(${v.id},event)" title="Delete view">✕</span></span>`).join('')+`<button class="btn btn-s" style="height:24px;font-size:11px;padding:0 8px;color:var(--ach);margin-left:6px" onclick="saveCurrentTaskView()" title="Save current filter as a view">⭐ +</button>`;
   })()}</div>
   ${_renderSourceFilterChips()}
   ${(_taskProjectFilter||_taskAssigneeFilter||_taskKindFilter)?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
-    ${_taskProjectFilter?`<div style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:color-mix(in srgb,var(--page-accent) 18%,transparent);border:1px solid var(--page-accent);border-radius:13px;font-size:11px;color:var(--page-accent);font-weight:600">📁 Project: ${esc(_taskProjectFilter)}<span style="cursor:pointer;font-weight:400" onclick="clearTaskProjectFilter()" title="Clear project filter">✕</span></div>`:''}
-    ${_taskAssigneeFilter?`<div style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:color-mix(in srgb,var(--page-accent) 18%,transparent);border:1px solid var(--page-accent);border-radius:13px;font-size:11px;color:var(--page-accent);font-weight:600">👤 Assignee: ${esc(_taskAssigneeFilter)}<span style="cursor:pointer;font-weight:400" onclick="clearTaskAssigneeFilter()" title="Clear assignee filter">✕</span></div>`:''}
+    ${_taskProjectFilter?`<div style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:color-mix(in srgb,var(--page-accent) 18%,transparent);border:1px solid var(--page-accent);border-radius:13px;font-size:11px;color:var(--pa-t);font-weight:600">📁 Project: ${esc(_taskProjectFilter)}<span style="cursor:pointer;font-weight:400" onclick="clearTaskProjectFilter()" title="Clear project filter">✕</span></div>`:''}
+    ${_taskAssigneeFilter?`<div style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:color-mix(in srgb,var(--page-accent) 18%,transparent);border:1px solid var(--page-accent);border-radius:13px;font-size:11px;color:var(--pa-t);font-weight:600">👤 Assignee: ${esc(_taskAssigneeFilter)}<span style="cursor:pointer;font-weight:400" onclick="clearTaskAssigneeFilter()" title="Clear assignee filter">✕</span></div>`:''}
     ${_taskKindFilter?(function(){
       const labels={overdue:{e:'⚠',l:'Overdue',c:'#ef4444'},today:{e:'📅',l:'Due today',c:'#f59e0b'},stalled:{e:'💤',l:'Stalled (7d+)',c:'#64748b'},dateless:{e:'📭',l:'No date set',c:'#a855f7'}};
       const k=labels[_taskKindFilter]||{e:'•',l:_taskKindFilter,c:'var(--t2)'};
-      return `<div style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:color-mix(in srgb,${k.c} 18%,transparent);border:1px solid ${k.c};border-radius:13px;font-size:11px;color:${k.c};font-weight:600">${k.e} ${esc(k.l)}<span style="cursor:pointer;font-weight:400" onclick="clearTaskKindFilter()" title="Clear status filter">✕</span></div>`;
+      return `<div style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:color-mix(in srgb,${k.c} 18%,transparent);border:1px solid ${k.c};border-radius:13px;font-size:11px;color:${_luAccentText(k.c)};font-weight:600">${k.e} ${esc(k.l)}<span style="cursor:pointer;font-weight:400" onclick="clearTaskKindFilter()" title="Clear status filter">✕</span></div>`;
     })():''}
   </div>`:''}
   ${(()=>{
@@ -6579,7 +6579,7 @@ function renderTasks(){
     return `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin:6px 0;background:linear-gradient(90deg,color-mix(in srgb,var(--ac) 14%,transparent),color-mix(in srgb,var(--purp) 14%,transparent));border:1px solid color-mix(in srgb,var(--ac) 30%,var(--bd2));border-radius:8px"><span style="font-size:18px">🧭</span><div style="flex:1"><div style="font-size:11px;font-weight:600">Want a plan for today?</div><div style="font-size:11px;color:var(--t3)">AI ranks your ${todayCount} task${todayCount===1?'':'s'} by impact + energy + deadlines.</div></div><button id="ai-today-plan-btn" class="btn btn-p" style="font-size:11px;height:28px" onclick="aiTodaysPlan()">🧭 Today's Plan</button></div>`;
   })()}
   <div id="task-quick-add" style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;margin-bottom:6px">
-    <span style="font-size:14px;color:var(--ac)">+</span>
+    <span style="font-size:14px;color:var(--ach)">+</span>
     <!-- Chrome honeypot: a hidden, off-screen email + password pair Chrome
          autofills INSTEAD of our real input. This is the most reliable
          fix once Chrome has decided the page has a login-ish form (the

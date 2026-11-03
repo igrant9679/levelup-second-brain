@@ -80,7 +80,7 @@ function _openFolderPicker(title,currentFolderId,callback){
   const m=document.getElementById('modal-content');if(!m)return;
   const row=(label,fid,depth,icon,color)=>{
     const isSelected=(fid===currentFolderId)||(fid===null&&!currentFolderId);
-    return `<div class="lr move-folder-row" style="cursor:pointer;padding:7px 10px;padding-left:${10+depth*16}px;border-radius:6px;${isSelected?'background:var(--acs);border:1px solid var(--ac);color:var(--ac);font-weight:600':'border:1px solid transparent'}" onmouseover="if(!this.style.background.includes('acs'))this.style.background='var(--s3)'" onmouseout="if(!this.style.background.includes('acs'))this.style.background=''" onclick="_pickMoveFolder(${fid===null?'null':fid})"><span style="color:${color||'var(--t3)'};font-size:12px;width:16px;text-align:center">${icon}</span><span style="flex:1">${esc(label)}</span>${isSelected?'<span style="font-size:11px">✓</span>':''}</div>`;
+    return `<div class="lr move-folder-row" style="cursor:pointer;padding:7px 10px;padding-left:${10+depth*16}px;border-radius:6px;${isSelected?'background:var(--acs);border:1px solid var(--ac);color:var(--ach);font-weight:600':'border:1px solid transparent'}" onmouseover="if(!this.style.background.includes('acs'))this.style.background='var(--s3)'" onmouseout="if(!this.style.background.includes('acs'))this.style.background=''" onclick="_pickMoveFolder(${fid===null?'null':fid})"><span style="color:${_luAccentText(color||'var(--t3)')};font-size:12px;width:16px;text-align:center">${icon}</span><span style="flex:1">${esc(label)}</span>${isSelected?'<span style="font-size:11px">✓</span>':''}</div>`;
   };
   m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:8px">${esc(title)}</h2>
     <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Pick a destination folder. Notes outside any folder show in the default Recent / category views.</div>
@@ -211,18 +211,18 @@ function _populateMailRail(){
   r.innerHTML=`
   <div style="font-size:13px;font-weight:700;margin-bottom:10px">${_icon('barChart',14,'currentColor')} Inbox at a glance</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px">
-    <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ac)">${inbox.length}</div><div style="font-size:11px;color:var(--t3)">Total</div></div>
+    <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ach)">${inbox.length}</div><div style="font-size:11px;color:var(--t3)">Total</div></div>
     <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;color:${unread?'var(--warn)':'var(--ok)'}">${unread}</div><div style="font-size:11px;color:var(--t3)">Unread</div></div>
   </div>
   <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px">
     <div style="font-size:11px;font-weight:600;margin-bottom:6px">${_icon('calendar',14,'currentColor')} Today's events</div>
-    ${todayEvents.length?todayEvents.map(e=>`<div class="lr" style="padding:4px 0;font-size:11px;cursor:pointer" onclick="${_calChipClick(e)}"><span style="font-size:11px;color:var(--ac);width:42px;flex-shrink:0">${esc(_calEventTimeLabel(e))||'—'}</span><span class="rt" style="font-size:11px">${esc(e.title||'(untitled)')}</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3)">No events today.</div>'}
+    ${todayEvents.length?todayEvents.map(e=>`<div class="lr" style="padding:4px 0;font-size:11px;cursor:pointer" onclick="${_calChipClick(e)}"><span style="font-size:11px;color:var(--ach);width:42px;flex-shrink:0">${esc(_calEventTimeLabel(e))||'—'}</span><span class="rt" style="font-size:11px">${esc(e.title||'(untitled)')}</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3)">No events today.</div>'}
   </div>
   ${topSenders.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:6px">👥 Top senders</div>${topSenders.map(([n,c])=>`<div class="lr" style="padding:3px 0;font-size:11px"><span class="rt">${esc(n.slice(0,32))}</span><span style="font-size:11px;color:var(--t3)">${c}</span></div>`).join('')}</div>`:''}
   <div style="display:flex;flex-direction:column;gap:6px">
     <button class="btn btn-p" style="font-size:11px" onclick="openComposeModal()">✏ Compose</button>
     <button class="btn btn-s" style="font-size:11px" onclick="syncOAuthMail('microsoft')">☁ Sync now</button>
-    <button class="btn btn-s" style="font-size:11px;color:var(--ac)" onclick="aiTriageMail()">✨ AI Triage</button>
+    <button class="btn btn-s" style="font-size:11px;color:var(--ach)" onclick="aiTriageMail()">✨ AI Triage</button>
   </div>`;
 }
 function _populateCalRail(){
@@ -243,7 +243,7 @@ function _populateCalRail(){
   </div>
   <div style="display:flex;flex-direction:column;gap:6px">
     <button class="btn btn-p" style="font-size:11px" onclick="openNewCalEventModal()">+ New event</button>
-    <button class="btn btn-s" style="font-size:11px;color:var(--ac)" onclick="aiCalNLP()">💬 NL Event</button>
+    <button class="btn btn-s" style="font-size:11px;color:var(--ach)" onclick="aiCalNLP()">💬 NL Event</button>
     <button class="btn btn-s" style="font-size:11px;color:var(--purp)" onclick="aiScheduleOptimize()">✨ Optimize day</button>
   </div>`;
 }
@@ -265,10 +265,10 @@ function _populateClustersRail(){
   r.innerHTML=`
   <div style="font-size:13px;font-weight:700;margin-bottom:10px">⬡ Cluster Insights</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px">
-    <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ac)">${cls.length}</div><div style="font-size:11px;color:var(--t3)">Clusters</div></div>
+    <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ach)">${cls.length}</div><div style="font-size:11px;color:var(--t3)">Clusters</div></div>
     <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;color:${overdue?'var(--red)':'var(--ok)'}">${overdue}</div><div style="font-size:11px;color:var(--t3)">Overdue</div></div>
   </div>
-  ${ranked.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">Needs attention</div>${ranked.slice(0,5).map(r=>`<div style="margin-bottom:6px"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px"><span>${esc(r.cl.icon||'📁')} ${esc(r.cl.name||r.cl.title||'(unnamed)')}</span><strong style="color:${r.ovd?'var(--red)':r.pct>=70?'var(--ok)':'var(--ac)'}">${r.ovd?r.ovd+' overdue':r.pct+'%'}</strong></div><div class="pb"><div class="f" style="width:${r.pct}%;background:${r.pct>=70?'var(--ok)':'var(--ac)'}"></div></div></div>`).join('')}</div>`:''}
+  ${ranked.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">Needs attention</div>${ranked.slice(0,5).map(r=>`<div style="margin-bottom:6px"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px"><span>${esc(r.cl.icon||'📁')} ${esc(r.cl.name||r.cl.title||'(unnamed)')}</span><strong style="color:${r.ovd?'var(--red)':r.pct>=70?'var(--ok)':'var(--ach)'}">${r.ovd?r.ovd+' overdue':r.pct+'%'}</strong></div><div class="pb"><div class="f" style="width:${r.pct}%;background:${r.pct>=70?'var(--ok)':'var(--ac)'}"></div></div></div>`).join('')}</div>`:''}
   <div style="display:flex;flex-direction:column;gap:6px">
     <button class="btn btn-p" style="font-size:11px" onclick="openClusterModal(null)">+ New cluster</button>
     <button class="btn btn-s" style="font-size:11px" onclick="nav('tasks');setTaskView('clusters')">⬡ Open Cluster view</button>
@@ -782,7 +782,7 @@ function _voiceShowIndicator(){
   if(!el){
     el=document.createElement('div'); el.id='lu-voice-indicator';
     el.style.cssText='position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:100000;display:flex;align-items:center;gap:10px;background:var(--s1,#0f1525);border:1px solid var(--bd1,#2a3550);border-radius:999px;padding:8px 14px;box-shadow:0 8px 28px rgba(0,0,0,.45);font-size:12px;color:var(--t1,#fff)';
-    el.innerHTML='<span style="width:10px;height:10px;border-radius:50%;background:#ef4444;animation:luVoicePulse 1s infinite;flex-shrink:0"></span><span>Listening… <span id="lu-voice-interim" style="color:var(--t3,#8a93a6)"></span></span><button onclick="_voiceStop()" style="margin-left:6px;background:#ef4444;color:#fff;border:none;border-radius:999px;padding:4px 12px;font-size:11px;font-weight:600;cursor:pointer">Stop</button>';
+    el.innerHTML='<span style="width:10px;height:10px;border-radius:50%;background:#ef4444;animation:luVoicePulse 1s infinite;flex-shrink:0"></span><span>Listening… <span id="lu-voice-interim" style="color:var(--t3,#8a93a6)"></span></span><button onclick="_voiceStop()" style="margin-left:6px;background:#d73d3d;color:#fff;border:none;border-radius:999px;padding:4px 12px;font-size:11px;font-weight:600;cursor:pointer">Stop</button>';
     document.body.appendChild(el);
   }
   el.style.display='flex';
@@ -852,7 +852,7 @@ function setNoteType(id,t){
   _noteRefreshOpen(id);
 }
 function _noteStatusPickerHTML(id,cur){
-  return _NOTE_STATUSES.map(s=>`<div class="nsp-i" onclick="event.stopPropagation();setNoteStatus(${id},'${_jsAttr(s.id)}');closePopMenu('nsp-${id}')" style="display:flex;align-items:center;gap:8px;padding:6px 9px;cursor:pointer;border-radius:6px;font-size:11px;${cur===s.id?'background:var(--acs)':''}"><span style="font-size:13px">${s.icon}</span><div style="flex:1"><div style="font-weight:600;color:${s.color}">${s.label}</div><div style="font-size:11px;color:var(--t3)">${s.hint}</div></div>${cur===s.id?'<span style="color:var(--ac)">✓</span>':''}</div>`).join('');
+  return _NOTE_STATUSES.map(s=>`<div class="nsp-i" onclick="event.stopPropagation();setNoteStatus(${id},'${_jsAttr(s.id)}');closePopMenu('nsp-${id}')" style="display:flex;align-items:center;gap:8px;padding:6px 9px;cursor:pointer;border-radius:6px;font-size:11px;${cur===s.id?'background:var(--acs)':''}"><span style="font-size:13px">${s.icon}</span><div style="flex:1"><div style="font-weight:600;color:${_luAccentText(s.color)}">${s.label}</div><div style="font-size:11px;color:var(--t3)">${s.hint}</div></div>${cur===s.id?'<span style="color:var(--ach)">✓</span>':''}</div>`).join('');
 }
 // Extract the first inline image URL from a note's body (markdown or HTML).
 // Returns '' if no image is present.
@@ -926,7 +926,7 @@ function _noteOriginalHtml(n){
   const mode=_noteOrigMode(n);
   const isPdf=_noteOriginalIsPdf(o);
   const size=o.size?' · '+(o.size>1048576?(o.size/1048576).toFixed(1)+' MB':Math.max(1,Math.round(o.size/1024))+' KB'):'';
-  const seg=(k,l)=>'<button class="btn btn-s" style="height:24px;font-size:11px;'+(mode===k?'background:var(--page-accent);color:#fff;border-color:transparent':'')+'" onclick="_noteOrigView['+n.id+']=\''+k+'\';showNoteInEditor('+n.id+')">'+l+'</button>';
+  const seg=(k,l)=>'<button class="btn btn-s" style="height:24px;font-size:11px;'+(mode===k?'background:var(--pa-f);color:#fff;border-color:transparent':'')+'" onclick="_noteOrigView['+n.id+']=\''+k+'\';showNoteInEditor('+n.id+')">'+l+'</button>';
   const head='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px">'+
     '<span style="font-size:11px;color:var(--t3)">'+(isPdf?'📕':'📘')+' '+esc(o.name||'Original document')+size+(o.whole?' · whole document':'')+'</span>'+
     '<span style="display:inline-flex;gap:4px;margin-left:auto">'+seg('both','📄+✎ Both')+seg('original','📄 Original')+seg('text','✎ Text')+'</span>'+
@@ -1158,7 +1158,7 @@ function _noteHighlightOpen(){
 (function _noteSearchCSS(){
   if(document.getElementById('lu-note-search-css'))return;
   const s=document.createElement('style');s.id='lu-note-search-css';
-  s.textContent='mark.lu-mark{background:var(--acs);color:var(--ac);border-radius:3px;padding:0 1px}'+
+  s.textContent='mark.lu-mark{background:var(--acs);color:var(--ach);border-radius:3px;padding:0 1px}'+
     '::highlight(lu-search){background-color:color-mix(in srgb,var(--warn) 45%,transparent);color:inherit}';
   document.head.appendChild(s);
 })();
@@ -1334,7 +1334,7 @@ function applyNotesFilters(){
         <div class="nc-body">
           <div class="nc-t">${pin}${n.icon?esc(n.icon)+' ':''}${hi(n.title)||'<span style="color:var(--t3)">Untitled</span>'}</div>
           ${snippet?`<div class="nc-snip">${snippet}</div>`:''}
-          ${(n.tags||[]).length?`<div class="nc-tg">${(n.tags||[]).slice(0,4).map(t=>`<span>${_notesFilterTags.has(t.toLowerCase())?`<b style="color:var(--ac)">#${esc(t)}</b>`:`#${esc(t)}`}</span>`).join('')}</div>`:''}
+          ${(n.tags||[]).length?`<div class="nc-tg">${(n.tags||[]).slice(0,4).map(t=>`<span>${_notesFilterTags.has(t.toLowerCase())?`<b style="color:var(--ach)">#${esc(t)}</b>`:`#${esc(t)}`}</span>`).join('')}</div>`:''}
           <div class="nc-m">${metaBits.join('')}</div>
         </div>
         ${thumb}
@@ -2113,7 +2113,7 @@ function renderNotes(){
     return _NOTE_STATUSES.map(s=>{
       const c=_u.filter(n=>_noteStatus(n)===s.id).length;
       const on=_notesFilterStatus===s.id;
-      return `<div class="nn ${on?'on':''}" onclick="filterNotesByStatus('${_jsAttr(s.id)}')" style="display:flex;align-items:center;gap:6px" title="${esc(s.hint)}"><span style="color:${s.color}">${s.icon}</span> ${s.label}<span style="margin-left:auto;font-size:11px;color:var(--t3)">${c}</span></div>`;
+      return `<div class="nn ${on?'on':''}" onclick="filterNotesByStatus('${_jsAttr(s.id)}')" style="display:flex;align-items:center;gap:6px" title="${esc(s.hint)}"><span style="color:${_luAccentText(s.color)}">${s.icon}</span> ${s.label}<span style="margin-left:auto;font-size:11px;color:var(--t3)">${c}</span></div>`;
     }).join('');
   })()}
   ${_nnHead('smart','Smart Folders')}
@@ -2155,7 +2155,7 @@ function renderNotes(){
   })()}
   <div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px;display:flex;align-items:center;justify-content:space-between">
     <span>${_icon('folder',12,'currentColor')} Folders</span>
-    <span style="cursor:pointer;color:var(--ac);font-size:13px;font-weight:700;padding:0 3px;line-height:1" onclick="addNoteFolder(null)" title="New top-level folder">+</span>
+    <span style="cursor:pointer;color:var(--ach);font-size:13px;font-weight:700;padding:0 3px;line-height:1" onclick="addNoteFolder(null)" title="New top-level folder">+</span>
   </div>
   ${(()=>{
     const renderTree=(parentId,depth)=>{
@@ -2166,7 +2166,7 @@ function renderNotes(){
         const isActive=_notesFilterFolder===f.id;
         const indent=depth*10;
         return `<div class="nn nn-folder ${isActive?'on':''}" style="padding-left:${4+indent}px;display:flex;align-items:center;gap:4px;position:relative" data-folder-id="${f.id}" ondragover="_folderDragOver(event)" ondragleave="_folderDragLeave(event)" ondrop="_folderDrop(event,${f.id})" onclick="setNotesFolderFilter(${f.id})">
-          <span style="color:${f.color||'var(--ac)'};font-size:12px;width:14px;text-align:center">${esc(f.icon||'📁')}</span>
+          <span style="color:${_luAccentText(f.color||'var(--ach)')};font-size:12px;width:14px;text-align:center">${esc(f.icon||'📁')}</span>
           <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</span>
           <span style="font-size:11px;color:var(--t3);flex-shrink:0">${count}</span>
           <span class="nn-folder-act" onclick="event.stopPropagation();addNoteFolder(${f.id})" title="Add subfolder">+</span>
@@ -2191,9 +2191,9 @@ function renderNotes(){
     const range=Math.max(maxF-minF,1);
     return tags.map(([tag,count])=>{
       const sz=Math.round(9+(count-minF)/range*7); // 9px–16px
-      const op=0.55+(count-minF)/range*0.45; // 0.55–1.0
+      const op=0.85+(count-minF)/range*0.15; // 0.85–1.0
       const hue=Math.abs(tag.split('').reduce((h,c)=>h*31+c.charCodeAt(0),0))%360;
-      return `<span style="font-size:${sz}px;opacity:${op.toFixed(2)};color:hsl(${hue},55%,62%);cursor:pointer;margin:2px 3px 2px 0;display:inline-block;line-height:1.4;transition:opacity .15s,transform .15s" onmouseover="this.style.opacity='1';this.style.transform='scale(1.12)'" onmouseout="this.style.opacity='${op.toFixed(2)}';this.style.transform=''" onclick="filterNotesByTag('${_jsAttr(tag)}')" title="${count} note${count>1?'s':''}">#${esc(tag)}</span>`;
+      return `<span style="font-size:${sz}px;opacity:${op.toFixed(2)};color:${_luTagText(hue)};cursor:pointer;margin:2px 3px 2px 0;display:inline-block;line-height:1.4;transition:opacity .15s,transform .15s" onmouseover="this.style.opacity='1';this.style.transform='scale(1.12)'" onmouseout="this.style.opacity='${op.toFixed(2)}';this.style.transform=''" onclick="filterNotesByTag('${_jsAttr(tag)}')" title="${count} note${count>1?'s':''}">#${esc(tag)}</span>`;
     }).join('');
   })()}</div>
   <div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px">PARA</div>
@@ -2247,13 +2247,13 @@ function renderNotes(){
             <div style="height:1px;background:var(--bd1);margin:3px 2px"></div>
             <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closePopMenu('notes-overflow-menu');document.getElementById('md-import-input').click()">📥 Import .md / .txt</button>
             <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('notes-overflow-menu');document.getElementById('doc-import-input').click()">📄 Import PDF / Word / RTF</button>
-            <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" title="Pull meeting notes from your OneNote meeting-notes section (set it in Settings → Integrations → OneNote)" onclick="closePopMenu('notes-overflow-menu');syncOnenoteMeetingNotes()">⟳ Sync OneNote meeting notes</button>
+            <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;color:var(--ach);background:transparent;border:none;text-align:left" title="Pull meeting notes from your OneNote meeting-notes section (set it in Settings → Integrations → OneNote)" onclick="closePopMenu('notes-overflow-menu');syncOnenoteMeetingNotes()">⟳ Sync OneNote meeting notes</button>
             <div style="height:1px;background:var(--bd1);margin:3px 2px"></div>
             <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closePopMenu('notes-overflow-menu');exportNotesMarkdown()">⬇ Export all as Markdown</button>
             <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closePopMenu('notes-overflow-menu');exportNotesPDF()">🖨 Export all as PDF</button>
             <div style="height:1px;background:var(--bd1);margin:3px 2px"></div>
-            <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('notes-overflow-menu');aiNoteQA()">🤔 Ask AI across all notes</button>
-            <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;color:#8B5CF6;background:transparent;border:none;text-align:left" onclick="closePopMenu('notes-overflow-menu');bulkAutoTagNotes()">🏷 AI auto-tag all untagged</button>
+            <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;color:var(--ach);background:transparent;border:none;text-align:left" onclick="closePopMenu('notes-overflow-menu');aiNoteQA()">🤔 Ask AI across all notes</button>
+            <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('notes-overflow-menu');bulkAutoTagNotes()">🏷 AI auto-tag all untagged</button>
           </div>
         </div>
       </div>
@@ -2265,7 +2265,7 @@ function renderNotes(){
     </div>
     <!-- Active filter summary bar -->
     <div id="notes-filter-summary" style="display:flex;align-items:center;gap:6px;margin-top:4px;min-height:18px">
-      <button id="notes-filter-clear" class="btn" style="display:none;height:18px;font-size:10px;padding:0 7px;background:var(--warn);color:#fff;border-radius:10px" onclick="clearNotesFilters()">✕ Clear filters</button>
+      <button id="notes-filter-clear" class="btn" style="display:none;height:18px;font-size:10px;padding:0 7px;background:#A34A08;color:#fff;border-radius:10px" onclick="clearNotesFilters()">✕ Clear filters</button>
     </div>
   </div>
   <!-- Collapsible filter panel -->
@@ -2341,8 +2341,8 @@ function renderNotes(){
   // Populate Notes rail panel
   const rail=$('notes-rail-panel');
   rail.innerHTML=`<div style="font-size:11px;font-weight:600;margin-bottom:6px">Quick Capture</div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:10px">${[['📄','Note','#3B82F6'],['🔗','Clip','#06b6d4'],['☑','Task','#10b981'],['🎤','Voice','#ef4444']].map(([ic,lbl,ac])=>`<div style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;border-radius:8px;background:var(--s2);border:1px solid var(--bd2);cursor:pointer;transition:transform .12s ease,border-color .12s ease,background .12s ease" title="${lbl==='Voice'?'Dictate a new note with your voice':lbl==='Clip'?'Clip a web page into a note — paste a link, get the title + summary':'New '+lbl.toLowerCase()}" onmouseover="this.style.transform='translateY(-1px)';this.style.borderColor='${ac}';this.style.background='var(--s3)'" onmouseout="this.style.transform='';this.style.borderColor='var(--bd2)';this.style.background='var(--s2)'" onclick="${lbl==='Voice'?'startVoiceNote()':lbl==='Clip'?'startWebClip()':`openFA('${lbl==='Task'?'task':'note'}')`}"><span style="font-size:16px;line-height:1;color:${ac}">${ic}</span><span style="font-size:11px;font-weight:600;color:var(--t2)">${lbl}</span></div>`).join('')}</div>
-  ${(()=>{const evs=_calEventsOn(new Date());if(!evs.length)return '';return `<div style="font-size:11px;font-weight:600;margin-bottom:4px">📅 Today's Meetings</div><div style="margin-bottom:10px">${evs.slice(0,6).map(e=>{const linked=_noteForEvent(e.id);return `<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 6px;border-radius:5px" title="${linked?'Open the meeting note':'Create a meeting note for this event'}" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='transparent'" onclick="openMeetingNote('${_jsAttr(String(e.id))}','${_jsAttr(e.dateStr||_ymd())}')"><span class="rt" style="font-size:11px">${typeof e.hour==='number'?e.hour+':00 · ':''}${esc(e.title)}</span><span style="flex-shrink:0;color:${linked?'var(--ok)':'var(--ac)'}">${linked?'📝':'＋'}</span></div>`;}).join('')}</div>`;})()}
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:10px">${[['📄','Note','#3B82F6'],['🔗','Clip','#06b6d4'],['☑','Task','#10b981'],['🎤','Voice','#ef4444']].map(([ic,lbl,ac])=>`<div style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;border-radius:8px;background:var(--s2);border:1px solid var(--bd2);cursor:pointer;transition:transform .12s ease,border-color .12s ease,background .12s ease" title="${lbl==='Voice'?'Dictate a new note with your voice':lbl==='Clip'?'Clip a web page into a note — paste a link, get the title + summary':'New '+lbl.toLowerCase()}" onmouseover="this.style.transform='translateY(-1px)';this.style.borderColor='${ac}';this.style.background='var(--s3)'" onmouseout="this.style.transform='';this.style.borderColor='var(--bd2)';this.style.background='var(--s2)'" onclick="${lbl==='Voice'?'startVoiceNote()':lbl==='Clip'?'startWebClip()':`openFA('${lbl==='Task'?'task':'note'}')`}"><span style="font-size:16px;line-height:1;color:${_luAccentText(ac)}">${ic}</span><span style="font-size:11px;font-weight:600;color:var(--t2)">${lbl}</span></div>`).join('')}</div>
+  ${(()=>{const evs=_calEventsOn(new Date());if(!evs.length)return '';return `<div style="font-size:11px;font-weight:600;margin-bottom:4px">📅 Today's Meetings</div><div style="margin-bottom:10px">${evs.slice(0,6).map(e=>{const linked=_noteForEvent(e.id);return `<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 6px;border-radius:5px" title="${linked?'Open the meeting note':'Create a meeting note for this event'}" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='transparent'" onclick="openMeetingNote('${_jsAttr(String(e.id))}','${_jsAttr(e.dateStr||_ymd())}')"><span class="rt" style="font-size:11px">${typeof e.hour==='number'?e.hour+':00 · ':''}${esc(e.title)}</span><span style="flex-shrink:0;color:${linked?'var(--ok)':'var(--ach)'}">${linked?'📝':'＋'}</span></div>`;}).join('')}</div>`;})()}
   <div style="font-size:11px;font-weight:600;margin-bottom:4px">⭐ Starred</div>
   ${D.notes.filter(n=>n.starred).slice(0,4).map(n=>`<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 6px;border-radius:5px" onclick="showNoteInEditor(${_tidLit(n.id)})" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='transparent'"><span class="rt" style="font-size:11px">${esc(n.title)}</span><span style="color:var(--warn);flex-shrink:0">★</span></div>`).join('')||'<div style="font-size:11px;color:var(--t3);margin-bottom:8px">No starred notes</div>'}
   <div style="font-size:11px;font-weight:600;margin:10px 0 4px">🕸 Link Graph</div>
@@ -2754,7 +2754,7 @@ async function previewNoteVersion(noteId,versionId){
   const vText=(v.bodyHtml&&String(v.bodyHtml).trim())?luRTE_htmlToMd(v.bodyHtml):(v.body||'');
   const diff=_noteLineDiff(vText,n.body||'');
   const changed=diff.some(d=>d.t!=='=')||(v.title||'')!==(n.title||'');
-  const row=(bg,fg,mark,l)=>`<div style="${bg?`background:color-mix(in srgb,${bg} 13%,transparent);`:''}color:${fg};font-size:11px;padding:1px 4px;font-family:monospace;white-space:pre-wrap">${mark} ${esc(l)||'&nbsp;'}</div>`;
+  const row=(bg,fg,mark,l)=>`<div style="${bg?`background:color-mix(in srgb,${bg} 13%,transparent);`:''}color:${_luAccentText(fg)};font-size:11px;padding:1px 4px;font-family:monospace;white-space:pre-wrap">${mark} ${esc(l)||'&nbsp;'}</div>`;
   const diffHtml=diff.map(d=>d.t==='='?row('','var(--t2)','&nbsp;',d.l):d.t==='-'?row('var(--red)','var(--red)','−',d.l):row('var(--ok)','var(--ok)','+',d.l)).join('');
   const asWas=luSanitizeHtml((v.bodyHtml&&String(v.bodyHtml).trim())?v.bodyHtml:_noteMdToHtml(v.body||''));
   m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:4px">🕐 ${esc(v.title||'(untitled)')}</h2>
@@ -3150,7 +3150,7 @@ function insertWikiLink(title){if(_notePop&&_notePop.mode==='note'){const i=_not
   if(document.getElementById('lu-note-link-css'))return;
   const s=document.createElement('style');s.id='lu-note-link-css';
   s.textContent=
-    '.lu-wiki{color:var(--ac);background:color-mix(in srgb,var(--ac) 11%,transparent);border-radius:5px;padding:0 4px;cursor:pointer;white-space:nowrap;font-weight:550;text-decoration:none}'+
+    '.lu-wiki{color:var(--ach);background:color-mix(in srgb,var(--ac) 11%,transparent);border-radius:5px;padding:0 4px;cursor:pointer;white-space:nowrap;font-weight:550;text-decoration:none}'+
     '.lu-wiki:hover{background:color-mix(in srgb,var(--ac) 20%,transparent)}'+
     '.lu-wiki.missing{color:var(--t2);background:transparent;border:1px dashed var(--bd2)}'+
     'ul.lu-check{list-style:none!important;padding-left:2px!important;margin-left:0!important}'+
@@ -3192,16 +3192,16 @@ function renderNoteEditor(n){
   <div class="note-toolbar" style="margin-bottom:14px">
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
       <button class="btn btn-s" style="height:26px;font-size:11px" onclick="openDrawer('note',D.notes.find(x=>x.id==${_tidLit(n.id)}))" title="Tags, source, icon, folder and links">⚙ Details</button>
-      <button class="btn btn-s" style="height:26px;font-size:11px${n.pinned?';color:var(--page-accent);font-weight:600':''}" onclick="toggleNotePinned(${_tidLit(n.id)})" title="${n.pinned?'Unpin':'Pin to top'}">📌</button>
+      <button class="btn btn-s" style="height:26px;font-size:11px${n.pinned?';color:var(--pa-t);font-weight:600':''}" onclick="toggleNotePinned(${_tidLit(n.id)})" title="${n.pinned?'Unpin':'Pin to top'}">📌</button>
       <button class="btn btn-s" style="height:26px;font-size:11px" onclick="toggleNoteFocusMode()" title="Focus mode (Esc to exit)">⛶</button>
-      <button class="btn btn-s" style="height:26px;font-size:11px;color:var(--ac)" onclick="moveNoteToFolder(${_tidLit(n.id)})" title="${n.folderId?'Move folder':'Move to a folder'}">📁 ${n.folderId?esc((_noteFolderById(n.folderId)?.name||'?').slice(0,12)):'Move'}</button>
+      <button class="btn btn-s" style="height:26px;font-size:11px;color:var(--ach)" onclick="moveNoteToFolder(${_tidLit(n.id)})" title="${n.folderId?'Move folder':'Move to a folder'}">📁 ${n.folderId?esc((_noteFolderById(n.folderId)?.name||'?').slice(0,12)):'Move'}</button>
       <button class="btn btn-s" style="height:26px;font-size:11px"${_act('openNoteHistory',[n.id])} title="History — earlier versions of this note" aria-label="History">🕐</button>
       <button class="btn btn-s" style="height:26px;font-size:11px" onclick="exportNotePDF(${_tidLit(n.id)})" title="Export PDF">📄</button>
       <div style="position:relative;display:inline-block">
-        <button class="btn btn-s" style="height:26px;font-size:11px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('note-ai-menu')" title="AI tools">✨ AI ▾</button>
+        <button class="btn btn-s" style="height:26px;font-size:11px;color:var(--ach)" onclick="event.stopPropagation();togglePopMenu('note-ai-menu')" title="AI tools">✨ AI ▾</button>
         <div id="note-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:30px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)">
-          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left;font-weight:600;border-bottom:1px solid var(--bd1);padding-bottom:6px;margin-bottom:4px" onclick="closePopMenu('note-ai-menu');_openNoteInsightPanel(${_tidLit(n.id)})">${_icon('brain',13,'currentColor')} Deep Insight panel</button>
-          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('note-ai-menu');aiSummarizeNote(${_tidLit(n.id)})">✨ Summarize into bullets</button>
+          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ach);background:transparent;border:none;text-align:left;font-weight:600;border-bottom:1px solid var(--bd1);padding-bottom:6px;margin-bottom:4px" onclick="closePopMenu('note-ai-menu');_openNoteInsightPanel(${_tidLit(n.id)})">${_icon('brain',13,'currentColor')} Deep Insight panel</button>
+          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ach);background:transparent;border:none;text-align:left" onclick="closePopMenu('note-ai-menu');aiSummarizeNote(${_tidLit(n.id)})">✨ Summarize into bullets</button>
           <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('note-ai-menu');aiAutoTagNote(${_tidLit(n.id)})">${_icon('tag',12,'currentColor')} Auto-tag</button>
           <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--grn);background:transparent;border:none;text-align:left" onclick="closePopMenu('note-ai-menu');aiConceptLink(${_tidLit(n.id)})">🔗 Find related notes</button>
           <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--warn);background:transparent;border:none;text-align:left" onclick="closePopMenu('note-ai-menu');aiGapDetect(${_tidLit(n.id)})">🔍 Detect knowledge gaps</button>
@@ -3232,7 +3232,7 @@ function renderNoteEditor(n){
     <div class="k">🏷 Tags</div>
     <div class="v">${(n.tags||[]).length?(n.tags||[]).map(t=>`<span class="chip" onclick="filterNotesByTag('${_jsAttr(t)}')">#${esc(t)}</span>`).join(''):'<span style="color:var(--t3)">No tags — type # in the note to add one</span>'}</div>
     <div class="k">📅 Meetings</div>
-    <div class="v">${_noteMeetings(n).map(mm=>`<span class="chip" title="Open this meeting on the calendar" onclick="openMeetingFromNote('${_jsAttr(String(mm.id))}')">📅 ${esc(mm.title)} · ${esc(mm.date)} <span style="cursor:pointer;opacity:.65" title="Unlink this meeting" onclick="event.stopPropagation();unlinkNoteMeeting(${_tidLit(n.id)},'${_jsAttr(String(mm.id))}')">✕</span></span>`).join('')}<span class="chip" style="color:var(--ac);cursor:pointer" title="Link this note to a calendar event" onclick="openMeetingPicker(${_tidLit(n.id)})">＋ Link meeting</span></div>
+    <div class="v">${_noteMeetings(n).map(mm=>`<span class="chip" title="Open this meeting on the calendar" onclick="openMeetingFromNote('${_jsAttr(String(mm.id))}')">📅 ${esc(mm.title)} · ${esc(mm.date)} <span style="cursor:pointer;opacity:.65" title="Unlink this meeting" onclick="event.stopPropagation();unlinkNoteMeeting(${_tidLit(n.id)},'${_jsAttr(String(mm.id))}')">✕</span></span>`).join('')}<span class="chip" style="color:var(--ach);cursor:pointer" title="Link this note to a calendar event" onclick="openMeetingPicker(${_tidLit(n.id)})">＋ Link meeting</span></div>
     <div class="k">🎨 Colour</div>
     <div class="v"><span class="note-color-palette">${colorDots}</span></div>
     <div class="k">📅 Dates</div>
@@ -3442,7 +3442,7 @@ function _renderHealthStrip(h){
   const burnLabel=h.burn>0?'+'+h.burn:String(h.burn);
   const riskColor=h.risk>=50?'var(--red)':h.risk>=25?'var(--warn)':'var(--ok)';
   const eta=h.etaWeeks==null?'—':h.etaWeeks>52?'>1y':h.etaWeeks+'w';
-  const stat=(v,l,c)=>`<div style="flex:1;min-width:0;background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:8px;text-align:center"><div style="font-size:16px;font-weight:750;color:${c||'var(--t1)'};line-height:1">${v}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;margin-top:4px">${l}</div></div>`;
+  const stat=(v,l,c)=>`<div style="flex:1;min-width:0;background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:8px;text-align:center"><div style="font-size:16px;font-weight:750;color:${_luAccentText(c||'var(--t1)')};line-height:1">${v}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;margin-top:4px">${l}</div></div>`;
   return `<div style="display:flex;gap:6px;margin:8px 0">
     ${stat(h.velocity+'/wk '+trendArrow,'Velocity','var(--ac)')}
     ${stat(burnLabel,'Burn (14d)',burnColor)}

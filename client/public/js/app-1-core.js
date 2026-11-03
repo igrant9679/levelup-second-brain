@@ -10,7 +10,7 @@ const luRTE_CSS=`
 .rte-toolbar{display:flex;flex-wrap:wrap;gap:2px;padding:4px 6px;background:var(--s2);border-bottom:1px solid var(--bd1);align-items:center}
 .rte-btn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:4px;border:none;background:transparent;color:var(--t1);cursor:pointer;font-size:12px;font-weight:600;transition:background .12s}
 .rte-btn:hover{background:var(--s3)}
-.rte-btn.active{background:var(--acs);color:var(--ac)}
+.rte-btn.active{background:var(--acs);color:var(--ach)}
 .rte-sep{width:1px;height:18px;background:var(--bd1);margin:0 3px}
 .rte-sel{height:24px;font-size:11px;padding:0 4px;border:1px solid var(--bd1);border-radius:4px;background:var(--s1);color:var(--t1);cursor:pointer}
 .rte-body{min-height:160px;padding:10px 12px;font-size:13px;line-height:1.7;color:var(--t1);outline:none;overflow-y:auto;word-break:break-word}
@@ -24,7 +24,7 @@ const luRTE_CSS=`
 .rte-body ul{padding-left:20px;margin:4px 0}
 .rte-body ol{padding-left:20px;margin:4px 0}
 .rte-body li{margin:2px 0}
-.rte-body a{color:var(--ac);text-decoration:underline}
+.rte-body a{color:var(--ach);text-decoration:underline}
 .rte-body hr{border:none;border-top:1px solid var(--bd1);margin:10px 0}
 .rte-body img{max-width:100%;border-radius:4px;margin:4px 0}
 .rte-char-count{font-size:11px;color:var(--t3);padding:3px 8px;text-align:right;background:var(--s2);border-top:1px solid var(--bd1)}
@@ -621,7 +621,7 @@ function _renderMdRaw(text){
      .replace(/(^|[\s(])\*([^\s*][^*]*?)\*(?=[\s).,!?;:]|$)/g,'$1<em>$2</em>')
      .replace(/(^|[\s(])_([^\s_][^_]*?)_(?=[\s).,!?;:]|$)/g,'$1<em>$2</em>')
      .replace(/`([^`]+?)`/g,'<code style="background:var(--s3);padding:1px 5px;border-radius:3px;font-family:ui-monospace,monospace;font-size:.92em">$1</code>')
-     .replace(/(^|\s)(https?:\/\/[^\s<]+)/g,'$1<a href="$2" target="_blank" rel="noopener" style="color:var(--ac);text-decoration:underline">$2</a>');
+     .replace(/(^|\s)(https?:\/\/[^\s<]+)/g,'$1<a href="$2" target="_blank" rel="noopener" style="color:var(--ach);text-decoration:underline">$2</a>');
   // 8. Paragraph breaks (double newlines) and soft breaks
   s=s.replace(/\n{2,}/g,'</p><p style="margin:6px 0">').replace(/\n/g,'<br>');
   s=`<p style="margin:6px 0">${s}</p>`;
@@ -629,7 +629,7 @@ function _renderMdRaw(text){
   s=s.replace(/ LN(\d+) /g,(_,i)=>{
     const {t,u}=links[+i];
     const safeUrl=String(u).replace(/"/g,'&quot;');
-    return `<a href="${safeUrl}" target="_blank" rel="noopener" style="color:var(--ac);text-decoration:underline">${t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</a>`;
+    return `<a href="${safeUrl}" target="_blank" rel="noopener" style="color:var(--ach);text-decoration:underline">${t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</a>`;
   });
   s=s.replace(/ IM(\d+) /g,(_,i)=>{
     const {alt,url}=images[+i];
@@ -1295,7 +1295,7 @@ function _topbarSyncSpin(on){
   if(!btn)return;
   const svg=btn.querySelector('svg');
   if(svg){
-    if(on){svg.style.animation='lu-spin 1s linear infinite';btn.style.color='var(--ac)';}
+    if(on){svg.style.animation='lu-spin 1s linear infinite';btn.style.color='var(--ach)';}
     else  {svg.style.animation='';btn.style.color='';}
   }
   const dot=document.getElementById('topbar-sync-dot');
@@ -1488,10 +1488,11 @@ function applyPrefs(){
 const THEME_DEFAULTS_DARK={
   bg:'#0B0F1A',s1:'#0F1525',s2:'#161D2E',s3:'#1E2740',s4:'#252F4A',
   bd1:'rgba(255,255,255,.06)',bd2:'rgba(255,255,255,.10)',bd3:'rgba(255,255,255,.16)',
-  // t3 lifted #64748B → #7C8AA3: old value measured 3.1–4.0:1 on the surfaces
-  // (AA fail) for all 9-10px meta text. Keep t3 visibly dimmer than t2.
-  t1:'#F8FAFC',t2:'#94A3B8',t3:'#7C8AA3',t4:'#475569',
-  ac:'#3B82F6',ach:'#60A5FA',acs:'rgba(59,130,246,.15)',
+  // t2/t3 pass 4.5:1 on every surface including s4, and t3 stays dimmer than t2.
+  // ac is the FILL (white text on it passes); ach is the TEXT colour. No single
+  // blue can do both on dark surfaces. See _luReadableTheme.
+  t1:'#F8FAFC',t2:'#A3B1C6',t3:'#909EB5',t4:'#475569',
+  ac:'#2F6FEB',ach:'#60A5FA',acs:'rgba(59,130,246,.15)',
   red:'#F87171',warn:'#FBBF24',ok:'#4ADE80',purp:'#C084FC',
   brd:'rgba(255,255,255,.10)',
 };
@@ -1499,9 +1500,9 @@ const THEME_DEFAULTS_LIGHT={
   ...THEME_DEFAULTS_DARK,
   bg:'#F1F5F9',s1:'#FFFFFF',s2:'#F8FAFC',s3:'#EEF2F7',s4:'#E2E8F0',
   bd1:'rgba(0,0,0,.07)',bd2:'rgba(0,0,0,.10)',bd3:'rgba(0,0,0,.16)',
-  // Light-mode t3 was #94A3B8 = 2.56:1 on white (worst contrast in the app);
-  // #64748B measures 4.76:1 and still reads as muted next to t2 #475569.
-  t1:'#0F172A',t2:'#475569',t3:'#64748B',t4:'#CBD5E1',
+  // Status colours were the dark-mode ones (red 2.76:1, amber 1.66:1 on white).
+  t1:'#0F172A',t2:'#475569',t3:'#566074',t4:'#CBD5E1',
+  ach:'#1D4ED8',red:'#B91C1C',warn:'#A34A08',ok:'#147235',purp:'#7E22CE',
   brd:'rgba(0,0,0,.10)',
 };
 // ── Chromatic Bento ────────────────────────────────────────────────────────
@@ -1620,7 +1621,7 @@ const DAYBREAK_LIGHT={
   s1:'#FFFFFF',s2:'#FFFFFF',s3:'#EDF1F9',s4:'#DFE6F2',
   bd1:'rgba(22,33,62,.07)',bd2:'rgba(22,33,62,.11)',bd3:'rgba(22,33,62,.17)',
   t1:'#101426',            // ink
-  t2:'#3E475E',t3:'#5A6478',
+  t2:'#3E475E',t3:'#566074',
   brd:'rgba(22,33,62,.11)',
 };
 // ── Electric Ink ───────────────────────────────────────────────────────────
@@ -1720,6 +1721,8 @@ const PAGE_ACCENT_DEFAULTS={
   habits:'#10b981',coach:'#facc15',journal:'#f43f5e',team:'#0ea5e9',
   contacts:'#0d9488',bookmarks:'#d97706',archive:'#64748b',reports:'#06b6d4',
 };
+// Screens whose accent is only in index.html's static rules.
+const _PAGE_ACCENT_STATIC={graph:'#a855f7',command:'#f59e0b',standup:'#14b8a6',pipeline:'#16a34a',programs:'#1f6feb'};
 // Curated bundled profiles users can apply or start from.
 const THEME_PRESETS=[
   {id:'_default',name:'LevelUp Default',emoji:'🌌',theme:{}},
@@ -1935,6 +1938,57 @@ function _getDriftedAccent(baseHex){
   const hueShift=12*Math.sin(hour*Math.PI/12);
   return _hslToHex((hsl[0]+hueShift+360)%360,hsl[1],hsl[2]);
 }
+// -272: colours people read must pass WCAG AA (4.5:1) whatever the theme, preset
+// or custom colours are. Stored choices are untouched; only what is painted moves,
+// and only as far as it has to. check:a11y runs the result on every screen.
+function _luRgb(c){
+  const m=/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(c||'').trim());if(!m)return null;
+  const h=m[1].length===3?m[1].replace(/./g,'$&$&'):m[1];
+  return [0,2,4].map(i=>parseInt(h.slice(i,i+2),16));
+}
+function _luHex(rgb){return '#'+rgb.map(v=>Math.round(v).toString(16).padStart(2,'0')).join('');}
+function _luLum(rgb){const [r,g,b]=rgb.map(v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4);});return .2126*r+.7152*g+.0722*b;}
+function _luContrast(a,b){const x=_luLum(a),y=_luLum(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05);}
+function _luMix(a,b,p){return a.map((v,i)=>v*p+b[i]*(1-p));}
+// Nudges a colour towards black or white until test passes (1% steps keep its hue).
+function _luNudge(c,to,test){
+  const rgb=_luRgb(c);if(!rgb)return c;
+  if(test(rgb))return _luHex(rgb);
+  for(let p=.99;p>=0;p-=.01){const x=_luMix(rgb,to,p).map(Math.round);if(test(x))return _luHex(x);}
+  return _luHex(to);
+}
+// A fill that white text is readable on.
+function _luFillSafe(c){const w=[255,255,255];return _luNudge(c,[0,0,0],x=>_luContrast(x,w)>=4.5);}
+// A text colour readable on every ground, and on its own tint of each (pills, active tabs).
+function _luTextSafe(c,grounds,dark,tintOn){ // tints checked over page and card surfaces, or tintOn
+  const hue=_luRgb(c);if(!hue)return c;
+  const all=grounds.concat((tintOn||grounds.slice(0,3)).map(g=>_luMix(hue,g,.22)));
+  return _luNudge(c,dark?[255,255,255]:[0,0,0],x=>all.every(g=>_luContrast(x,g)>=4.5));
+}
+function _luThemeGrounds(t){return ['bg','s1','s2','s3','s4'].map(k=>_luRgb(t[k])).filter(Boolean);}
+// A hue chosen in code (a category colour) as text on the current theme.
+// The Home banner: white text on a gradient, with soft lighter orbs drifting over
+// it, so its colours keep more headroom than a plain fill needs.
+function _luHeroStop(c){const w=[255,255,255];return _luNudge(c,[0,0,0],x=>_luContrast(x,w)>=6);}
+// Text on a surface that stays dark in every theme (the Home banner's tiles).
+function _luTextOnDark(c){return _luRgb(c)?_luTextSafe(c,[[40,44,64]],true):c;}
+const _luAccentMemo=new Map();
+function _luAccentText(c){
+  if(c==='var(--ac)')return 'var(--ach)';
+  if(!_luRgb(c))return c;
+  if(_luAccentMemo.has(c))return _luAccentMemo.get(c);
+  const t=_getEffectiveTheme(),v=_luTextSafe(c,_luThemeGrounds(t),_luThemeIsDark(t));
+  _luAccentMemo.set(c,v);return v;
+}
+function _luTagText(hue){return `hsl(${hue},55%,${_luThemeIsDark(_getEffectiveTheme())?'72%':'26%'})`;}
+function _luThemeIsDark(t){const b=_luRgb(t.bg);return b?_luLum(b)<.2:true;}
+function _luReadableTheme(t,ac){
+  const out={},g=_luThemeGrounds(t),dark=_luThemeIsDark(t);
+  ['t1','t2','t3'].forEach(k=>{if(t[k])out[k]=_luNudge(t[k],dark?[255,255,255]:[0,0,0],x=>g.every(s=>_luContrast(x,s)>=4.5));});
+  ['red','warn','ok','purp'].forEach(k=>{if(t[k])out[k]=_luTextSafe(t[k],g,dark);});
+  if(ac){out.ac=_luFillSafe(ac);out.ach=_luTextSafe(t.ach&&t.ac===ac?t.ach:ac,g,dark);}
+  return out;
+}
 function applyTheme(opts){
   const t=_getEffectiveTheme();
   const root=document.documentElement;
@@ -1966,12 +2020,21 @@ function applyTheme(opts){
       bodyEl.style.setProperty('--acs',drifted+'26');
     }
   }
+  const _driftAc=(D.prefs&&D.prefs.accentDrift)?_getDriftedAccent(t.ac||D.prefs.accent||'#3B82F6'):(t.ac||'');
+  _luAccentMemo.clear();
+  const _read=_luReadableTheme(t,_driftAc);
+  for(const [k,v] of Object.entries(_read)){
+    root.style.setProperty('--'+k,v);
+    if(bodyEl)bodyEl.style.setProperty('--'+k,v);
+  }
   // Page-accent map overrides
-  const paMap=Object.assign({},PAGE_ACCENT_DEFAULTS,D.prefs.pageAccents||{});
+  const paMap=Object.assign({},_PAGE_ACCENT_STATIC,PAGE_ACCENT_DEFAULTS,D.prefs.pageAccents||{});
   // Inject as a <style id="lu-page-accents"> so we override the static rules
   let styleEl=document.getElementById('lu-page-accents');
   if(!styleEl){styleEl=document.createElement('style');styleEl.id='lu-page-accents';document.head.appendChild(styleEl);}
-  const rules=Object.entries(paMap).map(([screen,color])=>`body[data-screen="${screen}"]{--page-accent:${color}}`);
+  // --pa-t: the page accent as text. --pa-f: as a fill under white text.
+  const _g=_luThemeGrounds(t),_dk=_luThemeIsDark(t);
+  const rules=['body{--pa-t:var(--ach);--pa-f:var(--ac)}'].concat(Object.entries(paMap).map(([screen,color])=>`body[data-screen="${screen}"]{--page-accent:${color};--pa-t:${_luTextSafe(color,_g,_dk,_g)};--pa-f:${_luFillSafe(color)}}`));
   styleEl.textContent=rules.join('\n');
   // Font family + scale
   const ff=D.prefs.themeFontFamily;
@@ -2777,8 +2840,8 @@ function renderKnowledgeGraph(){
       <button class="btn btn-s" style="height:22px;width:22px;padding:0;font-size:12px" onclick="_kgToggleGuide(false)" title="Close">✕</button>
     </div>
     <div style="padding:12px;line-height:1.6">
-      <div style="margin-bottom:8px"><strong style="color:var(--t1)">What it shows</strong><br>Every <strong>circle is a note</strong>. Bigger circles have more connections; a <span style="color:#facc15">gold ring</span> means starred. Lines connect related notes — six ways:</div>
-      ${KG_TYPE_ORDER.map(t=>{const s=KG_EDGE_STYLE[t];const on=cfg.edges[t];return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;${on?'':'opacity:.45'}"><svg width="32" height="8" style="flex-shrink:0"><line x1="0" y1="4" x2="32" y2="4" stroke="rgba(${s.c},.85)" stroke-width="${s.w}" ${s.dash?`stroke-dasharray="${s.dash}"`:''}/></svg> <span>${esc(s.label)}${typeof typeCounts!=='undefined'&&typeCounts[t]?` <span style="color:var(--t3)">· ${typeCounts[t]}</span>`:''}</span></div>`;}).join('')}
+      <div style="margin-bottom:8px"><strong style="color:var(--t1)">What it shows</strong><br>Every <strong>circle is a note</strong>. Bigger circles have more connections; a <span style="color:var(--warn)">gold ring</span> means starred. Lines connect related notes — six ways:</div>
+      ${KG_TYPE_ORDER.map(t=>{const s=KG_EDGE_STYLE[t];const on=cfg.edges[t];return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;${on?'':'opacity:.75'}"><svg width="32" height="8" style="flex-shrink:0"><line x1="0" y1="4" x2="32" y2="4" stroke="rgba(${s.c},.85)" stroke-width="${s.w}" ${s.dash?`stroke-dasharray="${s.dash}"`:''}/></svg> <span>${esc(s.label)}${typeof typeCounts!=='undefined'&&typeCounts[t]?` <span style="color:var(--t3)">· ${typeCounts[t]}</span>`:''}</span></div>`;}).join('')}
       <div style="margin:8px 0 6px"><strong style="color:var(--t1)">How to use it</strong></div>
       <div style="margin-bottom:3px">• <strong>Click</strong> a note → highlight it + its neighbours</div>
       <div style="margin-bottom:3px">• <strong>Double-click</strong> (or “Open”) → edit the note</div>
@@ -2834,7 +2897,7 @@ function renderKnowledgeGraph(){
       <div id="kg-legend" style="position:absolute;bottom:14px;left:14px;background:color-mix(in srgb,var(--s1) 88%,transparent);border:1px solid var(--bd1);border-radius:8px;padding:8px 10px;font-size:10.5px;color:var(--t2);z-index:11;max-width:240px;${cfg.colorBy==='palette'?'display:none':''}"></div>
       ${guideHtml}
       ${infoHtml}
-      ${nodes.length&&totalEdges===0?`<div id="kg-nolinks" style="position:absolute;bottom:18px;left:50%;transform:translateX(-50%);background:var(--s1);border:1px solid var(--bd2);border-radius:8px;padding:10px 16px;font-size:11.5px;color:var(--t2);box-shadow:0 4px 20px rgba(0,0,0,.4);z-index:12;text-align:center;max-width:90%">No connections with the current settings. Open <strong>⚙ View</strong> and enable more connection types (mentions, similar content, same folder), or add <code style="background:var(--s3);padding:1px 4px;border-radius:3px">[[Note Title]]</code> links / shared #tags. <span style="color:var(--ac);cursor:pointer;text-decoration:underline" onclick="_kgToggleGuide(true)">Show guide</span></div>`:''}
+      ${nodes.length&&totalEdges===0?`<div id="kg-nolinks" style="position:absolute;bottom:18px;left:50%;transform:translateX(-50%);background:var(--s1);border:1px solid var(--bd2);border-radius:8px;padding:10px 16px;font-size:11.5px;color:var(--t2);box-shadow:0 4px 20px rgba(0,0,0,.4);z-index:12;text-align:center;max-width:90%">No connections with the current settings. Open <strong>⚙ View</strong> and enable more connection types (mentions, similar content, same folder), or add <code style="background:var(--s3);padding:1px 4px;border-radius:3px">[[Note Title]]</code> links / shared #tags. <span style="color:var(--ach);cursor:pointer;text-decoration:underline" onclick="_kgToggleGuide(true)">Show guide</span></div>`:''}
       ${nodes.length===0?`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--t3);text-align:center;padding:40px"><div><div style="font-size:48px;margin-bottom:10px">🕸</div><div style="font-size:14px;font-weight:600;color:var(--t1);margin-bottom:4px">${cfg.tagFilter?'No notes with #'+esc(cfg.tagFilter):(hideOrphans&&orphanCount?'No connected notes yet':'Your graph is empty')}</div><div style="font-size:12px;max-width:360px;margin:0 auto 14px">${cfg.tagFilter?'Try a different tag or choose “All tags”.':(hideOrphans&&orphanCount?`You have ${orphanCount} note${orphanCount===1?'':'s'} but none are connected with the current settings. Untick “hide unconnected”, or enable more connection types under ⚙ View.`:'Create notes — the graph auto-connects them by mentions, tags, folders and similar content.')}</div><button class="btn btn-p" onclick="openFA('note')">+ Create a note</button></div></div>`:''}
     </div>
   </div>`;
@@ -3554,7 +3617,7 @@ function _renderNoteDeepInsight(noteId, insight){
   const cachedAge = insight.cachedAt ? Math.round((Date.now() - _pd(insight.cachedAt).getTime()) / 60000) : 0;
   host.innerHTML = `<div style="padding:0">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--ac)">${_icon('brain',16,'currentColor')} AI Deep Insight</div>
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--ach)">${_icon('brain',16,'currentColor')} AI Deep Insight</div>
       <div style="display:flex;gap:6px;align-items:center;font-size:11px;color:var(--t3)">
         ${cachedAge<60?`${cachedAge}m ago`:`${Math.round(cachedAge/60)}h ago`}
         <button class="btn btn-s" style="font-size:10px;padding:0 6px;height:20px" onclick="aiNoteDeepInsight(${noteId},{force:true})" title="Regenerate">↻</button>
@@ -3568,7 +3631,7 @@ function _renderNoteDeepInsight(noteId, insight){
     ${insight.actionItems && insight.actionItems.length?`<div style="margin-bottom:10px">
       <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:4px">${_icon('zap',14,'currentColor')} Suggested action items</div>
       <div style="display:flex;flex-direction:column;gap:4px">${insight.actionItems.map((a,i)=>`<div style="display:flex;gap:6px;align-items:flex-start;padding:6px 8px;background:var(--s2);border-radius:4px;font-size:11px">
-        <button class="btn btn-s" style="font-size:10px;padding:0 6px;height:20px;flex-shrink:0;background:#16a34a;color:#fff;border-color:#15803d" onclick="_aiInsightCreateTask(${noteId},${i})" title="Create as task linked to this note">+ Task</button>
+        <button class="btn btn-s" style="font-size:10px;padding:0 6px;height:20px;flex-shrink:0;background:#12873d;color:#fff;border-color:#15803d" onclick="_aiInsightCreateTask(${noteId},${i})" title="Create as task linked to this note">+ Task</button>
         <div style="flex:1"><div style="color:var(--t1);font-weight:500">${esc(a.title)}</div>${a.why?`<div style="color:var(--t3);font-size:11px;margin-top:2px">${esc(a.why)}</div>`:''}</div>
       </div>`).join('')}</div>
     </div>`:''}
@@ -3790,7 +3853,7 @@ function _renderDailyFocusAISection(){
       ?`(()=>{const t=D.tasks.find(x=>String(x.id)===String(${_tidLit(p.id)}));if(t)openDrawer('task',t);})()`
       :(p.url?`_luOpenUrl('${_jsAttr(p.url)}')`:'void 0');
     return `<div style="display:flex;align-items:flex-start;gap:6px;padding:6px 0;${i<picks.length-1?'border-bottom:1px solid var(--bd1);':''}cursor:pointer" onclick="${clickHandler}">
-      <span style="font-size:11px;font-weight:700;color:var(--ac);min-width:14px;flex-shrink:0">${i+1}.</span>
+      <span style="font-size:11px;font-weight:700;color:var(--ach);min-width:14px;flex-shrink:0">${i+1}.</span>
       <div style="flex:1;min-width:0">
         <div style="font-size:11px;font-weight:500;line-height:1.35;display:flex;align-items:center;gap:4px;flex-wrap:wrap">${badge}<span style="overflow:hidden;text-overflow:ellipsis">${esc(p.title)}</span></div>
         ${p.reason?`<div style="font-size:11px;color:var(--t3);line-height:1.4;margin-top:2px;font-style:italic">${esc(p.reason)}</div>`:''}
@@ -3941,7 +4004,7 @@ function _hydrateSidebarGroupsCollapsed(){
 // Collapses a calendar header's AI actions into one "✨ AI ▾" dropdown
 // (matches the Goals/Projects AI menus) so the header isn't a long button row.
 function _calAIMenu(id,items){
-  return `<div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:11px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('${_jsAttr(id)}')" title="AI calendar tools">✨ AI ▾</button><div id="${id}" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:190px;box-shadow:0 4px 16px rgba(0,0,0,.35)">${items.map(it=>`<button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:${it.c};background:transparent;border:none;text-align:left" onclick="closePopMenu('${_jsAttr(id)}');${it.fn}">${it.label}</button>`).join('')}</div></div>`;
+  return `<div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:11px;color:var(--ach)" onclick="event.stopPropagation();togglePopMenu('${_jsAttr(id)}')" title="AI calendar tools">✨ AI ▾</button><div id="${id}" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:190px;box-shadow:0 4px 16px rgba(0,0,0,.35)">${items.map(it=>`<button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:${_luAccentText(it.c)};background:transparent;border:none;text-align:left" onclick="closePopMenu('${_jsAttr(id)}');${it.fn}">${it.label}</button>`).join('')}</div></div>`;
 }
 function _focusViewTabs(active){
   const tabs=[['myday','Day'],['myweek','Week'],['myyear','Year']];
@@ -4384,7 +4447,7 @@ function renderDrawer(type,item){
     <div class="field">
       <label style="display:flex;align-items:center;justify-content:space-between">
         Notes
-        <button type="button" id="btn-dr-task-ai-desc" class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;color:var(--ac)" onclick="aiComposeTaskNotes(${_tidLit(item.id)})">✨ AI Compose</button>
+        <button type="button" id="btn-dr-task-ai-desc" class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;color:var(--ach)" onclick="aiComposeTaskNotes(${_tidLit(item.id)})">✨ AI Compose</button>
       </label>
       ${luRTE_render({id:'dr-notes-rte', placeholder:'Notes, context, decisions…', value:(item.notesHtml||item.notes||''), height:'120px'})}
     </div>
@@ -4400,7 +4463,7 @@ function renderDrawer(type,item){
       <div id="dr-task-links" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px"></div>
     </div>
     <div class="field"><label>Comments / Activity</label>
-    <div id="task-comments" style="max-height:140px;overflow-y:auto;margin-bottom:6px">${(function(comments){if(!comments||!comments.length)return "<div style='font-size:10px;color:var(--t3);padding:4px 0'>No comments yet.</div>";return comments.map((c,ci)=>{const isOwn=c.author===(D.creds.userName||(D.teams[0]&&D.teams[0].members[0]&&D.teams[0].members[0].name)||'Idris');return `<div style="padding:5px 0;border-bottom:1px solid var(--s3)"><div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--t3);margin-bottom:2px"><span>${esc(c.author||'Idris')}</span><div style="display:flex;gap:4px;align-items:center"><span>${c.ts||''}</span>${isOwn?`<span onclick="editTaskComment(${_tidLit(item.id)},${ci})" style="cursor:pointer;color:var(--ac);font-size:11px" title="Edit">✏</span><span onclick="deleteTaskComment(${_tidLit(item.id)},${ci})" style="cursor:pointer;color:var(--red);font-size:11px" title="Delete">✕</span>`:''}</div></div><div style="font-size:11px">${esc(c.text)}</div></div>`;}).join('');})(item.comments||[])}</div>
+    <div id="task-comments" style="max-height:140px;overflow-y:auto;margin-bottom:6px">${(function(comments){if(!comments||!comments.length)return "<div style='font-size:10px;color:var(--t3);padding:4px 0'>No comments yet.</div>";return comments.map((c,ci)=>{const isOwn=c.author===(D.creds.userName||(D.teams[0]&&D.teams[0].members[0]&&D.teams[0].members[0].name)||'Idris');return `<div style="padding:5px 0;border-bottom:1px solid var(--s3)"><div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--t3);margin-bottom:2px"><span>${esc(c.author||'Idris')}</span><div style="display:flex;gap:4px;align-items:center"><span>${c.ts||''}</span>${isOwn?`<span onclick="editTaskComment(${_tidLit(item.id)},${ci})" style="cursor:pointer;color:var(--ach);font-size:11px" title="Edit">✏</span><span onclick="deleteTaskComment(${_tidLit(item.id)},${ci})" style="cursor:pointer;color:var(--red);font-size:11px" title="Delete">✕</span>`:''}</div></div><div style="font-size:11px">${esc(c.text)}</div></div>`;}).join('');})(item.comments||[])}</div>
     <div style="display:flex;gap:6px"><input class="inp" placeholder="Add a comment..." id="new-comment" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addTaskComment(${_tidLit(item.id)})}"><button class="btn btn-s" onclick="addTaskComment(${_tidLit(item.id)})">Post</button></div>
     </div>
     <div class="dr-actions">
@@ -4504,7 +4567,7 @@ function renderDrawer(type,item){
     <div class="field-row"><div class="field"><label>Due</label><input class="inp" value="${esc(item.due)}" id="dr-due"></div>
     <div class="field"><label>Progress %</label><input type="number" class="inp" value="${item.pct}" min="0" max="100" id="dr-pct"></div></div>
     <div class="field"><label>Assignees <span style="font-size:11px;color:var(--t3);font-weight:400">★=Primary Responsible</span></label>${buildMultiAssignee('dr-proj-ma',item)}</div>
-    <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Description<button type="button" id="btn-dr-proj-ai-desc" class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;color:var(--ac)" onclick="aiComposeProjectDesc(${_tidLit(item.id)})">✨ AI Describe</button></label><textarea class="inp" id="dr-body">${esc(item.desc||'')}</textarea></div>
+    <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Description<button type="button" id="btn-dr-proj-ai-desc" class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;color:var(--ach)" onclick="aiComposeProjectDesc(${_tidLit(item.id)})">✨ AI Describe</button></label><textarea class="inp" id="dr-body">${esc(item.desc||'')}</textarea></div>
     ${_renderProjectEditTasksSection(item.id)}
     <div class="field" style="margin-top:14px">
       <label style="display:flex;align-items:center;justify-content:space-between">
@@ -4525,7 +4588,7 @@ function renderDrawer(type,item){
     <div class="field-row">
       <div class="field"><label>Icon</label>${_iconPickBtn('dr-icon',item.icon||'🎯','Pick…')}</div>
       <div class="field"><label>Category</label><select class="inp" id="dr-category"><option ${(item.category||'')==='Work'?'selected':''}>Work</option><option ${item.category==='Learning'?'selected':''}>Learning</option><option ${item.category==='Health'?'selected':''}>Health</option><option ${item.category==='Personal Brand'?'selected':''}>Personal Brand</option><option ${item.category==='Finance'?'selected':''}>Finance</option><option ${item.category==='Personal'?'selected':''}>Personal</option></select></div>
-      <div class="field"><label>Progress %${item.pctManual?` <span style="font-size:11px;color:var(--warn);font-weight:600">(manual)</span>`:''}</label><input type="number" class="inp" value="${item.pct}" min="0" max="100" id="dr-pct"><div style="font-size:11px;color:var(--t3);margin-top:3px">${item.pctManual?'Manual override active — auto-calculation from linked tasks &amp; milestones is paused. <a style="color:var(--ac);cursor:pointer" onclick="event.stopPropagation();document.getElementById(\'dr-pct\').dataset.resetAuto=\'1\';this.textContent=\'✓ will reset on Save\'">↺ Reset to auto</a>':'Auto-calculated from linked tasks &amp; milestones. Edit to lock to a manual value.'}</div></div>
+      <div class="field"><label>Progress %${item.pctManual?` <span style="font-size:11px;color:var(--warn);font-weight:600">(manual)</span>`:''}</label><input type="number" class="inp" value="${item.pct}" min="0" max="100" id="dr-pct"><div style="font-size:11px;color:var(--t3);margin-top:3px">${item.pctManual?'Manual override active — auto-calculation from linked tasks &amp; milestones is paused. <a style="color:var(--ach);cursor:pointer" onclick="event.stopPropagation();document.getElementById(\'dr-pct\').dataset.resetAuto=\'1\';this.textContent=\'✓ will reset on Save\'">↺ Reset to auto</a>':'Auto-calculated from linked tasks &amp; milestones. Edit to lock to a manual value.'}</div></div>
     </div>
     <div class="field"><label>Target <span style="font-size:11px;color:var(--t3);font-weight:400">(short summary, e.g. "5 of 12 done")</span></label><input class="inp" value="${esc(item.target||'')}" id="dr-target"></div>
     <div class="field-row">
@@ -4559,7 +4622,7 @@ function renderDrawer(type,item){
           <button type="button" class="btn btn-s" style="height:22px;font-size:11px" onclick="drJrnlAI('reflect')">🧘 Reflect</button>
           <button type="button" class="btn btn-s" style="height:22px;font-size:11px" onclick="drJrnlAI('summarise')">${_icon('list',12,'currentColor')} Summarise</button>
           <button type="button" class="btn btn-s" style="height:22px;font-size:11px" onclick="drJrnlAI('mood')">${_icon('activity',12,'currentColor')} Mood</button>
-          <button type="button" class="btn btn-s" style="height:22px;font-size:11px;color:var(--ac)" onclick="drJrnlAI('react')">💬 React</button>
+          <button type="button" class="btn btn-s" style="height:22px;font-size:11px;color:var(--ach)" onclick="drJrnlAI('react')">💬 React</button>
           ${typeof _aiLengthChip==='function'?_aiLengthChip():''}
         </div>
         <div id="dr-jrnl-ai-result" style="display:none;margin-top:5px;padding:7px;background:var(--s1);border-radius:4px;font-size:11px;color:var(--t2);line-height:1.6;white-space:pre-wrap;max-height:150px;overflow-y:auto"></div>
@@ -4835,7 +4898,7 @@ function _maRender(id){
     const ini=String(s.name||'?').split(' ').map(w=>w[0]||'').join('').substring(0,2).toUpperCase();
     const col=m.color||'#6366f1';
     return `<span style="display:inline-flex;align-items:center;gap:5px;background:var(--s2);border:1px solid ${s.primary?'var(--warn)':'var(--bd2)'};border-radius:999px;padding:2px 7px 2px 2px;margin:2px;font-size:11px">
-      <span style="width:18px;height:18px;border-radius:50%;background:${col};color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0">${ini}</span>
+      <span style="width:18px;height:18px;border-radius:50%;background:${_luFillSafe(col)};color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0">${ini}</span>
       <span>${esc(s.name)}</span>
       <span title="${s.primary?'Primary Responsible':'Make Primary'}" onclick="_maSetPrimary('${_jsAttr(id)}',${s.userId})" style="cursor:pointer;color:${s.primary?'var(--warn)':'var(--t3)'}">★</span>
       <span title="Remove" onclick="_maRemove('${_jsAttr(id)}',${s.userId})" style="cursor:pointer;color:var(--t3);font-weight:700;font-size:13px;line-height:1">×</span>
@@ -5045,12 +5108,12 @@ function _drRenderTaskLinks(containerId){
     const linkedItems=linkedIds.map(id=>all.find(x=>x.id===id)).filter(Boolean);
     const available=all.filter(x=>!linkedIds.includes(x.id)).slice(0,200);
     const chips=linkedItems.length
-      ?linkedItems.map(x=>`<span style="display:inline-flex;align-items:center;gap:4px;background:var(--acs);color:var(--ac);border:1px solid color-mix(in srgb,var(--ac) 35%,var(--bd2));border-radius:12px;padding:2px 4px 2px 8px;font-size:11px;margin:2px 3px 2px 0;max-width:100%"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px">${esc(c.labelOf(x))}</span><span style="cursor:pointer;padding:0 4px;border-radius:8px;line-height:1;font-weight:600" title="Unlink" onclick="_drRemoveLink('${_jsAttr(c.key)}',${x.id})">✕</span></span>`).join('')
+      ?linkedItems.map(x=>`<span style="display:inline-flex;align-items:center;gap:4px;background:var(--acs);color:var(--ach);border:1px solid color-mix(in srgb,var(--ac) 35%,var(--bd2));border-radius:12px;padding:2px 4px 2px 8px;font-size:11px;margin:2px 3px 2px 0;max-width:100%"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px">${esc(c.labelOf(x))}</span><span style="cursor:pointer;padding:0 4px;border-radius:8px;line-height:1;font-weight:600" title="Unlink" onclick="_drRemoveLink('${_jsAttr(c.key)}',${x.id})">✕</span></span>`).join('')
       :`<span style="font-size:11px;color:var(--t3);font-style:italic">None linked</span>`;
     const dropdown=available.length
       ?`<select class="inp" style="height:26px;font-size:11px;padding:0 6px;margin-top:6px;width:100%" onchange="_drAddLink('${_jsAttr(c.key)}',this.value);this.value=''"><option value="">+ Add ${esc(c.label.toLowerCase())}…</option>${available.map(x=>{const full=String(c.labelOf(x)||'');return `<option value="${x.id}" title="${esc(full)}">${esc(full.length>48?full.slice(0,47).trimEnd()+'\u2026':full)}</option>`;}).join('')}</select>`
       :`<div style="font-size:11px;color:var(--t3);margin-top:6px">No more ${esc(c.label.toLowerCase())} to add.</div>`;
-    return `<div><label style="font-size:11px;color:var(--t3);font-weight:600;text-transform:uppercase;display:flex;align-items:center;gap:4px">${c.icon} ${esc(c.label)}<span style="margin-left:auto;font-size:11px;color:${linkedItems.length?'var(--ac)':'var(--t3)'}">${linkedItems.length?linkedItems.length+' linked':''}</span></label><div style="margin-top:4px;display:flex;flex-wrap:wrap;align-items:center;min-height:22px">${chips}</div>${dropdown}</div>`;
+    return `<div><label style="font-size:11px;color:var(--t3);font-weight:600;text-transform:uppercase;display:flex;align-items:center;gap:4px">${c.icon} ${esc(c.label)}<span style="margin-left:auto;font-size:11px;color:${linkedItems.length?'var(--ach)':'var(--t3)'}">${linkedItems.length?linkedItems.length+' linked':''}</span></label><div style="margin-top:4px;display:flex;flex-wrap:wrap;align-items:center;min-height:22px">${chips}</div>${dropdown}</div>`;
   }).join('');
 }
 function saveItem(type,id){
@@ -5767,11 +5830,11 @@ function taskRow(t,showActs=true){
   });
   const blockedLabel=isBlocked?`<span style="font-size:11px;color:var(--red);white-space:nowrap;font-weight:600" title="Blocked by incomplete predecessor tasks">🔒 Blocked</span>`:'';
   const isTimerActive=_timerTaskId===t.id;
-  const timerBtn=`<button id="timer-btn-${t.id}" class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px;${isTimerActive?'background:var(--red);color:#fff':''}" title="${isTimerActive?'Stop timer':'Start timer'}" onclick="event.stopPropagation();startTaskTimer(${_tidLit(t.id)},event)">${isTimerActive?'⏹':'▶'}</button>`;
+  const timerBtn=`<button id="timer-btn-${t.id}" class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px;${isTimerActive?'background:#B91C1C;color:#fff':''}" title="${isTimerActive?'Stop timer':'Start timer'}" onclick="event.stopPropagation();startTaskTimer(${_tidLit(t.id)},event)">${isTimerActive?'⏹':'▶'}</button>`;
   const timeLabel=t.timeSpent?`<span style="font-size:11px;color:var(--t3);white-space:nowrap" title="Time spent">${t.timeSpent}m</span>`:
     (isTimerActive?`<span id="timer-display-${t.id}" style="font-size:11px;color:var(--red);white-space:nowrap;font-variant-numeric:tabular-nums">0m 0s</span>`:'');
-  const blockBtn=`<button class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px" title="Block time in Calendar" onclick="event.stopPropagation();blockTaskTime(${_tidLit(t.id)})">📅</button><button class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px" title="${t.clusterId?'In cluster: '+esc(((D.clusters||[]).find(c=>c.id===t.clusterId)||{}).name||'')+' · click to change':'Move to a cluster'}" onclick="event.stopPropagation();openTaskClusterPicker(${_tidLit(t.id)},event)">⬡</button>${t.pushedTo&&t.pushedTo.source==='nifty'?`<a class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px;color:#a78bfa;text-decoration:none" title="Pushed to Nifty${t.pushedTo.projectName?' · '+esc(t.pushedTo.projectName):''} · open" ${t.pushedTo.url?`href="${esc(t.pushedTo.url)}" target="_blank" rel="noopener"`:''} onclick="event.stopPropagation()">↗ Nifty</a>`:''}`;
-  const _tcStyle=t.titleColor?`color:${t.titleColor};font-weight:600`:'';
+  const blockBtn=`<button class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px" title="Block time in Calendar" onclick="event.stopPropagation();blockTaskTime(${_tidLit(t.id)})">📅</button><button class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px" title="${t.clusterId?'In cluster: '+esc(((D.clusters||[]).find(c=>c.id===t.clusterId)||{}).name||'')+' · click to change':'Move to a cluster'}" onclick="event.stopPropagation();openTaskClusterPicker(${_tidLit(t.id)},event)">⬡</button>${t.pushedTo&&t.pushedTo.source==='nifty'?`<a class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px;color:var(--purp);text-decoration:none" title="Pushed to Nifty${t.pushedTo.projectName?' · '+esc(t.pushedTo.projectName):''} · open" ${t.pushedTo.url?`href="${esc(t.pushedTo.url)}" target="_blank" rel="noopener"`:''} onclick="event.stopPropagation()">↗ Nifty</a>`:''}`;
+  const _tcStyle=t.titleColor?`color:${_luAccentText(t.titleColor)};font-weight:600`:'';
   // K: subtask progress chip
   const _subs=Array.isArray(t.subtasks)?t.subtasks:[];
   const _subDone=_subs.filter(s=>s.done).length;
@@ -5793,7 +5856,7 @@ function addTaskComment(taskId){
   inp.value='';
   // Re-render comments panel inline
   const panel=document.getElementById('task-comments');
-  if(panel)panel.innerHTML=(function(comments){if(!comments||!comments.length)return "<div style='font-size:10px;color:var(--t3);padding:4px 0'>No comments yet.</div>";return comments.map((c,ci)=>{const isOwn=c.author===(D.creds.userName||(D.teams[0]&&D.teams[0].members[0]&&D.teams[0].members[0].name)||'Idris');return `<div style="padding:5px 0;border-bottom:1px solid var(--s3)"><div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--t3);margin-bottom:2px"><span>${esc(c.author||'Idris')}</span><div style="display:flex;gap:4px;align-items:center"><span>${c.ts||''}</span>${isOwn?`<span onclick="editTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--ac);font-size:11px" title="Edit">✏</span><span onclick="deleteTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--red);font-size:11px" title="Delete">✕</span>`:''}</div></div><div style="font-size:11px">${esc(c.text)}</div></div>`;}).join('');})(t.comments);
+  if(panel)panel.innerHTML=(function(comments){if(!comments||!comments.length)return "<div style='font-size:10px;color:var(--t3);padding:4px 0'>No comments yet.</div>";return comments.map((c,ci)=>{const isOwn=c.author===(D.creds.userName||(D.teams[0]&&D.teams[0].members[0]&&D.teams[0].members[0].name)||'Idris');return `<div style="padding:5px 0;border-bottom:1px solid var(--s3)"><div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--t3);margin-bottom:2px"><span>${esc(c.author||'Idris')}</span><div style="display:flex;gap:4px;align-items:center"><span>${c.ts||''}</span>${isOwn?`<span onclick="editTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--ach);font-size:11px" title="Edit">✏</span><span onclick="deleteTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--red);font-size:11px" title="Delete">✕</span>`:''}</div></div><div style="font-size:11px">${esc(c.text)}</div></div>`;}).join('');})(t.comments);
   toast('💬 Comment added');
 }
 function editTaskComment(taskId,ci){
@@ -5817,7 +5880,7 @@ function editTaskComment(taskId,ci){
           +`<span>${esc(c.author||'Idris')}</span>`
           +`<div style="display:flex;gap:4px;align-items:center">`
           +`<span>${c.ts||''}${c.edited?' (edited)':''}</span>`
-          +(isOwn?`<span onclick="editTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--ac);font-size:11px" title="Edit">✏</span>`
+          +(isOwn?`<span onclick="editTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--ach);font-size:11px" title="Edit">✏</span>`
           +`<span onclick="deleteTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--red);font-size:11px" title="Delete">✕</span>`:'')
           +`</div></div>`
           +`<div style="font-size:11px">${esc(c.text)}</div>`
@@ -5843,7 +5906,7 @@ function deleteTaskComment(taskId,ci){
           +`<span>${esc(c.author||'Idris')}</span>`
           +`<div style="display:flex;gap:4px;align-items:center">`
           +`<span>${c.ts||''}</span>`
-          +(isOwn?`<span onclick="editTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--ac);font-size:11px" title="Edit">✏</span>`
+          +(isOwn?`<span onclick="editTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--ach);font-size:11px" title="Edit">✏</span>`
           +`<span onclick="deleteTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--red);font-size:11px" title="Delete">✕</span>`:'')
           +`</div></div>`
           +`<div style="font-size:11px">${esc(c.text)}</div>`

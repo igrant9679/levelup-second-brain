@@ -388,7 +388,7 @@ function _renderWidget(w,idx){
   if(w.viz==='kpi'){
     const val=w.groupBy==='_total'?_widgetMetric(_widgetRows(w),w.metric):data.total;
     const display=typeof val==='number'?(Number.isInteger(val)?val:val.toFixed(1)):String(val);
-    body=`<div style="display:flex;align-items:baseline;gap:8px;padding:4px 0"><div style="font-size:38px;font-weight:800;color:${color};line-height:1">${display}</div><div style="font-size:11px;color:var(--t3);font-weight:500">${esc(WIDGET_SOURCES[w.source].label)}</div></div>`;
+    body=`<div style="display:flex;align-items:baseline;gap:8px;padding:4px 0"><div style="font-size:38px;font-weight:800;color:${_luAccentText(color)};line-height:1">${display}</div><div style="font-size:11px;color:var(--t3);font-weight:500">${esc(WIDGET_SOURCES[w.source].label)}</div></div>`;
   }else if(w.viz==='bar'){
     const max=Math.max(...data.values,1);
     body=`<div style="display:flex;align-items:flex-end;gap:3px;height:72px;padding:6px 0">${data.values.map((v,i)=>{const h=Math.max(2,Math.round(v/max*64));return `<div class="lu-bar-wrap" style="flex:1;display:flex;flex-direction:column;align-items:center;min-width:4px;height:72px;justify-content:flex-end;position:relative"><div class="lu-bar" style="width:80%;background:linear-gradient(180deg,${color},color-mix(in srgb,${color} 35%,transparent));border-radius:3px 3px 0 0;height:${h}px"></div><div class="lu-bar-tip">${esc(data.labels[i]||'')}: ${typeof v==='number'?(Number.isInteger(v)?v:v.toFixed(1)):v}</div></div>`;}).join('')}</div>`;
@@ -436,7 +436,7 @@ function _renderWidget(w,idx){
     // Compact inline trendline with the total as a big number on the left.
     const vals=data.values.map(v=>Number(v)||0);
     const total=vals.reduce((a,b)=>a+b,0);
-    body=`<div style="display:flex;align-items:center;gap:14px"><div style="font-size:30px;font-weight:800;color:${color};line-height:1">${total}</div><div style="flex:1">${_sparkline(vals.length?vals:[0,0],color,{width:200,height:40})}</div></div>`;
+    body=`<div style="display:flex;align-items:center;gap:14px"><div style="font-size:30px;font-weight:800;color:${_luAccentText(color)};line-height:1">${total}</div><div style="flex:1">${_sparkline(vals.length?vals:[0,0],color,{width:200,height:40})}</div></div>`;
   }else if(w.viz==='progress'){
     // Horizontal progress bar(s). For _total / single value treats it as
     // percentage; for multi-bucket renders one bar per group.
@@ -468,7 +468,7 @@ function _renderWidget(w,idx){
         </div>
         <button class="btn btn-s" style="height:22px;font-size:11px" onclick="editReportWidget(${idx})" title="Edit">✏</button>
         <button class="btn btn-s" style="height:22px;font-size:11px" onclick="duplicateReportWidget(${idx})" title="Duplicate">⎘</button>
-        <button class="btn btn-s" style="height:22px;font-size:11px;color:var(--page-accent)" onclick="pinWidgetToHome(${idx})" title="Pin to Home dashboard">📌</button>
+        <button class="btn btn-s" style="height:22px;font-size:11px;color:var(--pa-t)" onclick="pinWidgetToHome(${idx})" title="Pin to Home dashboard">📌</button>
         <button class="btn btn-d" style="height:22px;font-size:11px" onclick="deleteReportWidget(${idx})" title="Delete">✕</button>
       </div>
     </div>
@@ -926,7 +926,7 @@ async function _openSharedReportView(idx){
     <div class="field"><label>Assignees <span style="font-size:11px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('srp-ma',p)}</div>
     <div class="dr-actions" style="margin-top:14px;flex-wrap:wrap">
       <button class="btn btn-p" onclick="_saveSharedReport(${Number(idx)||0})">Save</button>
-      ${adminSh&&!p._delegated?`<button class="btn btn-s" style="border-color:var(--ac);color:var(--ac)" onclick="_takeReportOwnership(${Number(idx)||0})" title="Move this report into your workspace; the current owner stays an assignee">⬇ Take ownership</button>`:''}
+      ${adminSh&&!p._delegated?`<button class="btn btn-s" style="border-color:var(--ac);color:var(--ach)" onclick="_takeReportOwnership(${Number(idx)||0})" title="Move this report into your workspace; the current owner stays an assignee">⬇ Take ownership</button>`:''}
       ${adminSh?`<button class="btn btn-d" onclick="_deleteSharedReportItem(${Number(idx)||0})">Delete</button>`:''}
       <button class="btn btn-s" onclick="document.getElementById('modal-capture').classList.remove('show')">Cancel</button>
     </div>
@@ -1137,7 +1137,7 @@ function _renderDeltaChip(cur,prev,opts){
   if(d.label==='·'&&!o.showFlat)return '';
   const goodIsUp=o.goodIsUp!==false;
   const color=d.label==='flat'?'var(--t3)':((d.arrow==='▲')===goodIsUp?'var(--ok)':'var(--red)');
-  return `<span style="display:inline-flex;align-items:center;gap:2px;font-size:11px;font-weight:600;color:${color};margin-left:6px" title="vs previous period (${prev||0})">${d.arrow} ${d.label}</span>`;
+  return `<span style="display:inline-flex;align-items:center;gap:2px;font-size:11px;font-weight:600;color:${_luAccentText(color)};margin-left:6px" title="vs previous period (${prev||0})">${d.arrow} ${d.label}</span>`;
 }
 // ─── R6: simple linear forecast ───────────────────────────────────────
 function _reportForecast(series,days){
@@ -1407,7 +1407,7 @@ function renderReports(){
 
   // Donut helper for status
   const sTotal=Object.values(tasksByStatus).reduce((a,b)=>a+b,0)||1;
-  const sColors={Done:'#22c55e','In Progress':'var(--ac)','Not Started':'var(--t3)',Someday:'var(--warn)'};
+  const sColors={Done:'#22c55e','In Progress':'var(--ach)','Not Started':'var(--t3)',Someday:'var(--warn)'};
   let acc=0;const donutStops=Object.entries(tasksByStatus).map(([k,v])=>{const start=acc/sTotal*100;acc+=v;const end=acc/sTotal*100;return `${sColors[k]} ${start}% ${end}%`;}).join(',');
 
   // R2: previous-period comparison numbers
@@ -1449,9 +1449,9 @@ function renderReports(){
           </div>
         </div>
         <div style="position:relative;display:inline-block">
-          <button class="btn btn-s no-print" style="height:30px;font-size:11px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('rep-ai-menu')">✨ AI ▾</button>
+          <button class="btn btn-s no-print" style="height:30px;font-size:11px;color:var(--ach)" onclick="event.stopPropagation();togglePopMenu('rep-ai-menu')">✨ AI ▾</button>
           <div id="rep-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:34px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:220px;box-shadow:0 4px 16px rgba(0,0,0,.35)">
-            <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('rep-ai-menu');aiReportNarrative(true)">📰 Refresh narrative</button>
+            <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ach);background:transparent;border:none;text-align:left" onclick="closePopMenu('rep-ai-menu');aiReportNarrative(true)">📰 Refresh narrative</button>
             <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--warn);background:transparent;border:none;text-align:left" onclick="closePopMenu('rep-ai-menu');aiReportAnomalies(true)">🔍 Detect anomalies</button>
             <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('rep-ai-menu');aiReportRecommendWidgets()">📊 Recommend widgets</button>
           </div>
@@ -1465,7 +1465,7 @@ function renderReports(){
     ${_reportRange==='custom'?`<div class="cd no-print" style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin-bottom:10px;flex-wrap:wrap"><span style="font-size:11px;color:var(--t3);font-weight:600">Custom range:</span><input id="rep-from" type="date" class="inp" value="${esc(_reportCustomFrom)}" style="height:26px;font-size:11px;padding:0 6px"><span style="font-size:11px;color:var(--t3)">to</span><input id="rep-to" type="date" class="inp" value="${esc(_reportCustomTo)}" style="height:26px;font-size:11px;padding:0 6px"><button class="btn btn-p" style="height:26px;font-size:11px" onclick="setReportCustomRange()">Apply</button></div>`:''}
     <!-- R1: AI Narrative Summary -->
     <div style="margin-bottom:14px">
-      <div class="sec-h" style="color:var(--ac);display:flex;align-items:center;gap:6px;margin-bottom:6px">📰 What this report says</div>
+      <div class="sec-h" style="color:var(--ach);display:flex;align-items:center;gap:6px;margin-bottom:6px">📰 What this report says</div>
       <div id="report-narrative"></div>
     </div>
 
@@ -1490,7 +1490,7 @@ function renderReports(){
         ${saved.map(r=>`<span style="display:inline-flex;align-items:center;gap:6px;background:color-mix(in srgb,var(--page-accent) 12%,var(--s2));border:1px solid color-mix(in srgb,var(--page-accent) 28%,var(--bd2));border-radius:14px;padding:3px 4px 3px 10px;font-size:11px;cursor:pointer;transition:transform .1s,filter .1s" onclick="loadSavedReport(${r.id})" onmouseover="this.style.transform='translateY(-1px)';this.style.filter='brightness(1.1)'" onmouseout="this.style.transform='';this.style.filter=''" title="${r.schedule?`Scheduled: ${esc(r.schedule.frequency)} at ${esc(r.schedule.time||'08:00')}`:`Range: ${esc(({'7d':'7 days','30d':'30 days','90d':'90 days','365d':'1 year','all':'All time'})[r.range]||r.range)}`}">
           <span style="font-size:13px">${esc(r.emoji||'📊')}</span>
           <span style="font-weight:500">${esc(r.name)}</span>
-          ${r.schedule&&r.schedule.frequency&&r.schedule.frequency!=='off'?`<span style="font-size:11px;background:rgba(34,197,94,.18);color:#86efac;padding:1px 5px;border-radius:8px" title="Auto-email enabled">⏰</span>`:''}
+          ${r.schedule&&r.schedule.frequency&&r.schedule.frequency!=='off'?`<span style="font-size:11px;background:rgba(34,197,94,.18);color:var(--ok);padding:1px 5px;border-radius:8px" title="Auto-email enabled">⏰</span>`:''}
           <button onclick="event.stopPropagation();openReportSchedule(${r.id})" title="Schedule email" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:11px;padding:2px 4px;border-radius:3px">⏰</button>
           <button onclick="event.stopPropagation();renameSavedReport(${r.id})" title="Rename" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:11px;padding:2px 4px;border-radius:3px">✏</button>
           <button onclick="event.stopPropagation();_openReportAssign(${r.id})" title="Assign to team members" style="background:none;border:none;color:${(r.assignedTo||(r.assignees||[]).length)?'var(--purp)':'var(--t3)'};cursor:pointer;font-size:11px;padding:2px 4px;border-radius:3px">👥</button>
@@ -1513,14 +1513,14 @@ function renderReports(){
       // R6: forecast chips on top KPIs
       const fcDone=_reportForecast(completionByDay.slice(-Math.min(14,completionByDay.length)),7);
       const fcFocus=_reportForecast(focusByDay.slice(-Math.min(14,focusByDay.length)),7);
-      const fcChip=(fc,label)=>fc?`<span style="display:inline-block;font-size:11px;padding:2px 6px;border-radius:8px;background:color-mix(in srgb,var(--ac) 14%,transparent);color:var(--ac);margin-top:4px" title="Linear projection from your last 14 days">📈 next 7d: ${fc.total}${label||''}</span>`:'';
+      const fcChip=(fc,label)=>fc?`<span style="display:inline-block;font-size:11px;padding:2px 6px;border-radius:8px;background:color-mix(in srgb,var(--ac) 14%,transparent);color:var(--ach);margin-top:4px" title="Linear projection from your last 14 days">📈 next 7d: ${fc.total}${label||''}</span>`:'';
       return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:18px">
         <div class="cd" style="padding:14px"><div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap"><div style="font-size:28px;font-weight:800;color:var(--ok);line-height:1">${tasksDoneRange.length}</div><div style="font-size:11px;color:var(--t3);font-weight:500">Tasks completed</div>${_renderDeltaChip(tasksDoneRange.length,prevDone)}</div>${_sparkline(sparkDone,'#22c55e')}<div>${fcChip(fcDone,'')}</div></div>
-        <div class="cd" style="padding:14px"><div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap"><div style="font-size:28px;font-weight:800;color:var(--ac);line-height:1">${tasksCreatedRange.length}</div><div style="font-size:11px;color:var(--t3);font-weight:500">Tasks created</div>${_renderDeltaChip(tasksCreatedRange.length,prevCreated,{goodIsUp:false})}</div>${_sparkline(sparkCreated,'#3b82f6')}</div>
+        <div class="cd" style="padding:14px"><div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap"><div style="font-size:28px;font-weight:800;color:var(--ach);line-height:1">${tasksCreatedRange.length}</div><div style="font-size:11px;color:var(--t3);font-weight:500">Tasks created</div>${_renderDeltaChip(tasksCreatedRange.length,prevCreated,{goodIsUp:false})}</div>${_sparkline(sparkCreated,'#3b82f6')}</div>
         <div class="cd" style="padding:14px"><div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap"><div style="font-size:28px;font-weight:800;color:var(--purp);line-height:1">${focusTotal}m</div><div style="font-size:11px;color:var(--t3);font-weight:500">Focus time</div>${_renderDeltaChip(focusTotal,prevFocus)}</div>${_sparkline(sparkFocus,'#a855f7')}<div>${fcChip(fcFocus,'m')}</div></div>
         <div class="cd" style="text-align:center;padding:14px"><div style="font-size:28px;font-weight:800;color:var(--warn)">${avgGoalPct}%</div><div style="font-size:11px;color:var(--t3);margin-top:2px">Avg goal progress</div></div>
-        <div class="cd" style="padding:14px"><div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap"><div style="font-size:28px;font-weight:800;color:#f43f5e;line-height:1">${avgMood}</div><div style="font-size:11px;color:var(--t3);font-weight:500">Avg mood / 5</div>${_renderDeltaChip(journalRange.length,prevJournal,{goodIsUp:true})}</div>${_sparkline(sparkMood.filter(v=>v>0).length>1?sparkMood:[0,0],'#f43f5e')}</div>
-        <div class="cd" style="text-align:center;padding:14px"><div style="font-size:28px;font-weight:800;color:#fb7185">🔥${topStreak.streak||0}</div><div style="font-size:11px;color:var(--t3);margin-top:2px">Top streak${topStreak.title&&topStreak.title!=='—'?': '+esc(topStreak.title):''}</div></div>
+        <div class="cd" style="padding:14px"><div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap"><div style="font-size:28px;font-weight:800;color:var(--red);line-height:1">${avgMood}</div><div style="font-size:11px;color:var(--t3);font-weight:500">Avg mood / 5</div>${_renderDeltaChip(journalRange.length,prevJournal,{goodIsUp:true})}</div>${_sparkline(sparkMood.filter(v=>v>0).length>1?sparkMood:[0,0],'#f43f5e')}</div>
+        <div class="cd" style="text-align:center;padding:14px"><div style="font-size:28px;font-weight:800;color:var(--red)">🔥${topStreak.streak||0}</div><div style="font-size:11px;color:var(--t3);margin-top:2px">Top streak${topStreak.title&&topStreak.title!=='—'?': '+esc(topStreak.title):''}</div></div>
       </div>`;
     })()}
 
@@ -1531,7 +1531,7 @@ function renderReports(){
         <div style="font-size:11px;color:var(--t3);margin-top:2px">${_reportWidgets.length?_reportWidgets.length+' widget'+(_reportWidgets.length===1?'':'s')+' on this report.':'Build your own report — pick a source, group, metric and viz, or just describe what you want.'}</div>
       </div>
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-        <button class="btn btn-s" style="font-size:11px;height:28px;color:#a855f7" onclick="openAIWidgetBuilder()" title="Describe what you want and AI builds the widget">✨ AI Build</button>
+        <button class="btn btn-s" style="font-size:11px;height:28px;color:var(--purp)" onclick="openAIWidgetBuilder()" title="Describe what you want and AI builds the widget">✨ AI Build</button>
         <button class="btn btn-s" style="font-size:11px;height:28px" onclick="emailCurrentReport()" title="Email this report to yourself">📧 Email Now</button>
         <button class="btn btn-p" style="font-size:11px;height:28px" onclick="addReportWidget()">+ Add Widget</button>
       </div>
@@ -1555,7 +1555,7 @@ function renderReports(){
         </div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px">
-        ${Object.entries(tasksByPriority).map(([k,v])=>{const c={High:'var(--red)',Medium:'var(--warn)',Low:'var(--ok)'}[k];return `<div style="border:1px solid var(--bd1);border-radius:6px;padding:10px;text-align:center;cursor:${v?'pointer':'default'}" ${v?`onclick="reportDrillDown('taskpriority','${_jsAttr(k)}')"`:''}><div style="font-size:18px;font-weight:700;color:${c}">${v}</div><div style="font-size:11px;color:var(--t3)">Active ${k}</div></div>`;}).join('')}
+        ${Object.entries(tasksByPriority).map(([k,v])=>{const c={High:'var(--red)',Medium:'var(--warn)',Low:'var(--ok)'}[k];return `<div style="border:1px solid var(--bd1);border-radius:6px;padding:10px;text-align:center;cursor:${v?'pointer':'default'}" ${v?`onclick="reportDrillDown('taskpriority','${_jsAttr(k)}')"`:''}><div style="font-size:18px;font-weight:700;color:${_luAccentText(c)}">${v}</div><div style="font-size:11px;color:var(--t3)">Active ${k}</div></div>`;}).join('')}
       </div>
     </div>`:''}
 
@@ -1567,7 +1567,7 @@ function renderReports(){
           <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--ok)">${goalsOnTrack}</div><div style="font-size:11px;color:var(--t3)">On track (≥50%)</div></div>
           <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--warn)">${goalsBehind}</div><div style="font-size:11px;color:var(--t3)">Behind (&lt;30%)</div></div>
         </div>
-        <div style="display:flex;flex-direction:column;gap:10px">${goals.map(g=>{const pct=g.pct||0;const c=pct>=70?'var(--ok)':(pct>=40?'var(--ac)':(pct>=20?'var(--warn)':'var(--red)'));const pace=_goalPaceCheck(g);return `<div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;gap:6px;flex-wrap:wrap"><span>${g.icon||'🎯'} ${esc(g.title)}</span><span style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;color:${pace.color};font-weight:600" title="Projected completion">${esc(pace.label)}</span><strong style="color:${c}">${pct}%</strong></span></div><div style="height:8px;background:var(--s3);border-radius:4px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${c};border-radius:4px"></div></div></div>`;}).join('')}</div>
+        <div style="display:flex;flex-direction:column;gap:10px">${goals.map(g=>{const pct=g.pct||0;const c=pct>=70?'var(--ok)':(pct>=40?'var(--ac)':(pct>=20?'var(--warn)':'var(--red)'));const pace=_goalPaceCheck(g);return `<div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;gap:6px;flex-wrap:wrap"><span>${g.icon||'🎯'} ${esc(g.title)}</span><span style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;color:${_luAccentText(pace.color)};font-weight:600" title="Projected completion">${esc(pace.label)}</span><strong style="color:${_luAccentText(c)}">${pct}%</strong></span></div><div style="height:8px;background:var(--s3);border-radius:4px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${c};border-radius:4px"></div></div></div>`;}).join('')}</div>
       `:'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No goals yet.</div>'}
     </div>`:''}
 
@@ -1598,14 +1598,14 @@ function renderReports(){
     <div class="cd" style="margin-bottom:14px"><h2 style="font-size:14px;font-weight:700;margin-bottom:10px">📔 Journal & Mood</h2>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
         <div style="text-align:center"><div style="font-size:22px;font-weight:700">${journalRange.length}</div><div style="font-size:11px;color:var(--t3)">Entries in range</div></div>
-        <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:#f43f5e">${avgMood}/5</div><div style="font-size:11px;color:var(--t3)">Average mood</div></div>
+        <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--red)">${avgMood}/5</div><div style="font-size:11px;color:var(--t3)">Average mood</div></div>
         <div style="text-align:center"><div style="font-size:22px;font-weight:700">${journalScored.length}</div><div style="font-size:11px;color:var(--t3)">Mood-tagged</div></div>
       </div>
     </div>`:''}
 
     ${_reportSections.projects?`
     <div class="cd" style="margin-bottom:14px"><h2 style="font-size:14px;font-weight:700;margin-bottom:10px">📁 Projects</h2>
-      ${projects.length?`<div style="display:flex;flex-direction:column;gap:6px">${projects.slice(0,12).map(p=>{const pct=p.pct||0;const c=pct>=70?'var(--ok)':(pct>=40?'var(--ac)':'var(--warn)');return `<div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span>${esc(p.name)} <span style="color:var(--t3);font-size:11px">${esc(p.status||'')}</span></span><strong style="color:${c}">${pct}%</strong></div><div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${c};border-radius:3px"></div></div></div>`;}).join('')}</div>`:'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No projects yet.</div>'}
+      ${projects.length?`<div style="display:flex;flex-direction:column;gap:6px">${projects.slice(0,12).map(p=>{const pct=p.pct||0;const c=pct>=70?'var(--ok)':(pct>=40?'var(--ac)':'var(--warn)');return `<div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span>${esc(p.name)} <span style="color:var(--t3);font-size:11px">${esc(p.status||'')}</span></span><strong style="color:${_luAccentText(c)}">${pct}%</strong></div><div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${c};border-radius:3px"></div></div></div>`;}).join('')}</div>`:'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No projects yet.</div>'}
     </div>`:''}
 
     <div class="no-print" style="text-align:center;color:var(--t3);font-size:11px;margin:24px 0 12px">Generated ${new Date().toLocaleString()} · LevelUp Second Brain</div>
@@ -1679,7 +1679,7 @@ $('myday-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1
 <div id="md-e" style="display:${_mdSec==='e'?'':'none'}">
 <div id="pomo-bar" style="background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
   <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
-    <div id="pomo-timer" style="font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--ac);letter-spacing:1px">25:00</div>
+    <div id="pomo-timer" style="font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--ach);letter-spacing:1px">25:00</div>
     <div id="pomo-label" style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">Focus</div>
   </div>
   <div style="flex:1;min-width:120px">
@@ -1704,7 +1704,7 @@ $('myday-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1
 <div class="g3" style="margin-bottom:12px">
   <div class="stat"><div class="stat-n" style="color:var(--ok)">${D.tasks.filter(t=>t.status==='Done'&&t.completedAt&&_dayOf(t.completedAt)===_todayStr).length}</div><div class="stat-l">Done today</div></div>
   <div class="stat"><div class="stat-n" style="color:var(--warn)">${D.tasks.filter(t=>t.myDay&&t.status!=='Done').length}</div><div class="stat-l">Carried over</div></div>
-  <div class="stat"><div class="stat-n" style="color:var(--ac)">${Math.floor((D.prefs&&D.prefs.focusMinsToday||0)/60)+'h '+(D.prefs&&D.prefs.focusMinsToday||0)%60+'m'}</div><div class="stat-l">Focus time</div></div>
+  <div class="stat"><div class="stat-n" style="color:var(--ach)">${Math.floor((D.prefs&&D.prefs.focusMinsToday||0)/60)+'h '+(D.prefs&&D.prefs.focusMinsToday||0)%60+'m'}</div><div class="stat-l">Focus time</div></div>
 </div>
 <div class="cd">
   <div style="font-size:12px;font-weight:600;margin-bottom:8px">📝 Daily Reflection</div>
@@ -1746,7 +1746,7 @@ function _populateMyDayRail(){
   const upNextHtml=upNext.length?upNext.map(t=>{
     const colors={High:'#ef4444',Medium:'#f59e0b',Low:'#10b981'};
     const dot=`<span style="width:6px;height:6px;border-radius:50%;background:${colors[t.priority]||'var(--t3)'};flex-shrink:0"></span>`;
-    const time=t.startTime?`<span style="font-size:11px;color:var(--ac);font-weight:600;margin-left:4px">⏰ ${esc(t.startTime)}</span>`:'';
+    const time=t.startTime?`<span style="font-size:11px;color:var(--ach);font-weight:600;margin-left:4px">⏰ ${esc(t.startTime)}</span>`:'';
     return `<div class="lr" style="cursor:pointer;padding:5px 6px" onclick="pomoSelectTask(${_tidLit(t.id)});mdSec(null,'e')" title="Focus on this task">${dot}<span class="rt" style="font-size:11px">${esc(t.title)}</span>${time}</div>`;
   }).join(''):`<div style="font-size:11px;color:var(--t3);padding:6px;text-align:center">All My Day tasks done — go celebrate. 🎉</div>`;
   // Today's meetings
@@ -1758,7 +1758,7 @@ function _populateMyDayRail(){
     const mins=Math.floor((s-now)/60000);
     const rel=mins<-15?'past':mins<0?'now':mins<60?`in ${mins}m`:`in ${Math.floor(mins/60)}h${mins%60?' '+(mins%60)+'m':''}`;
     const isPast=mins<-15;
-    return `<div class="lr" style="padding:5px 6px;${isPast?'opacity:.55':''}"><span style="font-size:13px;flex-shrink:0">📅</span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(e.title||'(untitled)')}</div><div style="font-size:11px;color:var(--t3)">${fmtT(s)}</div></div><span style="font-size:11px;padding:2px 5px;border-radius:3px;background:var(--acs);color:var(--ach);flex-shrink:0">${rel}</span></div>`;
+    return `<div class="lr" style="padding:5px 6px;${isPast?'opacity:.9':''}"><span style="font-size:13px;flex-shrink:0">📅</span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(e.title||'(untitled)')}</div><div style="font-size:11px;color:var(--t3)">${fmtT(s)}</div></div><span style="font-size:11px;padding:2px 5px;border-radius:3px;background:var(--acs);color:var(--ach);flex-shrink:0">${rel}</span></div>`;
   }).join(''):`<div style="font-size:11px;color:var(--t3);padding:6px;text-align:center">No meetings today.</div>`;
   // Quick wins (≤15 min, not done, on My Day or due/scheduled today)
   const wins=D.tasks.filter(t=>t.status!=='Done'&&(Number(t.estimatedMins)||999)<=15&&(t.myDay||t.due===today||t.startDate===today)).slice(0,5);
@@ -1771,7 +1771,7 @@ function _populateMyDayRail(){
   <div class="cd" style="margin-bottom:10px">
     <div style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">📊 Day at a Glance</div>
     <div style="display:flex;align-items:center;gap:12px">
-      <div style="${ringStyle};flex-shrink:0"><div style="width:68px;height:68px;background:var(--bg);border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center"><div style="font-size:18px;font-weight:700;color:${pct===100?'var(--ok)':'var(--ac)'};line-height:1">${pct}%</div><div style="font-size:9px;color:var(--t3);margin-top:2px">${myDone}/${myTotal}</div></div></div>
+      <div style="${ringStyle};flex-shrink:0"><div style="width:68px;height:68px;background:var(--bg);border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center"><div style="font-size:18px;font-weight:700;color:${pct===100?'var(--ok)':'var(--ach)'};line-height:1">${pct}%</div><div style="font-size:9px;color:var(--t3);margin-top:2px">${myDone}/${myTotal}</div></div></div>
       <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px;font-size:11px">
         <div>⏱ <strong>${focusMins}m</strong> <span style="color:var(--t3)">focus today</span></div>
         <div>🎯 <strong>${fmtH(remainMins)}</strong> <span style="color:var(--t3)">work left</span></div>
@@ -2073,7 +2073,7 @@ function renderMyWeek(){
     const isToday=d.toDateString()===today;
     const pts=tasksForDay(d);
     return`<div class="wk-col" id="wkcol-${ds}" data-date="${ds}" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="dropTaskOnDay(event,'${ds}')" style="flex:1;min-width:0;background:var(--s2);border-radius:6px;padding:6px;border:2px solid ${isToday?'var(--ac)':'transparent'};transition:border-color .15s">
-      <div style="font-size:11px;font-weight:600;text-align:center;margin-bottom:5px;color:${isToday?'var(--ac)':'var(--t2)'}">${label(d)}${isToday?' • Today':''}</div>
+      <div style="font-size:11px;font-weight:600;text-align:center;margin-bottom:5px;color:${isToday?'var(--ach)':'var(--t2)'}">${label(d)}${isToday?' • Today':''}</div>
       <div id="wkday-${ds}" style="min-height:60px">
         ${pts.map(t=>weekTaskChip(t)).join('')}
       </div>
@@ -2090,7 +2090,7 @@ function renderMyWeek(){
       <button class="btn btn-p" onclick="openFA('task')">+ Task</button>
     </div>
   </div>
-  ${overdue.length?`<div style="background:var(--wrn-bg,#fff3cd);border:1px solid var(--warn);border-radius:6px;padding:8px 10px;margin-bottom:10px;font-size:11px">⚠️ <strong>${overdue.length} overdue task${overdue.length>1?'s':''}</strong> — <span style="color:var(--t2)">${overdue.slice(0,3).map(t=>esc(t.title)).join(', ')}${overdue.length>3?'...':''}</span></div>`:''}
+  ${overdue.length?`<div style="background:var(--warns);border:1px solid var(--warn);border-radius:6px;padding:8px 10px;margin-bottom:10px;font-size:11px">⚠️ <strong>${overdue.length} overdue task${overdue.length>1?'s':''}</strong> — <span style="color:var(--t2)">${overdue.slice(0,3).map(t=>esc(t.title)).join(', ')}${overdue.length>3?'...':''}</span></div>`:''}
   <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px">${colHtml}</div>
   ${unscheduled.length?`<div style="margin-top:12px"><div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--t2)">📥 Unscheduled (drag to a day)</div><div style="display:flex;flex-wrap:wrap;gap:5px">${unscheduled.map(t=>weekTaskChip(t,true)).join('')}</div></div>`:''}
   ${(()=>{const parked=(D.ideas||[]).filter(x=>x.verdict_outcome==='parked'&&x.parked_review_date&&x.parked_review_date<=weekEnd&&x.parked_review_date>=weekStart);const stale=(D.ideas||[]).filter(x=>['develop','stress_test'].includes(x.stage)&&ideaDaysInStage(x)>=14);return(parked.length||stale.length)?`<div style="margin-top:12px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:10px 12px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">💡 Ideas Needing Attention</div>${parked.map(x=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd1)"><span style="font-size:14px">🅿</span><div style="flex:1"><div style="font-size:11px;font-weight:500">${esc(x.title)}</div><div style="font-size:11px;color:var(--t3)">Parked review due ${x.parked_review_date}</div></div><button class="btn btn-s" style="font-size:11px" onclick="openIdeaDetail(${x.id})">Review</button></div>`).join('')}${stale.map(x=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd1)"><span style="font-size:14px">⚠️</span><div style="flex:1"><div style="font-size:11px;font-weight:500">${esc(x.title)}</div><div style="font-size:11px;color:var(--red)">${ideaDaysInStage(x)}d stale in ${IDEA_STAGE_LABELS[x.stage]}</div></div><button class="btn btn-s" style="font-size:11px" onclick="nav('ideas');openIdeaDetail(${x.id})">Develop</button></div>`).join('')}</div>`:''})()}
@@ -2191,7 +2191,7 @@ function renderMyYear(){
   </div>
 
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-    ${[{l:'Tasks Done',v:doneTasks+'/'+totalTasks,c:'var(--ok)'},{l:'Notes',v:notesCount,c:'var(--ac)'},{l:'Journal Entries',v:journalCount,c:'var(--warn)'},{l:'Top Streak',v:topStreak.streak+'🔥',c:'var(--warn)'},{l:'Focus Hours',v:Math.round(totalFocusMins/60)+'h',c:'var(--ac)'}].map(s=>`<div style="flex:1;min-width:80px;background:var(--s2);border-radius:8px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:700;color:${s.c}">${s.v}</div><div style="font-size:11px;color:var(--t3);margin-top:2px">${s.l}</div></div>`).join('')}
+    ${[{l:'Tasks Done',v:doneTasks+'/'+totalTasks,c:'var(--ok)'},{l:'Notes',v:notesCount,c:'var(--ach)'},{l:'Journal Entries',v:journalCount,c:'var(--warn)'},{l:'Top Streak',v:topStreak.streak+'🔥',c:'var(--warn)'},{l:'Focus Hours',v:Math.round(totalFocusMins/60)+'h',c:'var(--ach)'}].map(s=>`<div style="flex:1;min-width:80px;background:var(--s2);border-radius:8px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:700;color:${_luAccentText(s.c)}">${s.v}</div><div style="font-size:11px;color:var(--t3);margin-top:2px">${s.l}</div></div>`).join('')}
   </div>
 
   <div class="sec-h">🎯 Goal Timeline</div>
@@ -2216,8 +2216,8 @@ function renderMyYear(){
       const pct=total?Math.round(done/total*100):0;
       const isCur=Math.floor((now.getMonth())/3)===i;
       return `<div style="flex:1;min-width:100px;background:${isCur?'var(--acs)':'var(--s2)'};border:${isCur?'1px solid var(--ac)':'1px solid transparent'};border-radius:8px;padding:10px">
-        <div style="font-size:11px;font-weight:600;margin-bottom:4px">${q}${isCur?' <span style="font-size:9px;color:var(--ac)">← Now</span>':''}</div>
-        <div style="font-size:16px;font-weight:700;color:${pct>=70?'var(--ok)':pct>=40?'var(--ac)':'var(--t2)'}">${pct}%</div>
+        <div style="font-size:11px;font-weight:600;margin-bottom:4px">${q}${isCur?' <span style="font-size:9px;color:var(--ach)">← Now</span>':''}</div>
+        <div style="font-size:16px;font-weight:700;color:${pct>=70?'var(--ok)':pct>=40?'var(--ach)':'var(--t2)'}">${pct}%</div>
         <div style="font-size:11px;color:var(--t3)">${done}/${total} tasks</div>
         <div class="pb" style="margin-top:4px"><div class="f" style="width:${pct}%;background:${pct>=70?'var(--ok)':pct>=40?'var(--ac)':'var(--warn)'}"></div></div>
       </div>`;
@@ -2348,7 +2348,7 @@ ${tabBarG}
             <div style="display:flex;gap:6px;flex-wrap:wrap">
               <span style="font-size:11px;background:var(--s3);padding:2px 6px;border-radius:10px;color:var(--t2)">ICE ${ice}/10</span>
               <span style="font-size:11px;background:var(--s3);padding:2px 6px;border-radius:10px;color:var(--t2)">${IDEA_TYPE_LABELS[idea.idea_type]||'General'}</span>
-              ${idea.goal_id?`<span style="font-size:11px;background:var(--s3);padding:2px 6px;border-radius:10px;color:var(--ac)">🎯 ${esc((D.goals.find(g=>g.id===idea.goal_id)||{}).title||'Goal')}</span>`:''}
+              ${idea.goal_id?`<span style="font-size:11px;background:var(--s3);padding:2px 6px;border-radius:10px;color:var(--ach)">🎯 ${esc((D.goals.find(g=>g.id===idea.goal_id)||{}).title||'Goal')}</span>`:''}
             </div>
           </div>
           <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
@@ -2440,7 +2440,7 @@ function renderFocus(){
         <div style="width:100%;background:var(--s3);border-radius:4px 4px 0 0;height:80px;display:flex;align-items:flex-end">
           <div style="width:100%;height:${h}px;background:${isToday?'var(--ac)':'var(--ac-muted,#6366f1aa)'};border-radius:4px 4px 0 0;transition:height .3s"></div>
         </div>
-        <div style="font-size:11px;color:${isToday?'var(--ac)':'var(--t3)'};font-weight:${isToday?700:400}">${lbl}</div>
+        <div style="font-size:11px;color:${isToday?'var(--ach)':'var(--t3)'};font-weight:${isToday?700:400}">${lbl}</div>
       </div>`;
     }).join('');
     return `<div style="margin-bottom:20px"><div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:10px">📊 7-Day Focus History</div><div style="display:flex;gap:4px;align-items:flex-end">${bars}</div></div>`;
@@ -2784,7 +2784,7 @@ const IDEA_QUESTION_TEMPLATES = {
   },
 };
 
-const IDEA_STAGE_COLORS = {spark:'var(--t3)',develop:'var(--ac)',stress_test:'var(--warn)',verdict:'var(--ok)'};
+const IDEA_STAGE_COLORS = {spark:'var(--t3)',develop:'var(--ach)',stress_test:'var(--warn)',verdict:'var(--ok)'};
 const IDEA_STAGE_LABELS = {spark:'Spark',develop:'Develop',stress_test:'Stress Test',verdict:'Verdict'};
 const IDEA_TYPE_ICONS = {tool_to_build:'🔧',business:'💼',content:'✍️',career:'🎯',investment:'📈',process_change:'⚙️',hire_fire:'👥',general:'💡'};
 const IDEA_TYPE_LABELS = {tool_to_build:'Tool to Build',business:'Business',content:'Content',career:'Career',investment:'Investment',process_change:'Process Change',hire_fire:'Hire / Fire',general:'General'};
@@ -2799,7 +2799,7 @@ function ideaDaysInStage(idea){
 function ideaStagePill(stage,outcome){
   const label=outcome?({killed:'Killed',parked:'Parked',promoted:'Promoted'}[outcome]||IDEA_STAGE_LABELS[stage]):IDEA_STAGE_LABELS[stage];
   const color=outcome?({killed:'var(--red)',parked:'#8B5CF6',promoted:'var(--ok)'}[outcome]||IDEA_STAGE_COLORS[stage]):IDEA_STAGE_COLORS[stage];
-  return `<span style="background:${color}22;color:${color};border:1px solid ${color}44;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:600">${label}</span>`;
+  return `<span style="background:${color}22;color:${_luAccentText(color)};border:1px solid ${color}44;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:600">${label}</span>`;
 }
 
 let _ideasView='active';
@@ -2832,7 +2832,7 @@ function renderIdeasLeaderboard(){
           </div>
           <div style="display:flex;gap:8px;font-size:11px;color:var(--t3)">
             ${ideaStagePill(idea.stage,idea.verdict_outcome)}
-            <span>ICE <strong style="color:var(--ac)">${r.ice}</strong></span>
+            <span>ICE <strong style="color:var(--ach)">${r.ice}</strong></span>
             <span>Votes <strong style="color:var(--ok)">${r.votes}</strong></span>
             <span>Score <strong style="color:var(--t1)">${r.score.toFixed(1)}</strong></span>
           </div>
@@ -2880,16 +2880,16 @@ function renderIdeas(){
     </div>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
       <input id="ideas-search" placeholder="🔍 Search ideas…" value="${esc(_ideasSearch)}" style="height:30px;font-size:11px;width:170px;padding:0 8px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;color:var(--t1)" oninput="_keepFocus(()=>setIdeasSearch(this.value))" onkeydown="if(event.key==='Enter'){event.preventDefault();aiIdeasSemanticSearch();}">
-      <button class="btn btn-s" style="height:30px;font-size:11px;color:var(--ac)" onclick="aiIdeasSemanticSearch()" title="Semantic search via AI">✨ Semantic</button>
+      <button class="btn btn-s" style="height:30px;font-size:11px;color:var(--ach)" onclick="aiIdeasSemanticSearch()" title="Semantic search via AI">✨ Semantic</button>
       <div style="position:relative;display:inline-block">
-        <button class="btn btn-s" style="height:30px;font-size:11px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('ideas-ai-menu')" title="AI tools">✨ AI ▾</button>
+        <button class="btn btn-s" style="height:30px;font-size:11px;color:var(--ach)" onclick="event.stopPropagation();togglePopMenu('ideas-ai-menu')" title="AI tools">✨ AI ▾</button>
         <div id="ideas-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:34px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:220px;box-shadow:0 4px 16px rgba(0,0,0,.35)">
-          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('ideas-ai-menu');openAIIdeaGenerator()">✨ Generate sparks</button>
+          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ach);background:transparent;border:none;text-align:left" onclick="closePopMenu('ideas-ai-menu');openAIIdeaGenerator()">✨ Generate sparks</button>
           <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('ideas-ai-menu');aiClusterIdeas()">🧩 Cluster by theme</button>
           <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--grn);background:transparent;border:none;text-align:left" onclick="closePopMenu('ideas-ai-menu');openAIRoadmap()">🗺 Roadmap (Now/Next/Later)</button>
           <div style="height:1px;background:var(--bd1);margin:3px 2px"></div>
           <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closePopMenu('ideas-ai-menu');aiAutoTagAllIdeas()">🏷 Auto-tag untagged</button>
-          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('ideas-ai-menu');aiIdeasWeeklyDigest()">📅 Weekly digest</button>
+          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ach);background:transparent;border:none;text-align:left" onclick="closePopMenu('ideas-ai-menu');aiIdeasWeeklyDigest()">📅 Weekly digest</button>
         </div>
       </div>
       <button class="btn btn-p" onclick="openNewIdeaModal()">+ New Idea</button>
@@ -2926,9 +2926,9 @@ function renderIdeas(){
         <div style="display:flex;align-items:center;justify-content:space-between">
           <div style="display:flex;gap:4px;align-items:center">
             <span style="font-size:11px;color:var(--t3)">ICE</span>
-            <span style="font-size:12px;font-weight:700;color:var(--ac)">${ice}</span>
+            <span style="font-size:12px;font-weight:700;color:var(--ach)">${ice}</span>
           </div>
-          ${goalName?`<span style="font-size:11px;background:var(--ac)22;color:var(--ac);border-radius:4px;padding:1px 6px">🎯 ${esc(goalName.slice(0,20))}</span>`:''}
+          ${goalName?`<span style="font-size:11px;background:var(--ac)22;color:var(--ach);border-radius:4px;padding:1px 6px">🎯 ${esc(goalName.slice(0,20))}</span>`:''}
           ${idea.collaborators&&idea.collaborators.length?`<span style="font-size:11px;color:var(--t3)">👥 ${idea.collaborators.length}</span>`:''}
         </div>
       </div>`;
@@ -3046,7 +3046,7 @@ function renderIdeaDetail(idea){
       </div>
       <div style="display:flex;gap:6px;align-items:center">
         <div style="background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:4px 10px;text-align:center">
-          <div style="font-size:16px;font-weight:700;color:var(--ac)">${ice}</div>
+          <div style="font-size:16px;font-weight:700;color:var(--ach)">${ice}</div>
           <div style="font-size:11px;color:var(--t3)">ICE</div>
         </div>
         <button class="btn btn-s" style="font-size:11px" onclick="openIdeaShare(${idea.id})">👥 Share</button>
@@ -3064,7 +3064,7 @@ function renderIdeaDetail(idea){
         const color=active?'var(--ac)':past?'var(--ok)':'var(--t3)';
         const bg=active?'var(--ac)22':past?'var(--ok)11':'transparent';
         return `<div style="flex:1;padding:8px 4px;text-align:center;background:${bg};cursor:pointer;border-right:1px solid var(--bd1)" onclick="moveIdeaToStage(${idea.id},'${_jsAttr(s)}')">
-          <div style="font-size:11px;font-weight:600;color:${color}">${IDEA_STAGE_LABELS[s]}</div>
+          <div style="font-size:11px;font-weight:600;color:${_luAccentText(color)}">${IDEA_STAGE_LABELS[s]}</div>
           ${active?`<div style="width:6px;height:6px;background:var(--ac);border-radius:50%;margin:3px auto 0"></div>`:''}
         </div>`;
       }).join('')}
@@ -3079,7 +3079,7 @@ function renderIdeaDetail(idea){
       <span style="font-size:11px;color:var(--t2)">AI mode:</span>
       <button class="btn btn-s" style="font-size:11px;${_ideaAIMode==='devil'?'background:var(--red)22;color:var(--red);border-color:var(--red)44':''}" onclick="_ideaAIMode='devil';renderIdeaDetail(D.ideas.find(x=>x.id==${_tidLit(idea.id)}))">😈 Devil's Advocate</button>
       <button class="btn btn-s" style="font-size:11px;${_ideaAIMode==='champion'?'background:var(--ok)22;color:var(--ok);border-color:var(--ok)44':''}" onclick="_ideaAIMode='champion';renderIdeaDetail(D.ideas.find(x=>x.id==${_tidLit(idea.id)}))">🏆 Champion</button>
-      <button class="btn btn-s" style="font-size:11px;color:var(--ac)" onclick="aiIdeaDecisionBrief(${idea.id})" title="AI combines Devil + Champion arguments into a decision brief">📋 Decision Brief</button>
+      <button class="btn btn-s" style="font-size:11px;color:var(--ach)" onclick="aiIdeaDecisionBrief(${idea.id})" title="AI combines Devil + Champion arguments into a decision brief">📋 Decision Brief</button>
       ${idea.stage!=='verdict'||idea.verdict_outcome!=='promoted'?`<button class="btn btn-s" style="font-size:11px;color:var(--purp)" onclick="aiIdeaPromoteToProject(${idea.id})" title="AI drafts a project + tasks from this idea">📁 AI Promote → Project</button>`:''}
       ${idea.stage==='stress_test'?`<button class="btn btn-s" style="font-size:11px;margin-left:auto" onclick="ideaSynthesisMode(${idea.id})">✨ Synthesize</button>`:''}
     </div>
@@ -3172,11 +3172,11 @@ function renderIdeaDetail(idea){
         <div style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">ICE score</div>
         ${[['ice_impact','Impact'],['ice_confidence','Confidence'],['ice_ease','Ease']].map(([k,l])=>`
         <div style="margin-bottom:8px">
-          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px"><span>${l}</span><span style="font-weight:700;color:var(--ac)">${idea[k]||5}</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px"><span>${l}</span><span style="font-weight:700;color:var(--ach)">${idea[k]||5}</span></div>
           <input type="range" min="1" max="10" value="${idea[k]||5}" style="width:100%" oninput="updateIdeaICE(${idea.id},'${_jsAttr(k)}',parseInt(this.value));this.previousElementSibling.querySelector('span:last-child').textContent=this.value">
         </div>`).join('')}
         <div style="text-align:center;margin:8px 0">
-          <div style="font-size:20px;font-weight:700;color:var(--ac)">${ice}</div>
+          <div style="font-size:20px;font-weight:700;color:var(--ach)">${ice}</div>
           <div style="font-size:11px;color:var(--t3)">ICE average</div>
         </div>
         ${idea.ai_ice_rationale?`<div style="background:var(--s3);border-radius:6px;padding:8px;font-size:11px;color:var(--t2);margin-top:6px"><div style="font-weight:600;margin-bottom:4px">AI suggestion: ${idea.ai_ice_impact}/${idea.ai_ice_confidence}/${idea.ai_ice_ease}</div>${esc(idea.ai_ice_rationale)}<br><button class="btn btn-s" style="font-size:11px;margin-top:6px" onclick="useAIIceScore(${idea.id})">Use AI score</button></div>`:`<button class="btn btn-s" style="width:100%;font-size:11px;margin-top:4px" onclick="requestAIIceScore(${idea.id})">✨ Get AI score</button>`}
@@ -3509,7 +3509,7 @@ async function aiGenerateRoadmap(){
     const sys=`You are a strategic planner. Bundle the user's ideas into a phased roadmap (Now = 0-30 days, Next = 30-90 days, Later = 90+ days). Reply with strict JSON: {"now":[{"title":"…","why":"…"}, …],"next":[…],"later":[…],"strategy":"1-2 sentence overall theme"}`;
     const text=String(await _ideaAICall(`${sys}\n\nIdeas:\n${lines}\n\nBuild the roadmap.`,true)||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,'');
     const r=JSON.parse(text);
-    const phase=(label,arr,color)=>`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:8px;border-left:3px solid ${color}"><div style="font-size:12px;font-weight:700;color:${color};margin-bottom:6px">${label}</div>${(arr||[]).map(it=>`<div style="font-size:11px;padding:4px 0;border-bottom:1px solid var(--bd1)"><strong>${esc(it.title||'')}</strong><div style="font-size:11px;color:var(--t3);margin-top:2px">${esc(it.why||'')}</div></div>`).join('')||'<div style="font-size:11px;color:var(--t3)">(empty)</div>'}</div>`;
+    const phase=(label,arr,color)=>`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:8px;border-left:3px solid ${color}"><div style="font-size:12px;font-weight:700;color:${_luAccentText(color)};margin-bottom:6px">${label}</div>${(arr||[]).map(it=>`<div style="font-size:11px;padding:4px 0;border-bottom:1px solid var(--bd1)"><strong>${esc(it.title||'')}</strong><div style="font-size:11px;color:var(--t3);margin-top:2px">${esc(it.why||'')}</div></div>`).join('')||'<div style="font-size:11px;color:var(--t3)">(empty)</div>'}</div>`;
     document.getElementById('airm-results').innerHTML=`<div style="font-size:11px;color:var(--t2);margin-bottom:8px;padding:8px;background:var(--acs);border-radius:6px">🧭 ${esc(r.strategy||'')}</div>${phase('🟢 Now (0-30d)',r.now,'var(--ok)')}${phase('🟡 Next (30-90d)',r.next,'var(--warn)')}${phase('🔵 Later (90d+)',r.later,'var(--ac)')}`;
   }catch(e){document.getElementById('airm-results').innerHTML=`<div style="color:var(--red);font-size:11px">${esc(String(e.message||e).slice(0,200))}</div>`;}
 }
@@ -3864,7 +3864,7 @@ function openJournalExportModal(fmt){
     </label>
     <label id="jrnl-exp-filter" style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--bd2);border-radius:7px;cursor:pointer" onclick="this.style.borderColor='var(--ac)';this.previousElementSibling.style.borderColor='var(--bd2)'">
       <input type="radio" name="jrnl-exp-scope" value="filter" style="accent-color:var(--ac)">
-      <div><div style="font-size:12px;font-weight:600">Current filter: <span style="color:var(--ac)">${currentFilter}</span></div><div style="font-size:11px;color:var(--t3)">${filteredCount} entr${filteredCount===1?'y':'ies'} matching</div></div>
+      <div><div style="font-size:12px;font-weight:600">Current filter: <span style="color:var(--ach)">${currentFilter}</span></div><div style="font-size:11px;color:var(--t3)">${filteredCount} entr${filteredCount===1?'y':'ies'} matching</div></div>
     </label>
   </div>
   <div style="display:flex;gap:8px">
@@ -4002,7 +4002,7 @@ function openVerdictModal(id){
     <label style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Outcome *</label>
     <div style="display:flex;gap:8px;margin-top:6px">
       <label style="flex:1;cursor:pointer"><input type="radio" name="verdict" value="killed" onchange="showVerdictFields('killed')" style="margin-right:4px"><span style="font-size:12px;color:var(--red)">🪦 Kill</span></label>
-      <label style="flex:1;cursor:pointer"><input type="radio" name="verdict" value="parked" onchange="showVerdictFields('parked')" style="margin-right:4px"><span style="font-size:12px;color:#8B5CF6">🅿 Park</span></label>
+      <label style="flex:1;cursor:pointer"><input type="radio" name="verdict" value="parked" onchange="showVerdictFields('parked')" style="margin-right:4px"><span style="font-size:12px;color:var(--purp)">🅿 Park</span></label>
       <label style="flex:1;cursor:pointer"><input type="radio" name="verdict" value="promoted" onchange="showVerdictFields('promoted')" style="margin-right:4px"><span style="font-size:12px;color:var(--ok)">🚀 Promote</span></label>
     </div>
   </div>
@@ -4203,7 +4203,7 @@ function aiHabitCorrelation(){
     return`<div style="padding:8px 10px;margin-bottom:6px;border-radius:6px;background:var(--s2);font-size:12px">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <strong>${esc(h.name)}</strong>
-        <span style="color:${color};font-weight:600">${icon} ${neutral?'No effect':positive?'+'+diff.toFixed(1)+' mood':''+diff.toFixed(1)+' mood'}</span>
+        <span style="color:${_luAccentText(color)};font-weight:600">${icon} ${neutral?'No effect':positive?'+'+diff.toFixed(1)+' mood':''+diff.toFixed(1)+' mood'}</span>
       </div>
       <div style="font-size:11px;color:var(--t3);margin-top:2px">Done days: avg mood ${avgDone?.toFixed(1)||'N/A'} · Skipped days: avg mood ${avgNotDone?.toFixed(1)||'N/A'} · ${countDone} data points</div>
     </div>`;
@@ -4239,13 +4239,13 @@ function aiWellbeingReport(){
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">📊 Weekly Wellbeing Report</h2>
   <div style="font-size:11px;color:var(--t3);margin-bottom:12px">${weekDates[0]} to ${weekDates[6]}</div>
   <div style="text-align:center;padding:12px;background:var(--s2);border-radius:8px;margin-bottom:12px">
-    <div style="font-size:36px;font-weight:700;color:${gradeColor}">${overallScore}</div>
-    <div style="font-size:12px;font-weight:600;color:${gradeColor}">${grade}</div>
+    <div style="font-size:36px;font-weight:700;color:${_luAccentText(gradeColor)}">${overallScore}</div>
+    <div style="font-size:12px;font-weight:600;color:${_luAccentText(gradeColor)}">${grade}</div>
     <div style="font-size:11px;color:var(--t3);margin-top:2px">Overall Wellbeing Score</div>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
     <div style="text-align:center;padding:8px;background:var(--s2);border-radius:6px">
-      <div style="font-size:20px;font-weight:700;color:var(--ac)">${habitScore}%</div>
+      <div style="font-size:20px;font-weight:700;color:var(--ach)">${habitScore}%</div>
       <div style="font-size:11px;color:var(--t3)">Habit Score</div>
     </div>
     <div style="text-align:center;padding:8px;background:var(--s2);border-radius:6px">
@@ -4287,7 +4287,7 @@ function aiJournalSentiment(){
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">📈 Sentiment Trend</h2>
   <div style="display:flex;gap:12px;margin-bottom:12px">
     <div style="flex:1;text-align:center;padding:8px;background:var(--s2);border-radius:6px">
-      <div style="font-size:20px;font-weight:700;color:var(--ac)">${avg.toFixed(1)}/5</div>
+      <div style="font-size:20px;font-weight:700;color:var(--ach)">${avg.toFixed(1)}/5</div>
       <div style="font-size:11px;color:var(--t3)">Avg Sentiment</div>
     </div>
     <div style="flex:1;text-align:center;padding:8px;background:var(--s2);border-radius:6px">
@@ -4425,7 +4425,7 @@ function renderHabits(){
   const done=todayHabits.filter(h=>h.doneToday).length;
   const total=todayHabits.length;
   const pct=total?Math.round(done/total*100):0;
-  $('habits-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('checkCircle',22,'var(--page-accent)')}Habits</h1><p style="font-size:12px;color:var(--t2)">${done} of ${total} done today</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="habits-scope-my" title="Show only habits you created (or that have no creator on record)" class="btn" style="border-radius:0;height:28px;font-size:11px;background:${_habitsMyOnly?'var(--ac)':'transparent'};color:${_habitsMyOnly?'#fff':'var(--t2)'};border:none" onclick="_habitsMyOnly=true;renderHabits()">My Habits</button><button id="habits-scope-all" title="Show every team member's habits, including yours" class="btn" style="border-radius:0;height:28px;font-size:11px;background:${!_habitsMyOnly?'var(--ac)':'transparent'};color:${!_habitsMyOnly?'#fff':'var(--t2)'};border:none" onclick="_habitsMyOnly=false;renderHabits()">All Habits</button></div><div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:11px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('habits-ai-menu')" title="AI tools">✨ AI ▾</button><div id="habits-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('habits-ai-menu');aiHabitCoach()">✨ Habit Coach</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('habits-ai-menu');aiHabitCorrelation()">📈 Mood Correlation</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--grn);background:transparent;border:none;text-align:left" onclick="closePopMenu('habits-ai-menu');aiWellbeingReport()">📊 Wellbeing Report</button></div></div><button class="btn btn-p" onclick="openFA('habit')">+ New Habit</button></div></div>
+  $('habits-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('checkCircle',22,'var(--page-accent)')}Habits</h1><p style="font-size:12px;color:var(--t2)">${done} of ${total} done today</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="habits-scope-my" title="Show only habits you created (or that have no creator on record)" class="btn" style="border-radius:0;height:28px;font-size:11px;background:${_habitsMyOnly?'var(--ac)':'transparent'};color:${_habitsMyOnly?'#fff':'var(--t2)'};border:none" onclick="_habitsMyOnly=true;renderHabits()">My Habits</button><button id="habits-scope-all" title="Show every team member's habits, including yours" class="btn" style="border-radius:0;height:28px;font-size:11px;background:${!_habitsMyOnly?'var(--ac)':'transparent'};color:${!_habitsMyOnly?'#fff':'var(--t2)'};border:none" onclick="_habitsMyOnly=false;renderHabits()">All Habits</button></div><div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:11px;color:var(--ach)" onclick="event.stopPropagation();togglePopMenu('habits-ai-menu')" title="AI tools">✨ AI ▾</button><div id="habits-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ach);background:transparent;border:none;text-align:left" onclick="closePopMenu('habits-ai-menu');aiHabitCoach()">✨ Habit Coach</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('habits-ai-menu');aiHabitCorrelation()">📈 Mood Correlation</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--grn);background:transparent;border:none;text-align:left" onclick="closePopMenu('habits-ai-menu');aiWellbeingReport()">📊 Wellbeing Report</button></div></div><button class="btn btn-p" onclick="openFA('habit')">+ New Habit</button></div></div>
   ${visibleHabits.length===0?renderEmptyState({icon:'checkCircle',title:_habitsMyOnly?'No habits yet':'No team habits',hint:_habitsMyOnly?'Small daily reps compound. Start with one habit you can stick to.':'Switch to "My Habits" or add one to get the team going.',ctaLabel:'+ Start your first habit',ctaFn:"openFA('habit')"}):`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">${visibleHabits.map(h=>{
     const lt=h.linkedTaskId?D.tasks.find(t=>t.id===h.linkedTaskId):null;
     return`<div class="cd" style="cursor:pointer;border:1.5px solid ${h.doneToday?'var(--ok)':'var(--brd)'};transition:border-color .2s" onclick="openHabitDrawer(${h.id})">
@@ -4434,7 +4434,7 @@ function renderHabits(){
         <div style="flex:1">
           <div style="font-size:13px;font-weight:500">${esc(h.title)}</div>
           <div style="font-size:11px;color:var(--t3)">${h.cadence}${h.startTime?' · ⏰ '+h.startTime:''}</div>
-          ${h.category?`<div style="font-size:11px;color:var(--ac);margin-top:1px">${h.category}</div>`:''}
+          ${h.category?`<div style="font-size:11px;color:var(--ach);margin-top:1px">${h.category}</div>`:''}
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:5px;margin-bottom:4px">
@@ -4688,7 +4688,7 @@ function aiCoachFocusPattern(){
     <p style="margin:0 0 10px"><strong>${totalMin}m</strong> of focus time logged total.</p>
     <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:8px">
       <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Top focus hours</div>
-      ${peaks.length?peaks.map(([h,m])=>`<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0"><span><strong style="color:var(--ac)">${fmt(h)}</strong></span><span>${m}m logged</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3)">Use the Focus timer for a few sessions to build this picture.</div>'}
+      ${peaks.length?peaks.map(([h,m])=>`<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0"><span><strong style="color:var(--ach)">${fmt(h)}</strong></span><span>${m}m logged</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3)">Use the Focus timer for a few sessions to build this picture.</div>'}
     </div>
     <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:8px">
       <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Top completion hours</div>
@@ -4714,7 +4714,7 @@ async function aiCoachGoalTaskAudit(){
     const pairs=Array.isArray(p.pairings)?p.pairings:[];
     const m=document.getElementById('modal-content');
     m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">🎯 Goal-Task Alignment</h2><div style="font-size:11px;color:var(--t3);margin-bottom:10px">${orphans.length} task${orphans.length===1?'':'s'} not linked to any goal. AI suggested pairings:</div>
-      <div style="max-height:380px;overflow-y:auto">${pairs.map(p=>{const t=orphans[p.task-1];const g=p.goal>0?D.goals[p.goal-1]:null;if(!t)return '';return `<div class="cd" style="margin-bottom:6px;padding:8px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span style="flex:1;font-size:11px;font-weight:500">📋 ${esc(t.title)}</span>${g?`<span style="font-size:11px;color:var(--ac)">→ ${g.icon||'🎯'} ${esc(g.title)}</span>`:'<span style="font-size:11px;color:var(--t3)">no good fit</span>'}</div>${p.why?`<div style="font-size:11px;color:var(--t3);font-style:italic">${esc(p.why)}</div>`:''}${g?`<button class="btn btn-s" style="font-size:11px;height:22px;margin-top:4px" onclick="D.tasks.find(x=>x.id==${_tidLit(t.id)}).linkedGoalId=${g.id};save('tasks');this.textContent='✓ Linked';this.disabled=true">Link this</button>`:''}</div>`;}).join('')}</div>
+      <div style="max-height:380px;overflow-y:auto">${pairs.map(p=>{const t=orphans[p.task-1];const g=p.goal>0?D.goals[p.goal-1]:null;if(!t)return '';return `<div class="cd" style="margin-bottom:6px;padding:8px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span style="flex:1;font-size:11px;font-weight:500">📋 ${esc(t.title)}</span>${g?`<span style="font-size:11px;color:var(--ach)">→ ${g.icon||'🎯'} ${esc(g.title)}</span>`:'<span style="font-size:11px;color:var(--t3)">no good fit</span>'}</div>${p.why?`<div style="font-size:11px;color:var(--t3);font-style:italic">${esc(p.why)}</div>`:''}${g?`<button class="btn btn-s" style="font-size:11px;height:22px;margin-top:4px" onclick="D.tasks.find(x=>x.id==${_tidLit(t.id)}).linkedGoalId=${g.id};save('tasks');this.textContent='✓ Linked';this.disabled=true">Link this</button>`:''}</div>`;}).join('')}</div>
       <div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;
     document.getElementById('modal-capture').classList.add('show');
   }catch(e){toast({type:'error',title:'Audit failed',msg:String(e.message||e).slice(0,200),duration:5000});}
@@ -4825,13 +4825,13 @@ function renderCoach(){
     <div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('brain',22,'var(--page-accent)')}Coach</h1><p style="font-size:12px;color:var(--t2)">Personalized insights — rule-based + AI</p></div>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
       <div style="position:relative;display:inline-block">
-        <button class="btn btn-s" style="height:30px;font-size:11px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('coach-ai-menu')" title="AI tools">✨ AI ▾</button>
+        <button class="btn btn-s" style="height:30px;font-size:11px;color:var(--ach)" onclick="event.stopPropagation();togglePopMenu('coach-ai-menu')" title="AI tools">✨ AI ▾</button>
         <div id="coach-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:34px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:230px;box-shadow:0 4px 16px rgba(0,0,0,.35)">
-          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('coach-ai-menu');aiCoachDailyBrief(true)">📰 Refresh daily brief</button>
+          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ach);background:transparent;border:none;text-align:left" onclick="closePopMenu('coach-ai-menu');aiCoachDailyBrief(true)">📰 Refresh daily brief</button>
           <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('coach-ai-menu');aiCoachWeeklyReview()">📅 Weekly review</button>
           <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--warn);background:transparent;border:none;text-align:left" onclick="closePopMenu('coach-ai-menu');aiCoachAccountability()">🤝 Accountability check</button>
           <div style="height:1px;background:var(--bd1);margin:3px 2px"></div>
-          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('coach-ai-menu');aiCoachFocusPattern()">⏱ Focus patterns</button>
+          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ach);background:transparent;border:none;text-align:left" onclick="closePopMenu('coach-ai-menu');aiCoachFocusPattern()">⏱ Focus patterns</button>
           <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--grn);background:transparent;border:none;text-align:left" onclick="closePopMenu('coach-ai-menu');aiCoachGoalTaskAudit()">🎯 Goal-task audit</button>
         </div>
       </div>
@@ -4839,16 +4839,16 @@ function renderCoach(){
     </div>
   </div>
   ${burnout.stress>=3?`<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;margin-bottom:10px;background:color-mix(in srgb,${burnout.level==='high'?'var(--red)':'var(--warn)'} 14%,var(--s2));border:1px solid color-mix(in srgb,${burnout.level==='high'?'var(--red)':'var(--warn)'} 35%,var(--bd2));border-radius:8px"><span style="font-size:18px">🪫</span><div style="flex:1"><div style="font-size:11px;font-weight:600;color:${burnout.level==='high'?'var(--red)':'var(--warn)'}">${burnout.level==='high'?'High stress signals':'Watch your bandwidth'}</div><div style="font-size:11px;color:var(--t2);margin-top:3px;line-height:1.5">${burnout.reasons.slice(0,3).map(r=>esc(r)).join(' · ')}</div></div><button class="btn btn-s" style="font-size:11px" onclick="aiCoachAccountability()">🤝 Triage</button></div>`:''}
-  <div style="margin-bottom:12px"><div class="sec-h" style="color:var(--ac);display:flex;align-items:center;gap:6px">📰 Daily Brief ${briefFresh?'<span style="font-size:11px;color:var(--t3);font-weight:400">cached</span>':''}</div><div id="coach-daily-brief">${briefFresh?_coachBriefHtml(briefCache.text):'<div style="padding:12px;text-align:center;color:var(--t3);font-size:11px">⏳ Generating today&#39;s brief…</div>'}</div></div>
+  <div style="margin-bottom:12px"><div class="sec-h" style="color:var(--ach);display:flex;align-items:center;gap:6px">📰 Daily Brief ${briefFresh?'<span style="font-size:11px;color:var(--t3);font-weight:400">cached</span>':''}</div><div id="coach-daily-brief">${briefFresh?_coachBriefHtml(briefCache.text):'<div style="padding:12px;text-align:center;color:var(--t3);font-size:11px">⏳ Generating today&#39;s brief…</div>'}</div></div>
   <div style="margin-bottom:12px"><div class="sec-h" style="color:var(--purp)">💬 Coach Chat</div><div id="coach-chat"></div></div>
   <div style="background:var(--s2);border-radius:8px;padding:12px 14px;margin-bottom:12px;display:flex;gap:16px;flex-wrap:wrap">
-    <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ac)">${completionRate}%</div><div style="font-size:11px;color:var(--t3)">Week Tasks</div></div>
+    <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ach)">${completionRate}%</div><div style="font-size:11px;color:var(--t3)">Week Tasks</div></div>
     <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ok)">${habitRate}%</div><div style="font-size:11px;color:var(--t3)">Habits Today</div></div>
     <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--warn)">${overdueTasks.length}</div><div style="font-size:11px;color:var(--t3)">Overdue</div></div>
-    <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ac)">${focusToday}m</div><div style="font-size:11px;color:var(--t3)">Focus Today</div></div>
+    <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ach)">${focusToday}m</div><div style="font-size:11px;color:var(--t3)">Focus Today</div></div>
     <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ok)">${topStreak.streak}🔥</div><div style="font-size:11px;color:var(--t3)">Top Streak</div></div>
   </div>
-  ${nudges.length?`<div class="sec-h" style="color:var(--ac)">💡 Right Now</div>${insCard(nudges,'obs')}`:''}
+  ${nudges.length?`<div class="sec-h" style="color:var(--ach)">💡 Right Now</div>${insCard(nudges,'obs')}`:''}
   <div class="sec-h">📊 Observations</div>${insCard(observations,'obs')}
   <div class="sec-h" style="color:var(--ok)">🌟 Encouragement</div>${insCard(encouragements,'enc')}
   ${warnings.length?`<div class="sec-h" style="color:var(--warn)">⚠️ Needs Attention</div>${insCard(warnings,'wrn')}`:''}

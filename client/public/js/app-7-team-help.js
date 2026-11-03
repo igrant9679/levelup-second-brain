@@ -83,10 +83,10 @@ function renderTeam(){
     if(m.lastSignedIn){const d=_pd(m.lastSignedIn);if(!isNaN(d))lastSeenAt=d;}
     if(lastActivityDate&&!isNaN(lastActivityDate)&&(!lastSeenAt||lastActivityDate>lastSeenAt))lastSeenAt=lastActivityDate;
     const lastSeenStr=lastSeenAt?timeAgo(lastSeenAt.toISOString()):'Never';
-    const activityBadge=weekActivity>0?`<span style="font-size:11px;padding:2px 6px;border-radius:10px;background:var(--acs);color:var(--ac);font-weight:600;margin-left:4px">${weekActivity} this week</span>`:'';
+    const activityBadge=weekActivity>0?`<span style="font-size:11px;padding:2px 6px;border-radius:10px;background:var(--acs);color:var(--ach);font-weight:600;margin-left:4px">${weekActivity} this week</span>`:'';
     const avatarHtml=m.avatar
       ?`<img src="${m.avatar}" alt="${esc(m.name)}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid var(--bd2)">`
-      :`<div style="width:40px;height:40px;border-radius:50%;background:${m.color};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0">${initials}</div>`;
+      :`<div style="width:40px;height:40px;border-radius:50%;background:${_luFillSafe(m.color)};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0">${initials}</div>`;
     const removeAvatarBtn=m.avatar?`<div onclick="event.stopPropagation();removeAvatarMember(${m.id})" title="Remove photo" style="position:absolute;top:-4px;right:-4px;width:16px;height:16px;background:var(--red);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer;border:1px solid var(--bg);color:#fff;font-weight:700;line-height:1">×</div>`:'';
     return`<div class="cd" style="padding:14px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
@@ -100,10 +100,10 @@ function renderTeam(){
           <div style="font-size:11px;color:var(--t3)">${m.role} · ${esc(m.email)}</div>
           <div style="font-size:11px;color:var(--t3);margin-top:2px">🕐 Last seen: ${lastSeenStr}</div>
         </div>
-        ${(()=>{const r=(m.role||'').toLowerCase();const cfg=r==='owner'?{bg:'var(--purps)',c:'var(--purp)',label:'Owner'}:r==='admin'?{bg:'var(--acs)',c:'var(--ac)',label:'Admin'}:r==='viewer'?{bg:'rgba(100,116,139,.15)',c:'var(--t3)',label:'Viewer'}:{bg:'rgba(100,116,139,.12)',c:'var(--t2)',label:'Member'};return`<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:${cfg.bg};color:${cfg.c};font-weight:600;letter-spacing:.3px">${cfg.label}</span>`;})()}
+        ${(()=>{const r=(m.role||'').toLowerCase();const cfg=r==='owner'?{bg:'var(--purps)',c:'var(--purp)',label:'Owner'}:r==='admin'?{bg:'var(--acs)',c:'var(--ach)',label:'Admin'}:r==='viewer'?{bg:'rgba(100,116,139,.15)',c:'var(--t3)',label:'Viewer'}:{bg:'rgba(100,116,139,.12)',c:'var(--t2)',label:'Member'};return`<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:${cfg.bg};color:${_luAccentText(cfg.c)};font-weight:600;letter-spacing:.3px">${cfg.label}</span>`;})()}
       </div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px">
-        <div style="text-align:center;padding:6px;background:var(--s2);border-radius:6px"><div style="font-size:16px;font-weight:700;color:var(--ac)">${tasks.length}</div><div style="font-size:9px;color:var(--t3)">Tasks</div></div>
+        <div style="text-align:center;padding:6px;background:var(--s2);border-radius:6px"><div style="font-size:16px;font-weight:700;color:var(--ach)">${tasks.length}</div><div style="font-size:9px;color:var(--t3)">Tasks</div></div>
         <div style="text-align:center;padding:6px;background:var(--s2);border-radius:6px"><div style="font-size:16px;font-weight:700;color:var(--ok)">${done}</div><div style="font-size:9px;color:var(--t3)">Done</div></div>
         <div style="text-align:center;padding:6px;background:var(--s2);border-radius:6px"><div style="font-size:16px;font-weight:700;color:${overdue?'var(--red)':'var(--t3)'}">${overdue}</div><div style="font-size:9px;color:var(--t3)">Overdue</div></div>
         <div style="text-align:center;padding:6px;background:var(--s2);border-radius:6px"><div style="font-size:16px;font-weight:700;color:var(--warn)">🔥${topStreak}</div><div style="font-size:9px;color:var(--t3)">Streak</div></div>
@@ -174,7 +174,7 @@ function renderTeam(){
   <div class="pb"><div class="f" style="width:${totalTasks?Math.round(doneTasks/totalTasks*100):0}%;background:var(--ok)"></div></div>
   <div style="font-size:11px;color:var(--t2);margin-top:3px">${doneTasks} of ${totalTasks} tasks done</div>
   <div style="margin-top:12px;font-size:12px;font-weight:600;margin-bottom:6px">👥 Members</div>
-  ${allMembers.map(m=>{const initials=m.name.split(' ').map(w=>w[0]).join('');const av=m.avatar?`<img src="${m.avatar}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0">`:`<div style="width:24px;height:24px;border-radius:50%;background:${m.color};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">${initials}</div>`;return`<div class="lr" style="padding:4px 0">${av}<div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500">${esc(m.name)}</div><div style="font-size:11px;color:var(--t3)">${m.role}</div></div></div>`}).join('')}`;
+  ${allMembers.map(m=>{const initials=m.name.split(' ').map(w=>w[0]).join('');const av=m.avatar?`<img src="${m.avatar}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0">`:`<div style="width:24px;height:24px;border-radius:50%;background:${_luFillSafe(m.color)};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">${initials}</div>`;return`<div class="lr" style="padding:4px 0">${av}<div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500">${esc(m.name)}</div><div style="font-size:11px;color:var(--t3)">${m.role}</div></div></div>`}).join('')}`;
   // Auto-load activity feed for admins
   if(D.creds.role==="Admin"||D.creds.role==="Owner"||D.creds.role==="admin")setTimeout(loadActivityFeed,100);
 }
@@ -258,7 +258,7 @@ function renderActivityFeed(items) {
       const entityHtml = item.entityTitle ? '<span style="color:var(--t2);font-style:italic"> — ' + esc(item.entityTitle) + '</span>' : '';
       const timeStr = timeAgo(item.createdAt);
       return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd1)">' +
-        '<div style="width:28px;height:28px;border-radius:50%;background:var(--acs);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--ac);flex-shrink:0">' + initials + '</div>' +
+        '<div style="width:28px;height:28px;border-radius:50%;background:var(--acs);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--ach);flex-shrink:0">' + initials + '</div>' +
         '<div style="flex:1;min-width:0">' +
           '<div style="font-size:12px;font-weight:500">' + esc(item.userName || 'Unknown') + '</div>' +
           '<div style="font-size:11px;color:var(--t2)">' + icon + ' ' + actionLabel + entityHtml + '</div>' +
@@ -327,7 +327,7 @@ async function loadInviteList(){
       const expired=_pd(inv.expiresAt).getTime()<now;
       const status=inv.accepted?'<span class="pill" style="background:var(--oks);color:var(--ok);font-size:11px">✓ Accepted</span>'
         :expired?'<span class="pill" style="background:var(--s3);color:var(--t3);font-size:11px">Expired</span>'
-        :'<span class="pill" style="background:var(--acs);color:var(--ac);font-size:11px">Pending</span>';
+        :'<span class="pill" style="background:var(--acs);color:var(--ach);font-size:11px">Pending</span>';
       const inviteUrl=inv.inviteUrl||(window.location.origin+'/invite/'+inv.token);
       const actions=inv.accepted?''
         :`<button class="btn btn-s" style="height:22px;font-size:11px" onclick="copyInviteLink('${_jsAttr(inv.token)}')" title="Copy invite link">📋 Copy Link</button>
@@ -933,14 +933,14 @@ function renderClustersDashboard(){
   }).length;
   // Stat tiles
   const statTiles=[
-    {label:'Active Clusters',value:activeClusters,icon:'⬡',color:'var(--ac)'},
+    {label:'Active Clusters',value:activeClusters,icon:'⬡',color:'var(--ach)'},
     {label:'Total Tasks',value:totalTasks,icon:'✓',color:'var(--ok)'},
     {label:'Overdue',value:overdueTasks,icon:'⚠',color:'var(--red)'},
     {label:'On Track',value:onTrackClusters+'/'+activeClusters,icon:'📈',color:'var(--purp)'},
   ];
   const statHtml=statTiles.map(s=>`<div style="flex:1;min-width:120px;background:var(--s2);border:1px solid var(--bd2);border-radius:10px;padding:14px 16px">
     <div style="font-size:22px;margin-bottom:4px">${s.icon}</div>
-    <div style="font-size:24px;font-weight:800;color:${s.color}">${s.value}</div>
+    <div style="font-size:24px;font-weight:800;color:${_luAccentText(s.color)}">${s.value}</div>
     <div style="font-size:11px;color:var(--t3);margin-top:2px">${s.label}</div>
   </div>`).join('');
   // Cluster cards
@@ -983,7 +983,7 @@ function renderClustersDashboard(){
       </div>
       <div style="display:flex;align-items:center;gap:8px">
         <div style="display:flex;align-items:center">
-          <div style="width:26px;height:26px;border-radius:50%;background:${cl.color||'#3B82F6'};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">${ownerInitials}</div>
+          <div style="width:26px;height:26px;border-radius:50%;background:${_luFillSafe(cl.color||'#3B82F6')};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">${ownerInitials}</div>
           ${collabAvatars}
         </div>
         <div style="flex:1;height:5px;background:var(--s3);border-radius:3px"><div style="height:5px;border-radius:3px;background:${cl.color||'#3B82F6'};width:${pct}%;transition:width .3s"></div></div>
@@ -1070,7 +1070,7 @@ function renderClustersDashboard(){
     <option value="recent" ${_clusterSort==='recent'?'selected':''}>Sort: Recently created</option>
   </select>`;
   const showingHtml=clusters.length&&displayClusters.length!==clusters.length
-    ?`<div style="font-size:11px;color:var(--t3);margin-bottom:12px">Showing <b style="color:var(--t1)">${displayClusters.length}</b> of <b style="color:var(--t1)">${clusters.length}</b> clusters · <a style="color:var(--ac);cursor:pointer" onclick="setClusterFilter('all')">show all</a></div>`
+    ?`<div style="font-size:11px;color:var(--t3);margin-bottom:12px">Showing <b style="color:var(--t1)">${displayClusters.length}</b> of <b style="color:var(--t1)">${clusters.length}</b> clusters · <a style="color:var(--ach);cursor:pointer" onclick="setClusterFilter('all')">show all</a></div>`
     :'';
   el.innerHTML=`
     <div class="ph-r" style="margin-bottom:16px">
@@ -1119,7 +1119,7 @@ function renderHelp(){
 
   <!-- Tabs -->
   <div style="display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--br);padding-bottom:0">
-    ${['browse','ask','tours','builder','insights'].map(t=>`<button onclick="_helpTab='${_jsAttr(t)}';renderHelp()" style="padding:8px 16px;border:none;background:none;cursor:pointer;font-size:12px;font-weight:600;color:${_helpTab===t?'var(--ac)':'var(--t3)'};border-bottom:2px solid ${_helpTab===t?'var(--ac)':'transparent'};margin-bottom:-1px">${t==='browse'?'📚 Browse':t==='ask'?'🤖 Ask AI':t==='tours'?'🎯 Guided Tours':t==='builder'?'🔧 Tour Builder':'📊 Insights'}</button>`).join('')}
+    ${['browse','ask','tours','builder','insights'].map(t=>`<button onclick="_helpTab='${_jsAttr(t)}';renderHelp()" style="padding:8px 16px;border:none;background:none;cursor:pointer;font-size:12px;font-weight:600;color:${_helpTab===t?'var(--ach)':'var(--t3)'};border-bottom:2px solid ${_helpTab===t?'var(--ac)':'transparent'};margin-bottom:-1px">${t==='browse'?'📚 Browse':t==='ask'?'🤖 Ask AI':t==='tours'?'🎯 Guided Tours':t==='builder'?'🔧 Tour Builder':'📊 Insights'}</button>`).join('')}
   </div>
 
   ${_helpTab==='browse'?renderHelpBrowseTab(articles,q):
@@ -1156,7 +1156,7 @@ function renderHelpBrowseTab(articles,q){
         <div style="font-size:28px;margin-bottom:8px">${c.icon}</div>
         <div style="font-size:13px;font-weight:600;margin-bottom:4px">${esc(c.name)}</div>
         <div style="font-size:11px;color:var(--t3);margin-bottom:8px">${esc(c.desc)}</div>
-        <div style="font-size:11px;color:var(--ac);font-weight:600">${count} article${count!==1?'s':''}</div>
+        <div style="font-size:11px;color:var(--ach);font-weight:600">${count} article${count!==1?'s':''}</div>
       </div>`;
     }).join('')}
   </div>
@@ -1174,7 +1174,7 @@ function helpArticleCard(a){
   <div style="flex:1;min-width:0">
     <div style="font-size:13px;font-weight:600;margin-bottom:3px">${esc(a.title)}</div>
     <div style="font-size:11px;color:var(--t3)">${esc(a.summary)}</div>
-    <div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">${(a.tags||[]).map(t=>`<span style="font-size:11px;background:var(--acs);color:var(--ac);padding:2px 6px;border-radius:10px">${esc(t)}</span>`).join('')}${a.tourId?`<span style="font-size:11px;background:rgba(16,185,129,.15);color:#10b981;padding:2px 6px;border-radius:10px">🎯 Has Tour</span>`:''}</div>
+    <div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">${(a.tags||[]).map(t=>`<span style="font-size:11px;background:var(--acs);color:var(--ach);padding:2px 6px;border-radius:10px">${esc(t)}</span>`).join('')}${a.tourId?`<span style="font-size:11px;background:rgba(16,185,129,.15);color:var(--ok);padding:2px 6px;border-radius:10px">🎯 Has Tour</span>`:''}</div>
   </div>
   <svg style="flex-shrink:0;color:var(--t3);width:14px;height:14px;margin-top:4px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
 </div>`;
@@ -1198,7 +1198,7 @@ function renderHelpArticle(){
   <p style="font-size:12px;color:var(--t3);margin:0 0 16px">${esc(a.summary)}</p>
   ${tour?`<div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.3);border-radius:8px;padding:12px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
     <span style="font-size:20px">🎯</span>
-    <div style="flex:1"><div style="font-size:12px;font-weight:600;color:#10b981">Interactive Tour Available</div><div style="font-size:11px;color:var(--t3)">${esc(tour.name)} · ~${tour.est} min</div></div>
+    <div style="flex:1"><div style="font-size:12px;font-weight:600;color:var(--ok)">Interactive Tour Available</div><div style="font-size:11px;color:var(--t3)">${esc(tour.name)} · ~${tour.est} min</div></div>
     <button class="btn-p" onclick="launchTour(${tour.id})" style="font-size:11px">Launch Tour</button>
   </div>`:''}
   <div style="font-size:13px;line-height:1.7;color:var(--t1)" id="help-article-body"></div>
@@ -1338,8 +1338,8 @@ function renderHelpToursTab(){
           <div style="flex:1;min-width:0">
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
               <span style="font-size:13px;font-weight:600">${esc(t.name)}</span>
-              ${isCompleted?'<span style="font-size:11px;background:rgba(16,185,129,.15);color:#10b981;padding:2px 6px;border-radius:10px">✓ Completed</span>':''}
-              ${isActive?'<span style="font-size:11px;background:var(--acs);color:var(--ac);padding:2px 6px;border-radius:10px">In Progress</span>':''}
+              ${isCompleted?'<span style="font-size:11px;background:rgba(16,185,129,.15);color:var(--ok);padding:2px 6px;border-radius:10px">✓ Completed</span>':''}
+              ${isActive?'<span style="font-size:11px;background:var(--acs);color:var(--ach);padding:2px 6px;border-radius:10px">In Progress</span>':''}
             </div>
             <div style="font-size:11px;color:var(--t3);margin-bottom:6px">${esc(t.desc)}</div>
             <div style="display:flex;gap:8px;align-items:center">

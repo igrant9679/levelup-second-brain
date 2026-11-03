@@ -410,7 +410,7 @@ function _coachHeroHTML(){
       '<div style="min-width:200px;font-size:11.5px;color:var(--t2)">'+
         '<div style="font-weight:600;margin-bottom:4px">How much should I do on my own?</div>'+
         ['ask','auto','full'].map(function(l){return '<label style="display:flex;gap:6px;align-items:flex-start;margin:3px 0;cursor:pointer"><input type="radio" name="coach-auto-hero" '+(auto===l?'checked':'')+' onchange="coachSetAutonomy(\''+l+'\')"><span>'+({ask:'Ask before every change',auto:'Do creates &amp; edits; ask before deleting',full:'Fully autonomous (undo anything)'})[l]+'</span></label>';}).join('')+
-        '<div style="margin-top:6px"><a href="#" onclick="event.preventDefault();coachOpenSettings()" style="color:var(--ac)">What I know about you ('+nFacts+') →</a></div>'+
+        '<div style="margin-top:6px"><a href="#" onclick="event.preventDefault();coachOpenSettings()" style="color:var(--ach)">What I know about you ('+nFacts+') →</a></div>'+
       '</div>'+
     '</div>'+
     '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--bd1)"><span style="font-size:11px;color:var(--t3);align-self:center;margin-right:2px">Coach me on:</span>'+chips+'</div>'+
@@ -422,7 +422,7 @@ function _coachTodayHTML(){
     var today=_ymd(new Date());
     var items=(typeof _coachInbox!=='undefined'?_coachInbox:[]).filter(function(m){return _ymd(_pd(m.createdAt))===today;}).slice().reverse();
     var k=_coachCheckins();
-    if(!items.length)return '<div style="margin-top:10px;font-size:11.5px;color:var(--t3)">🔔 Check-ins through the day: '+(k.enabled?'on — the next one arrives at its scheduled time.':'<a href="#" onclick="event.preventDefault();coachOpenSettings()" style="color:var(--ac)">turn them on</a> to get a morning plan, nudges and an end-of-day review by in-app message and email.')+'</div>';
+    if(!items.length)return '<div style="margin-top:10px;font-size:11.5px;color:var(--t3)">🔔 Check-ins through the day: '+(k.enabled?'on — the next one arrives at its scheduled time.':'<a href="#" onclick="event.preventDefault();coachOpenSettings()" style="color:var(--ach)">turn them on</a> to get a morning plan, nudges and an end-of-day review by in-app message and email.')+'</div>';
     return '<div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span style="font-size:11px;color:var(--t3)">Today:</span>'+items.map(function(m){var meta=_coachSlotMeta(m.kind);return '<button class="btn btn-s" style="height:26px;font-size:11px'+(m.status==='new'?';border-color:var(--ac)':'')+'" onclick="coachOpenMessage('+m.id+')">'+meta.icon+' '+esc(meta.label)+' · '+_pd(m.createdAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})+(m.status==='new'?' •':'')+'</button>';}).join('')+'</div>';
   }catch(_){return '';}
 }
@@ -597,8 +597,8 @@ async function _coachRenderCheckinStatus(){
     var recent=(s.recent||[]).map(function(r){var m=_coachSlotMeta(r.kind);return m.icon+' '+m.label+' '+_pd(r.at).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})+(r.emailed?' ✉':'')+(r.pushed?' 📱':'')+(r.error?' ⚠':'');}).join(' · ');
     var rp=s.replies,hm=function(d){return _pd(d).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});};
     var replyLine=!rp?'':rp.address?'<br>✉️ Reply by email: <b>on</b> — answers sent to '+esc(rp.address)+' are read every 3 minutes'+(rp.lastOkAt?' (last read '+hm(rp.lastOkAt)+')':'')+' · <a href="#" onclick="coachCheckRepliesNow();return false">check now</a>':
-      rp.lastError?'<br>✉️ Reply by email: <b style="color:#ef4444">off</b> — could not read the mailbox ('+esc(String(rp.lastError).slice(0,140))+')':'<br>✉️ Reply by email: off — it needs the SMTP/IMAP mailbox that sends system mail';
-    el.innerHTML='AI: '+(s.ai.configured?esc(s.ai.provider)+' ✓':'<b style="color:#ef4444">no AI key</b> — set one in Settings → AI Features (check-ins fall back to a plain summary)')+' · Time zone: '+esc(s.tz)+(s.tzFromDevice?'':' (default — open LevelUp on your device to set it)')+' · Your time now: '+esc(s.localTime)+(recent?'<br>Today: '+recent:'')+replyLine;
+      rp.lastError?'<br>✉️ Reply by email: <b style="color:var(--red)">off</b> — could not read the mailbox ('+esc(String(rp.lastError).slice(0,140))+')':'<br>✉️ Reply by email: off — it needs the SMTP/IMAP mailbox that sends system mail';
+    el.innerHTML='AI: '+(s.ai.configured?esc(s.ai.provider)+' ✓':'<b style="color:var(--red)">no AI key</b> — set one in Settings → AI Features (check-ins fall back to a plain summary)')+' · Time zone: '+esc(s.tz)+(s.tzFromDevice?'':' (default — open LevelUp on your device to set it)')+' · Your time now: '+esc(s.localTime)+(recent?'<br>Today: '+recent:'')+replyLine;
   }catch(e){el.textContent='The server is not on this build yet — check-ins start once it is deployed.';}
 }
 
