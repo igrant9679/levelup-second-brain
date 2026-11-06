@@ -44,7 +44,7 @@ export interface DelegationData {
   confidence?: "on_track" | "at_risk" | "blocked" | null;
   note?: string;
   updates?: Array<{ at: string; by: "owner" | "delegate" | "system"; text: string; status?: string; eta?: string | null }>;
-  nudges?: Array<{ at: string; ok: boolean; auto?: boolean; to?: string }>;
+  nudges?: Array<{ at: string; ok: boolean; auto?: boolean; to?: string; toKey?: string }>;
   lastUpdateAt?: string | null;
 }
 
@@ -74,7 +74,12 @@ export async function resolvePerson(db: any, ownerId: number, key: string): Prom
     return p ? { name: p.name, email: p.email || null } : null;
   }
   if (kind === "u") {
-    const [u] = await db.select({ name: users.name, email: users.email }).from(users).where(eq(users.id, Number(id))).limit(1);
+    // Audit F11: a "u:" key must be a whole positive user id of an account in
+    // this workspace (every account here is a workspace member — Team lists
+    // them all to every member), never an arbitrary lookup.
+    const uid = Number(id);
+    if (!/^\d+$/.test(id) || !Number.isSafeInteger(uid) || uid <= 0) return null;
+    const [u] = await db.select({ name: users.name, email: users.email }).from(users).where(eq(users.id, uid)).limit(1);
     return u ? { name: String(u.name || u.email || "Team member"), email: u.email || null } : null;
   }
   if (kind === "c") {
@@ -86,6 +91,26 @@ export async function resolvePerson(db: any, ownerId: number, key: string): Prom
     return { name, email };
   }
   return null;
+}
+
+/**
+ * Addresses a member may send a PM report to (audit F10): their own, the
+ * workspace's accounts, their PM people, and their Contacts. Lower-cased.
+ */
+export async function knownRecipientEmails(db: any, userId: number): Promise<Set<string>> {
+  const out = new Set<string>();
+  const add = (v: unknown) => { const s = String(v ?? "").trim().toLowerCase(); if (s && s.includes("@")) out.add(s); };
+  try { for (const u of await db.select({ email: users.email }).from(users)) add(u.email); } catch { /* none */ }
+  try { for (const p of await db.select({ email: pmPeople.email }).from(pmPeople).where(eq(pmPeople.userId, userId))) add(p.email); } catch { /* none */ }
+  try {
+    const [row] = await db.select({ contacts: userAppData.contacts }).from(userAppData).where(eq(userAppData.userId, userId)).limit(1);
+    for (const c of parseJSON<any[]>(row?.contacts, [])) {
+      if (!c || typeof c !== "object") continue;
+      add(c.email);
+      if (Array.isArray(c.emails)) for (const e of c.emails) add(typeof e === "string" ? e : e?.address);
+    }
+  } catch { /* none */ }
+  return out;
 }
 
 async function replyAddress(): Promise<string | null> {
@@ -127,7 +152,9 @@ export async function sendDelegateNudge(ownerId: number, recordId: number, opts?
     senderUserId: ownerId, messageId: pmMessageId(ownerId, recordId), replyTo: replyTo || undefined, fromName: `${ownerName} via LevelUp`,
   }).catch(() => false);
   const now = new Date().toISOString();
-  d.nudges = [...(d.nudges || []), { at: now, ok, auto: !!opts?.auto, to: person.email }].slice(-30);
+  // The address itself is NOT stored on the caller's record (audit F11) —
+  // only which person was nudged; the browser reads these records back.
+  d.nudges = [...(d.nudges || []), { at: now, ok, auto: !!opts?.auto, toKey: String(d.personKey || "") }].slice(-30);
   d.updates = [...(d.updates || []), { at: now, by: "system" as const, text: ok ? `${opts?.intro ? "Details" : opts?.auto ? "Auto follow-up" : "Follow-up"} emailed to ${person.name}${note ? ` — "${clip(note, 120)}"` : ""}` : `Follow-up to ${person.name} failed to send` }].slice(-60);
   if (ok && !opts?.intro && d.cadenceDays && d.cadenceDays > 0) d.followUp = new Date(Date.now() + d.cadenceDays * DAY).toISOString().slice(0, 10);
   // "Only once" (cadence 0): an automatic follow-up must not repeat every

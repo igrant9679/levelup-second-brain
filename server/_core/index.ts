@@ -10,6 +10,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { sdk } from "./sdk";
+import { registerBookmarkletRoutes } from "./bookmarklet";
 import { isOwner } from "./ownerGuard";
 import { installServerErrorCapture } from "./errorLog";
 import * as dbHelpers from "../db";
@@ -281,80 +282,7 @@ async function startServer() {
     }
   });
 
-  // ---- Bookmarklet endpoint: GET /api/bookmarklet/save?url=...&title=... ----
-  // Called by the browser bookmarklet. Authenticates via session cookie,
-  // creates the bookmark, then redirects back to the app's bookmarks page.
-  app.get("/api/bookmarklet/save", async (req, res) => {
-    try {
-      const user = await sdk.authenticateRequest(req).catch(() => null);
-      if (!user) {
-        // Not logged in — redirect to login with a return path
-        const loginUrl = process.env.VITE_OAUTH_PORTAL_URL || '/';
-        res.redirect(`${loginUrl}?return=/bookmarks`);
-        return;
-      }
-
-      // Everything echoed into these pages is escaped and the response gets a
-      // tight CSP: this route renders on the app's own origin.
-      res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
-      const hx = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as any)[c]);
-      const rawUrl = String(req.query.url ?? '').slice(0, 4000);
-      const rawTitle = req.query.title != null ? String(req.query.title).slice(0, 500) : undefined;
-
-      if (!rawUrl) {
-        res.status(400).send('<html><body><h2>Error: No URL provided.</h2><script>window.close();</script></body></html>');
-        return;
-      }
-
-      // Validate URL: http(s) only
-      let parsedUrl: URL | null = null;
-      try { parsedUrl = new URL(rawUrl); } catch { parsedUrl = null; }
-      if (!parsedUrl || !/^https?:$/.test(parsedUrl.protocol)) {
-        res.status(400).send('<html><body><h2>Error: Invalid URL.</h2><script>window.close();</script></body></html>');
-        return;
-      }
-
-      // Import db helpers inline to avoid circular deps
-      const { createBookmark, getBookmarkByUrl } = await import('../db');
-
-      // Check for duplicate
-      const existing = await getBookmarkByUrl(rawUrl, user.id);
-      if (existing) {
-        res.send(`<html><head><title>Already saved</title></head><body style="font-family:sans-serif;text-align:center;padding:40px">
-          <h2>\u2705 Already in your bookmarks</h2>
-          <p style="color:#666">${hx(rawUrl)}</p>
-          <script>setTimeout(()=>window.close(),1500);</script>
-        </body></html>`);
-        return;
-      }
-
-      // Fetch metadata
-      const { extractPageMetadata } = await import('../routers/bookmarks');
-      const meta = await extractPageMetadata(rawUrl);
-
-      await createBookmark({
-        userId: user.id,
-        url: rawUrl,
-        title: rawTitle || meta.title || new URL(rawUrl).hostname,
-        description: meta.description,
-        favicon: meta.favicon,
-        ogImage: meta.ogImage,
-        siteName: meta.siteName,
-        tags: null,
-        notes: null,
-        color: null,
-      });
-
-      res.send(`<html><head><title>Saved!</title></head><body style="font-family:sans-serif;text-align:center;padding:40px">
-        <h2>\u2705 Bookmark saved!</h2>
-        <p style="color:#666">${hx(meta.title || rawUrl)}</p>
-        <script>setTimeout(()=>window.close(),1500);</script>
-      </body></html>`);
-    } catch (err) {
-      console.error('[bookmarklet] Error:', err);
-      res.status(500).send('<html><body><h2>Error saving bookmark. Please try again.</h2><script>window.close();</script></body></html>');
-    }
-  });
+  registerBookmarkletRoutes(app, sdk);
 
   // ---- Public bookmark share endpoint: GET /api/share/:token ----
   // Returns share metadata + bookmarks for a given share token (no auth required).

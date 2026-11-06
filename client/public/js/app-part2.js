@@ -13904,22 +13904,51 @@ function shDeleteSheet(id){
 
 // ─── Formula engine (Excel-style A1 refs + functions) ────────────────────────
 function _shColName(i){ let s=''; i=Number(i); if(isNaN(i)||i<0)return 'A'; do{ s=String.fromCharCode(65+(i%26))+s; i=Math.floor(i/26)-1; }while(i>=0); return s; }
-function _shRefRC(ref){ const m=/^([A-Za-z]{1,2})(\d+)$/.exec(String(ref).trim()); if(!m)return null; const L=m[1].toUpperCase(); let c=0; for(let k=0;k<L.length;k++)c=c*26+(L.charCodeAt(k)-64); return {c:c-1,r:parseInt(m[2],10)-1}; }
+function _shRefRC(ref){ const m=/^\$?([A-Za-z]{1,2})\$?(\d+)$/.exec(String(ref).trim()); if(!m)return null; const L=m[1].toUpperCase(); let c=0; for(let k=0;k<L.length;k++)c=c*26+(L.charCodeAt(k)-64); return {c:c-1,r:parseInt(m[2],10)-1}; }
 function _shNum(v){ if(typeof v==='number')return v; if(v===true)return 1; if(v===false||v==null)return NaN; let s=String(v).trim().replace(/[$,%£€\s]/g,''); if(s==='')return NaN; const n=parseFloat(s); return isNaN(n)?NaN:n; }
-function _shResolveRC(sheet,r,c,depth){
+// One evaluation pass (F125): `visiting` = formula cells on the current
+// evaluation path (revisiting one is a real cycle → #CYCLE), `memo` = cells
+// already worked out in this pass. A fresh pass per top-level _shEval call
+// (callers pass 0), so an edit is always seen. _SH_MAX_DEPTH only guards the
+// JS stack — a legitimate chain (running total) is never reported as a cycle.
+// _shPass(sheet,fn) shares one memo across every formula fn evaluates (a whole
+// grid render, a sort's keys, an export) — only around code that reads, never
+// edits, the sheet. Each top-level formula still gets its own visiting path.
+const _SH_MAX_DEPTH=2000;
+let _shPassMemo=null;
+function _shPass(sheet,fn){ const prev=_shPassMemo; _shPassMemo={sheet,memo:new Map()}; try{ return fn(); }finally{ _shPassMemo=prev; } }
+function _shCtx(c,sheet){
+  if(c&&typeof c==='object'&&c.visiting)return c;
+  const memo=(_shPassMemo&&sheet&&_shPassMemo.sheet===sheet)?_shPassMemo.memo:new Map();
+  return {visiting:new Set(),memo,overflow:false};
+}
+function _shResolveRC(sheet,r,c,ctx){
   const col=sheet.columns[c],row=sheet.rows[r];
   if(!col||!row)return 0;
   let raw=(row.cells||{})[col.id];
   if(raw==null||raw==='')return 0;
-  if(typeof raw==='string'&&raw.charAt(0)==='='){ if((depth||0)>25)return '#CYCLE'; return _shEval(sheet,raw,(depth||0)+1); }
+  if(typeof raw==='string'&&raw.charAt(0)==='='){
+    ctx=_shCtx(ctx,sheet); const key=r+','+c; let v;
+    if(ctx.memo.has(key))v=ctx.memo.get(key);
+    else{
+      if(ctx.visiting.has(key))throw {shErr:'#CYCLE'};
+      if(ctx.visiting.size>=_SH_MAX_DEPTH){ ctx.overflow=true; throw {shErr:'#ERR'}; }
+      ctx.visiting.add(key);
+      try{ v=_shEval(sheet,raw,ctx); }finally{ ctx.visiting.delete(key); }
+      ctx.memo.set(key,v);
+    }
+    // a referenced cell that is itself a cycle / broken reference makes this formula one too
+    if(v==='#CYCLE'||v==='#REF!')throw {shErr:v};
+    return v;
+  }
   const n=_shNum(raw); return isNaN(n)?raw:n;
 }
-function _shHelpers(sheet,depth){
+function _shHelpers(sheet,ctx){
   const flat=a=>a.reduce((o,v)=>o.concat(Array.isArray(v)?flat(v):[v]),[]);
   const nums=a=>flat(a).map(x=>typeof x==='number'?x:_shNum(x)).filter(x=>!isNaN(x));
   return {
-    c:(ref)=>{ const rc=_shRefRC(ref); return rc?_shResolveRC(sheet,rc.r,rc.c,depth):0; },
-    r:(rg)=>{ const p=String(rg).split(':'); const A=_shRefRC(p[0]),B=_shRefRC(p[1]); if(!A||!B)return []; const out=[]; for(let r=Math.min(A.r,B.r);r<=Math.max(A.r,B.r);r++)for(let c=Math.min(A.c,B.c);c<=Math.max(A.c,B.c);c++)out.push(_shResolveRC(sheet,r,c,depth)); return out; },
+    c:(ref)=>{ const rc=_shRefRC(ref); return rc?_shResolveRC(sheet,rc.r,rc.c,ctx):0; },
+    r:(rg)=>{ const p=String(rg).split(':'); const A=_shRefRC(p[0]),B=_shRefRC(p[1]); if(!A||!B)return []; const out=[]; for(let r=Math.min(A.r,B.r);r<=Math.max(A.r,B.r);r++)for(let c=Math.min(A.c,B.c);c<=Math.max(A.c,B.c);c++)out.push(_shResolveRC(sheet,r,c,ctx)); return out; },
     fn:{
       SUM:(...a)=>nums(a).reduce((s,x)=>s+x,0),
       AVERAGE:(...a)=>{const n=nums(a);return n.length?n.reduce((s,x)=>s+x,0)/n.length:0;},
@@ -13937,34 +13966,152 @@ function _shHelpers(sheet,depth){
     }
   };
 }
-function _shEval(sheet,formula,depth){
+// Compiled formulas, keyed by their text (compiling is a pure function of the
+// text, so this can never go stale). '#REF!' anywhere outside a string = #REF!.
+const _shCompiled=new Map();
+function _shCompile(f){
+  let hit=_shCompiled.get(f); if(hit)return hit;
+  const re=/\s*(?:(\d+(?:\.\d+)?)|("(?:[^"]*)")|(\$?[A-Za-z]{1,2}\$?\d+:\$?[A-Za-z]{1,2}\$?\d+)|(\$?[A-Za-z]{1,2}\$?\d+)|([A-Za-z_]+)(?=\s*\()|(<=|>=|<>|\*\*|[-+*/%^(),<>=])|(#REF!))/g;
+  let js='',last=0,m,err=null;
+  while((m=re.exec(f))){
+    if(m.index!==last){ err='#ERR'; break; }
+    if(m[1]!=null)js+=m[1];
+    else if(m[2]!=null)js+=JSON.stringify(m[2].slice(1,-1));
+    else if(m[3]!=null)js+='H.r("'+m[3].replace(/\$/g,'').toUpperCase()+'")';
+    else if(m[4]!=null)js+='H.c("'+m[4].replace(/\$/g,'').toUpperCase()+'")';
+    else if(m[5]!=null)js+='H.fn.'+m[5].toUpperCase();
+    else if(m[6]!=null){ let op=m[6]; if(op==='^')op='**'; else if(op==='<>')op='!=='; else if(op==='=')op='==='; js+=op; }
+    else if(m[7]!=null){ err='#REF!'; break; }
+    last=re.lastIndex;
+  }
+  if(!err&&last!==f.length)err='#ERR';
+  if(!err){ try{ hit={fn:Function('H','return ('+js+')')}; }catch(_){ err='#ERR'; } }
+  if(err)hit={err};
+  if(_shCompiled.size>3000)_shCompiled.clear();
+  _shCompiled.set(f,hit); return hit;
+}
+function _shEval(sheet,formula,ctx){
+  ctx=_shCtx(ctx,sheet);
   try{
     let f=String(formula).replace(/^=/,'').trim();
     if(!f)return '';
-    const re=/\s*(?:(\d+(?:\.\d+)?)|("(?:[^"]*)")|([A-Za-z]{1,2}\d+:[A-Za-z]{1,2}\d+)|([A-Za-z]{1,2}\d+)|([A-Za-z_]+)(?=\s*\()|(<=|>=|<>|\*\*|[-+*/%^(),<>=]))/g;
-    let js='',last=0,m;
-    while((m=re.exec(f))){
-      if(m.index!==last)return '#ERR';
-      if(m[1]!=null)js+=m[1];
-      else if(m[2]!=null)js+=JSON.stringify(m[2].slice(1,-1));
-      else if(m[3]!=null)js+='H.r("'+m[3].toUpperCase()+'")';
-      else if(m[4]!=null)js+='H.c("'+m[4].toUpperCase()+'")';
-      else if(m[5]!=null)js+='H.fn.'+m[5].toUpperCase();
-      else if(m[6]!=null){ let op=m[6]; if(op==='^')op='**'; else if(op==='<>')op='!=='; else if(op==='=')op='==='; js+=op; }
-      last=re.lastIndex;
-    }
-    if(last!==f.length)return '#ERR';
-    const H=_shHelpers(sheet,depth||0);
-    const val=Function('H','return ('+js+')')(H);
+    const k=_shCompile(f); if(k.err)return k.err;
+    const val=k.fn(_shHelpers(sheet,ctx));
     if(typeof val==='number'){ if(!isFinite(val))return '#DIV/0'; return Math.round(val*1e10)/1e10; }
     return val;
-  }catch(e){ return '#ERR'; }
+  }catch(e){
+    // too deep (cap or a real stack overflow): unwind to the outermost formula
+    // (the only one evaluated with nothing on the visiting path) and report #ERR there
+    if(e&&e.name==='RangeError')ctx.overflow=true;
+    if(ctx.overflow){ if(ctx.visiting.size)throw {shErr:'#ERR'}; return '#ERR'; }
+    if(e&&e.shErr)return e.shErr;
+    return '#ERR';
+  }
+}
+
+// ─── Reference rewriting on structural edits (F125) ─────────────────────────
+// Formulas address cells by POSITION (A1 = first column, first row), so every
+// edit that reorders/inserts/removes rows or columns rewrites the references
+// in every formula of the sheet to keep pointing at the same logical cell:
+//  · a single ref follows its cell; a ref to a removed cell becomes #REF!
+//  · a range under insert/delete (order kept) keeps its first and last
+//    surviving cells — inserting inside it grows it, deleting shrinks it,
+//    deleting all of it → #REF!
+//  · a range under a reorder (sort, move) keeps the same set of cells: one
+//    range if they are still adjacent, else, as a function argument
+//    (SUM(A1:A3) → SUM(A1,A3:A4)), the adjacent runs; elsewhere the span
+//  · $ markers are kept; text inside "string literals" is never touched;
+//    a ref past the end of the sheet moves by the change in length.
+// A map is {m:[old index → new index | -1], oldLen, newLen, mono}.
+function _shIdxMap(before,after){
+  const pos=new Map(); (after||[]).forEach((x,i)=>{ if(!pos.has(x))pos.set(x,i); });
+  const m=(before||[]).map(x=>pos.has(x)?pos.get(x):-1);
+  let mono=true,last=-1,changed=(before||[]).length!==(after||[]).length;
+  m.forEach((v,i)=>{ if(v!==i)changed=true; if(v<0)return; if(v<=last)mono=false; last=v; });
+  return changed?{m,oldLen:m.length,newLen:(after||[]).length,mono}:null;
+}
+function _shMapOne(mp,i){ if(!mp)return i; return i<mp.oldLen?mp.m[i]:i+(mp.newLen-mp.oldLen); }
+// [a,b] (a<=b) → list of [lo,hi] runs in the new order ([] = all removed)
+function _shMapSpan(mp,a,b){
+  if(!mp)return [[a,b]];
+  const d=mp.newLen-mp.oldLen;
+  if(mp.mono){
+    let lo=-1,hi=-1;
+    for(let i=a;i<=b&&i<mp.oldLen;i++){ const v=mp.m[i]; if(v>=0){ if(lo<0)lo=v; hi=v; } }
+    if(b>=mp.oldLen){ const t=Math.max(a,mp.oldLen); if(lo<0)lo=t+d; hi=b+d; }
+    return lo<0?[]:[[lo,hi]];
+  }
+  const vals=[]; for(let i=a;i<=b&&i<mp.oldLen;i++){ const v=mp.m[i]; if(v>=0)vals.push(v); }
+  vals.sort((x,y)=>x-y);
+  const runs=[]; vals.forEach(v=>{ const r=runs[runs.length-1]; if(r&&v<=r[1]+1)r[1]=Math.max(r[1],v); else runs.push([v,v]); });
+  if(b>=mp.oldLen){ const lo=Math.max(a,mp.oldLen)+d,hi=b+d; const r=runs[runs.length-1]; if(r&&lo<=r[1]+1)r[1]=Math.max(r[1],hi); else runs.push([lo,hi]); }
+  return runs;
+}
+function _shRefText(c,r,cAbs,rAbs){ return (cAbs?'$':'')+_shColName(c)+(rAbs?'$':'')+(r+1); }
+function _shColIndexOf(L){ L=L.toUpperCase(); let c=0; for(let k=0;k<L.length;k++)c=c*26+(L.charCodeAt(k)-64); return c-1; }
+// Rewrite the refs in one formula body (the text after '='). Unchanged refs keep their exact text.
+function _shRewriteFormulaRefs(body,rowMap,colMap){
+  body=String(body==null?'':body);
+  if(!rowMap&&!colMap)return body;
+  const re=/("[^"]*"?)|(#REF!)|(\$?)([A-Za-z]{1,2})(\$?)(\d+)(?::(\$?)([A-Za-z]{1,2})(\$?)(\d+))?(?![A-Za-z0-9_(])|([A-Za-z_][A-Za-z0-9_]*|\d+(?:\.\d+)?[A-Za-z0-9_]*)|([(),])/g;
+  let out='',last=0,m,prev='',parens=[];
+  while((m=re.exec(body))){
+    const gap=body.slice(last,m.index); out+=gap; if(/\S/.test(gap))prev='op';
+    const tok=m[0]; last=re.lastIndex;
+    if(m[1]!=null||m[2]!=null){ out+=tok; prev='val'; continue; }
+    if(m[11]!=null){ out+=tok; prev=/^[A-Za-z_]/.test(tok)?'id':'val'; continue; }
+    if(m[12]!=null){
+      if(tok==='(')parens.push(prev==='id'); else if(tok===')')parens.pop();
+      out+=tok; prev=tok; continue;
+    }
+    // a reference or a range
+    const c1=_shColIndexOf(m[4]),r1=parseInt(m[6],10)-1;
+    if(m[8]==null){
+      const c=_shMapOne(colMap,c1),r=_shMapOne(rowMap,r1);
+      out+=(c<0||r<0)?'#REF!':(c===c1&&r===r1)?tok:_shRefText(c,r,!!m[3],!!m[5]);
+      prev='val'; continue;
+    }
+    const c2=_shColIndexOf(m[8]),r2=parseInt(m[10],10)-1;
+    const ca=Math.min(c1,c2),cb=Math.max(c1,c2),ra=Math.min(r1,r2),rb=Math.max(r1,r2);
+    const cr=_shMapSpan(colMap,ca,cb),rr=_shMapSpan(rowMap,ra,rb);
+    if(!cr.length||!rr.length){ out+='#REF!'; prev='val'; continue; }
+    const A1=[!!m[3],!!m[5]],A2=[!!m[7],!!m[9]];
+    const rect=(c0,cN,q0,qN)=>_shRefText(c0,q0,A1[0],A1[1])+':'+_shRefText(cN,qN,A2[0],A2[1]);
+    if(cr.length===1&&rr.length===1){
+      const [x0,x1]=cr[0],[y0,y1]=rr[0];
+      out+=(x0===ca&&x1===cb&&y0===ra&&y1===rb)?tok:rect(x0,x1,y0,y1);
+    } else {
+      const asArg=parens.length&&parens[parens.length-1]&&(prev==='('||prev===',')&&/^\s*[),]/.test(body.slice(last));
+      if(asArg){ const parts=[]; rr.forEach(([y0,y1])=>cr.forEach(([x0,x1])=>parts.push((x0===x1&&y0===y1)?_shRefText(x0,y0,A1[0],A1[1]):rect(x0,x1,y0,y1)))); out+=parts.join(','); }
+      else out+=rect(cr[0][0],cr[cr.length-1][1],rr[0][0],rr[rr.length-1][1]);
+    }
+    prev='val';
+  }
+  return out+body.slice(last);
+}
+// Rewrite every formula cell of the sheet. Returns how many cells changed.
+function _shRemapFormulas(sheet,rowMap,colMap){
+  if(!sheet||(!rowMap&&!colMap))return 0; let n=0;
+  (sheet.rows||[]).forEach(row=>{ const cells=row&&row.cells; if(!cells||typeof cells!=='object')return;
+    Object.keys(cells).forEach(k=>{ const v=cells[k]; if(typeof v!=='string'||v.charAt(0)!=='=')return;
+      const nv='='+_shRewriteFormulaRefs(v.slice(1),rowMap,colMap); if(nv!==v){ cells[k]=nv; n++; } }); });
+  return n;
+}
+// Run a structural edit (fn changes sheet.rows / sheet.columns: insert, delete,
+// sort, move, duplicate) and then repoint every formula. Rows and columns are
+// matched by object identity before vs after.
+function _shStructural(sheet,fn){
+  if(!sheet)return fn();
+  const br=(sheet.rows||[]).slice(),bc=(sheet.columns||[]).slice();
+  const out=fn();
+  _shRemapFormulas(sheet,_shIdxMap(br,sheet.rows||[]),_shIdxMap(bc,sheet.columns||[]));
+  return out;
 }
 
 // ─── Display / formatting ────────────────────────────────────────────────────
 function _shFmtVal(col,v){
   if(v==null||v==='')return '';
-  if(typeof v==='string'&&v.charAt(0)==='#'&&/^#(ERR|DIV|CYCLE)/.test(v))return `<span style="color:var(--red);font-size:11px">${esc(v)}</span>`;
+  if(typeof v==='string'&&v.charAt(0)==='#'&&/^#(ERR|DIV|CYCLE|REF)/.test(v))return `<span style="color:var(--red);font-size:11px">${esc(v)}</span>`;
   switch(col.type){
     case 'currency':{const n=_shNum(v);if(isNaN(n))return esc(String(v));return '$'+n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});}
     case 'number':{const n=_shNum(v);if(isNaN(n))return esc(String(v));return esc(String(Math.round(n*1e6)/1e6));}
@@ -14020,7 +14167,9 @@ function _shHydrateEditor(){ if(typeof buildMultiAssignee==='function'){ /* pick
 function shToggleDesign(){ _sheetShowDesign=!_sheetShowDesign; renderSheetsSection(); }
 function shSetTitle(v){ if(!_sheetCurrent)return; _sheetCurrent.title=(v||'').trim()||'Untitled sheet'; saveSheets(); }
 
-function _shGridHtml(){
+// one evaluation pass for the whole grid: a 1,000-row running total costs n, not n²
+function _shGridHtml(){ return _shPass(_sheetCurrent,_shGridHtmlInner); }
+function _shGridHtmlInner(){
   const s=_sheetCurrent; const th=s.theme||{};
   const dens=th.density==='compact'?'sh-compact':'';
   const strp=th.striped?'sh-striped':''; const gl=th.gridlines===false?'sh-nogrid':'';
@@ -14153,24 +14302,30 @@ function shColMenu(ev,cid){
 function shSetColType(cid,type){ const s=_sheetCurrent; const col=s.columns.find(c=>c.id===cid); if(!col)return; _shSnap(); col.type=type; if(type==='select'&&!col.options)col.options=[]; if(type==='progress'&&col.summary==='none')col.summary='avg'; saveSheets(); renderSheetGrid(); }
 function shEditSelectOptions(cid){ const s=_sheetCurrent; const col=s.columns.find(c=>c.id===cid); if(!col)return; const cur=(col.options||[]).map(o=>o.label).join(', '); const v=prompt('Options (comma-separated):',cur); if(v==null)return; _shSnap(); col.options=v.split(',').map(x=>x.trim()).filter(Boolean).map((l,i)=>{ const ex=(col.options||[]).find(o=>o.label===l); return ex||{label:l,color:SHEET_PALETTE[i%SHEET_PALETTE.length]}; }); saveSheets(); renderSheetGrid(); }
 function shAddCol(){ const s=_sheetCurrent; if(!s)return; _shSnap(); const id=(s.columns.reduce((m,c)=>Math.max(m,c.id),0)||0)+1; s.columns.push({id,name:'Column '+(s.columns.length+1),type:'text',width:150,color:'',options:null,summary:'none',align:''}); saveSheets(); renderSheetGrid(); }
-function shInsertCol(cid,after){ const s=_sheetCurrent; const idx=_shColIdx(cid); if(idx<0)return; _shSnap(); const id=(s.columns.reduce((m,c)=>Math.max(m,c.id),0)||0)+1; s.columns.splice(idx+(after?1:0),0,{id,name:'Column',type:'text',width:150,color:'',options:null,summary:'none',align:''}); saveSheets(); renderSheetGrid(); }
-function shDeleteCol(cid){ const s=_sheetCurrent; if(s.columns.length<=1)return toast('A sheet needs at least one column'); _shSnap(); s.columns=s.columns.filter(c=>c.id!==cid); s.rows.forEach(r=>{ if(r.cells)delete r.cells[cid]; }); saveSheets(); renderSheetGrid(); }
-function shSortByCol(cid,dir){ const s=_sheetCurrent; const col=s.columns.find(c=>c.id===cid); if(!col)return; _shSnap(); const val=row=>{ let v=(row.cells||{})[cid]; if(typeof v==='string'&&v.charAt(0)==='=')v=_shEval(s,v,0); const n=_shNum(v); return isNaN(n)?String(v==null?'':v).toLowerCase():n; }; s.rows.sort((a,b)=>{ const va=val(a),vb=val(b); if(typeof va==='number'&&typeof vb==='number')return (va-vb)*dir; return String(va).localeCompare(String(vb))*dir; }); saveSheets(); renderSheetGrid(); }
+// Every edit below that reorders, inserts or removes rows/columns runs inside
+// _shStructural, which repoints the formulas afterwards (F125).
+function shInsertCol(cid,after){ const s=_sheetCurrent; const idx=_shColIdx(cid); if(idx<0)return; _shSnap(); const id=(s.columns.reduce((m,c)=>Math.max(m,c.id),0)||0)+1; _shStructural(s,()=>{ s.columns.splice(idx+(after?1:0),0,{id,name:'Column',type:'text',width:150,color:'',options:null,summary:'none',align:''}); }); saveSheets(); renderSheetGrid(); }
+function shDeleteCol(cid){ const s=_sheetCurrent; if(s.columns.length<=1)return toast('A sheet needs at least one column'); _shSnap(); _shStructural(s,()=>{ s.columns=s.columns.filter(c=>c.id!==cid); s.rows.forEach(r=>{ if(r.cells)delete r.cells[cid]; }); }); saveSheets(); renderSheetGrid(); }
+function shSortByCol(cid,dir){ const s=_sheetCurrent; const col=s.columns.find(c=>c.id===cid); if(!col)return; _shSnap();
+  // sort keys are worked out BEFORE sorting (formulas read rows by position, and the array is mid-shuffle during sort)
+  const keys=new Map(); _shPass(s,()=>s.rows.forEach(row=>{ let v=(row.cells||{})[cid]; if(typeof v==='string'&&v.charAt(0)==='=')v=_shEval(s,v,0); const n=_shNum(v); keys.set(row,isNaN(n)?String(v==null?'':v).toLowerCase():n); }));
+  _shStructural(s,()=>{ s.rows.sort((a,b)=>{ const va=keys.get(a),vb=keys.get(b); if(typeof va==='number'&&typeof vb==='number')return (va-vb)*dir; return String(va).localeCompare(String(vb))*dir; }); }); saveSheets(); renderSheetGrid(); }
 
 function shAddRow(){ const s=_sheetCurrent; if(!s)return; _shSnap(); const id=(s.rows.reduce((m,r)=>Math.max(m,r.id),0)||0)+1; s.rows.push({id,cells:{},color:''}); saveSheets(); renderSheetGrid(); }
 // Direct row delete (hover × on the row number) — no confirm needed because
 // it routes through the undo stack; the toast says so.
-function shDeleteRow(rid){ const s=_sheetCurrent; if(!s)return; _shSnap(); s.rows=s.rows.filter(r=>r.id!==rid); saveSheets(); renderSheetGrid(); toast('🗑 Row deleted — ↶ Undo to restore'); }
+function shDeleteRow(rid){ const s=_sheetCurrent; if(!s)return; _shSnap(); _shStructural(s,()=>{ s.rows=s.rows.filter(r=>r.id!==rid); }); saveSheets(); renderSheetGrid(); toast('🗑 Row deleted — ↶ Undo to restore'); }
 function shRowMenu(ev,rid){
   ev.stopPropagation(); const s=_sheetCurrent; const idx=s.rows.findIndex(r=>r.id===rid); if(idx<0)return;
   const items=[
-    {html:'⬆ Insert above',onClick:()=>{ _shSnap(); const id=(s.rows.reduce((m,r)=>Math.max(m,r.id),0)||0)+1; s.rows.splice(idx,0,{id,cells:{},color:''}); saveSheets(); renderSheetGrid(); }},
-    {html:'⬇ Insert below',onClick:()=>{ _shSnap(); const id=(s.rows.reduce((m,r)=>Math.max(m,r.id),0)||0)+1; s.rows.splice(idx+1,0,{id,cells:{},color:''}); saveSheets(); renderSheetGrid(); }},
-    {html:'⧉ Duplicate',onClick:()=>{ _shSnap(); const id=(s.rows.reduce((m,r)=>Math.max(m,r.id),0)||0)+1; s.rows.splice(idx+1,0,{id,cells:Object.assign({},s.rows[idx].cells),color:s.rows[idx].color}); saveSheets(); renderSheetGrid(); }},
+    {html:'⬆ Insert above',onClick:()=>{ _shSnap(); const id=(s.rows.reduce((m,r)=>Math.max(m,r.id),0)||0)+1; _shStructural(s,()=>{ s.rows.splice(idx,0,{id,cells:{},color:''}); }); saveSheets(); renderSheetGrid(); }},
+    {html:'⬇ Insert below',onClick:()=>{ _shSnap(); const id=(s.rows.reduce((m,r)=>Math.max(m,r.id),0)||0)+1; _shStructural(s,()=>{ s.rows.splice(idx+1,0,{id,cells:{},color:''}); }); saveSheets(); renderSheetGrid(); }},
+    // the copy's formulas point at the same cells as the original's
+    {html:'⧉ Duplicate',onClick:()=>{ _shSnap(); const id=(s.rows.reduce((m,r)=>Math.max(m,r.id),0)||0)+1; _shStructural(s,()=>{ s.rows.splice(idx+1,0,{id,cells:Object.assign({},s.rows[idx].cells),color:s.rows[idx].color}); }); saveSheets(); renderSheetGrid(); }},
     {html:'🎨 Row colour…',onClick:()=>setTimeout(()=>_shColorMenu(ev,c=>{ _shSnap(); s.rows[idx].color=c; saveSheets(); renderSheetGrid(); },true),0)},
-    {html:'⬆ Move up',onClick:()=>{ if(idx<=0)return; _shSnap(); const r=s.rows.splice(idx,1)[0]; s.rows.splice(idx-1,0,r); saveSheets(); renderSheetGrid(); }},
-    {html:'⬇ Move down',onClick:()=>{ if(idx>=s.rows.length-1)return; _shSnap(); const r=s.rows.splice(idx,1)[0]; s.rows.splice(idx+1,0,r); saveSheets(); renderSheetGrid(); }},
-    {html:'<span style="color:var(--red)">🗑 Delete row</span>',onClick:()=>{ _shSnap(); s.rows=s.rows.filter(r=>r.id!==rid); saveSheets(); renderSheetGrid(); }}
+    {html:'⬆ Move up',onClick:()=>{ if(idx<=0)return; _shSnap(); _shStructural(s,()=>{ const r=s.rows.splice(idx,1)[0]; s.rows.splice(idx-1,0,r); }); saveSheets(); renderSheetGrid(); }},
+    {html:'⬇ Move down',onClick:()=>{ if(idx>=s.rows.length-1)return; _shSnap(); _shStructural(s,()=>{ const r=s.rows.splice(idx,1)[0]; s.rows.splice(idx+1,0,r); }); saveSheets(); renderSheetGrid(); }},
+    {html:'<span style="color:var(--red)">🗑 Delete row</span>',onClick:()=>{ _shSnap(); _shStructural(s,()=>{ s.rows=s.rows.filter(r=>r.id!==rid); }); saveSheets(); renderSheetGrid(); }}
   ];
   _shPopMenu(ev,items);
 }
@@ -14225,7 +14380,7 @@ function shUndo(){ if(!_sheetCurrent||!_sheetUndo.length)return toast('Nothing t
 function shRedo(){ if(!_sheetCurrent||!_sheetRedo.length)return toast('Nothing to redo'); try{ _sheetUndo.push(JSON.stringify({columns:_sheetCurrent.columns,rows:_sheetCurrent.rows})); const s=JSON.parse(_sheetRedo.pop()); _sheetCurrent.columns=s.columns; _sheetCurrent.rows=s.rows; saveSheets(); renderSheetGrid(); }catch(_){} }
 function shExportCSV(){ const s=_sheetCurrent; if(!s)return; const esc2=v=>{ v=(v==null?'':String(v)); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; };
   const head=s.columns.map(c=>esc2(c.name)).join(',');
-  const lines=s.rows.map(r=>s.columns.map(c=>{ let v=(r.cells||{})[c.id]; if(typeof v==='string'&&v.charAt(0)==='=')v=_shEval(s,v,0); return esc2(v); }).join(','));
+  const lines=_shPass(s,()=>s.rows.map(r=>s.columns.map(c=>{ let v=(r.cells||{})[c.id]; if(typeof v==='string'&&v.charAt(0)==='=')v=_shEval(s,v,0); return esc2(v); }).join(',')));
   const blob=new Blob([[head].concat(lines).join('\n')],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=(s.title||'sheet')+'.csv'; a.click(); URL.revokeObjectURL(a.href); toast('⬇ CSV exported');
 }
 async function _loadSharedSheets(){

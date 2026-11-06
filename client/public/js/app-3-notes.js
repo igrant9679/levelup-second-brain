@@ -1570,17 +1570,21 @@ function exportNotesPDF(){
   if(!notes.length){toast('No notes to export.');return;}
   let notesHtml='';
   notes.forEach((n,idx)=>{
-    const tagBadges=(n.tags||[]).map(t=>`<span style="background:#eef2ff;color:#4f46e5;border-radius:10px;padding:1px 8px;font-size:11px;margin-right:3px">#${t}</span>`).join('');
-    const titleColor=n.titleColor?`color:${n.titleColor}`:'color:#111';
-    const bodyHtml=n.body?`<div style="font-size:11px;color:#374151;line-height:1.7;margin:8px 0;white-space:pre-wrap">${n.body.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`:'';
-    const richHtml=n.bodyHtml?`<div style="margin-top:8px;padding:8px;background:#f9fafb;border-left:3px solid #4f46e5;border-radius:0 5px 5px 0"><div style="font-size:11px;font-weight:700;color:#4f46e5;margin-bottom:5px">Rich Text Body</div><div style="font-size:11px;color:#374151;line-height:1.7">${n.bodyHtml}</div></div>`:'';
+    const tagBadges=(n.tags||[]).map(t=>`<span style="background:#eef2ff;color:#4f46e5;border-radius:10px;padding:1px 8px;font-size:11px;margin-right:3px">#${esc(t)}</span>`).join('');
+    // Everything a note holds is escaped or sanitized: this document is written
+    // into a same-origin window (audit F4).
+    const titleColor=(n.titleColor&&/^#[0-9a-f]{3,8}$/i.test(String(n.titleColor)))?`color:${n.titleColor}`:'color:#111';
+    // One body (-240): the note as HTML whichever field holds it, sanitized.
+    const _bh=luSanitizeHtml(_noteHtml(n));
+    const bodyHtml=_bh?`<div style="font-size:11px;color:#374151;line-height:1.7;margin:8px 0">${_bh}</div>`:'';
+    const richHtml='';
     notesHtml+=`<div style="page-break-inside:avoid;margin-bottom:20px;padding-bottom:16px;${idx<notes.length-1?'border-bottom:1px solid #e5e7eb':''}">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px">
-        <h2 style="font-size:14px;font-weight:700;margin:0;${titleColor}">${n.title||'Untitled'}</h2>
+        <h2 style="font-size:14px;font-weight:700;margin:0;${titleColor}">${esc(n.title||'Untitled')}</h2>
         <div style="font-size:11px;color:#9ca3af;white-space:nowrap;margin-left:8px">${fmtNoteDate(n.updated)}</div>
       </div>
       ${tagBadges?`<div style="margin-bottom:6px">${tagBadges}</div>`:''}
-      ${n.source?`<div style="font-size:11px;color:#9ca3af;margin-bottom:6px">Source: ${n.source}</div>`:''}
+      ${n.source?`<div style="font-size:11px;color:#9ca3af;margin-bottom:6px">Source: ${esc(n.source)}</div>`:''}
       ${bodyHtml}${richHtml}
     </div>`;
   });

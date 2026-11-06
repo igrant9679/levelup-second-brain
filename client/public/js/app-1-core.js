@@ -5856,7 +5856,7 @@ function addTaskComment(taskId){
   inp.value='';
   // Re-render comments panel inline
   const panel=document.getElementById('task-comments');
-  if(panel)panel.innerHTML=(function(comments){if(!comments||!comments.length)return "<div style='font-size:10px;color:var(--t3);padding:4px 0'>No comments yet.</div>";return comments.map((c,ci)=>{const isOwn=c.author===(D.creds.userName||(D.teams[0]&&D.teams[0].members[0]&&D.teams[0].members[0].name)||'Idris');return `<div style="padding:5px 0;border-bottom:1px solid var(--s3)"><div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--t3);margin-bottom:2px"><span>${esc(c.author||'Idris')}</span><div style="display:flex;gap:4px;align-items:center"><span>${c.ts||''}</span>${isOwn?`<span onclick="editTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--ach);font-size:11px" title="Edit">✏</span><span onclick="deleteTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--red);font-size:11px" title="Delete">✕</span>`:''}</div></div><div style="font-size:11px">${esc(c.text)}</div></div>`;}).join('');})(t.comments);
+  if(panel)panel.innerHTML=(function(comments){if(!comments||!comments.length)return "<div style='font-size:10px;color:var(--t3);padding:4px 0'>No comments yet.</div>";return comments.map((c,ci)=>{const isOwn=c.author===(D.creds.userName||(D.teams[0]&&D.teams[0].members[0]&&D.teams[0].members[0].name)||'Idris');return `<div style="padding:5px 0;border-bottom:1px solid var(--s3)"><div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--t3);margin-bottom:2px"><span>${esc(c.author||'Idris')}</span><div style="display:flex;gap:4px;align-items:center"><span>${c.ts||''}</span>${isOwn?`<span onclick="editTaskComment(${_tidLit(taskId)},${ci})" style="cursor:pointer;color:var(--ach);font-size:11px" title="Edit">✏</span><span onclick="deleteTaskComment(${_tidLit(taskId)},${ci})" style="cursor:pointer;color:var(--red);font-size:11px" title="Delete">✕</span>`:''}</div></div><div style="font-size:11px">${esc(c.text)}</div></div>`;}).join('');})(t.comments);
   toast('💬 Comment added');
 }
 function editTaskComment(taskId,ci){
@@ -5880,8 +5880,8 @@ function editTaskComment(taskId,ci){
           +`<span>${esc(c.author||'Idris')}</span>`
           +`<div style="display:flex;gap:4px;align-items:center">`
           +`<span>${c.ts||''}${c.edited?' (edited)':''}</span>`
-          +(isOwn?`<span onclick="editTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--ach);font-size:11px" title="Edit">✏</span>`
-          +`<span onclick="deleteTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--red);font-size:11px" title="Delete">✕</span>`:'')
+          +(isOwn?`<span onclick="editTaskComment(${_tidLit(taskId)},${ci})" style="cursor:pointer;color:var(--ach);font-size:11px" title="Edit">✏</span>`
+          +`<span onclick="deleteTaskComment(${_tidLit(taskId)},${ci})" style="cursor:pointer;color:var(--red);font-size:11px" title="Delete">✕</span>`:'')
           +`</div></div>`
           +`<div style="font-size:11px">${esc(c.text)}</div>`
           +`</div>`;
@@ -5906,8 +5906,8 @@ function deleteTaskComment(taskId,ci){
           +`<span>${esc(c.author||'Idris')}</span>`
           +`<div style="display:flex;gap:4px;align-items:center">`
           +`<span>${c.ts||''}</span>`
-          +(isOwn?`<span onclick="editTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--ach);font-size:11px" title="Edit">✏</span>`
-          +`<span onclick="deleteTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--red);font-size:11px" title="Delete">✕</span>`:'')
+          +(isOwn?`<span onclick="editTaskComment(${_tidLit(taskId)},${ci})" style="cursor:pointer;color:var(--ach);font-size:11px" title="Edit">✏</span>`
+          +`<span onclick="deleteTaskComment(${_tidLit(taskId)},${ci})" style="cursor:pointer;color:var(--red);font-size:11px" title="Delete">✕</span>`:'')
           +`</div></div>`
           +`<div style="font-size:11px">${esc(c.text)}</div>`
           +`</div>`;

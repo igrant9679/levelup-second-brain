@@ -194,7 +194,7 @@ async function aiSuggestSubtasks(id){
       <div style="font-size:11px;color:var(--t3);margin-bottom:8px">Pick which to add (all selected by default):</div>
       <div id="ai-sub-list" style="max-height:300px;overflow-y:auto">${arr.map((s,i)=>`<label style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;cursor:pointer;font-size:12px;line-height:1.4"><input type="checkbox" checked data-idx="${i}" style="accent-color:var(--ac);margin-top:3px"><span>${esc(s)}</span></label>`).join('')}</div>
       <div style="display:flex;gap:8px;margin-top:12px">
-        <button class="btn btn-p" onclick="_applyAISubtasks(${id})">Add Selected</button>
+        <button class="btn btn-p" onclick="_applyAISubtasks(${_tidLit(id)})">Add Selected</button>
         <button class="btn btn-s" onclick="closeModal()">Cancel</button>
       </div>`;
     window._aiSubtasksList=arr;window._aiSubtasksTaskId=id;
@@ -385,7 +385,7 @@ function aiSuggestDelegate(id){
   ${top.map(({m:member,score,workload,matches})=>`<div style="padding:8px;margin-bottom:6px;border-radius:6px;background:var(--s2);display:flex;align-items:center;gap:10px">
     <div style="width:32px;height:32px;border-radius:50%;background:var(--ac);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">${member.name.split(' ').map(w=>w[0]).join('').slice(0,2)}</div>
     <div style="flex:1"><div style="font-size:12px;font-weight:600">${esc(member.name)}</div><div style="font-size:11px;color:var(--t3)">${esc(member.role)} · ${workload} active task${workload!==1?'s':''} · ${matches} keyword match${matches!==1?'es':''}</div></div>
-    <button class="btn btn-p" style="height:26px;font-size:11px" onclick="closeModal();handOff(${id},{name:'${_jsAttr(member.name)}'})">Hand off</button>
+    <button class="btn btn-p" style="height:26px;font-size:11px" onclick="closeModal();handOff(${_tidLit(id)},{name:'${_jsAttr(member.name)}'})">Hand off</button>
   </div>`).join('')}
   <button class="btn btn-s" style="margin-top:8px" onclick="closeModal()">Cancel</button>`;
   document.getElementById('modal-capture').classList.add('show');
@@ -409,7 +409,7 @@ function aiUnblockTask(id){
   <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Blocked by: <em>${esc(blockerTitle)}</em></div>
   <div style="max-height:240px;overflow-y:auto">${suggestions.map((s,i)=>`<div style="padding:7px 10px;margin-bottom:5px;border-radius:6px;background:var(--s2);font-size:12px;display:flex;gap:8px;align-items:flex-start"><span style="color:var(--ach);font-weight:700;flex-shrink:0">${i+1}.</span><span>${esc(s)}</span></div>`).join('')}</div>
   <div style="display:flex;gap:8px;margin-top:12px">
-  <button class="btn btn-p" onclick="const task=D.tasks.find(x=>x.id===${id});if(task){task.blockedBy=null;task.status='Not Started';save('tasks');renderScreen(curScreen);closeModal();toast('🔓 Task unblocked!')}">Mark as Unblocked</button>
+  <button class="btn btn-p" onclick="const task=D.tasks.find(x=>x.id==${_tidLit(id)});if(task){task.blockedBy=null;task.status='Not Started';save('tasks');renderScreen(curScreen);closeModal();toast('🔓 Task unblocked!')}">Mark as Unblocked</button>
   <button class="btn btn-s" onclick="closeModal()">Close</button>
   </div>`;
   document.getElementById('modal-capture').classList.add('show');
@@ -546,6 +546,9 @@ function _taskSmartParse(raw){
 }
 // F: keyboard navigation on Tasks screen
 let _taskKbSelectedId=null;
+// A task id read back from data-task-id: numbers stay numbers, server-made
+// string ids (s1716...) stay strings (audit F82: Number() turned them into NaN).
+function _tidOf(v){const s=String(v==null?'':v);return /^\d+$/.test(s)?Number(s):s;}
 function _tasksKbHandler(e){
   if(typeof curScreen==='undefined'||curScreen!=='tasks')return;
   const t=e.target;
@@ -554,12 +557,12 @@ function _tasksKbHandler(e){
   // Visible task rows: cluster taskRow has no data-task-id directly; we look at any [data-task-id]
   const visible=Array.from(document.querySelectorAll('#tasks-list [data-task-id]'));
   if(!visible.length)return;
-  let idx=visible.findIndex(el=>Number(el.dataset.taskId)===_taskKbSelectedId);
+  let idx=visible.findIndex(el=>_tidOf(el.dataset.taskId)===_taskKbSelectedId);
   const sel=()=>{
     const el=visible[idx];if(!el)return;
     visible.forEach(v=>v.classList.remove('lr-kb-on','tl-kb-on'));
     el.classList.add(el.classList.contains('tl-row')?'tl-kb-on':'lr-kb-on');
-    _taskKbSelectedId=Number(el.dataset.taskId);
+    _taskKbSelectedId=_tidOf(el.dataset.taskId);
     el.scrollIntoView({block:'nearest'});
   };
   if(e.key==='j'||e.key==='ArrowDown'){idx=Math.min(visible.length-1,(idx<0?0:idx+1));sel();e.preventDefault();}
@@ -4244,7 +4247,7 @@ function _tlDrop(e,targetId){
   if(!_tlDragId||_tlDragId===targetId)return;
   // Pull the dragged task; insert just before the drop target in the visible list.
   // Rewrite sortOrder across all tasks so subsequent renders reflect the new order.
-  const visible=Array.from(document.querySelectorAll('#tasks-list [data-task-id]')).map(el=>Number(el.dataset.taskId));
+  const visible=Array.from(document.querySelectorAll('#tasks-list [data-task-id]')).map(el=>_tidOf(el.dataset.taskId));
   const dragIdx=visible.indexOf(_tlDragId);const dropIdx=visible.indexOf(targetId);
   if(dragIdx<0||dropIdx<0)return;
   visible.splice(dragIdx,1);visible.splice(dragIdx<dropIdx?dropIdx-1:dropIdx,0,_tlDragId);
@@ -6610,9 +6613,10 @@ function bulkCompleteVisible(){
   if(!rows.length){toast('No tasks to complete');return;}
   if(!confirm(`Mark ${rows.length} visible task(s) as Done?`))return;
   rows.forEach(el=>{
-    const id=parseInt(el.dataset.taskId);
+    const id=_tidOf(el.dataset.taskId);
     const t=D.tasks.find(x=>x.id===id);
-    if(t&&t.status!=='Done'){t.status='Done';_syncTaskCompletedAt(t);maybeSpawnRecurring(t);}
+    // The one status path (activity log, updatedAt, repeats, linked goals).
+    if(t&&t.status!=='Done')setTaskStatus(t,'Done',{noSave:true});
   });
   save('tasks');updateSidebarBadges();renderScreen(curScreen);
   toast(`✓ ${rows.length} task(s) marked Done`);

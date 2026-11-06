@@ -1660,9 +1660,9 @@ function renderArchive(){
   const typeColors={Task:'var(--ac)',Project:'var(--purp)',Goal:'var(--red)',Note:'var(--ok)'};
   const rows=items.length?items.map(i=>`<div class="lr">
     <span style="font-size:11px;font-weight:700;padding:2px 6px;border-radius:4px;background:var(--s3);color:${typeColors[i.type]||'var(--t3)'}">${i.type}</span>
-    <span class="rt" style="cursor:pointer" onclick="archiveRestore('${_jsAttr(i.restore)}',${i.id})" title="Open / restore">${esc(i.title)}</span>
+    <span class="rt" style="cursor:pointer" onclick="archiveRestore('${_jsAttr(i.restore)}',${_tidLit(i.id)})" title="Open / restore">${esc(i.title)}</span>
     <span class="rm">${fmt(i.date)||'<span style="color:var(--t3)">—</span>'}</span>
-    <span class="acts"><button class="btn btn-s" style="height:20px;font-size:10px;padding:0 8px" onclick="archiveRestore('${_jsAttr(i.restore)}',${i.id})">${i.type==='Goal'?'Open':'↩ Restore'}</button></span>
+    <span class="acts"><button class="btn btn-s" style="height:20px;font-size:10px;padding:0 8px" onclick="archiveRestore('${_jsAttr(i.restore)}',${_tidLit(i.id)})">${i.type==='Goal'?'Open':'↩ Restore'}</button></span>
   </div>`).join(''):`<div style="text-align:center;padding:36px 16px;color:var(--t3);font-size:12px">Nothing archived${_archiveTab!=='All'?` in ${_archiveTab}s`:''}${_archiveSearch?' matching your search':''}. Completed tasks, archived projects, finished goals and archived notes appear here.</div>`;
   $('arch-main').innerHTML=`<div class="pg-h"><h1>🗄 Archive</h1><p style="font-size:12px;color:var(--t2)">${counts.All} item${counts.All===1?'':'s'} · completed &amp; archived</p></div>
 <div class="tabs">${tabs.map(t=>`<div class="tab ${_archiveTab===t?'on':''}" onclick="setArchiveTab('${_jsAttr(t)}')">${t==='All'?'All':t+'s'}${counts[t]?` <span class="tc">${counts[t]}</span>`:''}</div>`).join('')}</div>
@@ -3745,22 +3745,24 @@ function exportIdeaPDF(id){
     answersHtml+=`<h3 style="font-size:13px;font-weight:700;margin:16px 0 8px;color:#4f46e5">${IDEA_STAGE_LABELS[s]} Stage</h3>`;
     stageAnswers.forEach(a=>{
       const q=stageQs.find(x=>x.key===a.question_key);
-      answersHtml+=`<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:4px">${q?q.prompt:a.question_key}</div><div style="font-size:11px;color:#374151;line-height:1.6;padding:8px;background:#f9fafb;border-radius:4px">${a.body.replace(/\n/g,'<br>')}</div></div>`;
+      answersHtml+=`<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:4px">${esc(q?q.prompt:a.question_key)}</div><div style="font-size:11px;color:#374151;line-height:1.6;padding:8px;background:#f9fafb;border-radius:4px">${esc(a.body).replace(/\n/g,'<br>')}</div></div>`;
     });
   });
-  const pmHtml=idea.premortem?`<h3 style="font-size:13px;font-weight:700;margin:16px 0 8px;color:#dc2626">Premortem Analysis</h3><div style="font-size:11px;color:#374151;line-height:1.6;padding:8px;background:#fef2f2;border-radius:4px">${idea.premortem.replace(/\n/g,'<br>')}</div>`:'';
-  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${idea.title}</title><style>body{font-family:system-ui,sans-serif;max-width:700px;margin:0 auto;padding:32px;color:#111}@media print{body{padding:0}}</style></head><body>
+  const pmHtml=idea.premortem?`<h3 style="font-size:13px;font-weight:700;margin:16px 0 8px;color:#dc2626">Premortem Analysis</h3><div style="font-size:11px;color:#374151;line-height:1.6;padding:8px;background:#fef2f2;border-radius:4px">${esc(idea.premortem).replace(/\n/g,'<br>')}</div>`:'';
+  // Everything the idea holds is escaped or sanitized: this document is written
+  // into a same-origin window (audit F4).
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(idea.title)}</title><style>body{font-family:system-ui,sans-serif;max-width:700px;margin:0 auto;padding:32px;color:#111}@media print{body{padding:0}}</style></head><body>
   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid #4f46e5">
-    <div><h1 style="font-size:22px;font-weight:800;margin:0 0 6px">${idea.title}</h1><div style="font-size:12px;color:#6b7280">${typeLabel} &bull; ${stageLabel} &bull; Created ${_pd(idea.createdAt).toLocaleDateString()}</div></div>
-    <div style="text-align:center;background:#eef2ff;border-radius:8px;padding:8px 16px"><div style="font-size:24px;font-weight:800;color:#4f46e5">${ice}</div><div style="font-size:11px;color:#6b7280">ICE Score</div></div>
+    <div><h1 style="font-size:22px;font-weight:800;margin:0 0 6px">${esc(idea.title)}</h1><div style="font-size:12px;color:#6b7280">${esc(typeLabel)} &bull; ${esc(stageLabel)} &bull; Created ${_pd(idea.createdAt).toLocaleDateString()}</div></div>
+    <div style="text-align:center;background:#eef2ff;border-radius:8px;padding:8px 16px"><div style="font-size:24px;font-weight:800;color:#4f46e5">${esc(ice)}</div><div style="font-size:11px;color:#6b7280">ICE Score</div></div>
   </div>
   <div style="display:flex;gap:16px;margin-bottom:16px">
-    <div style="flex:1;background:#f9fafb;border-radius:6px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:700;color:#4f46e5">${idea.ice_impact||5}</div><div style="font-size:11px;color:#6b7280">Impact</div></div>
-    <div style="flex:1;background:#f9fafb;border-radius:6px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:700;color:#4f46e5">${idea.ice_confidence||5}</div><div style="font-size:11px;color:#6b7280">Confidence</div></div>
-    <div style="flex:1;background:#f9fafb;border-radius:6px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:700;color:#4f46e5">${idea.ice_ease||5}</div><div style="font-size:11px;color:#6b7280">Ease</div></div>
+    <div style="flex:1;background:#f9fafb;border-radius:6px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:700;color:#4f46e5">${esc(idea.ice_impact||5)}</div><div style="font-size:11px;color:#6b7280">Impact</div></div>
+    <div style="flex:1;background:#f9fafb;border-radius:6px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:700;color:#4f46e5">${esc(idea.ice_confidence||5)}</div><div style="font-size:11px;color:#6b7280">Confidence</div></div>
+    <div style="flex:1;background:#f9fafb;border-radius:6px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:700;color:#4f46e5">${esc(idea.ice_ease||5)}</div><div style="font-size:11px;color:#6b7280">Ease</div></div>
   </div>
-  ${idea.description?`<div style="margin-bottom:16px"><h3 style="font-size:13px;font-weight:700;margin:0 0 6px">Description</h3><p style="font-size:11px;color:#374151;line-height:1.6">${idea.description}</p></div>`:''}
-  ${idea.bodyHtml?`<div style="margin-bottom:16px"><h3 style="font-size:13px;font-weight:700;margin:0 0 6px">Full Description</h3><div style="font-size:11px;color:#374151;line-height:1.6;padding:10px;background:#f9fafb;border-radius:6px;border-left:3px solid #4f46e5">${idea.bodyHtml}</div></div>`:''}
+  ${idea.description?`<div style="margin-bottom:16px"><h3 style="font-size:13px;font-weight:700;margin:0 0 6px">Description</h3><p style="font-size:11px;color:#374151;line-height:1.6">${esc(idea.description)}</p></div>`:''}
+  ${idea.bodyHtml?`<div style="margin-bottom:16px"><h3 style="font-size:13px;font-weight:700;margin:0 0 6px">Full Description</h3><div style="font-size:11px;color:#374151;line-height:1.6;padding:10px;background:#f9fafb;border-radius:6px;border-left:3px solid #4f46e5">${luSanitizeHtml(idea.bodyHtml)}</div></div>`:''}
   ${answersHtml}
   ${pmHtml}
   <div style="margin-top:24px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;text-align:center">Generated by LevelUp Second Brain &bull; ${new Date().toLocaleDateString()}</div>
@@ -3820,21 +3822,21 @@ function exportSingleJournalMD(id){
 function exportSingleJournalPDF(id){
   const j=D.journal.find(x=>x.id===id);
   if(!j){toast('\u26a0 Entry not found');return;}
-  const moodBadge=j.mood?`<span style="font-size:22px;margin-left:8px">${j.mood}</span>`:'';
+  const moodBadge=j.mood?`<span style="font-size:22px;margin-left:8px">${esc(j.mood)}</span>`:'';
   const metaBadges=[
-    j.energy?`<span style="background:#eef2ff;color:#4f46e5;border-radius:10px;padding:2px 10px;font-size:11px">${j.energy}</span>`:'',
-    j.type?`<span style="background:#f0fdf4;color:#16a34a;border-radius:10px;padding:2px 10px;font-size:11px">${j.type}</span>`:'',
+    j.energy?`<span style="background:#eef2ff;color:#4f46e5;border-radius:10px;padding:2px 10px;font-size:11px">${esc(j.energy)}</span>`:'',
+    j.type?`<span style="background:#f0fdf4;color:#16a34a;border-radius:10px;padding:2px 10px;font-size:11px">${esc(j.type)}</span>`:'',
   ].filter(Boolean).join(' ');
-  const bodyHtml=j.body?`<p style="font-size:12px;color:#374151;line-height:1.7;margin:10px 0">${j.body.replace(/\n/g,'<br>')}</p>`:'';
-  const diaryHtml=j.diaryBody?`<div style="margin-top:12px;padding:12px;background:#f9fafb;border-left:3px solid #4f46e5;border-radius:0 6px 6px 0"><div style="font-size:11px;font-weight:700;color:#4f46e5;margin-bottom:8px">\ud83d\udcd3 Diary Entry</div><div style="font-size:12px;color:#374151;line-height:1.7">${j.diaryBody}</div></div>`:'';
-  const gratHtml=(j.gratitude||[]).filter(Boolean).length?`<div style="margin-top:12px"><div style="font-size:11px;font-weight:700;color:#d97706;margin-bottom:6px">\ud83d\ude4f Gratitude</div>${j.gratitude.filter(Boolean).map(g=>`<div style="font-size:12px;color:#374151;padding:3px 0">\u2022 ${g}</div>`).join('')}</div>`:'';
-  const winsHtml=(j.wins||[]).filter(Boolean).length?`<div style="margin-top:12px"><div style="font-size:11px;font-weight:700;color:#16a34a;margin-bottom:6px">\ud83c\udf1f Wins</div>${j.wins.filter(Boolean).map(w=>`<div style="font-size:12px;color:#374151;padding:3px 0">\u2022 ${w}</div>`).join('')}</div>`:'';
-  const improvHtml=(j.improvements||[]).filter(Boolean).length?`<div style="margin-top:12px"><div style="font-size:11px;font-weight:700;color:#7c3aed;margin-bottom:6px">\ud83d\udd04 Improvements</div>${j.improvements.filter(Boolean).map(i=>`<div style="font-size:12px;color:#374151;padding:3px 0">\u2022 ${i}</div>`).join('')}</div>`:'';
-  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${j.title||'Journal Entry'}</title><style>body{font-family:system-ui,sans-serif;max-width:680px;margin:0 auto;padding:36px;color:#111}@media print{body{padding:0}}</style></head><body>
+  const bodyHtml=j.body?`<p style="font-size:12px;color:#374151;line-height:1.7;margin:10px 0">${esc(j.body).replace(/\n/g,'<br>')}</p>`:'';
+  const diaryHtml=j.diaryBody?`<div style="margin-top:12px;padding:12px;background:#f9fafb;border-left:3px solid #4f46e5;border-radius:0 6px 6px 0"><div style="font-size:11px;font-weight:700;color:#4f46e5;margin-bottom:8px">\ud83d\udcd3 Diary Entry</div><div style="font-size:12px;color:#374151;line-height:1.7">${luSanitizeHtml(j.diaryBody)}</div></div>`:'';
+  const gratHtml=(j.gratitude||[]).filter(Boolean).length?`<div style="margin-top:12px"><div style="font-size:11px;font-weight:700;color:#d97706;margin-bottom:6px">\ud83d\ude4f Gratitude</div>${j.gratitude.filter(Boolean).map(g=>`<div style="font-size:12px;color:#374151;padding:3px 0">\u2022 ${esc(g)}</div>`).join('')}</div>`:'';
+  const winsHtml=(j.wins||[]).filter(Boolean).length?`<div style="margin-top:12px"><div style="font-size:11px;font-weight:700;color:#16a34a;margin-bottom:6px">\ud83c\udf1f Wins</div>${j.wins.filter(Boolean).map(w=>`<div style="font-size:12px;color:#374151;padding:3px 0">\u2022 ${esc(w)}</div>`).join('')}</div>`:'';
+  const improvHtml=(j.improvements||[]).filter(Boolean).length?`<div style="margin-top:12px"><div style="font-size:11px;font-weight:700;color:#7c3aed;margin-bottom:6px">\ud83d\udd04 Improvements</div>${j.improvements.filter(Boolean).map(i=>`<div style="font-size:12px;color:#374151;padding:3px 0">\u2022 ${esc(i)}</div>`).join('')}</div>`:'';
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(j.title||'Journal Entry')}</title><style>body{font-family:system-ui,sans-serif;max-width:680px;margin:0 auto;padding:36px;color:#111}@media print{body{padding:0}}</style></head><body>
   <div style="margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #4f46e5">
     <div style="display:flex;align-items:center;margin-bottom:6px">
-      <h1 style="font-size:22px;font-weight:800;margin:0;flex:1">${j.title||'Journal Entry'}${moodBadge}</h1>
-      <div style="font-size:12px;color:#6b7280">${j.date||''}</div>
+      <h1 style="font-size:22px;font-weight:800;margin:0;flex:1">${esc(j.title||'Journal Entry')}${moodBadge}</h1>
+      <div style="font-size:12px;color:#6b7280">${esc(j.date||'')}</div>
     </div>
     ${metaBadges?`<div>${metaBadges}</div>`:''}
   </div>
@@ -3902,15 +3904,15 @@ function _exportJournalPDFEntries(entries){
   const sorted=[...entries].sort((a,b)=>_pd(b.date)-_pd(a.date));
   let entriesHtml='';
   sorted.forEach((j,idx)=>{
-    const moodBadge=j.mood?`<span style="font-size:18px;margin-left:8px">${j.mood}</span>`:'';
-    const metaBadges=[j.energy?`<span style="background:#eef2ff;color:#4f46e5;border-radius:10px;padding:1px 8px;font-size:11px">${j.energy}</span>`:'',j.type?`<span style="background:#f0fdf4;color:#16a34a;border-radius:10px;padding:1px 8px;font-size:11px">${j.type}</span>`:''].filter(Boolean).join(' ');
-    const bodyHtml=j.body?`<p style="font-size:11px;color:#374151;line-height:1.7;margin:8px 0">${j.body.replace(/\n/g,'<br>')}</p>`:'';
-    const diaryHtml=j.diaryBody?`<div style="margin-top:10px;padding:10px;background:#f9fafb;border-left:3px solid #4f46e5;border-radius:0 6px 6px 0"><div style="font-size:11px;font-weight:700;color:#4f46e5;margin-bottom:6px">\ud83d\udcd3 Diary Entry</div><div style="font-size:11px;color:#374151;line-height:1.7">${j.diaryBody}</div></div>`:'';
-    const gratHtml=(j.gratitude||[]).filter(Boolean).length?`<div style="margin-top:8px"><div style="font-size:11px;font-weight:700;color:#d97706;margin-bottom:4px">\ud83d\ude4f Gratitude</div>${j.gratitude.filter(Boolean).map(g=>`<div style="font-size:11px;color:#374151;padding:2px 0">\u2022 ${g}</div>`).join('')}</div>`:'';
-    const winsHtml=(j.wins||[]).filter(Boolean).length?`<div style="margin-top:8px"><div style="font-size:11px;font-weight:700;color:#16a34a;margin-bottom:4px">\ud83c\udf1f Wins</div>${j.wins.filter(Boolean).map(w=>`<div style="font-size:11px;color:#374151;padding:2px 0">\u2022 ${w}</div>`).join('')}</div>`:'';
-    const improvHtml=(j.improvements||[]).filter(Boolean).length?`<div style="margin-top:8px"><div style="font-size:11px;font-weight:700;color:#7c3aed;margin-bottom:4px">\ud83d\udd04 Improvements</div>${j.improvements.filter(Boolean).map(i=>`<div style="font-size:11px;color:#374151;padding:2px 0">\u2022 ${i}</div>`).join('')}</div>`:'';
+    const moodBadge=j.mood?`<span style="font-size:18px;margin-left:8px">${esc(j.mood)}</span>`:'';
+    const metaBadges=[j.energy?`<span style="background:#eef2ff;color:#4f46e5;border-radius:10px;padding:1px 8px;font-size:11px">${esc(j.energy)}</span>`:'',j.type?`<span style="background:#f0fdf4;color:#16a34a;border-radius:10px;padding:1px 8px;font-size:11px">${esc(j.type)}</span>`:''].filter(Boolean).join(' ');
+    const bodyHtml=j.body?`<p style="font-size:11px;color:#374151;line-height:1.7;margin:8px 0">${esc(j.body).replace(/\n/g,'<br>')}</p>`:'';
+    const diaryHtml=j.diaryBody?`<div style="margin-top:10px;padding:10px;background:#f9fafb;border-left:3px solid #4f46e5;border-radius:0 6px 6px 0"><div style="font-size:11px;font-weight:700;color:#4f46e5;margin-bottom:6px">\ud83d\udcd3 Diary Entry</div><div style="font-size:11px;color:#374151;line-height:1.7">${luSanitizeHtml(j.diaryBody)}</div></div>`:'';
+    const gratHtml=(j.gratitude||[]).filter(Boolean).length?`<div style="margin-top:8px"><div style="font-size:11px;font-weight:700;color:#d97706;margin-bottom:4px">\ud83d\ude4f Gratitude</div>${j.gratitude.filter(Boolean).map(g=>`<div style="font-size:11px;color:#374151;padding:2px 0">\u2022 ${esc(g)}</div>`).join('')}</div>`:'';
+    const winsHtml=(j.wins||[]).filter(Boolean).length?`<div style="margin-top:8px"><div style="font-size:11px;font-weight:700;color:#16a34a;margin-bottom:4px">\ud83c\udf1f Wins</div>${j.wins.filter(Boolean).map(w=>`<div style="font-size:11px;color:#374151;padding:2px 0">\u2022 ${esc(w)}</div>`).join('')}</div>`:'';
+    const improvHtml=(j.improvements||[]).filter(Boolean).length?`<div style="margin-top:8px"><div style="font-size:11px;font-weight:700;color:#7c3aed;margin-bottom:4px">\ud83d\udd04 Improvements</div>${j.improvements.filter(Boolean).map(i=>`<div style="font-size:11px;color:#374151;padding:2px 0">\u2022 ${esc(i)}</div>`).join('')}</div>`:'';
     entriesHtml+=`<div style="page-break-inside:avoid;margin-bottom:24px;padding-bottom:20px;${idx<sorted.length-1?'border-bottom:1px solid #e5e7eb':''}">
-      <div style="display:flex;align-items:center;margin-bottom:8px"><h2 style="font-size:15px;font-weight:700;margin:0;flex:1">${j.title||'Untitled Entry'}${moodBadge}</h2><div style="font-size:11px;color:#6b7280">${j.date||''}</div></div>
+      <div style="display:flex;align-items:center;margin-bottom:8px"><h2 style="font-size:15px;font-weight:700;margin:0;flex:1">${esc(j.title||'Untitled Entry')}${moodBadge}</h2><div style="font-size:11px;color:#6b7280">${esc(j.date||'')}</div></div>
       ${metaBadges?`<div style="margin-bottom:8px">${metaBadges}</div>`:''}
       ${bodyHtml}${diaryHtml}${gratHtml}${winsHtml}${improvHtml}
     </div>`;
@@ -3961,20 +3963,20 @@ function exportJournalPDF(){
   const sorted=[...D.journal].sort((a,b)=>_pd(b.date)-_pd(a.date));
   let entriesHtml='';
   sorted.forEach((j,idx)=>{
-    const moodBadge=j.mood?`<span style="font-size:18px;margin-left:8px">${j.mood}</span>`:'';
+    const moodBadge=j.mood?`<span style="font-size:18px;margin-left:8px">${esc(j.mood)}</span>`:'';
     const metaBadges=[
-      j.energy?`<span style="background:#eef2ff;color:#4f46e5;border-radius:10px;padding:1px 8px;font-size:11px">${j.energy}</span>`:'',
-      j.type?`<span style="background:#f0fdf4;color:#16a34a;border-radius:10px;padding:1px 8px;font-size:11px">${j.type}</span>`:'',
+      j.energy?`<span style="background:#eef2ff;color:#4f46e5;border-radius:10px;padding:1px 8px;font-size:11px">${esc(j.energy)}</span>`:'',
+      j.type?`<span style="background:#f0fdf4;color:#16a34a;border-radius:10px;padding:1px 8px;font-size:11px">${esc(j.type)}</span>`:'',
     ].filter(Boolean).join(' ');
-    const bodyHtml=j.body?`<p style="font-size:11px;color:#374151;line-height:1.7;margin:8px 0">${j.body.replace(/\n/g,'<br>')}</p>`:'';
-    const diaryHtml=j.diaryBody?`<div style="margin-top:10px;padding:10px;background:#f9fafb;border-left:3px solid #4f46e5;border-radius:0 6px 6px 0"><div style="font-size:11px;font-weight:700;color:#4f46e5;margin-bottom:6px">📓 Diary Entry</div><div style="font-size:11px;color:#374151;line-height:1.7">${j.diaryBody}</div></div>`:'';
-    const gratHtml=(j.gratitude||[]).filter(Boolean).length?`<div style="margin-top:8px"><div style="font-size:11px;font-weight:700;color:#d97706;margin-bottom:4px">🙏 Gratitude</div>${j.gratitude.filter(Boolean).map(g=>`<div style="font-size:11px;color:#374151;padding:2px 0">• ${g}</div>`).join('')}</div>`:'';
-    const winsHtml=(j.wins||[]).filter(Boolean).length?`<div style="margin-top:8px"><div style="font-size:11px;font-weight:700;color:#16a34a;margin-bottom:4px">🌟 Wins</div>${j.wins.filter(Boolean).map(w=>`<div style="font-size:11px;color:#374151;padding:2px 0">• ${w}</div>`).join('')}</div>`:'';
-    const improvHtml=(j.improvements||[]).filter(Boolean).length?`<div style="margin-top:8px"><div style="font-size:11px;font-weight:700;color:#7c3aed;margin-bottom:4px">🔄 Improvements</div>${j.improvements.filter(Boolean).map(i=>`<div style="font-size:11px;color:#374151;padding:2px 0">• ${i}</div>`).join('')}</div>`:'';
+    const bodyHtml=j.body?`<p style="font-size:11px;color:#374151;line-height:1.7;margin:8px 0">${esc(j.body).replace(/\n/g,'<br>')}</p>`:'';
+    const diaryHtml=j.diaryBody?`<div style="margin-top:10px;padding:10px;background:#f9fafb;border-left:3px solid #4f46e5;border-radius:0 6px 6px 0"><div style="font-size:11px;font-weight:700;color:#4f46e5;margin-bottom:6px">📓 Diary Entry</div><div style="font-size:11px;color:#374151;line-height:1.7">${luSanitizeHtml(j.diaryBody)}</div></div>`:'';
+    const gratHtml=(j.gratitude||[]).filter(Boolean).length?`<div style="margin-top:8px"><div style="font-size:11px;font-weight:700;color:#d97706;margin-bottom:4px">🙏 Gratitude</div>${j.gratitude.filter(Boolean).map(g=>`<div style="font-size:11px;color:#374151;padding:2px 0">• ${esc(g)}</div>`).join('')}</div>`:'';
+    const winsHtml=(j.wins||[]).filter(Boolean).length?`<div style="margin-top:8px"><div style="font-size:11px;font-weight:700;color:#16a34a;margin-bottom:4px">🌟 Wins</div>${j.wins.filter(Boolean).map(w=>`<div style="font-size:11px;color:#374151;padding:2px 0">• ${esc(w)}</div>`).join('')}</div>`:'';
+    const improvHtml=(j.improvements||[]).filter(Boolean).length?`<div style="margin-top:8px"><div style="font-size:11px;font-weight:700;color:#7c3aed;margin-bottom:4px">🔄 Improvements</div>${j.improvements.filter(Boolean).map(i=>`<div style="font-size:11px;color:#374151;padding:2px 0">• ${esc(i)}</div>`).join('')}</div>`:'';
     entriesHtml+=`<div style="page-break-inside:avoid;margin-bottom:24px;padding-bottom:20px;${idx<sorted.length-1?'border-bottom:1px solid #e5e7eb':''}">
       <div style="display:flex;align-items:center;margin-bottom:8px">
-        <h2 style="font-size:15px;font-weight:700;margin:0;flex:1">${j.title||'Untitled Entry'}${moodBadge}</h2>
-        <div style="font-size:11px;color:#6b7280">${j.date||''}</div>
+        <h2 style="font-size:15px;font-weight:700;margin:0;flex:1">${esc(j.title||'Untitled Entry')}${moodBadge}</h2>
+        <div style="font-size:11px;color:#6b7280">${esc(j.date||'')}</div>
       </div>
       ${metaBadges?`<div style="margin-bottom:8px">${metaBadges}</div>`:''}
       ${bodyHtml}${diaryHtml}${gratHtml}${winsHtml}${improvHtml}
@@ -4119,7 +4121,7 @@ function openIdeaShare(id){
     <div style="display:flex;gap:6px">
       <button class="btn btn-p" style="font-size:11px" onclick="navigator.clipboard.writeText('${_jsAttr(publicUrl)}').then(()=>toast('✓ Link copied to clipboard!'))">📋 Copy Link</button>
       <button class="btn btn-s" style="font-size:11px" onclick="_luOpenUrl('${_jsAttr(publicUrl)}')">👁 Preview</button>
-      <button class="btn btn-s" style="font-size:11px;color:var(--red)" onclick="D.ideas.find(x=>x.id===${id}).public_token=null;save('ideas');closeModal();toast('Link revoked.')">🚫 Revoke</button>
+      <button class="btn btn-s" style="font-size:11px;color:var(--red)" onclick="D.ideas.find(x=>x.id==${_tidLit(id)}).public_token=null;save('ideas');closeModal();toast('Link revoked.')">🚫 Revoke</button>
     </div>
   </div>
   <div style="font-size:11px;font-weight:600;margin-bottom:8px">Or invite a specific collaborator:</div>

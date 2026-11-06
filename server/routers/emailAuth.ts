@@ -29,6 +29,28 @@ import { hit, blocked, clearKey, clientIp } from "../_core/rateLimit";
 function hashResetToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
+/**
+ * F12 (audit 2026-10-25): display name and email are unverified and editable.
+ * Access is decided by numeric user ids only, but the OWNER's save still turns
+ * a legacy name/email assignment string into an id (unique matches only), so
+ * an account must not be able to take a name or email another account already
+ * uses. Returns the other accounts (not selfId) whose email OR display name
+ * equals `value`, case-insensitively. Best effort: if the list can't be read,
+ * returns [] (getUserByEmail still guards exact email matches).
+ */
+async function otherAccountsUsing(selfId: number, value: string): Promise<Array<{ id: number }>> {
+  const key = String(value || '').trim().toLowerCase();
+  if (!key) return [];
+  try {
+    const all = await db.adminListAllUsers();
+    return (all || []).filter((u: any) => u && u.id !== selfId && (
+      (u.email && String(u.email).trim().toLowerCase() === key) ||
+      (u.name && String(u.name).trim().toLowerCase() === key)));
+  } catch { return []; }
+}
+async function invalidateIdentityCache() {
+  try { (await import('./appData'))._invalidateUserIdMap(); } catch { /* not loaded */ }
+}
 const escHtml = (s: string) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as any)[c]);
 
 /**
@@ -364,8 +386,14 @@ export const emailAuthRouter = router({
       if (existing && existing.id !== user.id) {
         throw new TRPCError({ code: 'CONFLICT', message: 'This email address is already in use by another account' });
       }
+      // F12: also case-insensitive (a stored mixed-case email, or a column
+      // collation that compares case), and never another account's display name.
+      if ((await otherAccountsUsing(user.id, newEmail)).length) {
+        throw new TRPCError({ code: 'CONFLICT', message: 'This email address is already in use by another account' });
+      }
       // Update email in DB
       await db.updateUserEmail(user.id, newEmail);
+      await invalidateIdentityCache();
       // For email-based accounts, also update the openId so login still works
       if (user.openId.startsWith('email:')) {
         const dbConn = await getDb();
@@ -392,7 +420,17 @@ export const emailAuthRouter = router({
       newName: z.string().min(1, 'Name cannot be empty').max(128),
     }))
     .mutation(async ({ input, ctx }) => {
-      await db.updateUserName(ctx.user.id, input.newName.trim());
+      const newName = input.newName.trim();
+      if (!newName) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Name cannot be empty' });
+      // F12: a display name another account already uses (as its name or its
+      // email) is refused — two accounts sharing a name is how one user's
+      // assignments once reached another account.
+      const unchanged = String(ctx.user.name || '').trim().toLowerCase() === newName.toLowerCase();
+      if (!unchanged && (await otherAccountsUsing(ctx.user.id, newName)).length) {
+        throw new TRPCError({ code: 'CONFLICT', message: 'Another account already uses this name. Please choose a different display name.' });
+      }
+      await db.updateUserName(ctx.user.id, newName);
+      await invalidateIdentityCache();
       return { success: true };
     }),
 

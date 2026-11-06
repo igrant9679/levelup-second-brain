@@ -29,6 +29,7 @@ import { coachMessages, pmRecords, smtpImapAccounts, userAppData, users } from "
 import { coachToken, parseCoachRef, processCoachReply } from "./coachCron";
 import { parsePmRef, processDelegateReply } from "./pmDelegation";
 import { isOwner } from "./ownerGuard";
+import { mailTlsOptions, ownerUserIds } from "./mailTrust";
 import { job } from "./lifecycle";
 
 const POLL_MS = 3 * 60 * 1000;
@@ -42,15 +43,16 @@ const state = { lastPollAt: null as Date | null, lastOkAt: null as Date | null, 
 export function coachReplyStatus() { return { ...state, lastSkips: state.lastSkips.slice(-8) }; }
 
 let _acct: { at: number; acct: Account | null } | null = null;
-/** The mailbox replies go to: the SMTP/IMAP account that sends system mail
- *  (lowest userId first — the same order sendEmail tries them in). */
+/** The mailbox replies go to: the owner's SMTP/IMAP account that sends system
+ *  mail (the same accounts sendEmail may use — never a member's, audit F8). */
 export async function getReplyInbox(): Promise<Account | null> {
   if (_acct && Date.now() - _acct.at < 5 * 60_000) return _acct.acct;
   const db = await getDb();
   let acct: Account | null = null;
   if (db) {
+    const owners = await ownerUserIds();
     const rows = await db.select().from(smtpImapAccounts);
-    acct = rows.filter((r) => r.imapHost && r.imapUsername && r.imapPassword).sort((a, b) => a.userId - b.userId)[0] || null;
+    acct = rows.filter((r) => owners.has(r.userId) && r.imapHost && r.imapUsername && r.imapPassword).sort((a, b) => a.userId - b.userId)[0] || null;
   }
   _acct = { at: Date.now(), acct };
   state.address = acct?.email || null;
@@ -119,7 +121,7 @@ function connect(a: Account): Promise<Imap> {
   const imap = new Imap({
     user: a.imapUsername, password: a.imapPassword, host: a.imapHost, port, tls,
     autotls: !tls && a.imapEncryption !== "none" ? "required" : "never",
-    tlsOptions: { rejectUnauthorized: false }, connTimeout: 15000, authTimeout: 15000,
+    tlsOptions: mailTlsOptions(), connTimeout: 15000, authTimeout: 15000,
   } as any);
   return new Promise((resolve, reject) => {
     imap.once("ready", () => resolve(imap));

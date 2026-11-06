@@ -19,7 +19,7 @@ import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { pmPeople, pmRecords } from "../../drizzle/schema";
-import { processDelegationNudges, sendDelegateNudge } from "../_core/pmDelegation";
+import { knownRecipientEmails, processDelegationNudges, sendDelegateNudge } from "../_core/pmDelegation";
 import { sendEmail } from "../_core/sendEmail";
 import { spendQuota } from "../_core/quota";
 
@@ -166,6 +166,15 @@ export const pmRouter = router({
     html: z.string().min(1).max(400_000),
     text: z.string().max(100_000).optional(),
   })).mutation(async ({ ctx, input }) => {
+    // Audit F10: only people the sender already knows — their own address,
+    // workspace accounts, their PM people, their Contacts. Checked before any
+    // quota is spent or anything is sent.
+    const known = await knownRecipientEmails(await requireDb(), ctx.user.id);
+    if (ctx.user.email) known.add(String(ctx.user.email).trim().toLowerCase());
+    const unknown = input.to.filter((a) => !known.has(a.trim().toLowerCase()));
+    if (unknown.length) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: `Add ${unknown.length === 1 ? "this address" : "these addresses"} to the project's people or your Contacts first: ${unknown.join(", ")}` });
+    }
     await spendQuota(ctx.user, "email", input.to.length);
     // These go to OUTSIDE addresses from the system sender (-255): no active
     // content and no links leave LevelUp, and the footer names the sender.

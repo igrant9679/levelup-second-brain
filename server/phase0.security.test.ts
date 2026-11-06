@@ -122,16 +122,20 @@ describe("alternate email recipients", () => {
   });
 });
 
-// ── task assignment (no trust in the stamped column alone) ───────────────
+// ── task assignment (numeric ids only; the stamp only for id-less tasks) ───────────────
 describe("_taskAssignedTo", () => {
   it("decides from the task JSON, not a stale assigneeId stamp", async () => {
     const { _taskAssignedTo } = await vi.importActual<any>("./routers/appData");
     const ids = new Map<string, number>([["jane", 7]]);
     expect(_taskAssignedTo({ raw: JSON.stringify({ assignees: [7] }), assigneeId: null }, 7, ids)).toBe(true);
-    expect(_taskAssignedTo({ raw: JSON.stringify({ assignedTo: "Jane" }), assigneeId: null }, 7, ids)).toBe(true);
-    // stale stamp says 7, but the task names someone else → not 7's
-    expect(_taskAssignedTo({ raw: JSON.stringify({ assignedTo: "Bob" }), assigneeId: 7 }, 7, ids)).toBe(false);
+    // F12 (audit 2026-10-25): a name/email string never decides access, even
+    // one that resolves to this user — names and emails are editable.
+    expect(_taskAssignedTo({ raw: JSON.stringify({ assignedTo: "Jane" }), assigneeId: null }, 7, ids)).toBe(false);
+    // A legacy task with no id list: the owner-save stamp is the assignment.
+    expect(_taskAssignedTo({ raw: JSON.stringify({ assignedTo: "Bob" }), assigneeId: 7 }, 7, ids)).toBe(true);
+    // Once the task carries ids, a stamp that disagrees is ignored.
     expect(_taskAssignedTo({ raw: JSON.stringify({ assignees: [3] }), assigneeId: 7 }, 7, ids)).toBe(false);
+    expect(_taskAssignedTo({ raw: JSON.stringify({ primaryAssigneeId: 3 }), assigneeId: 7 }, 7, ids)).toBe(false);
   });
 });
 

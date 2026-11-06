@@ -32,6 +32,7 @@ function graphUtc(v?: { dateTime?: string; timeZone?: string } | null): string {
   return s.replace(/(\.\d{3})\d*$/, "$1") + "Z";
 }
 import Imap from "imap";
+import { mailTlsOptions } from "../_core/mailTrust";
 // @ts-ignore - mailparser has no @types package
 import { simpleParser } from "mailparser";
 
@@ -63,7 +64,7 @@ async function testSmtpConnection(input: {
       user: input.smtpUsername,
       pass: input.smtpPassword,
     },
-    tls: { rejectUnauthorized: false }, // accept self-signed certs
+    tls: mailTlsOptions(), // certificates verified unless MAIL_TLS_INSECURE=true (audit F8)
     connectionTimeout: 10000, // 10 s
     greetingTimeout: 10000,   // 10 s — prevents "Greeting never received" hang
     socketTimeout: 15000,
@@ -1124,7 +1125,7 @@ export const oauthSyncRouter = router({
           secure: smtpSecure,
           requireTLS: !smtpSecure && account.smtpEncryption !== 'none',
           auth: { user: account.smtpUsername, pass: account.smtpPassword },
-          tls: { rejectUnauthorized: false },
+          tls: mailTlsOptions(),
           connectionTimeout: 15000,
           greetingTimeout: 15000,
           socketTimeout: 20000,
@@ -1492,7 +1493,7 @@ export const oauthSyncRouter = router({
               host: input.imapHost,
               port: input.imapPort,
               tls: input.imapEncryption !== 'none',
-              tlsOptions: { rejectUnauthorized: false },
+              tlsOptions: mailTlsOptions(),
               authTimeout: 8000,
               connTimeout: 8000,
             });

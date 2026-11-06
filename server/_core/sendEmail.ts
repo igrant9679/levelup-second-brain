@@ -14,6 +14,7 @@ import { insertEmailDeliveryLog } from "../db";
 import { systemSettings, oauthTokens } from "../../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 import { emailTemplate } from "./emailTemplate";
+import { mailTlsOptions, ownerUserIds } from "./mailTrust";
 
 export interface EmailPayload {
   to: string;
@@ -91,12 +92,12 @@ async function resolveNotificationSender(): Promise<{
   // email account IS configured. Use it. This makes "configure the secondary
   // email" sufficient to send ALL system mail (Team invites, reports,
   // notifications) — no separate "select notification sender" step required.
+  // Only the OWNER's secondary account qualifies (audit F8) — never a member's.
   try {
     const { getAllSmtpAccounts } = await import("../db");
-    const accounts = await getAllSmtpAccounts();
+    const owners = await ownerUserIds();
+    const accounts = (await getAllSmtpAccounts()).filter(a => owners.has(a.userId));
     if (accounts.length) {
-      // Deterministic when more than one exists: prefer the lowest userId,
-      // i.e. the owner / first-configured secondary account.
       const acct = accounts.slice().sort((a, b) => a.userId - b.userId)[0];
       return { provider: "smtp", userId: acct.userId };
     }
@@ -138,7 +139,7 @@ async function buildTransporter(
       secure,
       requireTLS: !secure && account.smtpEncryption !== "none",
       auth: { user: account.smtpUsername, pass: account.smtpPassword },
-      tls: { rejectUnauthorized: false },
+      tls: mailTlsOptions(),
       // Fail fast with a crisp error instead of hanging ~2min on a blocked
       // port / wrong host — the delivery log then shows ETIMEDOUT etc. clearly.
       connectionTimeout: 15000,
@@ -205,10 +206,12 @@ async function buildTransporter(
 }
 
 /**
- * Build the ordered list of sender candidates to try:
+ * Build the ordered list of sender candidates to try — ALL of them accounts
+ * of the workspace owner (audit F8: a member's mailbox must never carry
+ * password resets or invites):
  *   1. the explicitly configured notification sender (or SMTP fallback),
- *   2. every other configured SMTP/IMAP secondary account (lowest userId first),
- *   3. every connected Google/Microsoft OAuth account that has an email +
+ *   2. the owner's other SMTP/IMAP secondary accounts,
+ *   3. the owner's connected Google/Microsoft accounts that have an email +
  *      refresh token.
  * One revoked credential (expired refresh token, revoked Gmail app-password)
  * used to take down ALL system mail — password resets, invites, digests —
@@ -221,7 +224,9 @@ async function resolveSenderCandidates(): Promise<Array<{
 }>> {
   const out: Array<{ provider: "google" | "microsoft" | "smtp"; userId: number }> = [];
   const seen = new Set<string>();
+  const owners = await ownerUserIds();
   const push = (provider: "google" | "microsoft" | "smtp", userId: number) => {
+    if (!owners.has(userId)) return;
     const k = provider + ":" + userId;
     if (!seen.has(k)) { seen.add(k); out.push({ provider, userId }); }
   };
@@ -272,7 +277,7 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
         to: payload.to,
         subject: payload.subject,
         status: "skipped",
-        errorMessage: "No SMTP sender configured",
+        errorMessage: "No sender configured: system mail goes only through the owner's own mail accounts",
       });
       return false;
     }

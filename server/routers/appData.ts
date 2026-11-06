@@ -72,7 +72,13 @@ function _col(v: unknown, max: number): string | null {
 // Team-visibility (migration 0045): resolve the legacy createdBy/assignedTo
 // NAME strings to stable userIds. Cached ~60s so we don't re-query users on
 // every save. Empty map on failure → ids fall back to null/owner (harmless).
+// F12: WRITE-TIME ONLY — used when an item's owner saves their own items
+// (the `assigneeId` stamp in _taskRow, legacy reassignments by the owner).
+// No read or permission check may consult it: names and emails are
+// unverified and editable, so a match proves nothing about who someone is.
 let _uidMapCache: { map: Map<string, number>; at: number } | null = null;
+/** Drop the cached map (a name or email just changed). */
+export function _invalidateUserIdMap(): void { _uidMapCache = null; }
 export async function _resolveUserIdMap(): Promise<Map<string, number>> {
   const now = Date.now();
   if (_uidMapCache && now - _uidMapCache.at < 60000) return _uidMapCache.map;
@@ -85,16 +91,16 @@ export async function _resolveUserIdMap(): Promise<Map<string, number>> {
     // the owner's tasks with the demo account as assignee, so 71 personal
     // tasks showed up in the demo account's "Shared & delegated" section.
     // An ambiguous name must resolve to NOTHING; emails stay unique.
-    const nameCount = new Map<string, number>();
+    // F12: names and emails share one key space — a display name typed to
+    // equal another account's email (or two emails differing only in case)
+    // is just as ambiguous, so ANY key claimed by two accounts is dropped.
+    const owners = new Map<string, Set<number>>();
+    const claim = (k: string, id: number) => { if (!k) return; const s = owners.get(k) ?? new Set<number>(); s.add(id); owners.set(k, s); };
     for (const u of users) {
-      const n = u.name ? String(u.name).trim().toLowerCase() : "";
-      if (n) nameCount.set(n, (nameCount.get(n) ?? 0) + 1);
+      claim(u.name ? String(u.name).trim().toLowerCase() : "", u.id);
+      claim(u.email ? String(u.email).trim().toLowerCase() : "", u.id);
     }
-    for (const u of users) {
-      const n = u.name ? String(u.name).trim().toLowerCase() : "";
-      if (n && nameCount.get(n) === 1) map.set(n, u.id);
-      if (u.email) map.set(String(u.email).trim().toLowerCase(), u.id);
-    }
+    owners.forEach((ids, k) => { if (ids.size === 1) map.set(k, ids.values().next().value as number); });
   } catch { /* leave empty — ids stay null, no harm */ }
   _uidMapCache = { map, at: now };
   return map;
@@ -103,8 +109,12 @@ export async function _resolveUserIdMap(): Promise<Map<string, number>> {
 /**
  * The strings under which the current user may be named as `assignedTo` on a
  * blob-stored item: their email, and their display name ONLY when no other
- * account shares it. Every shared*ForMe reader and share-permission check
- * goes through this so a name collision can never grant visibility.
+ * account shares it.
+ *
+ * F12 (audit 2026-10-25): display name and email are unverified and the user
+ * can change both, so these strings NEVER grant access to another member's
+ * item any more. This is used only to sort the caller's OWN items into
+ * "delegated to someone else" vs not (display of data they already own).
  */
 export function _myAssigneeKeys(
   users: Array<{ id: number; name?: string | null; email?: string | null }>,
@@ -123,23 +133,40 @@ export function _myAssigneeKeys(
 }
 
 /**
- * Is this task row assigned to `userId`? Decided from the task's own JSON
- * (assignees / primaryAssigneeId / an unambiguous assignedTo name), the same
- * rule sharedTasksForMe uses. The stamped `assigneeId` column alone is NOT
- * trusted: a stale stamp from a name collision once handed one user's tasks
- * to another account (-198).
+ * F12 — the ONE access rule for a blob/JSON item: is `userId` named on it by
+ * numeric id (the `assignees` id list or `primaryAssigneeId`)? A display name
+ * or email (`assignedTo`, `assignee`) never counts: both are unverified and
+ * editable, so a member could rename themself to match someone else's
+ * assignment string.
  */
-export function _taskAssignedTo(row: { raw?: string | null; assigneeId?: number | null }, userId: number, idMap: Map<string, number>): boolean {
-  try {
-    const t = JSON.parse(row.raw || '{}');
-    if (Array.isArray(t.assignees) && t.assignees.map((x: any) => Number(x)).includes(userId)) return true;
-    if (t.primaryAssigneeId != null && Number(t.primaryAssigneeId) === userId) return true;
-    const nm = t.assignedTo ? String(t.assignedTo).trim().toLowerCase() : '';
-    if (nm && idMap.get(nm) === userId) return true;
-    if (row.assigneeId === userId && !nm && !Array.isArray(t.assignees)) return true;
-  } catch {
-    return row.assigneeId === userId;
-  }
+export function _idAssigned(p: any, userId: number): boolean {
+  if (!p || !Number.isFinite(userId)) return false;
+  if (Array.isArray(p.assignees) && p.assignees.some((x: any) => Number(x) === userId)) return true;
+  return p.primaryAssigneeId != null && Number(p.primaryAssigneeId) === userId;
+}
+/** Does the item carry any id-based assignment at all? */
+function _hasIdAssignment(p: any): boolean {
+  return !!p && (Array.isArray(p.assignees) || p.primaryAssigneeId != null);
+}
+
+/**
+ * Is this task (or note) row assigned to `userId`? Numeric ids only (F12):
+ *   1. the item's own JSON `assignees` / `primaryAssigneeId`;
+ *   2. for a LEGACY item that carries no id list at all, the relational
+ *      `assigneeId` column — which is written only on the ITEM OWNER's own
+ *      save (`_taskRow`), where the owner's own legacy `assignedTo` string is
+ *      resolved once (unique display name or email → id). That is the owner
+ *      choosing the assignment; a read never matches a string itself.
+ * When the JSON has an id list, the column is ignored (a stale stamp from a
+ * name collision once handed one user's tasks to another account, -198).
+ * The third parameter is accepted and ignored (old callers passed a
+ * name → id map).
+ */
+export function _taskAssignedTo(row: { raw?: string | null; assigneeId?: number | null }, userId: number, _unused?: unknown): boolean {
+  let t: any;
+  try { t = JSON.parse(row.raw || '{}') || {}; } catch { return false; }
+  if (_idAssigned(t, userId)) return true;
+  if (!_hasIdAssignment(t) && row.assigneeId != null && row.assigneeId === userId) return true;
   return false;
 }
 
@@ -193,9 +220,21 @@ function _taskRow(t: any, userId: number, resolveId: (s: any) => number | null) 
     // Stable userId-based owner + assignee (migration 0045). Owner falls back
     // to the row's user when createdBy is missing/unresolved.
     createdById: resolveId(t.createdBy) ?? userId,
-    assigneeId: resolveId(t.assignedTo),
+    // F12: ids first. Only a legacy task with no id list falls back to
+    // resolving its owner's own assignedTo string — this runs only on the
+    // owner's save of their own list (the row's userId is the saver).
+    assigneeId: _stampAssigneeId(t, resolveId),
     raw: JSON.stringify(t),
   };
+}
+function _stampAssigneeId(t: any, resolveId: (s: any) => number | null): number | null {
+  const n = (v: any) => { const x = Number(v); return Number.isFinite(x) && x > 0 ? x : null; };
+  if (t && t.primaryAssigneeId != null && n(t.primaryAssigneeId) != null) return n(t.primaryAssigneeId);
+  if (t && Array.isArray(t.assignees)) {
+    for (const a of t.assignees) { const x = n(a); if (x != null) return x; }
+    return null; // an explicit (possibly empty) id list: no string fallback
+  }
+  return resolveId(t && t.assignedTo);
 }
 function _noteRow(n: any, userId: number) {
   return {
@@ -886,30 +925,11 @@ export const appDataRouter = router({
       const { canOverride } = await import("../_core/access");
       const admin = await isOwnerCtxUser(ctx.user as any); // -253: override UI is the owner's; canOverride() decides each write
       const owner = await isOwnerCtxUser(ctx.user as any);
-      // A task is "assigned to me" if I'm in the multi-assignee array /
-      // primaryAssigneeId stored in raw, or the legacy `assignedTo` NAME
-      // resolves unambiguously to me. The relational `assigneeId` column is
-      // only a derived mirror of those — it is NOT trusted on its own, because
-      // a stale stamp from a display-name collision (owner + demo account both
-      // "Idris Grant") once handed 71 of the owner's personal tasks to the demo
-      // account. Cross-checking against raw makes the read correct even before
-      // the column is re-stamped.
-      const idMap = await _resolveUserIdMap();
-      const isMineAssigned = (r: any): boolean => {
-        try {
-          const t = JSON.parse(r.raw || '{}');
-          if (Array.isArray(t.assignees) && t.assignees.map((x: any) => Number(x)).includes(ctx.user.id)) return true;
-          if (t.primaryAssigneeId != null && Number(t.primaryAssigneeId) === ctx.user.id) return true;
-          const nm = t.assignedTo ? String(t.assignedTo).trim().toLowerCase() : "";
-          if (nm && idMap.get(nm) === ctx.user.id) return true;
-          // Column agrees AND raw does not name someone else: legacy rows that
-          // were stamped from an email rather than a name.
-          if (r.assigneeId === ctx.user.id && !nm && !Array.isArray(t.assignees)) return true;
-        } catch {
-          if (r.assigneeId === ctx.user.id) return true;
-        }
-        return false;
-      };
+      // F12: "assigned to me" is decided by numeric ids only — see
+      // _taskAssignedTo (raw assignees / primaryAssigneeId, or for a legacy
+      // task with no id list the owner-save stamp). The `assignedTo` name is
+      // never matched against my (editable) display name or email here.
+      const isMineAssigned = (r: any): boolean => _taskAssignedTo(r, ctx.user.id);
       // Tasks owned by OTHERS: assigned to me (any assignee), or all if OWNER.
       const sharedRows = owner
         ? await db.select().from(tasksTable).where(ne(tasksTable.userId, ctx.user.id))
@@ -946,8 +966,9 @@ export const appDataRouter = router({
   /**
    * Team-visibility for PROJECTS. Projects are blob-only (no relational table),
    * so we scan every member's `projects` blob (small data) and return projects
-   * ASSIGNED to me (project.assignee/assignedTo name matches my account) — or,
-   * for admins, all other members' projects. Tagged _sharedFromUserId +
+   * ASSIGNED to me by numeric id (assignees / primaryAssigneeId — F12: the
+   * assignee/assignedTo NAME never counts) — or, for the workspace owner, all
+   * other members' projects. Tagged _sharedFromUserId +
    * _readOnly. Resilient: any failure returns an empty list.
    */
   sharedProjectsForMe: protectedProcedure.query(async ({ ctx }) => {
@@ -964,7 +985,7 @@ export const appDataRouter = router({
       const rows = await db.select({ userId: userAppData.userId, projects: userAppData.projects }).from(userAppData);
       const out: any[] = [];
       const meId = ctx.user.id;
-      const assignedToMe = (p: any) => (Array.isArray(p.assignees) && p.assignees.map((x: any) => Number(x)).includes(meId)) || (p.primaryAssigneeId != null && Number(p.primaryAssigneeId) === meId);
+      const assignedToMe = (p: any) => _idAssigned(p, meId); // F12: numeric ids only
       const assignedToOthers = (p: any) => Array.isArray(p.assignees) && p.assignees.map((x: any) => Number(x)).some((n: number) => n && n !== meId);
       for (const r of rows) {
         let arr: any;
@@ -985,8 +1006,7 @@ export const appDataRouter = router({
           // OTHER members' projects: assigned to me, or all of them if I'm admin.
           for (const p of arr) {
             if (!p) continue;
-            const assignee = String(p.assignee || p.assignedTo || '').trim().toLowerCase();
-            if (owner || (assignee && myKeys.has(assignee)) || assignedToMe(p)) {
+            if (owner || assignedToMe(p)) {
               out.push({ ...p, _sharedFromUserId: r.userId, _readOnly: true });
             }
           }
@@ -1017,7 +1037,7 @@ export const appDataRouter = router({
       const rows = await db.select({ userId: userAppData.userId, programs: userAppData.programs }).from(userAppData);
       const out: any[] = [];
       const meId = ctx.user.id;
-      const assignedToMe = (p: any) => (Array.isArray(p.assignees) && p.assignees.map((x: any) => Number(x)).includes(meId)) || (p.primaryAssigneeId != null && Number(p.primaryAssigneeId) === meId);
+      const assignedToMe = (p: any) => _idAssigned(p, meId); // F12: numeric ids only
       const assignedToOthers = (p: any) => Array.isArray(p.assignees) && p.assignees.map((x: any) => Number(x)).some((n: number) => n && n !== meId);
       for (const r of rows) {
         let arr: any;
@@ -1035,8 +1055,7 @@ export const appDataRouter = router({
         } else {
           for (const p of arr) {
             if (!p) continue;
-            const assignee = String(p.assignedTo || '').trim().toLowerCase();
-            if (owner || (assignee && myKeys.has(assignee)) || assignedToMe(p)) {
+            if (owner || assignedToMe(p)) {
               out.push({ ...p, _sharedFromUserId: r.userId, _readOnly: true });
             }
           }
@@ -1079,16 +1098,9 @@ export const appDataRouter = router({
         if (!Array.isArray(arr)) return { ok: false as const, error: 'bad data' };
         const prog = arr.find((x: any) => x && String(x.id) === input.programId);
         if (!prog) return { ok: false as const, error: 'program not found' };
-        let allowed = (await canOverride(ctx.user as any, input.ownerUserId)) || input.ownerUserId === ctx.user.id
-          || (Array.isArray(prog.assignees) && prog.assignees.map((x: any) => Number(x)).includes(ctx.user.id));
-        if (!allowed) {
-          const { adminListAllUsers } = await import("../db");
-          const _all = await adminListAllUsers();
-          const me = _all.find(u => u.id === ctx.user.id);
-          const myKeys = _myAssigneeKeys(_all, me);
-          const cur = String(prog.assignedTo || '').trim().toLowerCase();
-          allowed = !!cur && myKeys.includes(cur);
-        }
+        // F12: an assignee is named by numeric id only, never by name/email.
+        const allowed = (await canOverride(ctx.user as any, input.ownerUserId)) || input.ownerUserId === ctx.user.id
+          || _idAssigned(prog, ctx.user.id);
         if (!allowed) return { ok: false as const, error: 'not authorized' };
         const q = input.patch;
         if (q.name != null) prog.name = q.name;
@@ -1126,7 +1138,7 @@ export const appDataRouter = router({
       const rows = await db.select({ userId: userAppData.userId, mindmaps: userAppData.mindmaps }).from(userAppData);
       const out: any[] = [];
       const meId = ctx.user.id;
-      const assignedToMe = (p: any) => (Array.isArray(p.assignees) && p.assignees.map((x: any) => Number(x)).includes(meId)) || (p.primaryAssigneeId != null && Number(p.primaryAssigneeId) === meId);
+      const assignedToMe = (p: any) => _idAssigned(p, meId); // F12: numeric ids only
       const assignedToOthers = (p: any) => Array.isArray(p.assignees) && p.assignees.map((x: any) => Number(x)).some((n: number) => n && n !== meId);
       for (const r of rows) {
         let arr: any;
@@ -1143,8 +1155,7 @@ export const appDataRouter = router({
         } else {
           for (const p of arr) {
             if (!p) continue;
-            const assignee = String(p.assignedTo || '').trim().toLowerCase();
-            if (owner || (assignee && myKeys.has(assignee)) || assignedToMe(p)) {
+            if (owner || assignedToMe(p)) {
               out.push({ ...p, _sharedFromUserId: r.userId, _readOnly: true });
             }
           }
@@ -1186,16 +1197,9 @@ export const appDataRouter = router({
         if (!Array.isArray(arr)) return { ok: false as const, error: 'bad data' };
         const mm = arr.find((x: any) => x && String(x.id) === input.mindmapId);
         if (!mm) return { ok: false as const, error: 'mind map not found' };
-        let allowed = (await canOverride(ctx.user as any, input.ownerUserId)) || input.ownerUserId === ctx.user.id
-          || (Array.isArray(mm.assignees) && mm.assignees.map((x: any) => Number(x)).includes(ctx.user.id));
-        if (!allowed) {
-          const { adminListAllUsers } = await import("../db");
-          const _all = await adminListAllUsers();
-          const me = _all.find(u => u.id === ctx.user.id);
-          const myKeys = _myAssigneeKeys(_all, me);
-          const cur = String(mm.assignedTo || '').trim().toLowerCase();
-          allowed = !!cur && myKeys.includes(cur);
-        }
+        // F12: an assignee is named by numeric id only, never by name/email.
+        const allowed = (await canOverride(ctx.user as any, input.ownerUserId)) || input.ownerUserId === ctx.user.id
+          || _idAssigned(mm, ctx.user.id);
         if (!allowed) return { ok: false as const, error: 'not authorized' };
         const q = input.patch;
         if (q.name != null) { mm.name = q.name; if (mm.title !== undefined) mm.title = q.name; }
@@ -1234,7 +1238,7 @@ export const appDataRouter = router({
       const rows = await db.select({ userId: userAppData.userId, sheets: userAppData.sheets }).from(userAppData);
       const out: any[] = [];
       const meId = ctx.user.id;
-      const assignedToMe = (p: any) => (Array.isArray(p.assignees) && p.assignees.map((x: any) => Number(x)).includes(meId)) || (p.primaryAssigneeId != null && Number(p.primaryAssigneeId) === meId);
+      const assignedToMe = (p: any) => _idAssigned(p, meId); // F12: numeric ids only
       const assignedToOthers = (p: any) => Array.isArray(p.assignees) && p.assignees.map((x: any) => Number(x)).some((n: number) => n && n !== meId);
       for (const r of rows) {
         let arr: any;
@@ -1251,8 +1255,7 @@ export const appDataRouter = router({
         } else {
           for (const p of arr) {
             if (!p) continue;
-            const assignee = String(p.assignedTo || '').trim().toLowerCase();
-            if (owner || (assignee && myKeys.has(assignee)) || assignedToMe(p) || p.shareAll === true) {
+            if (owner || assignedToMe(p) || p.shareAll === true) {
               // 'view' shareMode makes the sheet read-only for recipients
               // (admins keep their full-edit powers; owner sees all).
               out.push({ ...p, _sharedFromUserId: r.userId, _readOnly: !admin && effShareMode(p, 'edit') === 'view' });
@@ -1305,15 +1308,7 @@ export const appDataRouter = router({
         if (!sh) return { ok: false as const, error: 'sheet not found' };
         const admin = (await canOverride(ctx.user as any, input.ownerUserId));
         const isItemOwner = input.ownerUserId === ctx.user.id;
-        let isAssignee = Array.isArray(sh.assignees) && sh.assignees.map((x: any) => Number(x)).includes(ctx.user.id);
-        if (!isAssignee) {
-          const { adminListAllUsers } = await import("../db");
-          const _all = await adminListAllUsers();
-          const me = _all.find(u => u.id === ctx.user.id);
-          const myKeys = _myAssigneeKeys(_all, me);
-          const cur = String(sh.assignedTo || '').trim().toLowerCase();
-          isAssignee = !!cur && myKeys.includes(cur);
-        }
+        const isAssignee = _idAssigned(sh, ctx.user.id); // F12: numeric ids only
         if (!(admin || isItemOwner || isAssignee || sh.shareAll === true)) return { ok: false as const, error: 'not authorized' };
         const q = input.patch;
         // Content edits require 'edit' permission (owner/admin always may).
@@ -1370,7 +1365,7 @@ export const appDataRouter = router({
       const rows = await db.select({ userId: userAppData.userId, decks: userAppData.decks }).from(userAppData);
       const out: any[] = [];
       const meId = ctx.user.id;
-      const assignedToMe = (p: any) => (Array.isArray(p.assignees) && p.assignees.map((x: any) => Number(x)).includes(meId)) || (p.primaryAssigneeId != null && Number(p.primaryAssigneeId) === meId);
+      const assignedToMe = (p: any) => _idAssigned(p, meId); // F12: numeric ids only
       const assignedToOthers = (p: any) => Array.isArray(p.assignees) && p.assignees.map((x: any) => Number(x)).some((n: number) => n && n !== meId);
       for (const r of rows) {
         let arr: any;
@@ -1387,8 +1382,7 @@ export const appDataRouter = router({
         } else {
           for (const p of arr) {
             if (!p) continue;
-            const assignee = String(p.assignedTo || '').trim().toLowerCase();
-            if (owner || (assignee && myKeys.has(assignee)) || assignedToMe(p) || p.shareAll === true) {
+            if (owner || assignedToMe(p) || p.shareAll === true) {
               out.push({ ...p, _sharedFromUserId: r.userId, _readOnly: !admin && effShareMode(p, 'edit') === 'view' });
             }
           }
@@ -1437,15 +1431,7 @@ export const appDataRouter = router({
         if (!dk) return { ok: false as const, error: 'deck not found' };
         const admin = (await canOverride(ctx.user as any, input.ownerUserId));
         const isItemOwner = input.ownerUserId === ctx.user.id;
-        let isAssignee = Array.isArray(dk.assignees) && dk.assignees.map((x: any) => Number(x)).includes(ctx.user.id);
-        if (!isAssignee) {
-          const { adminListAllUsers } = await import("../db");
-          const _all = await adminListAllUsers();
-          const me = _all.find(u => u.id === ctx.user.id);
-          const myKeys = _myAssigneeKeys(_all, me);
-          const cur = String(dk.assignedTo || '').trim().toLowerCase();
-          isAssignee = !!cur && myKeys.includes(cur);
-        }
+        const isAssignee = _idAssigned(dk, ctx.user.id); // F12: numeric ids only
         if (!(admin || isItemOwner || isAssignee || dk.shareAll === true)) return { ok: false as const, error: 'not authorized' };
         const q = input.patch;
         const hasContent = q.title != null || q.icon != null || q.color != null || q.theme !== undefined || q.slides != null;
@@ -1572,7 +1558,7 @@ export const appDataRouter = router({
       const rows = await db.select({ userId: userAppData.userId, prefs: userAppData.prefs }).from(userAppData);
       const out: any[] = [];
       const meId = ctx.user.id;
-      const assignedToMe = (p: any) => (Array.isArray(p.assignees) && p.assignees.map((x: any) => Number(x)).includes(meId)) || (p.primaryAssigneeId != null && Number(p.primaryAssigneeId) === meId);
+      const assignedToMe = (p: any) => _idAssigned(p, meId); // F12: numeric ids only
       const assignedToOthers = (p: any) => Array.isArray(p.assignees) && p.assignees.map((x: any) => Number(x)).some((n: number) => n && n !== meId);
       for (const r of rows) {
         let prefs: any;
@@ -1589,8 +1575,7 @@ export const appDataRouter = router({
         } else {
           for (const p of arr) {
             if (!p) continue;
-            const assignee = String(p.assignedTo || '').trim().toLowerCase();
-            if (owner || (assignee && myKeys.has(assignee)) || assignedToMe(p)) {
+            if (owner || assignedToMe(p)) {
               out.push({ ...p, _sharedFromUserId: r.userId, _readOnly: true });
             }
           }
@@ -1626,16 +1611,9 @@ export const appDataRouter = router({
         const arr = Array.isArray(prefs.savedReports) ? prefs.savedReports : [];
         const rep = arr.find((x: any) => x && String(x.id) === input.reportId);
         if (!rep) return { ok: false as const, error: 'report not found' };
-        let allowed = (await canOverride(ctx.user as any, input.ownerUserId)) || input.ownerUserId === ctx.user.id
-          || (Array.isArray(rep.assignees) && rep.assignees.map((x: any) => Number(x)).includes(ctx.user.id));
-        if (!allowed) {
-          const { adminListAllUsers } = await import("../db");
-          const _all = await adminListAllUsers();
-          const me = _all.find(u => u.id === ctx.user.id);
-          const myKeys = _myAssigneeKeys(_all, me);
-          const cur = String(rep.assignedTo || '').trim().toLowerCase();
-          allowed = !!cur && myKeys.includes(cur);
-        }
+        // F12: an assignee is named by numeric id only, never by name/email.
+        const allowed = (await canOverride(ctx.user as any, input.ownerUserId)) || input.ownerUserId === ctx.user.id
+          || _idAssigned(rep, ctx.user.id);
         if (!allowed) return { ok: false as const, error: 'not authorized' };
         const q = input.patch;
         if (q.name != null) rep.name = q.name;
@@ -1724,22 +1702,11 @@ export const appDataRouter = router({
     try {
       const { canOverride } = await import("../_core/access");
       const admin = await isOwnerCtxUser(ctx.user as any); // -253: override UI is the owner's; canOverride() decides each write
-      const idMapNotes = await _resolveUserIdMap();
       const isMineAssigned = (r: any): boolean => {
-        // Same rule as tasks: raw is the truth, the assigneeId column is a
-        // derived mirror that a display-name collision can leave stale.
-        try {
-          const t = JSON.parse(r.raw || '{}');
-          if (t.shareAll === true) return true;
-          if (Array.isArray(t.assignees) && t.assignees.map((x: any) => Number(x)).includes(ctx.user.id)) return true;
-          if (t.primaryAssigneeId != null && Number(t.primaryAssigneeId) === ctx.user.id) return true;
-          const nm = t.assignedTo ? String(t.assignedTo).trim().toLowerCase() : "";
-          if (nm && idMapNotes.get(nm) === ctx.user.id) return true;
-          if (r.assigneeId === ctx.user.id && !nm && !Array.isArray(t.assignees)) return true;
-        } catch {
-          if (r.assigneeId === ctx.user.id) return true;
-        }
-        return false;
+        // Same rule as tasks (F12: numeric ids only — _taskAssignedTo), plus
+        // the note's own shareAll flag. No name/email string is matched.
+        try { if (JSON.parse(r.raw || '{}')?.shareAll === true) return true; } catch { return false; }
+        return _taskAssignedTo(r, ctx.user.id);
       };
       const owner = await isOwnerCtxUser(ctx.user as any);
       const sharedRows = owner
@@ -1794,12 +1761,13 @@ export const appDataRouter = router({
         const [row] = await db.select().from(notesTable).where(and(eq(notesTable.userId, input.ownerUserId), eq(notesTable.noteId, input.noteId))).limit(1);
         if (!row) return { ok: false as const, error: 'note not found' };
         const { canOverride } = await import("../_core/access");
-        let rawAssignees: number[] = [];
         let rawNote: any = {};
-        try { rawNote = JSON.parse(row.raw || '{}') || {}; if (Array.isArray(rawNote.assignees)) rawAssignees = rawNote.assignees.map((x: any) => Number(x)).filter((n: number) => !isNaN(n)); } catch {}
+        try { rawNote = JSON.parse(row.raw || '{}') || {}; } catch {}
         const admin = (await canOverride(ctx.user as any, input.ownerUserId));
         const isItemOwner = row.userId === ctx.user.id;
-        const isAssignee = row.assigneeId === ctx.user.id || rawAssignees.includes(ctx.user.id);
+        // F12: numeric ids only (raw ids; the column only for a legacy note
+        // with no id list). Same rule the reader uses.
+        const isAssignee = _taskAssignedTo(row, ctx.user.id);
         const allowed = admin || isItemOwner || isAssignee || rawNote.shareAll === true;
         if (!allowed) return { ok: false as const, error: 'not authorized' };
         const p = input.patch;
@@ -1819,12 +1787,13 @@ export const appDataRouter = router({
             const idx = p.assignees.indexOf(p.primaryAssigneeId);
             if (idx >= 0) primaryName = p.assigneeNames[idx];
           }
-        } else if (p.assignedTo != null) {
-          const { adminListAllUsers } = await import("../db");
-          const users = await adminListAllUsers();
+        } else if (p.assignedTo != null && (isItemOwner || admin)) {
+          // F12: a legacy name/email reassignment is resolved into an id only
+          // when the item's owner (or an override) makes it, through the
+          // unique-name/email map (an ambiguous name resolves to nobody). An
+          // assignee sending a bare string changes only the label.
           const key = p.assignedTo.trim().toLowerCase();
-          const u = users.find(x => (x.name && x.name.trim().toLowerCase() === key) || (x.email && x.email.trim().toLowerCase() === key));
-          primaryId = u ? u.id : null;
+          primaryId = key ? ((await _resolveUserIdMap()).get(key) ?? null) : null;
         }
         const applyTo = (t: any) => {
           if (p.title != null) t.title = p.title;
@@ -1881,7 +1850,7 @@ export const appDataRouter = router({
           .limit(1);
         if (!row) return { ok: false as const, error: 'task not found' };
         const { canOverride } = await import("../_core/access");
-        const allowed = (await canOverride(ctx.user as any, row.userId)) || row.userId === ctx.user.id || _taskAssignedTo(row, ctx.user.id, await _resolveUserIdMap());
+        const allowed = (await canOverride(ctx.user as any, row.userId)) || row.userId === ctx.user.id || _taskAssignedTo(row, ctx.user.id); // F12: numeric ids only
         if (!allowed) return { ok: false as const, error: 'not authorized' };
 
         const isDone = /done|complete|completed|closed/i.test(input.status);
@@ -1937,27 +1906,26 @@ export const appDataRouter = router({
           .where(and(eq(tasksTable.userId, input.ownerUserId), eq(tasksTable.taskId, input.taskId))).limit(1);
         if (!row) return { ok: false as const, error: 'task not found' };
         const { canOverride } = await import("../_core/access");
-        // Authorized: admin, the relational primary assignee, the owner, OR any
-        // member listed in the item's multi-assignee array (parsed from raw).
-        let rawAssignees: number[] = [];
-        try { const rj = JSON.parse(row.raw || '{}'); if (Array.isArray(rj.assignees)) rawAssignees = rj.assignees.map((x: any) => Number(x)).filter((n: number) => !isNaN(n)); } catch {}
-        const allowed = (await canOverride(ctx.user as any, row.userId)) || row.userId === ctx.user.id || rawAssignees.includes(ctx.user.id) || _taskAssignedTo(row, ctx.user.id, await _resolveUserIdMap());
+        // Authorized: override (owner / granted admin), the task's owner, or a
+        // member named on it by numeric id. F12: assignee = raw assignees /
+        // primaryAssigneeId, or the owner-save stamp for a legacy task with no
+        // id list — never a name/email match.
+        const override = await canOverride(ctx.user as any, row.userId);
+        const isItemOwner = row.userId === ctx.user.id;
+        const allowed = override || isItemOwner || _taskAssignedTo(row, ctx.user.id);
         if (!allowed) return { ok: false as const, error: 'not authorized' };
         const p = input.patch;
         const isDone = p.status != null && /done|complete|completed|closed/i.test(p.status);
         const completedAt = isDone ? new Date().toISOString() : null;
-        // Resolve a reassignment (assignedTo name → userId) so visibility moves
-        // to the new assignee. Empty string clears the assignment.
+        // A legacy reassignment by name/email string (no ids in the patch):
+        // resolved into the assigneeId stamp only when the task's OWNER (or an
+        // override) makes it, through the unique name/email map. An assignee
+        // sending a bare string changes only the label, not who has access.
+        // Empty string clears the assignment.
         let newAssigneeId: number | null | undefined = undefined;
-        if (p.assignedTo != null) {
-          if (!p.assignedTo.trim()) { newAssigneeId = null; }
-          else {
-            const { adminListAllUsers } = await import("../db");
-            const users = await adminListAllUsers();
-            const key = p.assignedTo.trim().toLowerCase();
-            const u = users.find(x => (x.name && x.name.trim().toLowerCase() === key) || (x.email && x.email.trim().toLowerCase() === key));
-            newAssigneeId = u ? u.id : null;
-          }
+        if (p.assignedTo != null && (isItemOwner || override)) {
+          const key = p.assignedTo.trim().toLowerCase();
+          newAssigneeId = key ? ((await _resolveUserIdMap()).get(key) ?? null) : null;
         }
         // Multi-assignee: derive the Primary Responsible's id + display name so
         // the legacy single-assignee columns (assigneeId / assignedTo) keep
@@ -2036,18 +2004,11 @@ export const appDataRouter = router({
         if (!Array.isArray(arr)) return { ok: false as const, error: 'bad data' };
         const proj = arr.find((x: any) => x && String(x.id) === input.projectId);
         if (!proj) return { ok: false as const, error: 'project not found' };
-        // Authorize: admin, owner, current assignee (by name/email), or any
-        // member in the multi-assignee array.
-        let allowed = (await canOverride(ctx.user as any, input.ownerUserId)) || input.ownerUserId === ctx.user.id
-          || (Array.isArray(proj.assignees) && proj.assignees.map((x: any) => Number(x)).includes(ctx.user.id));
-        if (!allowed) {
-          const { adminListAllUsers } = await import("../db");
-          const _all = await adminListAllUsers();
-          const me = _all.find(u => u.id === ctx.user.id);
-          const myKeys = _myAssigneeKeys(_all, me);
-          const cur = String(proj.assignee || proj.assignedTo || '').trim().toLowerCase();
-          allowed = !!cur && myKeys.includes(cur);
-        }
+        // Authorize: admin, owner, or a member named on the project by numeric
+        // id (assignees / primaryAssigneeId). F12: the `assignee`/`assignedTo`
+        // name or email string never authorizes — both are editable.
+        const allowed = (await canOverride(ctx.user as any, input.ownerUserId)) || input.ownerUserId === ctx.user.id
+          || _idAssigned(proj, ctx.user.id);
         if (!allowed) return { ok: false as const, error: 'not authorized' };
         const q = input.patch;
         if (q.name != null) proj.name = q.name;
@@ -2304,32 +2265,25 @@ export const appDataRouter = router({
     try {
       const { adminListAllUsers } = await import("../db");
       const usersList = await adminListAllUsers();
-      const nameToId = new Map<string, number>();
-      const emailToId = new Map<string, number>();
-      // Same rule as _resolveUserIdMap: a display name shared by two accounts
-      // resolves to nothing, or this backfill re-creates the exact leak it is
-      // used to repair.
-      const nameCount = new Map<string, number>();
-      for (const u of usersList) {
-        const n = u.name ? u.name.trim().toLowerCase() : "";
-        if (n) nameCount.set(n, (nameCount.get(n) ?? 0) + 1);
-      }
-      for (const u of usersList) {
-        const n = u.name ? u.name.trim().toLowerCase() : "";
-        if (n && nameCount.get(n) === 1) nameToId.set(n, u.id);
-        if (u.email) emailToId.set(u.email.trim().toLowerCase(), u.id);
-      }
+      // Same rule as _resolveUserIdMap (it IS that map): a name or email
+      // claimed by two accounts resolves to nothing, or this backfill
+      // re-creates the exact leak it is used to repair.
+      _invalidateUserIdMap();
+      const idMap = await _resolveUserIdMap();
       const resolve = (s: string | null | undefined): number | null => {
         if (!s) return null;
-        const key = String(s).trim().toLowerCase();
-        return nameToId.get(key) ?? emailToId.get(key) ?? null;
+        return idMap.get(String(s).trim().toLowerCase()) ?? null;
       };
 
       const taskRows = await db.select().from(tasksTable);
       let tasksUpdated = 0;
       for (const r of taskRows) {
         const createdById = resolve(r.createdBy) ?? r.userId;
-        const assigneeId = resolve(r.assignedTo);
+        // F12: ids in the task's JSON first; a string only for a legacy task
+        // that carries no id list (same as the owner-save stamp, _taskRow).
+        let t: any = null;
+        try { t = JSON.parse(r.raw || '{}'); } catch { t = null; }
+        const assigneeId = t ? _stampAssigneeId(t, resolve) : resolve(r.assignedTo);
         await db.update(tasksTable).set({ createdById, assigneeId }).where(eq(tasksTable.id, r.id));
         tasksUpdated++;
       }
