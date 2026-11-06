@@ -820,23 +820,70 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden)_luRefresh
 // `pnpm check:a11y` fails if a visible click-only element is left unreachable.
 const _LU_NATIVE=/^(A|BUTTON|INPUT|SELECT|TEXTAREA|SUMMARY|OPTION|LABEL|DETAILS|IFRAME|VIDEO|AUDIO)$/;
 const _luTxt=el=>String(el&&el.textContent||'').replace(/\s+/g,' ').trim();
+// Screen-reader names and states (build -274). Click-outside backdrops and
+// the lightbox image are mouse conveniences (each overlay has a close button
+// and Esc): out of the tab order and hidden from screen readers, where they
+// read as unnamed buttons. Same for a box whose click only focuses the field
+// inside it.
+const _LU_BACKDROP='#sb-backdrop,#ai-panel-overlay,#lu-lightbox-img,.sb-backdrop,.ai-panel-overlay';
+const _luOn=el=>el.classList.contains('on')||el.classList.contains('done')||el.classList.contains('checked');
+// The visible words that label a control: the first real text in the
+// control's siblings (a row's title), then one level up, at most three levels.
+function _luLabelNear(el){
+  const words=/[A-Za-z0-9\u00C0-\uFFFF]/;
+  for(let a=el,i=0;a&&a.parentElement&&i<3;a=a.parentElement,i++){
+    for(const sib of a.parentElement.children){
+      if(sib===a||sib.contains(el)||sib.matches('button,.btn,input,select,textarea,[aria-hidden="true"]'))continue;
+      const w=document.createTreeWalker(sib,NodeFilter.SHOW_TEXT);
+      for(let n=w.nextNode();n;n=w.nextNode()){
+        const v=n.nodeValue.replace(/\s+/g,' ').trim();
+        if(v&&words.test(v)){const t=_luTxt(n.parentElement)||v;return t.slice(0,60);}
+      }
+    }
+  }
+  return '';
+}
 function _luKbdFix(el){
   if(!el||el.nodeType!==1||_LU_NATIVE.test(el.tagName)||el.hasAttribute('tabindex')||el.isContentEditable)return;
   const oc=el.getAttribute('onclick')||(el.hasAttribute('data-act')?'data-act':'');
   if(!oc||/^\s*(event\.stopPropagation\(\);?\s*)?$/.test(oc)||/event\.target\s*===?\s*this/.test(oc))return;
+  if(el.matches(_LU_BACKDROP)){el.setAttribute('tabindex','-1');el.setAttribute('aria-hidden','true');el.removeAttribute('role');return;}
+  if(/^\s*document\.getElementById\([^)]*\)\??\.focus\(\)\s*;?\s*$/.test(oc)){el.setAttribute('tabindex','-1');return;}
   el.setAttribute('tabindex','0');
   // Task / habit completion boxes are checkboxes, with their state and the
   // item they complete.
   if(el.matches('.chk,.tlc-chk')&&!el.hasAttribute('role')){
     el.setAttribute('role','checkbox');
-    el.setAttribute('aria-checked',el.classList.contains('on')||el.classList.contains('done')||el.classList.contains('checked')?'true':'false');
-    const row=el.closest('[data-task-id],.lr,.tlc,.cl-task-row');
-    const t=row?_luTxt(row.querySelector('.rt,.tlc-t,.tlc-title,.tt')||row).slice(0,60):'';
-    if(t&&!el.getAttribute('aria-label'))el.setAttribute('aria-label','Complete '+t);
+    el.setAttribute('aria-checked',_luOn(el)?'true':'false');
+    if(!el.getAttribute('aria-label')){
+      const row=el.closest('[data-task-id],.lr,.tlc,.cl-task-row');
+      const ti=row&&row.querySelector('.rt,.tlc-t,.tlc-title,.tt');
+      const t=(ti&&!ti.contains(el)?_luTxt(ti).slice(0,60):'')||_luLabelNear(el);
+      // "Complete ..." only for tasks; a habit is "Done today: ..."; any other
+      // checkbox (news topics, filters) is just its label.
+      el.setAttribute('aria-label',/toggleHabit|Habit/.test(oc)?'Done today: '+(t||'habit'):/[Tt]ask|[Ss]ubtask|_tl|toggleSt|Milestone|mmToggleSubItem/.test(oc)?'Complete '+(t||'task'):(t||'Select'));
+    }
+    return;
+  }
+  // On/off switches (Settings and elsewhere): a switch, its state, its label.
+  if(el.matches('.tog')&&!el.hasAttribute('role')){
+    el.setAttribute('role','switch');
+    el.setAttribute('aria-checked',_luOn(el)?'true':'false');
+    if(!el.getAttribute('aria-label')&&!el.getAttribute('title')){
+      const t=_luLabelNear(el)||(el.id?el.id.replace(/^tog-/,'').replace(/[-_]+/g,' '):'');
+      if(t)el.setAttribute('aria-label',t);
+    }
     return;
   }
   if(!el.hasAttribute('role')&&!el.querySelector('a,button,input,select,textarea,[onclick],[data-act],[contenteditable="true"]'))el.setAttribute('role','button');
 }
+// A switch or checkbox flipped in place (this.classList.toggle('on')) keeps
+// announcing the new state.
+document.addEventListener('click',e=>{
+  const el=e.target&&e.target.closest?e.target.closest('[role="switch"],[role="checkbox"]'):null;
+  if(!el||_LU_NATIVE.test(el.tagName))return;
+  setTimeout(()=>{if(el.isConnected&&!el.hasAttribute('data-aria-fixed'))el.setAttribute('aria-checked',_luOn(el)?'true':'false');},0);
+});
 // Accessible names for form controls rendered without one. A screen reader
 // announced most selects and checkboxes as just "combo box" / "checkbox":
 // the forms put a visible <label> next to the control without connecting
@@ -868,18 +915,45 @@ function _luNameFix(c){
   }
   // 3) a short text label just before it
   const prev=c.previousElementSibling;
+  const pt0=prev&&!prev.matches('input,select,textarea,button')?_luTxt(prev):'';
+  if(!(pt0&&pt0.length<=40)&&c.closest('.lr')){const t=_luLabelNear(c);if(t){c.setAttribute('aria-label',t);return;}}
   const pt=prev&&!prev.matches('input,select,textarea,button')?_luTxt(prev):'';
   if(pt&&pt.length<=40){c.setAttribute('aria-label',pt.replace(/[:：]\s*$/,''));return;}
   // 4) a select's first option ("All members", "Link a project…")
   if(c.tagName==='SELECT'&&c.options.length){const t=_luTxt(c.options[0]);if(t){c.setAttribute('aria-label',t.slice(0,80));return;}}
   if(c.id)c.setAttribute('aria-label',c.id.replace(/^[a-z]+-/,'').replace(/[-_]+/g,' '));
 }
+// A box that scrolls sideways or down (the Pipeline board, wide Money and PM
+// tables on a phone) must take keyboard focus, or its hidden part can't be
+// reached without a mouse. Checked after layout; only boxes that really
+// overflow become a tab stop. A div gets role=region and a name; a table
+// keeps its own role.
+const _LU_SCROLL_SEL='.pipe-board,table.fin-tx,.fin-tx-wrap,.pm-scroll,[style*="overflow-x:auto"],[style*="overflow-y:auto"],[style*="overflow:auto"]';
+let _luScrollQ=null;
+function _luScrollFix(list){
+  if(!list.length)return;
+  _luScrollQ=(_luScrollQ||[]).concat(list);
+  if(_luScrollQ.length>list.length)return;
+  requestAnimationFrame(()=>{const q=_luScrollQ||[];_luScrollQ=null;
+    for(const el of q){
+      if(!el.isConnected||el.hasAttribute('tabindex')||el.querySelector('a,button,input,select,textarea,[tabindex="0"]'))continue;
+      if(!(el.scrollWidth>el.clientWidth+1||el.scrollHeight>el.clientHeight+1))continue;
+      const cs=getComputedStyle(el);if(!/(auto|scroll)/.test(cs.overflowX+' '+cs.overflowY))continue;
+      el.setAttribute('tabindex','0');
+      if(el.tagName!=='TABLE'&&!el.hasAttribute('role')){el.setAttribute('role','region');
+        if(!el.getAttribute('aria-label'))el.setAttribute('aria-label',el.classList.contains('pipe-board')?'Pipeline board':'Scrollable area');}
+    }
+  });
+}
 function _luKbdScan(root){
   if(!root||root.nodeType!==1)return;
   if(root.hasAttribute('onclick')||root.hasAttribute('data-act'))_luKbdFix(root);
   root.querySelectorAll('[onclick],[data-act]').forEach(_luKbdFix);
+  if(root.matches('.chk:not([onclick]):not([data-act]):not([role])'))root.setAttribute('aria-hidden','true');
+  root.querySelectorAll('.chk:not([onclick]):not([data-act]):not([role])').forEach(x=>x.setAttribute('aria-hidden','true'));
   if(root.matches('input,select,textarea'))_luNameFix(root);
   root.querySelectorAll('input,select,textarea').forEach(_luNameFix);
+  const sc=[...root.querySelectorAll(_LU_SCROLL_SEL)];if(root.matches(_LU_SCROLL_SEL))sc.push(root);_luScrollFix(sc);
 }
 new MutationObserver(ms=>{for(const m of ms){if(m.type==='attributes')_luKbdFix(m.target);else m.addedNodes.forEach(_luKbdScan);}})
   .observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['onclick','data-act']});
@@ -4398,9 +4472,7 @@ function renderDrawer(type,item){
       <div class="field" style="flex:1"><label>Title</label><input class="inp" value="${esc(item.title)}" id="dr-title"></div>
       <div class="field" style="flex:0 0 auto"><label style="font-size:11px;color:var(--t2)">Title Color</label>
         <div style="display:flex;gap:4px;align-items:center;margin-top:4px">
-          ${['','#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899','#06b6d4'].map(c=>c?`<span onclick="document.getElementById('dr-title-color').value='${_jsAttr(c)}';this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';this.style.outlineOffset='1px'" style="display:inline-block;width:16px;height:16px;border-radius:50%;background:${c};cursor:pointer;${(item.titleColor||'')=== c?'outline:2px solid var(--ac);outline-offset:1px':''}"></span>`:`<span onclick="document.getElementById('dr-title-color').value='';this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';this.style.outlineOffset='1px'" style="display:inline-block;width:16px;height:16px;border-radius:50%;background:var(--s3);cursor:pointer;border:1px dashed var(--bd2);${!(item.titleColor)?'outline:2px solid var(--ac);outline-offset:1px':''}" title="Default"></span>`).join('')}
-          <input type="color" id="dr-title-color" value="${item.titleColor||'#4f46e5'}" style="width:22px;height:22px;border:none;background:none;cursor:pointer;padding:0" title="Custom color">
-          <input type="hidden" id="dr-title-color-val" value="${item.titleColor||''}">
+          ${_luTitleSwatches('dr-title-color','dr-title-color-val',item.titleColor)}
         </div>
       </div>
     </div>
@@ -4479,8 +4551,7 @@ function renderDrawer(type,item){
       <div class="field" style="flex:1"><label>Title</label><input class="inp" value="${esc(item.title)}" id="dr-title"></div>
       <div class="field" style="flex:0 0 auto"><label style="font-size:11px;color:var(--t2)">Title Color</label>
         <div style="display:flex;gap:4px;align-items:center;margin-top:4px">
-          ${['','#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899','#06b6d4'].map(c=>c?`<span onclick="document.getElementById('dr-note-title-color').value='${_jsAttr(c)}';this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';this.style.outlineOffset='1px'" style="display:inline-block;width:16px;height:16px;border-radius:50%;background:${c};cursor:pointer;${(item.titleColor||'')=== c?'outline:2px solid var(--ac);outline-offset:1px':''}"></span>`:`<span onclick="document.getElementById('dr-note-title-color').value='';this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';this.style.outlineOffset='1px'" style="display:inline-block;width:16px;height:16px;border-radius:50%;background:var(--s3);cursor:pointer;border:1px dashed var(--bd2);${!(item.titleColor)?'outline:2px solid var(--ac);outline-offset:1px':''}" title="Default"></span>`).join('')}
-          <input type="color" id="dr-note-title-color" value="${item.titleColor||'#4f46e5'}" style="width:22px;height:22px;border:none;background:none;cursor:pointer;padding:0" title="Custom color">
+          ${_luTitleSwatches('dr-note-title-color','dr-note-title-color-val',item.titleColor)}
         </div>
       </div>
     </div>
@@ -4702,6 +4773,23 @@ function _luOpenUrl(u){
 // `this` inside the function is the clicked element. Keyboard (Enter/Space)
 // works through _luKbdFix like inline handlers. pnpm check:handlers keeps the
 // number of text-built inline handlers from growing.
+const _LU_TITLE_COLORS=[['','Default'],['#ef4444','Red'],['#f97316','Orange'],['#eab308','Yellow'],['#22c55e','Green'],['#3b82f6','Blue'],['#8b5cf6','Purple'],['#ec4899','Pink'],['#06b6d4','Cyan']];
+function _luTitleSwatches(colorId,valId,cur){
+  cur=cur||'';
+  const known=_LU_TITLE_COLORS.some(x=>x[0]===cur);
+  const sw=_LU_TITLE_COLORS.map(([c,name])=>{const on=c===cur;
+    return '<span role="radio" aria-checked="'+on+'" aria-label="'+name+'" title="'+name+'"'+_act('_luPickTitleColor',[valId,colorId,c])+' style="display:inline-block;width:16px;height:16px;border-radius:50%;cursor:pointer;'+(c?'background:'+c+';':'background:var(--s3);border:1px dashed var(--bd2);')+(on?'outline:2px solid var(--ac);outline-offset:1px':'')+'"></span>';}).join('');
+  return '<span role="radiogroup" aria-label="Title color" style="display:contents">'+sw+'</span>'
+    +'<input type="color" id="'+colorId+'" value="'+esc(cur&&/^#[0-9a-f]{6}$/i.test(cur)?cur:'#4f46e5')+'" aria-label="Custom title color" title="Custom color"'+(cur&&!known?' style="width:22px;height:22px;border:none;background:none;cursor:pointer;padding:0;outline:2px solid var(--ac);outline-offset:1px"':' style="width:22px;height:22px;border:none;background:none;cursor:pointer;padding:0"')+' oninput="_luPickTitleColor.call(this,this.dataset.val,this.id,this.value,true)" data-val="'+valId+'">'
+    +'<input type="hidden" id="'+valId+'" value="'+esc(cur)+'">';
+}
+function _luPickTitleColor(valId,colorId,c,fromPicker){
+  const v=document.getElementById(valId);if(v)v.value=c||'';
+  const box=this.parentElement&&this.parentElement.closest('div')||this.parentElement;
+  if(box)box.querySelectorAll('[role="radio"],input[type="color"]').forEach(s=>{s.style.outline='';if(s.getAttribute('role')==='radio')s.setAttribute('aria-checked','false');});
+  this.style.outline='2px solid var(--ac)';this.style.outlineOffset='1px';
+  if(!fromPicker&&this.getAttribute('role')==='radio')this.setAttribute('aria-checked','true');
+}
 function _act(fn,args,opts){
   return ' data-act="'+esc(fn)+'" data-a="'+esc(JSON.stringify(args==null?[]:args))+'"'+(opts&&opts.stop?' data-stop="1"':'')+(opts&&opts.ev?' data-ev="1"':'');
 }
@@ -5119,7 +5207,7 @@ function _drRenderTaskLinks(containerId){
 function saveItem(type,id){
   if(type==='task'){const t=D.tasks.find(x=>x.id===id);if(t){
     t.title=$('#dr-title').value;
-    t.titleColor=$('#dr-title-color')?.value||'';
+    t.titleColor=$('#dr-title-color-val')?.value||'';
     t.priority=$('#dr-pri').value;
     // Status is applied after the other fields (below), so a repeating
     // task completed from the drawer spawns with its updated rule.
@@ -5182,7 +5270,7 @@ function saveItem(type,id){
     setTaskStatus(t,_drNewStatus,{noSave:true});
     save('tasks');
   }}
-  if(type==='note'){const n=D.notes.find(x=>x.id===id);if(n){const _oldTitle=n.title;n.title=$('#dr-title').value;if(_oldTitle&&n.title&&_oldTitle!==n.title&&typeof _noteRenameLinks==='function')setTimeout(()=>_noteRenameLinks(n,_oldTitle),0);n.icon=document.getElementById('dr-note-icon')?.value||'';n.titleColor=document.getElementById('dr-note-title-color')?.value||'';n.tags=$('#dr-tags').value.split(',').map(s=>s.trim()).filter(Boolean);n.source=$('#dr-source').value;const drNoteRte=document.getElementById('dr-note-rte');if(drNoteRte)_noteSetHtml(n,drNoteRte.innerHTML);
+  if(type==='note'){const n=D.notes.find(x=>x.id===id);if(n){const _oldTitle=n.title;n.title=$('#dr-title').value;if(_oldTitle&&n.title&&_oldTitle!==n.title&&typeof _noteRenameLinks==='function')setTimeout(()=>_noteRenameLinks(n,_oldTitle),0);n.icon=document.getElementById('dr-note-icon')?.value||'';n.titleColor=document.getElementById('dr-note-title-color-val')?.value||'';n.tags=$('#dr-tags').value.split(',').map(s=>s.trim()).filter(Boolean);n.source=$('#dr-source').value;const drNoteRte=document.getElementById('dr-note-rte');if(drNoteRte)_noteSetHtml(n,drNoteRte.innerHTML);
     // Persist linked items from the chip-based picker state (_drLinks),
     // only when the picker host matches this note (mirrors the task save).
     if(_drLinksHostId===id){

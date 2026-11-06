@@ -20,7 +20,7 @@
     "check:account-switch": "node scripts/check-account-switch.mjs",
     "check:screens": "node scripts/check-screens.mjs",
     "check:dates": "node scripts/check-dates.mjs",
-    "check:a11y": "node scripts/check-a11y.mjs",
+    "check:a11y": "node scripts/check-a11y.mjs --serious",
     "check:all": "pnpm check:bundles && pnpm check:handlers && pnpm check:mobile-nav && pnpm check:ai-prompt && pnpm check:ai-knowledge && pnpm check:ai-agent && pnpm check:account-switch && node scripts/check-electric-contrast.mjs && pnpm check:dates && pnpm check:screens && pnpm check:a11y"
   },
   "dependencies": {

@@ -18,6 +18,11 @@
  * for WCAG 2.1 A/AA rules. "serious" findings are listed but only fail with
  * --serious.
  *
+ * SERIOUS FINDINGS FAIL THE BUILD TOO (-274): `pnpm check:a11y` runs with
+ * --serious. Unnamed checkboxes, switches and buttons, and scroll areas a
+ * keyboard can't reach, are what a screen reader user cannot use; -274
+ * brought them to zero on every screen. --critical-only shows the old gate.
+ *
  * COLOUR CONTRAST FAILS THE BUILD (-272), in dark AND light mode. axe leaves text on
  * a gradient or under an overlay undecided, so those are judged here against the
  * WORST colour stop behind them. That is how the Home banner's white text on bright
@@ -30,7 +35,7 @@ import { serveDist, openBrowser } from './lib/headless.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
-const FAIL_SERIOUS = args.includes('--serious');
+const FAIL_SERIOUS = args.includes('--serious') && !args.includes('--critical-only');
 const argW = args.indexOf('--width');
 const WIDTHS = argW >= 0 ? [Number(args[argW + 1])] : [1440, 390];
 const MODES = args.includes('--dark-only') ? ['dark'] : ['dark', 'light'];

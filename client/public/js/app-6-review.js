@@ -4440,7 +4440,7 @@ function renderHabits(){
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:5px;margin-bottom:4px">
-        <div class="chk ${h.doneToday?'on':''}" onclick="event.stopPropagation();toggleHabit(${h.id})"></div>
+        <div class="chk ${h.doneToday?'on':''}" aria-label="Done today: ${esc(h.title)}" onclick="event.stopPropagation();toggleHabit(${h.id})"></div>
         <span style="font-size:11px;color:${h.doneToday?'var(--ok)':h.skippedToday?'var(--purp)':'var(--t3)'}">${h.doneToday?'✓ Done today':h.skippedToday?'⏭ Skipped today':'Pending'}</span>
         <span style="font-size:11px;color:var(--warn);margin-left:auto" title="${h.cadence} streak">🔥 ${h.streak}${h.cadence==='Daily'?'d':(h.cadence&&h.cadence.includes('/week'))?'w':'d'}</span>
       </div>
@@ -4450,7 +4450,7 @@ function renderHabits(){
       ${genHeatmapMonth(h)}
     </div>`}).join('')}</div>`}
   <div class="cd" style="margin-top:12px;padding:10px"><div style="font-size:12px;font-weight:600;margin-bottom:6px">Today's Progress</div><div style="background:var(--s3);border-radius:4px;height:8px;overflow:hidden"><div style="background:var(--ok);height:100%;width:${pct}%;transition:width .4s"></div></div><div style="font-size:11px;color:var(--t2);margin-top:4px">${pct}% complete — ${done} of ${total} habits done</div></div>`;
-  $('habits-rail').innerHTML=`<div style="font-size:12px;font-weight:600;margin-bottom:6px">Today's Habits</div>${D.habits.filter(h=>h.cadence==='Daily').map(h=>`<div class="lr"><div class="chk ${h.doneToday?'on':''}" onclick="toggleHabit(${h.id})"></div><span class="rt" style="font-size:11px">${h.icon} ${esc(h.title)}</span><span style="font-size:11px;color:var(--warn)">🔥${h.streak}</span></div>`).join('')}
+  $('habits-rail').innerHTML=`<div style="font-size:12px;font-weight:600;margin-bottom:6px">Today's Habits</div>${D.habits.filter(h=>h.cadence==='Daily').map(h=>`<div class="lr"><div class="chk ${h.doneToday?'on':''}" aria-label="Done today: ${esc(h.title)}" onclick="toggleHabit(${h.id})"></div><span class="rt" style="font-size:11px">${h.icon} ${esc(h.title)}</span><span style="font-size:11px;color:var(--warn)">🔥${h.streak}</span></div>`).join('')}
   <div style="margin-top:12px"><div style="font-size:12px;font-weight:600;margin-bottom:4px">Today's Rate</div><div class="stat"><div class="stat-n" style="color:var(--ok)">${pct}%</div><div class="stat-l">${done}/${total} done</div></div></div>`;
 }
 function genHM(s,skippedDates,completedDates){
@@ -4862,7 +4862,7 @@ function renderCoach(){
   <div style="font-size:12px;font-weight:600;margin-bottom:8px">🎯 Daily Priorities</div>
   ${D.tasks.filter(t=>t.priority==='High'&&t.status!=='Done').slice(0,3).map(t=>`<div class="lr" style="font-size:11px" onclick="openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))"><div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();toggleTask(${_tidLit(t.id)})"></div><span class="rt">${esc(t.title)}</span></div>`).join('')||(D.tasks.filter(t=>t.status!=='Done').length?'':'<p style="font-size:11px;color:var(--t3)">All tasks done! 🎉</p>')}
   <div style="font-size:12px;font-weight:600;margin:12px 0 6px">✅ Habit Check-In</div>
-  ${dailyHabits.map(h=>`<div class="lr"><div class="chk ${h.doneToday?'on':''}" onclick="toggleHabit(${h.id})"></div><span class="rt" style="font-size:11px">${h.icon} ${esc(h.title)}</span><span style="font-size:11px;color:var(--warn)">🔥${h.streak}</span></div>`).join('')}
+  ${dailyHabits.map(h=>`<div class="lr"><div class="chk ${h.doneToday?'on':''}" aria-label="Done today: ${esc(h.title)}" onclick="toggleHabit(${h.id})"></div><span class="rt" style="font-size:11px">${h.icon} ${esc(h.title)}</span><span style="font-size:11px;color:var(--warn)">🔥${h.streak}</span></div>`).join('')}
   <div style="font-size:12px;font-weight:600;margin:12px 0 6px">${_icon('target',14,'currentColor')} Goals Snapshot</div>
   ${D.goals.slice(0,4).map(g=>`<div style="margin-bottom:6px"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px"><span>${g.icon} ${esc(g.title)}</span><span style="color:var(--t3)">${g.pct}%</span></div><div class="pb"><div class="f" style="width:${g.pct}%;background:${g.pct>=70?'var(--ok)':g.pct>=40?'var(--ac)':'var(--warn)'}"></div></div></div>`).join('')}
   `;
