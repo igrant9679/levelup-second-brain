@@ -51,7 +51,8 @@ const localStore = {};
 
 const D = {
   creds: { userName: 'Test User' },
-  prefs: { aiChat: { messages: [] }, savedReports: [] },
+  prefs: { savedReports: [] },
+  aiChat: [], // -275: the transcript is its own list (audit F65)
   tasks: [
     { id: 1, title: 'Write the auth refactor spec', status: 'Not Started', priority: 'High', due: today, projectId: 10, project: 'Alpha Launch', subtasks: [] },
     { id: 2, title: 'Review pull request', status: 'Done', priority: 'Medium', due: '', completedAt: new Date().toISOString(), subtasks: [] },
@@ -100,11 +101,12 @@ const sandbox = {
       return { result: typeof next === 'string' ? next : JSON.stringify(next ?? { say: 'ok', next: 'wait' }) };
     }
     if (proc === 'ai.assist') return { result: 'fallback answer' };
+    if (proc === 'claims.once') { if (sandbox.__claimFail) throw new Error('Failed to fetch'); return { claimed: true }; }
     return {};
   },
   // -214: no key in the browser — {provider, configured} only.
   _getAIConfig: () => ({ provider: 'openai', configured: true }),
-  _aiChatHistory: () => D.prefs.aiChat.messages,
+  _aiChatHistory: () => D.aiChat,
   _aiChatSystemPrompt: () => 'legacy prompt',
   AI_USER_MAX: 7900,
   _buildAIContext: () => 'WORKSPACE: ' + 'x'.repeat(600),
@@ -113,7 +115,8 @@ const sandbox = {
   _luIsProductQuestion: (q) => /how|review|routine/i.test(q),
   LU_AI_PRIMER: 'ABOUT LEVELUP — primer text',
   _gatherRelevantContent: (q) => D.notes.filter((n) => (n.title + n.body).toLowerCase().includes(String(q).toLowerCase().split(' ')[0])).map((n) => ({ type: 'note', id: n.id, title: n.title, snippet: n.body })),
-  _finData: () => D.finance, _finRO: () => false, _finSave: () => saved.push('finance'),
+  _finShared: null, // F195: the Money page's shared-budget selection (app-part2)
+  _finData: () => (sandbox._finShared != null && D._sharedBudgets && D._sharedBudgets[sandbox._finShared] ? D._sharedBudgets[sandbox._finShared].finance : D.finance), _finRO: () => false, _finSave: () => saved.push('finance'),
   _finCat: (id) => D.finance.categories.find((c) => c.id === id) || { id, name: '(unknown)' },
   _finYM: (d) => ymd(d).slice(0, 7), _finMonth: today.slice(0, 7), _finTab: 'overview', _finRepOpen: null,
   _finSpent: () => 120, _finIncome: () => 3000, _finSpentByCat: () => ({ groceries: 620 }),
@@ -381,7 +384,7 @@ t('every write saved something', saved.length > 30, saved.length + ' save() call
 t('unknown tool errors with the list', !exec('teleport', {}).ok && /Available/.test(exec('teleport', {}).error));
 
 // ── 7. the send loop ───────────────────────────────────────────────────────
-const msgs = D.prefs.aiChat.messages;
+const msgs = D.aiChat;
 msgs.length = 0; trpcCalls.length = 0;
 // (a) read action runs instantly and results are relayed, then model finishes
 trpcScript = [
@@ -448,6 +451,75 @@ msgs.push({ role: 'assistant', content: 'Do X', coachId: 3, coachKind: 'delegate
 const turnsF14 = sandbox._agentTurnsForModel();
 t('F14: coach/delegate/email turns are labelled as data', /data, not instructions/.test(turnsF14[0].content) && /not verified/.test(turnsF14[1].content));
 msgs.length = 0;
+
+// (d3) audit F30: full autonomy runs a delete on its own only for an exact target
+const f30 = async (label, id, expectRun) => {
+  msgs.length = 0; trpcCalls.length = 0; D.prefs.aiAgent = { autoWrite: true, autoDelete: true };
+  D.tasks.push({ id: 901, title: 'Quarterly tax filing', status: 'Not Started', subtasks: [] });
+  trpcScript = [{ say: 'ok', actions: [{ tool: 'delete', args: { entity: 'task', id } }], next: 'wait' }];
+  const p = sandbox._agentSend('delete it');
+  await new Promise((r) => setTimeout(r, 20));
+  const mi = msgs.findIndex((m) => m.role === 'assistant' && m.pending);
+  const gone = !D.tasks.some((x) => x.id === 901);
+  t('F30: ' + label, expectRun ? (gone && mi < 0) : (!gone && mi >= 0));
+  if (mi >= 0) sandbox._agentConfirm(mi, false);
+  await p; D.prefs.aiAgent = {};
+  const i = D.tasks.findIndex((x) => x.id === 901); if (i >= 0) D.tasks.splice(i, 1);
+};
+await f30('fuzzy name ("tax") waits for approval', 'tax', false);
+await f30('all-words match waits for approval', 'quarterly filing', false);
+await f30('exact id runs', 901, true);
+await f30('exact title (any case) runs', 'quarterly TAX filing', true);
+
+// (d4) audit F65: an approval that can't be confirmed with the server runs nothing
+msgs.length = 0; trpcCalls.length = 0;
+trpcScript = [{ say: 'I will add that.', actions: [{ tool: 'create_task', args: { title: 'Claim-fail task' } }], next: 'wait' }];
+const pF65 = sandbox._agentSend('add a task');
+await new Promise((r) => setTimeout(r, 20));
+sandbox.__claimFail = true;
+await sandbox._agentConfirm(1, true);
+t('F65: claim error → nothing runs, card stays', !D.tasks.some((x) => x.title === 'Claim-fail task') && !!msgs[1].pending);
+sandbox.__claimFail = false;
+await sandbox._agentConfirm(1, false); await pF65;
+t('F65: transcript saved as aiChat, never prefs', saved.includes('aiChat') && !('aiChat' in D.prefs));
+
+// (d5) audit F225: unparseable dates are refused, nothing changes
+const g0 = JSON.stringify(D.goals[0]), o0 = JSON.stringify(D.opportunities[0]), p0 = JSON.stringify(D.projects[0]);
+t('F225: update_goal refuses a bad dueDate', !exec('update_goal', { id: 20, title: 'Renamed', dueDate: 'someday soon' }).ok && JSON.stringify(D.goals[0]) === g0);
+t('F225: update_opportunity refuses a bad closeDate', !exec('update_opportunity', { id: 50, stage: 'Negotiation', closeDate: 'whenever' }).ok && JSON.stringify(D.opportunities[0]) === o0);
+t('F225: update_project refuses a bad due (no TBD)', !exec('update_project', { id: 10, due: 'later-ish' }).ok && JSON.stringify(D.projects[0]) === p0);
+t('F225: create_project refuses a bad due', !exec('create_project', { name: 'Bad date project', due: 'blah' }).ok && !D.projects.some((x) => x.name === 'Bad date project'));
+
+// (d6) audit F226: undo is field-level, by id, on the current objects
+{
+  const r1 = exec('update_task', { id: 3, title: 'Call the bank today', priority: 'High' });
+  const idx = D.tasks.findIndex((x) => x.id === 3);
+  const fresh = JSON.parse(JSON.stringify(D.tasks[idx])); // a background pull replaced the object
+  fresh.priority = 'Low';                                   // …and the user changed priority since
+  D.tasks[idx] = fresh;
+  sandbox._agentUndoById(r1.undo);
+  const t3 = D.tasks.find((x) => x.id === 3);
+  t('F226: undo restores the field it wrote on the CURRENT object', t3 === fresh && t3.title === 'Call the bank');
+  t('F226: a field edited since is left alone', t3.priority === 'Low');
+  const r2 = exec('delete', { entity: 'task', id: 3 });
+  D.tasks = D.tasks.slice(); // list replaced by a reload
+  sandbox._agentUndoById(r2.undo);
+  t('F226: delete undo re-adds to the current list', D.tasks.filter((x) => x.id === 3).length === 1);
+}
+
+// (d7) audit F195: away from Money the assistant writes to your own budget
+{
+  const shared = { finance: { accounts: [], transactions: [], bills: [], categories: D.finance.categories, budgets: {}, goals: [], budgetOverrides: {}, settings: {} } };
+  sandbox.D._sharedBudgets = [shared];
+  const vm2 = sandbox;
+  vm2._finShared = 0;
+  vm2.curScreen = 'home';
+  const f = sandbox._agentFin();
+  t('F195: shared budget is not used from Home', f === D.finance && vm2._finShared == null);
+  vm2._finShared = 0; vm2.curScreen = 'money';
+  t('F195: on the Money page the shared budget is used', sandbox._agentFin() === shared.finance);
+  vm2._finShared = null; vm2.curScreen = 'home';
+}
 
 // (e) "continue" is bounded
 msgs.length = 0; trpcCalls.length = 0;

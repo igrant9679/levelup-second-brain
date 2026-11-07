@@ -1,5 +1,19 @@
-import { index, int, mediumtext, mysqlEnum, mysqlTable, primaryKey, text, timestamp, tinyint, unique, varchar } from "drizzle-orm/mysql-core";
+import { bigint, customType, index, int, mediumtext, mysqlEnum, mysqlTable, primaryKey, text, timestamp, tinyint, unique, varchar } from "drizzle-orm/mysql-core";
 import { sql } from "drizzle-orm";
+import { decryptSecret, encryptSecret } from "../server/_core/secrets";
+
+/**
+ * A TEXT column holding a secret (audit F25): encrypted on the way into the
+ * database and decrypted on the way out (server/_core/secrets.ts), so every
+ * drizzle read/write of these columns is transparent to the code using them.
+ * Same SQL type as text() — no schema change. Never filter (where) on one:
+ * each encryption uses a fresh IV, so equality never matches.
+ */
+const secretText = customType<{ data: string; driverData: string }>({
+  dataType() { return "text"; },
+  toDriver(v: string) { return encryptSecret(v); },
+  fromDriver(v: string) { return decryptSecret(v); },
+});
 
 /**
  * Core user table backing auth flow.
@@ -22,7 +36,16 @@ export const users = mysqlTable("users", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
   passwordHash: varchar("passwordHash", { length: 255 }),
-});
+  /** Session revocation (audit F20): a session JWT carries the version it was
+   *  issued at (claim tv, missing = 0) and is refused once this moves on.
+   *  Bumped by password reset / password set / auth.signOutEverywhere. */
+  tokenVersion: int("tokenVersion").default(0).notNull(),
+}, (t) => ({
+  // Not UNIQUE on purpose (a duplicate already in prod would fail the
+  // migration and stop the app); account creation is serialised instead
+  // (GET_LOCK lu_user_create + case-insensitive check, server/_core/dbLock.ts).
+  idxEmail: index("idx_users_email").on(t.email),
+}));
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
@@ -32,8 +55,8 @@ export const oauthTokens = mysqlTable("oauth_tokens", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
   provider: varchar("provider", { length: 32 }).notNull(), // 'microsoft' | 'google'
-  accessToken: text("accessToken").notNull(),
-  refreshToken: text("refreshToken"),
+  accessToken: secretText("accessToken").notNull(),
+  refreshToken: secretText("refreshToken"),
   expiresAt: timestamp("expiresAt").notNull(),
   scope: text("scope"),
   email: varchar("email", { length: 320 }),
@@ -179,7 +202,9 @@ export const passwordResetTokens = mysqlTable('password_reset_tokens', {
   expiresAt: timestamp('expiresAt').notNull(),
   usedAt: timestamp('usedAt'),
   createdAt: timestamp('createdAt').defaultNow().notNull(),
-});
+}, (t) => ({
+  idxUser: index('idx_prt_user').on(t.userId),
+}));
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 export type InsertPasswordResetToken = typeof passwordResetTokens.$inferInsert;
 
@@ -199,7 +224,7 @@ export const userOauthCredentials = mysqlTable('user_oauth_credentials', {
   userId: int('userId').notNull(),
   provider: varchar('provider', { length: 32 }).notNull(), // 'microsoft' | 'google'
   clientId: varchar('clientId', { length: 512 }).notNull(),
-  clientSecret: text('clientSecret').notNull(),
+  clientSecret: secretText('clientSecret').notNull(),
   // Admin can mark their credentials as shared so team members can use them (1=shared, 0=private)
   sharedWithTeam: tinyint('sharedWithTeam').default(0).notNull(),
   // Timestamp of last successful credential verification (via validateCredentials)
@@ -227,13 +252,13 @@ export const smtpImapAccounts = mysqlTable('smtp_imap_accounts', {
   imapPort: int('imapPort').notNull().default(993),
   imapEncryption: mysqlEnum('imapEncryption', ['ssl', 'tls', 'none']).default('ssl').notNull(),
   imapUsername: varchar('imapUsername', { length: 255 }).notNull(),
-  imapPassword: text('imapPassword').notNull(),
+  imapPassword: secretText('imapPassword').notNull(),
   // SMTP settings
   smtpHost: varchar('smtpHost', { length: 255 }).notNull(),
   smtpPort: int('smtpPort').notNull().default(587),
   smtpEncryption: mysqlEnum('smtpEncryption', ['ssl', 'tls', 'none']).default('tls').notNull(),
   smtpUsername: varchar('smtpUsername', { length: 255 }).notNull(),
-  smtpPassword: text('smtpPassword').notNull(),
+  smtpPassword: secretText('smtpPassword').notNull(),
   // Metadata
   lastTestedAt: timestamp('lastTestedAt').default(sql`null`),
   createdAt: timestamp('createdAt').defaultNow().notNull(),
@@ -278,7 +303,12 @@ export const emailDeliveryLog = mysqlTable('email_delivery_log', {
   status: mysqlEnum('status', ['sent', 'failed', 'skipped']).notNull(),
   errorMessage: text('errorMessage'),
   createdAt: timestamp('createdAt').defaultNow().notNull(),
-});
+}, (t) => ({
+  // Readers: a user's recent sends (userId, newest first) and the admin log /
+  // retention cleanup (createdAt).
+  idxUserCreated: index('idx_edl_user_created').on(t.userId, t.createdAt),
+  idxCreated: index('idx_edl_created').on(t.createdAt),
+}));
 export type EmailDeliveryLog = typeof emailDeliveryLog.$inferSelect;
 export type InsertEmailDeliveryLog = typeof emailDeliveryLog.$inferInsert;
 // ─── Scheduled Task Log ──────────────────────────────────────────────────────
@@ -580,7 +610,11 @@ export const userAppData = mysqlTable('user_app_data', {
   sheets: mediumtext('sheets'),       // JSON array of spreadsheet/Smartsheet-like sheet objects (migration 0047 — shareable)
   decks: mediumtext('decks'),         // JSON array of presentation/slide-deck objects (migration 0048 — shareable)
   finance: mediumtext('finance'),     // JSON object: Money page — accounts/transactions/budgets/bills/goals (migration 0049)
-  calGrid: mediumtext('calGrid'),     // JSON array: the calendar grid's own events (_calEvents) — server-synced since migration 0053
+  calGrid: mediumtext('calGrid'),
+  // JSON arrays of {id:string,…}: the assistant's chat history and the coach's trash,
+  // per-item synced like the other lists (migration 0062; they used to ride in prefs).
+  aiChat: mediumtext('aiChat'),
+  coachTrash: mediumtext('coachTrash'),     // JSON array: the calendar grid's own events (_calEvents) — server-synced since migration 0053
   // JSON object {tasks?:id[], notes?:id[], ideas?:id[]} — each list's display order (migration 0057).
   // Per-item sync (build -226) no longer delete+re-inserts rows, so PK order stops
   // matching the user's order; load() sorts by this list instead.
@@ -715,14 +749,14 @@ export const externalSourceCredentials = mysqlTable('external_source_credentials
   // this holds the access_token after the OAuth dance completes. Nullable
   // since OAuth flows save clientId+clientSecret first, then exchange for
   // an access_token on consent. Migration 0033 dropped the NOT NULL.
-  apiToken: text('apiToken'),
+  apiToken: secretText('apiToken'),
   accountEmail: varchar('accountEmail', { length: 320 }),
   accountDisplayName: varchar('accountDisplayName', { length: 255 }),
   accountExternalId: varchar('accountExternalId', { length: 128 }),
   // OAuth fields (Nifty). Mirror of oauth_tokens for external sources.
   clientId: varchar('clientId', { length: 255 }),
-  clientSecret: text('clientSecret'),
-  refreshToken: text('refreshToken'),
+  clientSecret: secretText('clientSecret'),
+  refreshToken: secretText('refreshToken'),
   expiresAt: timestamp('expiresAt'),
   scope: text('scope'),
   createdAt: timestamp('createdAt').defaultNow().notNull(),
@@ -1057,6 +1091,8 @@ export const pmRecords = mysqlTable('pm_records', {
 }, (t) => ({
   idxUserProject: index('idx_pm_rec_user_project').on(t.userId, t.projectKey),
   idxUserKind: index('idx_pm_rec_user_kind').on(t.userId, t.kind),
+  // The nudge cron scans every account's live delegations by kind alone.
+  idxKindDeleted: index('idx_pm_rec_kind_deleted').on(t.kind, t.deletedAt),
 }));
 export type PmRecord = typeof pmRecords.$inferSelect;
 
@@ -1182,4 +1218,19 @@ export const noteVersions = mysqlTable("note_versions", {
 }, (t) => ({
   idxNote: index("idx_note_versions_note").on(t.userId, t.noteId, t.savedAt),
   idxKind: index("idx_note_versions_kind").on(t.userId, t.kind, t.savedAt),
+}));
+
+/**
+ * Throttling counters (audit F19) — shared by every instance and kept across
+ * deploys (the in-memory limiter reset on each deploy and was per process).
+ * Fixed windows: one row per (hashed key, window start); the limiter weighs the
+ * previous window in for a sliding estimate. Old rows are pruned as it runs.
+ */
+export const rateLimits = mysqlTable("rate_limits", {
+  bucket: varchar("bucket", { length: 64 }).notNull(),
+  windowStart: bigint("windowStart", { mode: "number" }).notNull(),
+  hits: int("hits").default(0).notNull(),
+}, (t) => ({
+  pk: primaryKey({ name: "rate_limits_pk", columns: [t.bucket, t.windowStart] }),
+  idxWindow: index("idx_rate_limits_window").on(t.windowStart),
 }));

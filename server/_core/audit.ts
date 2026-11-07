@@ -90,6 +90,7 @@ export const AUDITED: Record<string, Spec> = {
   "emailAuth.register": { action: "account.register", target: (i) => ({ targetType: "user", targetId: i?.email ?? null }) },
   "emailAuth.resetPassword": { action: "account.password_reset" },
   "emailAuth.setPassword": { action: "account.password_set" },
+  "auth.signOutEverywhere": { action: "account.sign_out_everywhere" },
   "emailAuth.updateEmail": { action: "account.email_change", target: (i) => ({ targetType: "user", detail: { newEmail: i?.newEmail ?? null } }) },
   // system mail, AI keys, bank link
   "oauthSync.setNotificationSender": { action: "mail.set_system_sender", target: (i) => ({ detail: { sender: i?.senderKey ?? null } }) },

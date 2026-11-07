@@ -25,6 +25,7 @@ import mammoth from "mammoth";
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { storagePut } from "../storage";
+import { assertZipWithinLimits } from "../_core/zipGuard";
 
 interface OriginalFile {
   url: string;
@@ -51,7 +52,10 @@ async function uploadOriginal(buffer: Buffer, fileName: string, mimeType: string
     const ext = (fileName.split(".").pop() || "bin").toLowerCase().replace(/[^a-z0-9]/g, "") || "bin";
     const base = fileName.replace(/\.[^.]+$/, "").replace(/\s+/g, "-").replace(/[^a-z0-9-]/gi, "").slice(0, 48) || "document";
     const key = `note-originals/${Date.now()}-${base}.${ext}`;
-    const { url } = await storagePut(key, buffer, mimeType);
+    // Public on purpose (audit F35): the note editor shows originals through
+    // Google's Drive previewer / Microsoft's Office viewer, which fetch the
+    // file without the user's cookie.
+    const { url } = await storagePut(key, buffer, mimeType, { public: true });
     console.log(`[notesImport] original stored: ${key} (${Math.round(buffer.length / 1024)} KB) → ${url}`);
     return { file: { url, name: fileName, mime: mimeType, size: buffer.length } };
   } catch (e) {
@@ -212,6 +216,7 @@ export const notesImportRouter = router({
     )
     .mutation(async ({ input }) => {
       const buffer = Buffer.from(input.fileBase64, "base64");
+      assertZipWithinLimits(buffer); // audit F22: a .docx (zip) is checked before it is inflated; other files pass
       const fileTitle = input.fileName.replace(/\.[^.]+$/, "").replace(/[-_]/g, " ").trim();
       const mime = input.mimeType.toLowerCase();
       const ext = input.fileName.split(".").pop()?.toLowerCase() ?? "";

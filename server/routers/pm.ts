@@ -15,7 +15,7 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull } from "drizzle-orm";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { pmPeople, pmRecords } from "../../drizzle/schema";
@@ -48,6 +48,8 @@ const recordInput = z.object({
   status: z.string().max(32).nullable().optional(),
   data: z.any().optional(),
   sortOrder: z.number().int().optional(),
+  /** data._rev this save is based on (audit F63); stale → refused, stored record returned with conflict:true */
+  baseRev: z.number().int().min(0).optional(),
 });
 type RecordInput = z.infer<typeof recordInput>;
 
@@ -55,9 +57,58 @@ function shapeRecord(r: any) {
   let data: any = null; try { data = r.data ? JSON.parse(r.data) : null; } catch { data = null; }
   return { id: r.id, projectKey: r.projectKey, kind: r.kind, refType: r.refType, refId: r.refId, title: r.title, status: r.status, data, sortOrder: r.sortOrder, createdAt: r.createdAt, updatedAt: r.updatedAt };
 }
+/** Kinds whose rows carry a per-project number (RISK-3, CR-7) — assigned here (audit F223). */
+const NUMBERED_KINDS = new Set(["risk", "issue", "assumption", "decision", "change"]);
+const isObj = (v: unknown): v is Record<string, any> => !!v && typeof v === "object" && !Array.isArray(v);
+const revOf = (raw: string | null | undefined) => { try { const o = raw ? JSON.parse(raw) : null; return isObj(o) ? Number(o._rev) || 0 : 0; } catch { return 0; } };
+async function inTx<T>(db: any, fn: (tx: any) => Promise<T>): Promise<T> {
+  return typeof db.transaction === "function" ? db.transaction(fn) : fn(db);
+}
+const locked = async (q: any) => (typeof q.for === "function" ? q.for("update") : q);
+
+/**
+ * Save one record.
+ * - Audit F63: an update that carries `baseRev` (the data._rev the client last
+ *   saw) is refused when the stored row has moved on (a delegate's reply, an
+ *   automatic follow-up, another device) — the stored record comes back with
+ *   `conflict: true` and nothing is written. Every write that changes data
+ *   bumps data._rev. The row is read with FOR UPDATE inside a transaction, so
+ *   the server's own appends (pmDelegation.mutateDelegation) and this can't
+ *   interleave.
+ * - Audit F223: a new RAID item / change request gets its number here, inside
+ *   the transaction: max+1 for the user + project + kind. A number the client
+ *   sends is only a hint, replaced when it is taken. A change request moved
+ *   back to "proposed" loses its decidedAt.
+ */
 async function upsertOne(db: any, userId: number, r: RecordInput) {
+  if (r.data !== undefined) {
+    const raw = JSON.stringify(r.data ?? null);
+    if (raw && raw.length > DATA_MAX) throw new TRPCError({ code: "BAD_REQUEST", message: "That item is too large to save" });
+  }
+  if (r.kind === "change" && r.status === "proposed" && isObj(r.data)) { r = { ...r, data: { ...r.data } }; delete (r.data as any).decidedAt; }
+  return inTx(db, async (tx: any) => {
+    let data: any = r.data;
+    if (r.id) {
+      const [cur] = await locked(tx.select().from(pmRecords).where(and(eq(pmRecords.id, r.id), eq(pmRecords.userId, userId))).limit(1));
+      if (!cur) throw new TRPCError({ code: "NOT_FOUND", message: "That item no longer exists" });
+      const storedRev = revOf(cur.data);
+      if (r.baseRev != null && data !== undefined && storedRev !== r.baseRev) return { ...shapeRecord(cur), conflict: true as const };
+      if (isObj(data)) data = { ...data, _rev: storedRev + 1 };
+    } else if (isObj(data)) {
+      data = { ...data, _rev: 1 };
+      if (NUMBERED_KINDS.has(r.kind)) {
+        const rows = await locked(tx.select({ data: pmRecords.data }).from(pmRecords).where(and(eq(pmRecords.userId, userId), eq(pmRecords.kind, r.kind), eq(pmRecords.projectKey, r.projectKey || ""))));
+        const taken = new Set<number>();
+        for (const x of rows as any[]) { try { const n = Number(JSON.parse(x.data || "{}")?.no); if (n > 0) taken.add(n); } catch { /* skip */ } }
+        const hint = Number(data.no);
+        if (!(Number.isInteger(hint) && hint > 0 && !taken.has(hint))) data.no = (taken.size ? Math.max(...Array.from(taken)) : 0) + 1;
+      }
+    }
+    return writeOne(tx, userId, { ...r, data });
+  });
+}
+async function writeOne(db: any, userId: number, r: RecordInput) {
   const json = r.data === undefined ? undefined : JSON.stringify(r.data ?? null);
-  if (json && json.length > DATA_MAX) throw new TRPCError({ code: "BAD_REQUEST", message: "That item is too large to save" });
   const values: Record<string, unknown> = {
     projectKey: r.projectKey || "", kind: r.kind,
     ...(r.refType !== undefined ? { refType: r.refType } : {}),
@@ -145,12 +196,17 @@ export const pmRouter = router({
     return { ok: true };
   }),
 
-  /** Changes since a time (for refresh without reloading everything). */
+  /** Changes since a time (for refresh without reloading everything).
+   *  Audit F64: `since` is a cursor the SERVER handed out (bootstrap.at or a
+   *  previous changedSince.at), compared with >=; the client asks again with a
+   *  small overlap and dedupes by id, so its own clock never matters. */
   changedSince: protectedProcedure.input(z.object({ since: z.string() })).query(async ({ ctx, input }) => {
     const db = await requireDb();
+    const at = new Date().toISOString();
     const since = new Date(input.since);
-    const rows = await db.select().from(pmRecords).where(eq(pmRecords.userId, ctx.user.id)).orderBy(desc(pmRecords.updatedAt)).limit(500);
-    return rows.filter((r: any) => new Date(r.updatedAt) > since).map((r: any) => ({ ...shapeRecord(r), deleted: !!r.deletedAt }));
+    const sinceMs = isNaN(since.getTime()) ? 0 : since.getTime();
+    const rows = await db.select().from(pmRecords).where(and(eq(pmRecords.userId, ctx.user.id), gte(pmRecords.updatedAt, new Date(sinceMs)))).orderBy(desc(pmRecords.updatedAt)).limit(500);
+    return { at, rows: rows.filter((r: any) => new Date(r.updatedAt).getTime() >= sinceMs).map((r: any) => ({ ...shapeRecord(r), deleted: !!r.deletedAt })) };
   }),
 
   nudge: protectedProcedure.input(z.object({ recordId: z.number().int(), note: z.string().max(2000).optional(), intro: z.boolean().optional() })).mutation(async ({ ctx, input }) => {

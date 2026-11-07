@@ -13,6 +13,10 @@ import type { ExternalTaskInput as SmartsheetExternalTaskInput } from "./smartsh
 import { upsertExternalSourceCredential, getExternalSourceCredential } from "../db";
 
 const NIFTY_API = "https://openapi.niftypm.com/api/v1.0";
+/** Per-request timeout for every Nifty call (audit F72). */
+export const NIFTY_TIMEOUT_MS = 20_000;
+/** Hard cap on tasks pulled per project per state — logged when hit. */
+export const NIFTY_MAX_TASKS = 50_000;
 const NIFTY_TOKEN_URL = "https://openapi.niftypm.com/oauth/token";
 
 /**
@@ -30,6 +34,7 @@ export async function ensureFreshNiftyToken(cred: ExternalSourceCredential): Pro
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Basic ${basic}` },
     body: JSON.stringify({ refresh_token: cred.refreshToken, grant_type: 'refresh_token' }),
+    signal: AbortSignal.timeout(NIFTY_TIMEOUT_MS),
   });
   if (!resp.ok) {
     throw new Error(`Nifty token refresh failed: ${resp.status} ${await resp.text()}`);
@@ -108,6 +113,7 @@ export async function fetchNiftyMe(apiToken: string): Promise<{
 }> {
   const resp = await fetch(`${NIFTY_API}/users/me`, {
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
+    signal: AbortSignal.timeout(NIFTY_TIMEOUT_MS),
   });
   if (!resp.ok) {
     throw new Error(`Nifty /users/me failed: ${resp.status} ${await resp.text()}`);
@@ -122,6 +128,11 @@ export async function fetchNiftyMe(apiToken: string): Promise<{
  * are silently ignored and Nifty falls back to its 25-default which is why
  * earlier versions of this puller only ever saw the first 25 tasks per
  * project). We walk offsets until a short page comes back.
+ *
+ * Audit F72: every request has a 20 s timeout (a hung Nifty used to hang the
+ * hourly puller), and there is no silent stop at 5,000 tasks any more — it
+ * pages until done, up to NIFTY_MAX_TASKS per state, and LOGS when that cap
+ * is hit. A page that repeats the previous one (offset ignored) ends the walk.
  */
 async function fetchTaskPage(
   apiToken: string,
@@ -130,7 +141,9 @@ async function fetchTaskPage(
 ): Promise<NiftyTask[]> {
   const out: NiftyTask[] = [];
   const LIMIT = 100;
-  for (let offset = 0; offset < 5000; offset += LIMIT) {
+  let prevFirst: string | null = null;
+  let complete = false;
+  for (let offset = 0; offset < NIFTY_MAX_TASKS; offset += LIMIT) {
     const params = new URLSearchParams({
       project_id: projectId,
       limit: String(LIMIT),
@@ -141,15 +154,22 @@ async function fetchTaskPage(
     const url = `${NIFTY_API}/tasks?${params.toString()}`;
     const resp = await fetch(url, {
       headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
+      signal: AbortSignal.timeout(NIFTY_TIMEOUT_MS),
     });
     if (!resp.ok) {
       throw new Error(`Nifty /tasks offset ${offset} failed: ${resp.status} ${await resp.text()}`);
     }
     const data = await resp.json() as NiftyTask[] | { tasks?: NiftyTask[]; data?: NiftyTask[] };
     const tasks = Array.isArray(data) ? data : (data.tasks ?? data.data ?? []);
-    if (tasks.length === 0) break;
+    if (tasks.length === 0) { complete = true; break; }
+    const first = String((tasks[0] as any)?.id ?? '');
+    if (offset > 0 && first && first === prevFirst) { complete = true; break; } // offset ignored: same page again
+    prevFirst = first;
     out.push(...tasks);
-    if (tasks.length < LIMIT) break;
+    if (tasks.length < LIMIT) { complete = true; break; }
+  }
+  if (!complete) {
+    console.error(`[nifty] project ${projectId}: stopped at the ${NIFTY_MAX_TASKS}-task safety cap (${JSON.stringify(extraParams)}) — later tasks were not pulled`);
   }
   return out;
 }

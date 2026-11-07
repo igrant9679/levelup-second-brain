@@ -18,7 +18,7 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, eq, gte, isNull, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { timeEntries } from "../../drizzle/schema";
@@ -160,6 +160,29 @@ export const timeEntriesRouter = router({
         .where(and(...conditions))
         .groupBy(timeEntries.taskId, timeEntries.source);
       return rows;
+    }),
+
+  /**
+   * Audit F212: tracked minutes per task for the given task ids over ALL time
+   * (completed entries only). PM labor cost used the 90-day listRecent copy,
+   * so a project's actual cost fell as its entries aged out.
+   * → [{ taskId, source, mins }]
+   */
+  totalsForTasks: protectedProcedure
+    .input(z.object({ taskIds: z.array(z.string().max(40)).max(2000) }))
+    .query(async ({ input, ctx }) => {
+      const ids = Array.from(new Set(input.taskIds.map(String).filter(Boolean)));
+      if (!ids.length) return [];
+      const db = await requireDb();
+      const rows = await db.select({
+        taskId: timeEntries.taskId,
+        source: timeEntries.source,
+        mins: sql<number>`COALESCE(SUM(${timeEntries.durationMins}), 0)`.as('mins'),
+      })
+        .from(timeEntries)
+        .where(and(eq(timeEntries.userId, ctx.user.id), inArray(timeEntries.taskId, ids), isNotNull(timeEntries.endedAt)))
+        .groupBy(timeEntries.taskId, timeEntries.source);
+      return rows.map((r: any) => ({ taskId: String(r.taskId), source: r.source, mins: Number(r.mins) || 0 }));
     }),
 
   /**

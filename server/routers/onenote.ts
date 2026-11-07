@@ -20,6 +20,7 @@ import * as db from "../db";
 import { getDb } from "../db";
 import { onenoteImportJobs } from "../../drizzle/schema";
 import { signOAuthState } from "../_core/oauthState";
+import { exchangeMsRefreshToken } from "../_core/msToken";
 
 // ─── Microsoft Graph helpers ──────────────────────────────────────────────────
 
@@ -67,23 +68,18 @@ export function getOnenoteAuthUrl(origin: string, state: string, slot: MsAccount
 
 async function refreshMsToken(token: { refreshToken: string | null; userId: number; scope?: string | null }, slot: MsAccountSlot): Promise<string | null> {
   if (!token.refreshToken) return null;
-  const clientId = process.env.MICROSOFT_CLIENT_ID ?? process.env.MS_CLIENT_ID ?? "";
-  const clientSecret = process.env.MICROSOFT_CLIENT_SECRET ?? process.env.MS_CLIENT_SECRET ?? "";
-  // No scope param on refresh: Microsoft then returns ALL originally-consented
-  // scopes for the slot. Naming scopes here either strips extras (subset) or
-  // errors (superset of consent) — omitting is correct for every slot.
-  const resp = await fetch("https://login.microsoftonline.com/common/oauth2/v2.0/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: token.refreshToken,
-      grant_type: "refresh_token",
-    }).toString(),
-  });
-  if (!resp.ok) return null;
-  const data = await resp.json() as { access_token: string; expires_in: number; refresh_token?: string };
+  // Same app registration + tenant the connect flow used (the user's saved
+  // Microsoft credential, else the env app; tenant → user's, else
+  // MS_TENANT_ID). The exchange is the shared one (audit F72) — it used to
+  // hardcode /common and the env app only, which fails for single-tenant or
+  // per-user registrations.
+  const userCred = await db.getUserOauthCredential(token.userId, "microsoft");
+  // (the callback that redeemed the code — oauth-callbacks.ts — resolves the
+  // client the same way: saved credential, else MS_CLIENT_ID).
+  const clientId = (userCred?.clientId || process.env.MS_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID) ?? "";
+  const clientSecret = (userCred?.clientSecret || process.env.MS_CLIENT_SECRET || process.env.MICROSOFT_CLIENT_SECRET) ?? "";
+  const data = await exchangeMsRefreshToken({ refreshToken: token.refreshToken, clientId, clientSecret, tenantId: userCred?.tenantId });
+  if (!data) return null;
   await db.upsertOAuthToken({
     userId: token.userId,
     provider: slot,

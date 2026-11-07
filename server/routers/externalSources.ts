@@ -808,67 +808,9 @@ export const externalSourcesRouter = router({
       };
     }),
 
-  niftyDebugFindTask: protectedProcedure
-    .input(z.object({ titleContains: z.string().min(2) }))
-    .mutation(async ({ input, ctx }) => {
-      const db = await requireDb();
-      const cred = await _niftyCredFresh(db, ctx.user.id);
-      if (!cred?.apiToken) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'No Nifty token configured' });
-      const watches = await db.select().from(niftyWatchedProjects)
-        .where(and(eq(niftyWatchedProjects.userId, ctx.user.id), eq(niftyWatchedProjects.enabled, 1)));
-      const needle = input.titleContains.toLowerCase();
-      const out: Array<Record<string, unknown>> = [];
-      for (const w of watches) {
-        // Try both filter combos. Report whichever finds the match.
-        const variants: Array<{ label: string; params: Record<string, string> }> = [
-          { label: 'default', params: { include_archived: 'true' } },
-          { label: 'completed=true', params: { completed: 'true', include_archived: 'true' } },
-          { label: 'completed=false', params: { completed: 'false', include_archived: 'true' } },
-        ];
-        for (const v of variants) {
-          const qs = new URLSearchParams({
-            project_id: w.projectId,
-            limit: '100',
-            offset: '0',
-            include_subtasks: 'true',
-            ...v.params,
-          });
-          const resp = await fetch(`${NIFTY_API}/tasks?${qs.toString()}`, {
-            headers: { Authorization: `Bearer ${cred.apiToken}`, Accept: 'application/json' },
-          });
-          if (!resp.ok) {
-            out.push({ watchLabel: w.label, projectId: w.projectId, filter: v.label, error: `${resp.status} ${(await resp.text()).slice(0, 200)}` });
-            continue;
-          }
-          const data = await resp.json() as unknown;
-          const arr = Array.isArray(data) ? data as Record<string, unknown>[] : ((data as { tasks?: unknown[]; data?: unknown[] }).tasks ?? (data as { data?: unknown[] }).data ?? []) as Record<string, unknown>[];
-          const matches = arr.filter(t => String((t as { name?: string }).name ?? '').toLowerCase().includes(needle));
-          for (const m of matches) {
-            // Look up the LevelUp DB row.
-            const [dbRow] = await db.select().from(externalTasks)
-              .where(and(
-                eq(externalTasks.userId, ctx.user.id),
-                eq(externalTasks.source, 'nifty'),
-                eq(externalTasks.externalId, String((m as { id?: string | number }).id ?? '')),
-              )).limit(1);
-            out.push({
-              watchLabel: w.label,
-              projectId: w.projectId,
-              filter: v.label,
-              taskId: (m as { id?: unknown }).id,
-              name: (m as { name?: unknown }).name,
-              statusObj: (m as { status?: unknown }).status,
-              statusName: (m as { status_name?: unknown }).status_name,
-              completed: (m as { completed?: unknown }).completed,
-              completedAt: (m as { completed_at?: unknown }).completed_at,
-              archived: (m as { archived?: unknown }).archived,
-              levelup: dbRow ? { status: dbRow.status, removedAt: dbRow.removedAt, completedAt: dbRow.completedAt } : 'NOT IN LEVELUP DB',
-            });
-          }
-        }
-      }
-      return { matches: out, watchCount: watches.length };
-    }),
+  // niftyDebugFindTask, niftyProbeCompletionWrites and niftyProbeCreate were
+  // removed (audit F38): diagnostics left from the Nifty integration work that
+  // any member could call, and two of them wrote to real Nifty tasks.
 
   /**
    * Write-back: change a Smartsheet row's status column value.
@@ -1125,66 +1067,6 @@ export const externalSourcesRouter = router({
       return { task, attempts };
     }),
 
-  /**
-   * Diagnostic: try a battery of Nifty write strategies to mark a task
-   * complete. Returns per-attempt status code + response body + a
-   * verify read after each attempt so we can see exactly which one
-   * actually flips `completed: true`.
-   *
-   * Use ONLY in dev — runs ~12 requests and may modify the task state.
-   */
-  niftyProbeCompletionWrites: protectedProcedure
-    .input(z.object({ externalId: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      const db = await requireDb();
-      const cred = await _niftyCredFresh(db, ctx.user.id);
-      if (!cred?.apiToken) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'No Nifty token' });
-      const base = `https://openapi.niftypm.com/api/v1.0`;
-      const taskUrl = `${base}/tasks/${input.externalId}`;
-      const headers = { Authorization: `Bearer ${cred.apiToken}`, 'Content-Type': 'application/json' };
-      const nowIso = new Date().toISOString();
-      // Round 2: zero in on POST /complete with various body shapes (it
-      // returned 400 with {} body, meaning the endpoint exists but
-      // demands specific fields). Also try DELETE for uncomplete patterns.
-      const variants: Array<{ name: string; url: string; method: string; body: unknown | null }> = [
-        { name: 'POST /complete body={completed_on:ISO}', url: `${taskUrl}/complete`, method: 'POST', body: { completed_on: nowIso } },
-        { name: 'POST /complete body={completed:true}',   url: `${taskUrl}/complete`, method: 'POST', body: { completed: true } },
-        { name: 'POST /complete body={date:ISO}',         url: `${taskUrl}/complete`, method: 'POST', body: { date: nowIso } },
-        { name: 'POST /complete body={timestamp:ISO}',    url: `${taskUrl}/complete`, method: 'POST', body: { timestamp: nowIso } },
-        { name: 'POST /complete body={user:me}',          url: `${taskUrl}/complete`, method: 'POST', body: { user: cred.accountExternalId } },
-        { name: 'POST /complete body={by:me,on:ISO}',     url: `${taskUrl}/complete`, method: 'POST', body: { by: cred.accountExternalId, on: nowIso } },
-        { name: 'POST /complete body=null',               url: `${taskUrl}/complete`, method: 'POST', body: null },
-        { name: 'PUT /complete body={completed_on:ISO}',  url: `${taskUrl}/complete`, method: 'PUT', body: { completed_on: nowIso } },
-        { name: 'DELETE /complete',                       url: `${taskUrl}/complete`, method: 'DELETE', body: null },
-        { name: 'POST /uncomplete',                       url: `${taskUrl}/uncomplete`, method: 'POST', body: {} },
-      ];
-      const results: Array<{ name: string; status: number; respBody: string; verifyCompleted: boolean | null; verifyCompletedOn: string | null }> = [];
-      for (const v of variants) {
-        let resp;
-        try {
-          resp = await fetch(v.url, { method: v.method, headers, body: v.body == null ? undefined : JSON.stringify(v.body) });
-        } catch (e) {
-          results.push({ name: v.name, status: -1, respBody: `fetch error: ${(e as Error).message}`, verifyCompleted: null, verifyCompletedOn: null });
-          continue;
-        }
-        const respBody = (await resp.text()).slice(0, 300);
-        // Verify by re-reading the task.
-        let verifyCompleted: boolean | null = null;
-        let verifyCompletedOn: string | null = null;
-        try {
-          const vr = await fetch(taskUrl, { headers: { Authorization: `Bearer ${cred.apiToken}`, Accept: 'application/json' } });
-          if (vr.ok) {
-            const vt = JSON.parse(await vr.text()) as { completed?: boolean; completed_on?: string | null };
-            verifyCompleted = vt.completed ?? null;
-            verifyCompletedOn = vt.completed_on ?? null;
-          }
-        } catch { /* swallow */ }
-        results.push({ name: v.name, status: resp.status, respBody, verifyCompleted, verifyCompletedOn });
-        if (verifyCompleted === true) break; // found a working strategy
-      }
-      return { results };
-    }),
-
   /** Helper: list available Nifty status names for a watched project. */
   /**
    * Push a LevelUp task TO Nifty (build -202). Two procedures:
@@ -1421,98 +1303,6 @@ export const externalSourcesRouter = router({
         project_id: readBack.project_id ?? readBack.project ?? null,
       } : null;
       return { ok: true as const, id, url, verified, summary, sent: body, dropped, groupDefaulted, taskGroup, attempts };
-    }),
-
-  /**
-   * Diagnostic (build -204): learn how THIS workspace wants a task created.
-   * The -203 create 400'd at every rung, even {project,name}, and the three
-   * task_groups URLs returned nothing for Test Project. So: read the raw
-   * project object (do task groups / lists live inside it?), retry the
-   * task_groups URLs reporting status+body, look at an existing task's
-   * task_group/milestone, then try create variants — deleting anything that
-   * succeeds. Same verify-then-report discipline as niftyProbeCompletionWrites.
-   */
-  niftyProbeCreate: protectedProcedure
-    .input(z.object({ projectId: z.string().min(1).max(64), knownTaskGroup: z.string().max(64).optional() }))
-    .mutation(async ({ ctx, input }) => {
-      const db = await requireDb();
-      const cred = await _niftyCredFresh(db, ctx.user.id);
-      if (!cred?.apiToken) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'No Nifty token' });
-      const H = { Authorization: `Bearer ${cred.apiToken}`, Accept: 'application/json', 'Content-Type': 'application/json' };
-      const pid = encodeURIComponent(input.projectId);
-      const base = 'https://openapi.niftypm.com/api/v1.0';
-      const hit = async (method: string, url: string, body?: unknown) => {
-        try {
-          const r = await fetch(url, { method, headers: H, body: body === undefined ? undefined : JSON.stringify(body) });
-          const text = await r.text();
-          let json: any = null; try { json = JSON.parse(text); } catch { /* text */ }
-          return { method, url: url.replace(base, ''), status: r.status, body: text.slice(0, 400), json };
-        } catch (e: any) { return { method, url: url.replace(base, ''), status: 0, body: String(e?.message || e), json: null }; }
-      };
-      const out: any = { reads: [], creates: [], cleanup: [] };
-      // 1. The project object itself — do lists / task groups live inside it?
-      const proj = await hit('GET', `${base}/projects/${pid}`);
-      out.project = { status: proj.status, keys: proj.json && typeof proj.json === 'object' ? Object.keys(proj.json).slice(0, 60) : null,
-        arraysOfNamed: proj.json && typeof proj.json === 'object' ? Object.entries(proj.json).filter(([, v]) => Array.isArray(v) && v.length && typeof v[0] === 'object').map(([k, v]: any) => ({ key: k, first: Object.fromEntries(Object.entries(v[0]).slice(0, 10).map(([kk, vv]) => [kk, typeof vv === 'string' ? vv.slice(0, 40) : vv])) })) : null };
-      // 2. Task-group endpoints, with their real answers this time.
-      for (const u of [`${base}/task_groups?project_id=${pid}`, `${base}/task_groups?project=${pid}`, `${base}/projects/${pid}/task_groups`, `${base}/projects/${pid}/lists`, `${base}/lists?project_id=${pid}`, `${base}/milestones?project_id=${pid}`]) {
-        const r = await hit('GET', u); out.reads.push({ url: r.url, status: r.status, body: r.body.slice(0, 200) });
-      }
-      // 3. What an existing task in this project carries.
-      const tasks = await hit('GET', `${base}/tasks?project_id=${pid}&limit=1&offset=0`);
-      const firstTask = Array.isArray(tasks.json) ? tasks.json[0] : (tasks.json?.tasks?.[0] ?? tasks.json?.items?.[0] ?? null);
-      out.existingTask = firstTask ? { id: firstTask.id, task_group: firstTask.task_group ?? null, milestone: firstTask.milestone ?? null, project: firstTask.project ?? null, keys: Object.keys(firstTask).slice(0, 40) } : { status: tasks.status, body: tasks.body.slice(0, 200) };
-      const groupId = input.knownTaskGroup || (firstTask && typeof firstTask.task_group === 'string' ? firstTask.task_group : null);
-      const milestoneId = firstTask && typeof firstTask.milestone === 'string' ? firstTask.milestone : null;
-      // 3b. Can this token WRITE at all? A no-op PUT on the existing task
-      // (same name back) tells us whether 400s are about the body or the token.
-      if (firstTask?.id) {
-        const put = await hit('PUT', `${base}/tasks/${encodeURIComponent(String(firstTask.id))}`, { name: firstTask.name });
-        out.writeSanity = { status: put.status, body: put.body.slice(0, 160) };
-      }
-      // 4. Create variants. Round 2 (2026-09-22): snake_case keys with the
-      // real task_group still 400'd, so try the key-name matrix a NestJS DTO
-      // might expect (camelCase, *_id, milestone, wrapped, form-encoded).
-      // Anything that succeeds is deleted straight away.
-      const NAME = 'LevelUp probe (auto-deleted)';
-      const variants: Array<{ label: string; method: string; url: string; body: any; form?: boolean }> = [
-        { label: '{name, project}', method: 'POST', url: `${base}/tasks`, body: { name: NAME, project: input.projectId } },
-        { label: '{name, project_id}', method: 'POST', url: `${base}/tasks`, body: { name: NAME, project_id: input.projectId } },
-        { label: '{name, projectId}', method: 'POST', url: `${base}/tasks`, body: { name: NAME, projectId: input.projectId } },
-      ];
-      if (groupId) {
-        variants.push(
-          { label: '{name, project, task_group}', method: 'POST', url: `${base}/tasks`, body: { name: NAME, project: input.projectId, task_group: groupId } },
-          { label: '{name, task_group}', method: 'POST', url: `${base}/tasks`, body: { name: NAME, task_group: groupId } },
-          { label: '{name, task_group_id}', method: 'POST', url: `${base}/tasks`, body: { name: NAME, task_group_id: groupId } },
-          { label: '{name, taskGroup}', method: 'POST', url: `${base}/tasks`, body: { name: NAME, taskGroup: groupId } },
-          { label: '{name, projectId, taskGroup}', method: 'POST', url: `${base}/tasks`, body: { name: NAME, projectId: input.projectId, taskGroup: groupId } },
-          { label: '{name, project_id, task_group_id}', method: 'POST', url: `${base}/tasks`, body: { name: NAME, project_id: input.projectId, task_group_id: groupId } },
-          { label: '{name, project, task_group, milestone}', method: 'POST', url: `${base}/tasks`, body: { name: NAME, project: input.projectId, task_group: groupId, milestone: milestoneId } },
-          { label: '{name, project, task_group, description, assignees:[]}', method: 'POST', url: `${base}/tasks`, body: { name: NAME, project: input.projectId, task_group: groupId, description: '', assignees: [] } },
-          { label: 'wrapped {task:{name, project, task_group}}', method: 'POST', url: `${base}/tasks`, body: { task: { name: NAME, project: input.projectId, task_group: groupId } } },
-          { label: 'form-encoded name+project+task_group', method: 'POST', url: `${base}/tasks`, body: { name: NAME, project: input.projectId, task_group: groupId }, form: true },
-        );
-      }
-      const hitForm = async (url: string, body: Record<string, string>) => {
-        try {
-          const r = await fetch(url, { method: 'POST', headers: { Authorization: H.Authorization, Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(body).toString() });
-          const text = await r.text(); let json: any = null; try { json = JSON.parse(text); } catch { /* text */ }
-          return { method: 'POST', url: url.replace(base, ''), status: r.status, body: text.slice(0, 400), json };
-        } catch (e: any) { return { method: 'POST', url: url.replace(base, ''), status: 0, body: String(e?.message || e), json: null }; }
-      };
-      for (const v of variants) {
-        const r = v.form ? await hitForm(v.url, v.body) : await hit(v.method, v.url, v.body);
-        const created = r.status >= 200 && r.status < 300 ? r.json : null;
-        const id = created ? String(created.id ?? created.task?.id ?? created.data?.id ?? '') : '';
-        out.creates.push({ label: v.label, status: r.status, body: r.body.slice(0, 200), createdId: id || null });
-        if (id) {
-          const del = await hit('DELETE', `${base}/tasks/${encodeURIComponent(id)}`);
-          out.cleanup.push({ id, deleteStatus: del.status, body: del.body.slice(0, 120) });
-          break; // learned enough; do not litter
-        }
-      }
-      return out;
     }),
 
   niftyStatusOptions: protectedProcedure

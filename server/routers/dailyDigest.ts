@@ -73,7 +73,7 @@ export const dailyDigestRouter = router({
       if (input.recipientEmail !== undefined) merged.recipientEmail = input.recipientEmail;
       const newPrefs = { ...prefs, dailyDigest: merged };
       if (row) {
-        await db.update(userAppData).set({ prefs: JSON.stringify(newPrefs) }).where(eq(userAppData.userId, ctx.user.id));
+        await db.update(userAppData).set({ prefs: JSON.stringify(newPrefs), updatedAt: new Date() }).where(eq(userAppData.userId, ctx.user.id));
       } else {
         // Edge case: user has no user_app_data row yet. Insert a minimal one
         // so the digest can run before the user makes their first task save.

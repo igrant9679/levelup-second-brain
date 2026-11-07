@@ -35,7 +35,10 @@ import { ENV } from "./env";
 import { job } from "./lifecycle";
 
 const MAGIC = Buffer.from("LUBK1");
-const SECRET_COL = /(password|secret|token|api_?key|accessurl|refresh|vapidprivate|clientsecret)/i;
+// users.tokenVersion (session revocation counter, an int) is not a secret —
+// redacting it would make a restore fail on the int column. The encrypted
+// "enc:v1:" secret values are redacted like plaintext ones.
+const SECRET_COL = /(password|secret|token(?!version)|api_?key|accessurl|refresh|vapidprivate|clientsecret)/i;
 const SECRET_SETTING = /(aikey|apikey|secret|token|password|vapidprivate)/i;
 
 export type BackupDump = { version: 1; createdAt: string; tables: Record<string, { count: number; hash: string; rows: any[] }> };

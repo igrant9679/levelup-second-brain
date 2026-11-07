@@ -23,7 +23,8 @@ import { ENV } from '../_core/env';
 import { appOrigin } from '../_core/appOrigin';
 import { and, isNull, sql } from 'drizzle-orm';
 import { users } from '../../drizzle/schema';
-import { hit, blocked, clearKey, clientIp } from "../_core/rateLimit";
+import { rlHit, rlBlocked, rlClear, clientIp } from "../_core/rateLimit";
+import { createUserSerialised } from "../_core/dbLock";
 
 /** Reset tokens are stored as SHA-256 hashes, so a DB read can't reveal a live link. */
 function hashResetToken(token: string): string {
@@ -51,6 +52,26 @@ async function otherAccountsUsing(selfId: number, value: string): Promise<Array<
 async function invalidateIdentityCache() {
   try { (await import('./appData'))._invalidateUserIdMap(); } catch { /* not loaded */ }
 }
+/**
+ * Give the CURRENT device a fresh session cookie carrying the account's new
+ * tokenVersion (audit F20), keeping the remaining lifetime of the cookie it
+ * had (1 day / 30 days / 1 year), so a password change or "sign out
+ * everywhere" doesn't sign out the device that asked for it.
+ */
+export async function reissueSessionCookie(ctx: { req: any; res: any }, user: { openId: string; name?: string | null }, tokenVersion: number): Promise<void> {
+  const cur = await sdk.sessionOf(ctx.req).catch(() => null);
+  const left = cur?.exp ? cur.exp * 1000 - Date.now() : 0;
+  const ms = left > 60_000 ? Math.min(left, ONE_YEAR_MS) : 86_400_000;
+  const token = await sdk.createSessionToken(user.openId, { name: user.name || '', expiresInMs: ms, tokenVersion });
+  ctx.res.cookie(COOKIE_NAME, token, { ...getSessionCookieOptions(ctx.req), maxAge: ms });
+}
+
+/** Bump users.tokenVersion; a failure is logged (→ error log), never thrown at the caller. */
+async function bumpTv(userId: number): Promise<number | null> {
+  try { return await db.bumpTokenVersion(userId); }
+  catch (e) { console.error('[auth] could not revoke sessions for user ' + userId + ':', e); return null; }
+}
+
 const escHtml = (s: string) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as any)[c]);
 
 /**
@@ -85,25 +106,24 @@ export const emailAuthRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       // Throttle guessing (-255): 8 failures per address or 30 per IP in 15 minutes.
+      // Counters are persistent and shared by every instance (audit F19).
       const em = input.email.toLowerCase().trim(), ip = clientIp(ctx.req), WIN = 15 * 60_000;
-      if (blocked('login:e:' + em, 8, WIN) || blocked('login:ip:' + ip, 30, WIN)) {
+      if ((await rlBlocked('login:e:' + em, 8, WIN)) || (await rlBlocked('login:ip:' + ip, 30, WIN))) {
         throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: 'Too many sign-in attempts. Wait 15 minutes and try again, or reset your password.' });
       }
-      const failed = (message: string): never => {
-        hit('login:e:' + em, 8, WIN); hit('login:ip:' + ip, 30, WIN);
-        throw new TRPCError({ code: 'UNAUTHORIZED', message });
+      const failed = async (): Promise<never> => {
+        await rlHit('login:e:' + em, 8, WIN); await rlHit('login:ip:' + ip, 30, WIN);
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid email or password' });
       };
       const user = await db.getUserByEmail(em);
-      if (!user) return failed('Invalid email or password');
-      if (!user.passwordHash) {
-        throw new TRPCError({
-          code: 'UNAUTHORIZED',
-          message: 'This account does not have a password set. Please use the "Set Password" option.',
-        });
-      }
+      if (!user) return failed();
+      // Audit F36: an account with no password gets the same answer as a
+      // wrong password — a distinct "no password set" message told anyone
+      // which addresses have accounts. (Forgot password sets one.)
+      if (!user.passwordHash) return failed();
       const valid = await bcrypt.compare(input.password, user.passwordHash);
-      if (!valid) return failed('Invalid email or password');
-      clearKey('login:e:' + em);
+      if (!valid) return failed();
+      await rlClear('login:e:' + em);
       // Update lastSignedIn and ensure owner always has admin role in DB
       const isOwner = ENV.ownerOpenId && user.openId === ENV.ownerOpenId;
       await db.upsertUser({ openId: user.openId, lastSignedIn: new Date(), ...(isOwner ? { role: 'admin' as const } : {}) });
@@ -145,20 +165,28 @@ export const emailAuthRouter = router({
       if (!(await signupAllowed())) {
         throw new TRPCError({ code: 'FORBIDDEN', message: 'LevelUp accounts are by invitation. Ask the workspace owner for an invite.' });
       }
+      const conflict = (): never => { throw new TRPCError({ code: 'CONFLICT', message: 'An account with this email already exists' }); };
       const existing = await db.getUserByEmail(input.email.toLowerCase().trim());
-      if (existing) {
-        throw new TRPCError({ code: 'CONFLICT', message: 'An account with this email already exists' });
-      }
+      if (existing) conflict();
       const passwordHash = await bcrypt.hash(input.password, SALT_ROUNDS);
       // Use email as openId for email-registered users (prefixed to avoid collision with Manus OAuth openIds)
       const openId = `email:${input.email.toLowerCase().trim()}`;
-      await db.upsertUser({
-        openId,
-        name: input.name,
-        email: input.email.toLowerCase().trim(),
-        loginMethod: 'email',
-        lastSignedIn: new Date(),
-      });
+      // Audit F70: account creation is serialised (GET_LOCK lu_user_create) with
+      // a case-insensitive check inside the lock, so two concurrent sign-ups
+      // (or a sign-up racing an invite accept) can't create two accounts.
+      try {
+        await createUserSerialised(input.email, (e) => Promise.resolve().then(() => db.emailHasAccount(e)).catch(() => false), conflict, () => db.upsertUser({
+          openId,
+          name: input.name,
+          email: input.email.toLowerCase().trim(),
+          loginMethod: 'email',
+          lastSignedIn: new Date(),
+        }));
+      } catch (e: any) {
+        if (e instanceof TRPCError) throw e;
+        if (e?.message === 'busy') throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: 'Busy creating another account — please try again in a moment.' });
+        throw e;
+      }
       const user = await db.getUserByEmail(input.email.toLowerCase().trim());
       if (!user) {
         throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to create account' });
@@ -207,6 +235,10 @@ export const emailAuthRouter = router({
       }
       const passwordHash = await bcrypt.hash(input.newPassword, SALT_ROUNDS);
       await db.updateUserPasswordHash(user.id, passwordHash);
+      // Audit F20: a new password signs out every other device; this one gets
+      // a fresh cookie with the new token version.
+      const tv = await bumpTv(user.id);
+      if (tv != null) await reissueSessionCookie(ctx, user, tv);
       return { success: true };
     }),
 
@@ -225,7 +257,7 @@ export const emailAuthRouter = router({
       // At most 3 reset emails per address and 10 per IP an hour (-255) — each
       // one cancels the previous link, so a flood would also block a real reset.
       // Over the limit the answer is the same, so it reveals nothing.
-      if (!hit('reset:e:' + email, 3, 3600_000) || !hit('reset:ip:' + clientIp(ctx.req), 10, 3600_000)) {
+      if (!(await rlHit('reset:e:' + email, 3, 3600_000)) || !(await rlHit('reset:ip:' + clientIp(ctx.req), 10, 3600_000))) {
         return { success: true, message: 'If that email is registered, a reset link has been sent.' };
       }
       const user = await db.getUserByEmail(email);
@@ -306,9 +338,17 @@ export const emailAuthRouter = router({
       newPassword: z.string().min(8, 'Password must be at least 8 characters'),
       confirmPassword: z.string().min(8),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       if (input.newPassword !== input.confirmPassword) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Passwords do not match' });
+      }
+      // Throttle (audit F19): 20 attempts an hour per IP, 5 per link — the
+      // token is 256 bits, but every attempt costs a bcrypt hash.
+      {
+        const th = hashResetToken(String(input.token || '').trim());
+        if (!(await rlHit('rp:ip:' + clientIp(ctx?.req), 20, 3600_000)) || !(await rlHit('rp:t:' + th, 5, 3600_000))) {
+          throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: 'Too many attempts. Wait an hour, or request a new reset link.' });
+        }
       }
 
       const dbConn = await getDb();
@@ -356,6 +396,9 @@ export const emailAuthRouter = router({
         .update(passwordResetTokens)
         .set({ usedAt: new Date() })
         .where(and(eq(passwordResetTokens.userId, resetToken.userId), isNull(passwordResetTokens.usedAt)));
+      // Audit F20: every existing session of the account ends (a reset is
+      // what you do when someone else may be signed in).
+      await bumpTv(resetToken.userId);
 
       return { success: true, message: 'Password updated successfully. You can now sign in.' };
     }),

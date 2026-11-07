@@ -44,14 +44,17 @@ function aiWeeklyReview(){
   const weekAgo=_pd(today);weekAgo.setDate(today.getDate()-7);
   const weekDates=Array.from({length:7},(_,i)=>{const d=_pd(weekAgo);d.setDate(weekAgo.getDate()+i+1);return _ymd(d);});
   // Tasks
-  const tasksDone=D.tasks.filter(t=>t.status==='Done'&&t.completedAt&&weekDates.some(d=>t.completedAt.startsWith(d)));
-  const tasksAdded=D.tasks.filter(t=>t.created&&weekDates.some(d=>t.created.startsWith(d)));
+  // -275: local days via _dayOf (startsWith on a UTC timestamp put evening
+  // completions on the next day) and createdAt (tasks have no "created").
+  const _wk=new Set(weekDates);
+  const tasksDone=D.tasks.filter(t=>t.status==='Done'&&t.completedAt&&_wk.has(_dayOf(t.completedAt)));
+  const tasksAdded=D.tasks.filter(t=>{const c=t.createdAt||t.created;return c&&_wk.has(_dayOf(c));});
   const overdueTasks=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<weekDates[6]);
   // Habits
   const habitsDone=D.habits.filter(h=>(h.completedDates||[]).some(d=>weekDates.includes(d)));
   const habitScore=D.habits.length?Math.round(D.habits.reduce((sum,h)=>{
     const done=(h.completedDates||[]).filter(d=>weekDates.includes(d)).length;
-    const target=h.frequency==='Daily'?7:h.frequency==='3x/week'?3:h.frequency==='Weekly'?1:7;
+    const target=Math.max(1,typeof cadencePerWeek==='function'?cadencePerWeek(h.cadence||h.frequency):7);
     return sum+(done/target);
   },0)/D.habits.length*100):0;
   // Journal
@@ -369,9 +372,10 @@ function openGoalCheckIn(gid){
   <div style="margin-bottom:12px">
     <label style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Update progress % (current: ${g.pct}%)</label>
     <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
-      <input id="ci-pct" type="range" min="0" max="100" value="${g.pct}" style="flex:1" oninput="document.getElementById('ci-pct-val').textContent=this.value+'%'">
+      <input id="ci-pct" type="range" min="0" max="100" value="${g.pct}" aria-label="Progress percent" style="flex:1" oninput="document.getElementById('ci-pct-val').textContent=this.value+'%'">
       <span id="ci-pct-val" style="font-size:13px;font-weight:700;color:var(--ach);min-width:36px">${g.pct}%</span>
     </div>
+    ${(!g.pctManual&&((g.milestones||[]).length||(g.linkedTaskIds||[]).length))?'<div style="font-size:11px;color:var(--t3);margin-top:4px">This goal\'s % is worked out from its milestones and linked tasks. Moving the slider switches it to the % you set (\u21ba Reset to auto in the goal\'s drawer).</div>':''}
   </div>
   ${prevCheckins.length?`<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Previous check-ins</div>${prevCheckins.reverse().map(ci=>`<div style="background:var(--s3);border-radius:5px;padding:6px 8px;margin-bottom:4px;font-size:11px"><div style="font-weight:600;color:var(--t3);margin-bottom:2px">${ci.date}</div><div style="color:var(--t2)">${esc(ci.progress)}</div></div>`).join('')}</div>`:''}
   <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -391,6 +395,10 @@ function saveGoalCheckIn(gid){
   const today=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
   if(!g2.checkIns)g2.checkIns=[];
   g2.checkIns.push({date:today,progress,blockers,next,pct});
+  // -275: a goal with milestones or linked tasks recalculates its % on the
+  // next render, so the check-in's number vanished. Moving the slider makes
+  // the goal's progress manual (the goal drawer's "Reset to auto" undoes it).
+  if(!isNaN(pct)&&pct!==Number(g2.pct||0)&&((g2.milestones||[]).length||(g2.linkedTaskIds||[]).length))g2.pctManual=true;
   g2.pct=pct;
   g2.lastTouchedAt=new Date().toISOString();
   g2.pctHistory=Array.isArray(g2.pctHistory)?g2.pctHistory:[];
@@ -592,6 +600,9 @@ function renderJournalList(){
   el.innerHTML=entries.map(j=>`<div class="cd" style="cursor:pointer;margin-bottom:8px" onclick="openDrawer('journal',D.journal.find(x=>x.id==${_tidLit(j.id)}))" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='var(--bd2)'"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:11px;color:var(--t3)">${esc(_fmtJournalDate(j))} · <span style="color:var(--ach)">${esc(_journalCategoryOf(j))}</span></div><div style="font-size:16px">${j.mood||''}</div></div><div style="font-size:13px;font-weight:500;margin-bottom:4px">${esc(j.title||'(untitled)')}</div><div style="font-size:11px;color:var(--t2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${esc(_journalPreviewText(j).slice(0,360))}</div></div>`).join('');
 }
 // J3: month-grid calendar view of journal entries
+// -275: clicking an empty day writes an entry dated THAT day (it opened one
+// dated today).
+function _jrnlNewOn(ymd){window._faJournalDate=ymd;openFA('journal');}
 function renderJournalCalendar(){
   const el=document.getElementById('jrnl-entries');
   if(!el)return;
@@ -613,7 +624,7 @@ function renderJournalCalendar(){
     const list=buckets[k]||[];
     const isToday=k===todayKey;
     const moods=list.map(j=>j.mood||'').filter(Boolean).slice(0,3).join('');
-    const action=list.length?`onclick="openDrawer('journal',D.journal.find(x=>x.id===${list[0].id}))"`:`onclick="openFA('journal')"`;
+    const action=list.length?`onclick="openDrawer('journal',D.journal.find(x=>x.id===${list[0].id}))"`:_act('_jrnlNewOn',[k]);
     cells.push(`<div class="lu-jcal-cell ${isToday?'today':''} ${list.length?'has-entry':''}" ${action} title="${list.length?list.length+' entr'+(list.length===1?'y':'ies'):'No entry — click to add'}"><span class="lu-jcal-num">${dom}</span><span class="lu-jcal-moods">${moods}</span>${list.length>1?`<span class="lu-jcal-count">${list.length}</span>`:''}</div>`);
   }
   el.innerHTML=`<div class="lu-jcal">
@@ -712,9 +723,37 @@ function renderJournal(){
   ${prompts.map(p=>`<div style="background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:8px 10px;margin-bottom:5px;cursor:pointer;transition:all .15s;display:flex;align-items:flex-start;gap:7px" onmouseover="this.style.borderColor='var(--ac)';this.style.background='var(--acs)'" onmouseout="this.style.borderColor='var(--bd2)';this.style.background='var(--s2)'" onclick="openJournalPrompt('${_jsAttr(p.title).replace(/'/g,'&#39;')}','${_jsAttr(p.text).replace(/'/g,'&#39;')}')"><span style="font-size:14px;flex-shrink:0">${p.icon||'✏'}</span><div><div style="font-size:11px;font-weight:500;color:var(--t1);margin-bottom:1px">${esc(p.title||'')}</div><div style="font-size:11px;color:var(--t2);line-height:1.3">${esc(p.text||'')}</div></div></div>`).join('')}</div>`;
 }
 
+// -275: archived mail leaves the inbox list (Archive used to only toast).
 function _getMailItems(){
-  if(D&&D.mail&&D.mail.inbox&&D.mail.inbox.length)return D.mail.inbox;
+  if(D&&D.mail&&D.mail.inbox&&D.mail.inbox.length){
+    const arch=new Set(((D.prefs&&D.prefs.mailState&&D.prefs.mailState.archived)||[]).map(String));
+    return arch.size?D.mail.inbox.filter(m=>!arch.has(String(m.id))):D.mail.inbox;
+  }
   return [];
+}
+// Mail state that follows you between devices: archived and flagged ids
+// (the provider's own ids), in prefs, capped.
+function _mailState(){D.prefs=D.prefs||{};const s=D.prefs.mailState=D.prefs.mailState&&typeof D.prefs.mailState==='object'?D.prefs.mailState:{};s.archived=Array.isArray(s.archived)?s.archived:[];s.flagged=Array.isArray(s.flagged)?s.flagged:[];return s;}
+function _mailFlagged(id){const s=D.prefs&&D.prefs.mailState;return !!(s&&Array.isArray(s.flagged)&&s.flagged.map(String).includes(String(id)));}
+function _mailArchive(id){
+  const s=_mailState();if(!s.archived.map(String).includes(String(id)))s.archived.push(String(id));
+  s.archived=s.archived.slice(-1000);save('prefs');
+  _selectedMail=null;
+  const list=document.getElementById('mail-inbox-list');if(list)list.innerHTML=renderMailInboxList();
+  const det=document.getElementById('mail-detail');if(det)det.innerHTML='<div style="text-align:center;padding:40px 0;color:var(--t3);font-size:12px">📧 Select an email to read</div>';
+  toast({type:'info',title:'Archived',msg:'Removed from your LevelUp inbox.',duration:6000,actions:[{label:'Undo',primary:true,onClick:()=>{const t=_mailState();t.archived=t.archived.filter(x=>String(x)!==String(id));save('prefs');const l2=document.getElementById('mail-inbox-list');if(l2)l2.innerHTML=renderMailInboxList();}}]});
+}
+function _mailToggleFlag(id){
+  const s=_mailState();const k=String(id);
+  if(s.flagged.map(String).includes(k))s.flagged=s.flagged.filter(x=>String(x)!==k);else s.flagged.push(k);
+  s.flagged=s.flagged.slice(-1000);save('prefs');
+  if(typeof openMailItem==='function')openMailItem(id);
+  const list=document.getElementById('mail-inbox-list');if(list)list.innerHTML=renderMailInboxList();
+}
+function _mailForward(id){
+  const m=(D.mail&&((D.mail.inbox||[]).concat(D.mail.sent||[])).find(x=>String(x.id)===String(id)))||null;if(!m)return;
+  const quoted='<p><br></p><p>---------- Forwarded message ----------<br>From: '+esc(m.from||m.fromEmail||'')+'<br>Subject: '+esc(m.subject||'')+'</p>'+(m.body?(String(m.body).includes('<')?luSanitizeHtml(m.body):esc(m.body)):esc(m.preview||''));
+  openComposeModal({to:'',subject:'Fwd: '+String(m.subject||''),body:quoted});
 }
 function _getSentItems(){
   if(D&&D.mail&&D.mail.sent&&D.mail.sent.length)return D.mail.sent;
@@ -792,12 +831,12 @@ function openMailItem(id){
   const dateStr=_fmtMailDate(mail.date||mail.sentDateTime||mail.receivedDateTime);
   det.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
   <div><div style="font-size:14px;font-weight:600">${esc(mail.subject||'(no subject)')}</div>${fromLine}<div style="font-size:11px;color:var(--t3)">${dateStr}</div></div>
-   <div style="display:flex;gap:4px">${_mailTab!=='sent'?`<button class="btn btn-p" style="height:24px;font-size:11px" onclick="openInlineReply('${_jsAttr(id)}')">↩ Reply</button><button class="btn btn-s" style="height:24px;font-size:11px" onclick="aiSmartReply('${_jsAttr(id)}')">✨ Smart Reply</button><button class="btn btn-s" style="height:24px;font-size:11px" onclick="openComposeModal({to:'${_jsAttr(mail.fromEmail||mail.email||'')}',subject:'Fwd: ${_jsAttr(mail.subject||'')}'})">Forward</button>`:''}</div>
+   <div style="display:flex;gap:4px">${_mailTab!=='sent'?`<button class="btn btn-p" style="height:24px;font-size:11px" onclick="openInlineReply('${_jsAttr(id)}')">↩ Reply</button><button class="btn btn-s" style="height:24px;font-size:11px" onclick="aiSmartReply('${_jsAttr(id)}')">✨ Smart Reply</button><button class="btn btn-s" style="height:24px;font-size:11px" ${_act('_mailForward',[String(id)])}>Forward</button>`:''}</div>
   </div>
   <div style="font-size:12px;color:var(--t2);line-height:1.7;border-top:1px solid var(--bd1);padding-top:12px">${mail.body?(mail.body.includes('<')?luSanitizeHtml(mail.body):esc(mail.body)):esc(mail.preview||'(no preview)')}</div>
   ${_mailTab!=='sent'?`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bd1);display:flex;gap:6px">
-  <button class="btn btn-s" style="height:24px;font-size:11px" onclick="toast('Archived')">Archive</button>
-  <button class="btn btn-s" style="height:24px;font-size:11px" onclick="toast('Flagged')">Flag</button>
+  <button class="btn btn-s" style="height:24px;font-size:11px"${_act('_mailArchive',[String(id)])}>Archive</button>
+  <button class="btn btn-s" style="height:24px;font-size:11px" aria-pressed="${_mailFlagged(id)?'true':'false'}"${_act('_mailToggleFlag',[String(id)])}>${_mailFlagged(id)?'🚩 Flagged':'Flag'}</button>
   <button class="btn btn-s" style="height:24px;font-size:11px" onclick="openFA('task')">Create Task</button>
   <button class="btn btn-s" style="height:24px;font-size:11px;color:var(--purp)" onclick="aiSummarizeThread('${_jsAttr(id)}')">✨ Summarize</button>
   <button class="btn btn-s" style="height:24px;font-size:11px;color:var(--grn)" onclick="aiFollowUpReminder('${_jsAttr(id)}')">⏰ Follow-up</button>
@@ -818,7 +857,7 @@ function renderMailInboxList(q=''){
   return items.map(m=>{
     const sel=_selectedMail===m.id;
     const dt=_fmtMailDate(m.date||m.receivedDateTime);
-    return `<div class="lr" style="cursor:pointer;background:${sel?'var(--s3)':'transparent'};border-radius:6px;padding:6px 8px" onclick="openMailItem('${_jsAttr(m.id)}')" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='${sel?'var(--s3)':'transparent'}'"><span style="width:6px;height:6px;border-radius:50%;background:${m.read?'transparent':'var(--ac)'};flex-shrink:0;margin-top:2px"></span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:${m.read?400:600}">${esc(m.from||'')}</div><div style="font-size:11px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.subject||'(no subject)')}</div></div><span style="font-size:11px;color:var(--t3);white-space:nowrap">${dt}</span></div>`;
+    return `<div class="lr" style="cursor:pointer;background:${sel?'var(--s3)':'transparent'};border-radius:6px;padding:6px 8px" onclick="openMailItem('${_jsAttr(m.id)}')" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='${sel?'var(--s3)':'transparent'}'"><span style="width:6px;height:6px;border-radius:50%;background:${m.read?'transparent':'var(--ac)'};flex-shrink:0;margin-top:2px"></span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:${m.read?400:600}">${_mailFlagged(m.id)?'🚩 ':''}${esc(m.from||'')}</div><div style="font-size:11px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.subject||'(no subject)')}</div></div><span style="font-size:11px;color:var(--t3);white-space:nowrap">${dt}</span></div>`;
   }).join('');
 }
 function renderMailSentList(q=''){
@@ -908,7 +947,7 @@ function aiFollowUpReminder(id){
   if(!mail)return;
   const followUpDate=new Date();followUpDate.setDate(followUpDate.getDate()+3);
   const dateStr=_ymd(followUpDate);
-  D.tasks.push({id:Date.now(),title:`Follow up: ${mail.subject}`,priority:'Medium',due:dateStr,status:'Not Started',context:'Calls',project:'',tags:['follow-up','email'],notes:`Follow up with ${mail.from} (${mail.email}) re: ${mail.subject}`,myDay:false,energy:'low',subtasks:[],comments:[],createdBy:D.creds.userName||'Idris Grant'});
+  D.tasks.push({id:Date.now(),title:`Follow up: ${mail.subject}`,priority:'Medium',due:dateStr,status:'Not Started',context:'Calls',project:'',tags:['follow-up','email'],notes:`Follow up with ${mail.from||''}${(mail.fromEmail||mail.email)?' ('+(mail.fromEmail||mail.email)+')':''} re: ${mail.subject||''}`,myDay:false,energy:'low',subtasks:[],comments:[],createdBy:D.creds.userName||'Idris Grant'});
   save('tasks');
   toast(`⏰ Follow-up task created for ${dateStr}`);
 }
@@ -1021,7 +1060,8 @@ async function openComposeModal(opts={}){
   document.body.style.overflow='hidden';
   if(opts.body){setTimeout(()=>luRTE_setValue('cmp-body',opts.body),80);}
   setTimeout(()=>document.getElementById('cmp-to')?.focus(),100);
-  // Autosave every 30 seconds
+  // Autosave every 30 seconds (into one draft for this window)
+  window._cmpDraftId=null;
   if(_cmpAutosaveTimer)clearInterval(_cmpAutosaveTimer);
   _cmpAutosaveTimer=setInterval(()=>{
     const s=document.getElementById('cmp-status');
@@ -1075,7 +1115,12 @@ function saveCmpDraft(){
   const body=luRTE_getValue('cmp-body');
   if(!D.mail)D.mail={inbox:[],sent:[],drafts:[]};
   if(!D.mail.drafts)D.mail.drafts=[];
-  D.mail.drafts.unshift({id:Date.now(),to,subject:sub,body,date:new Date().toISOString()});
+  // -275: one draft per compose window, updated in place (autosave added a
+  // new draft every 30 seconds); nothing is saved for an empty window.
+  if(!to&&(!sub||sub==='(no subject)')&&!String(body||'').replace(/<[^>]+>/g,'').trim())return;
+  const ex=window._cmpDraftId!=null?D.mail.drafts.find(d=>String(d.id)===String(window._cmpDraftId)):null;
+  if(ex){ex.to=to;ex.subject=sub;ex.body=body;ex.date=new Date().toISOString();}
+  else{window._cmpDraftId=Date.now();D.mail.drafts.unshift({id:window._cmpDraftId,to,subject:sub,body,date:new Date().toISOString()});}
   save('mail');
   document.getElementById('cmp-status').textContent='Draft saved';
   setTimeout(()=>{const s=document.getElementById('cmp-status');if(s)s.textContent='';},2000);
@@ -1129,11 +1174,13 @@ function switchMailTab(el,tab){
   } else if(tab==='calendar'){
     const today=new Date();
     const dayOfWeek=today.getDay();
-    const monday=_pd(today);monday.setDate(today.getDate()-(dayOfWeek===0?6:dayOfWeek-1));
-    const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    // Honours Settings → first day of week (-275).
+    const _sunF=(D.prefs&&D.prefs.firstDayOfWeek)==='sunday';
+    const monday=_pd(today);monday.setDate(today.getDate()-(_sunF?dayOfWeek:(dayOfWeek===0?6:dayOfWeek-1)));
+    const days=_sunF?['Sun','Mon','Tue','Wed','Thu','Fri','Sat']:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
     const weekDays=days.map((d,i)=>{const dt=_pd(monday);dt.setDate(monday.getDate()+i);return`${d} ${dt.getDate()}`});
     const weekDateStrs=days.map((_,i)=>{const dt=_pd(monday);dt.setDate(monday.getDate()+i);return _ymd(dt);});
-    const gridRows=[8,9,10,11,12,13,14,15,16,17].map(h=>`<div style="font-size:11px;color:var(--t3);text-align:right;padding-right:6px;padding-top:2px">${h>12?h-12:h} ${h>=12?'PM':'AM'}</div>${Array(7).fill(0).map((_,d)=>{const evs=[..._calLocalEventsOn(_pd(weekDateStrs[d])).filter(e=>Number(e.hour)===h&&!_calIsAllDay(e)),..._cellEventsForDate(weekDateStrs[d],h)];return`<div style="border-left:1px solid var(--bd1);border-top:1px solid var(--bd1);min-height:32px;padding:2px">${evs.map(e=>`<div style="font-size:11px;background:${e.color}22;border-left:2px solid ${e.color};padding:2px 4px;border-radius:2px;cursor:pointer;margin-bottom:1px" onclick="openCalEvent('${_jsAttr(String(e.id))}')">${esc(e.title)}</div>`).join('')}</div>`}).join('')}`).join('');
+    const gridRows=[8,9,10,11,12,13,14,15,16,17].map(h=>`<div style="font-size:11px;color:var(--t3);text-align:right;padding-right:6px;padding-top:2px">${_luHourLabel(h)}</div>${Array(7).fill(0).map((_,d)=>{const evs=[..._calLocalEventsOn(_pd(weekDateStrs[d])).filter(e=>Number(e.hour)===h&&!_calIsAllDay(e)),..._cellEventsForDate(weekDateStrs[d],h)];return`<div style="border-left:1px solid var(--bd1);border-top:1px solid var(--bd1);min-height:32px;padding:2px">${evs.map(e=>`<div style="font-size:11px;background:${e.color}22;border-left:2px solid ${e.color};padding:2px 4px;border-radius:2px;cursor:pointer;margin-bottom:1px" onclick="openCalEvent('${_jsAttr(String(e.id))}')">${esc(e.title)}</div>`).join('')}</div>`}).join('')}`).join('');
     body.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:12px;font-weight:600">📅 This Week</span><button class="btn btn-p" style="height:26px;font-size:11px" onclick="openNewCalEventModal()">＋ Event</button></div><div style="overflow-x:auto"><div style="display:grid;grid-template-columns:40px repeat(7,1fr);min-width:500px;font-size:11px"><div></div>${weekDays.map((d,i)=>`<div style="text-align:center;padding:4px;font-weight:${i===dayOfWeek-1?700:400};color:${i===dayOfWeek-1?'var(--ach)':'var(--t2)'}">${d}</div>`).join('')}${gridRows}</div></div>`;
   } else {
     body.innerHTML=`<div style="padding:40px;text-align:center;color:var(--t3)"><div style="font-size:32px;margin-bottom:8px">📁</div><div style="font-size:12px">Files integration coming soon</div></div>`;
@@ -1184,9 +1231,23 @@ function _calPersist(){try{if(typeof save==='function')save('calGrid');else loca
 (function(){try{var stray=JSON.parse(localStorage.getItem('lu_cal_events')||'null');if(!Array.isArray(stray)){return;}var seen={};_calEvents.forEach(function(e){if(e)seen[String(e.id)]=1;});var add=stray.filter(function(e){return e&&!seen[String(e.id)];});if(add.length){_calEvents=_calEvents.concat(add);_calPersist();}localStorage.removeItem('lu_cal_events');}catch(_){}})();
 // Mail/Calendar rails read event data from _calEvents — the same store the calendar
 // grid renders — so a visibly-full calendar no longer shows "no events" in the rail.
+// Hour label honouring Settings → Time Format (12h "3 PM" / 24h "15:00") (-275).
+function _luHourLabel(h){
+  h=((Number(h)||0)%24+24)%24;
+  if(D.prefs&&D.prefs.timeFormat==='24h')return String(h).padStart(2,'0')+':00';
+  return (h%12||12)+(h<12?' AM':' PM');
+}
+// "HH:MM" (24h, how times are stored) shown in the chosen format.
+function _luHM(hm){
+  const m=String(hm||'').match(/^(\d{1,2}):(\d{2})/);if(!m)return String(hm||'');
+  const h=+m[1],mi=m[2];
+  if(D.prefs&&D.prefs.timeFormat==='24h')return String(h).padStart(2,'0')+':'+mi;
+  return (h%12||12)+':'+mi+(h<12?' AM':' PM');
+}
 function _calEventTimeLabel(e){
+  if(e&&e.start&&/^\d{1,2}:\d{2}/.test(String(e.start)))return _luHM(e.start);
   if(e&&e.time)return e.time;
-  if(e&&typeof e.hour==='number'){const h=e.hour;return (h%12||12)+(h<12?' AM':' PM');}
+  if(e&&typeof e.hour==='number')return _luHourLabel(e.hour);
   return '';
 }
 // Synced calendar events from D.calEvents (OAuth-populated) that fall on a
@@ -1269,9 +1330,11 @@ function _blockedTaskIds(){
 function _scheduledTaskEvents(){
   if(D&&D.prefs&&D.prefs.calShowTasks===false)return [];
   const blocked=_blockedTaskIds();
-  const out=[];
+  const out=[];const seenT=new Set();
   ((typeof _taskPool==='function'?_taskPool():D.tasks)||[]).forEach(t=>{
     if(!t||blocked.has(String(t.id)))return;
+    if(t._delegated)return;
+    const tk=String(t.taskId!=null?t.taskId:t.id);if(seenT.has(tk))return;seenT.add(tk);
     const s=_taskSchedule(t);
     if(!s)return;
     const done=String(t.status||'')==='Done';
@@ -2231,7 +2294,7 @@ function renderCalWeek(){
   const _hrs=_timed.flat().map(e=>Number(e.hour)).filter(h=>Number.isFinite(h)&&h>=0&&h<=23);
   const _hFrom=Math.min(7,..._hrs),_hTo=Math.max(19,..._hrs);
   const _hours=Array.from({length:_hTo-_hFrom+1},(_,i)=>_hFrom+i);
-  const _hLabel=h=>h===0?'12 AM':h<12?`${h} AM`:h===12?'12 PM':`${h-12} PM`;
+  const _hLabel=_luHourLabel;
   const _allDayRow=_allDay.some(l=>l.length)?`<div class="cal-tl" style="font-size:10px">All day</div>${_allDay.map((l,d)=>`<div class="cal-c" data-drop="cal" data-drop-v="${weekDayStrs[d]}|allday">${l.map(e=>_calChip(e)).join('')}</div>`).join('')}`:'';
   $('cal-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('calendar',22,'var(--page-accent)')}Calendar</h1><p style="font-size:12px;color:var(--t2)">${weekRangeLabel}</p></div><div style="display:flex;gap:4px;align-items:center"><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calWeekOffset--;renderCal()" title="Previous week">‹</button><button class="btn btn-s" style="height:28px;font-size:11px" onclick="_calWeekOffset=0;renderCal()">Today</button><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calWeekOffset++;renderCal()" title="Next week">›</button>${_calAIMenu('cal-ai-week',[{label:'💬 NL Event',fn:'aiCalNLP()',c:'var(--ach)'},{label:'✨ Optimize',fn:'aiScheduleOptimize()',c:'var(--purp)'},{label:'📝 Prep Brief',fn:'aiMeetingPrepBrief()',c:'var(--grn)'}])}<button class="btn btn-s" id="cal-sync-btn-week" style="height:28px;font-size:11px" onclick="syncCalendarO365(this)" title="Sync Office 365 calendar">☁ Sync O365</button><button class="btn btn-p" onclick="openNewCalEventModal()">+ Event</button></div></div>
 ${_calViewTabs()}
@@ -2254,7 +2317,7 @@ function renderCalDay(){
   const _dayHrs=_dayLocal.map(e=>Number(e.hour)).filter(h=>Number.isFinite(h)&&h>=0&&h<=23);
   const hours=Array.from({length:Math.max(22,..._dayHrs)-Math.min(6,..._dayHrs)+1},(_,i)=>Math.min(6,..._dayHrs)+i);
   const rows=hours.map(h=>{
-    const label=h===0?'12 AM':h<12?`${h} AM`:h===12?'12 PM':`${h-12} PM`;
+    const label=_luHourLabel(h);
     const evs=[..._dayLocal.filter(e=>Number(e.hour)===h),..._cellEventsForDate(dayStr,h),..._cellTasksForDate(dayStr,h)];
     const evHtml=evs.map(e=>{
       // Calculate duration in hours for visual height hint
@@ -2496,10 +2559,11 @@ function renderCalMonth(){
   const firstOfMonth=new Date(today.getFullYear(),today.getMonth()+_calMonthOffset,1);
   const lastOfMonth=new Date(today.getFullYear(),today.getMonth()+_calMonthOffset+1,0);
   const monthLabel=firstOfMonth.toLocaleDateString('en-US',{month:'long',year:'numeric'});
-  // Start grid from Monday before first of month
-  const startDow=(firstOfMonth.getDay()+6)%7; // 0=Mon
+  // Start the grid on the week's first day (Settings: Monday or Sunday) (-275).
+  const _sunFirstM=(D.prefs&&D.prefs.firstDayOfWeek)==='sunday';
+  const startDow=_sunFirstM?firstOfMonth.getDay():(firstOfMonth.getDay()+6)%7;
   const gridStart=_pd(firstOfMonth);gridStart.setDate(1-startDow);
-  const dayNames=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const dayNames=_sunFirstM?['Sun','Mon','Tue','Wed','Thu','Fri','Sat']:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   let cells=[];
   for(let i=0;i<42;i++){
     const d=_pd(gridStart);d.setDate(gridStart.getDate()+i);
@@ -2533,12 +2597,16 @@ function aiCalNLP(){
   toast('💬 Parsing event...');
   const text=input.toLowerCase();
   // Parse time
-  let hour=9;
-  const timeMatch=text.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/);
+  // -275: a time is "3pm", "3:30", "15:00" or "at 3" (the first number
+  // anywhere used to win, so "for 30 minutes" became 30 o'clock), and the
+  // minutes are kept.
+  let hour=9,minute=0;
+  const timeMatch=text.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/)||text.match(/\b(\d{1,2}):(\d{2})\b()/)||text.match(/\bat\s+(\d{1,2})(?::(\d{2}))?\b(?!\s*(?:min|hour|hr))()/);
   if(timeMatch){
-    hour=parseInt(timeMatch[1]);
+    hour=Math.min(23,parseInt(timeMatch[1]));minute=Math.min(59,parseInt(timeMatch[2]||'0'));
     if(timeMatch[3]==='pm'&&hour!==12)hour+=12;
     if(timeMatch[3]==='am'&&hour===12)hour=0;
+    if(!timeMatch[3]&&hour>=1&&hour<=6&&!timeMatch[2])hour+=12; // "at 3" = 3 pm
   } else if(text.includes('noon')||text.includes('lunch'))hour=12;
   else if(text.includes('morning'))hour=9;
   else if(text.includes('afternoon'))hour=14;
@@ -2547,13 +2615,8 @@ function aiCalNLP(){
   const today=new Date();
   let targetDate=_pd(today);
   if(text.includes('tomorrow'))targetDate.setDate(today.getDate()+1);
-  else if(text.includes('monday'))targetDate.setDate(today.getDate()+(1-today.getDay()+7)%7||7);
-  else if(text.includes('tuesday'))targetDate.setDate(today.getDate()+(2-today.getDay()+7)%7||7);
-  else if(text.includes('wednesday'))targetDate.setDate(today.getDate()+(3-today.getDay()+7)%7||7);
-  else if(text.includes('thursday'))targetDate.setDate(today.getDate()+(4-today.getDay()+7)%7||7);
-  else if(text.includes('friday'))targetDate.setDate(today.getDate()+(5-today.getDay()+7)%7||7);
-  else if(text.includes('saturday'))targetDate.setDate(today.getDate()+(6-today.getDay()+7)%7||7);
-  else if(text.includes('sunday'))targetDate.setDate(today.getDate()+(0-today.getDay()+7)%7||7);
+  else{const _wd=['sunday','monday','tuesday','wednesday','thursday','friday','saturday'].findIndex(d=>text.includes(d));
+    if(_wd>=0){let off=(_wd-today.getDay()+7)%7;if(off===0&&!new RegExp('\\bthis\\s+'+['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][_wd]).test(text))off=7;targetDate.setDate(today.getDate()+off);}}
   const dateStr=_ymd(targetDate);
   // Parse duration
   let durationMins=60;
@@ -2570,9 +2633,9 @@ function aiCalNLP(){
   let location='';
   const locMatch=input.match(/\bat\s+([A-Z][a-zA-Z\s]+?)(?:\s+(?:on|for|every|at|\d)|$)/i);
   if(locMatch&&!/\d/.test(locMatch[1]))location=locMatch[1].trim();
-  const endHour=hour+Math.floor(durationMins/60);
-  const startStr=`${hour.toString().padStart(2,'0')}:00`;
-  const endStr=`${endHour.toString().padStart(2,'0')}:${(durationMins%60).toString().padStart(2,'0')}`;
+  const _endM=hour*60+minute+durationMins;const endHour=Math.min(23,Math.floor(_endM/60));
+  const startStr=`${hour.toString().padStart(2,'0')}:${minute.toString().padStart(2,'0')}`;
+  const endStr=_endM>=24*60?'23:59':`${endHour.toString().padStart(2,'0')}:${(_endM%60).toString().padStart(2,'0')}`;
   const m=document.getElementById('modal-content');
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">💬 Natural Language Event</h2>
   <div style="font-size:11px;color:var(--t2);margin-bottom:12px">Parsed from: <em>${esc(input)}</em></div>
@@ -2592,7 +2655,8 @@ function aiCalNLP(){
     const l=document.getElementById('nlp-loc').value.trim();
     if(!t||!d){toast('Title and date required');return;}
     const h=parseInt(s.split(':')[0]);
-    _calEvents.push({id:Date.now(),title:t,dateStr:d,hour:h,start:s,end:e,endHour:parseInt(e.split(':')[0]),location:l,color:'var(--ach)',desc:'Created via NL Event'});
+    const _em=parseInt((e.split(':')[1])||'0');
+    _calEvents.push({id:Date.now(),title:t,dateStr:d,hour:h,start:s,end:e,minute:parseInt((s.split(':')[1])||'0')||0,endHour:parseInt(e.split(':')[0])+(_em>0?1:0),location:l,color:'var(--ach)',desc:'Created via NL Event'});
     _calPersist();
     closeModal();renderCal();
     toast('✓ Event created: '+t);

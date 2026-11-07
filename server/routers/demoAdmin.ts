@@ -91,7 +91,7 @@ export const demoAdminRouter = router({
       };
       if (!input.apply) return report;
 
-      await db.update(userAppData).set({ prefs: JSON.stringify(nextPrefs), calEvents: JSON.stringify(cal) }).where(eq(userAppData.userId, target.id));
+      await db.update(userAppData).set({ prefs: JSON.stringify(nextPrefs), calEvents: JSON.stringify(cal), updatedAt: new Date() }).where(eq(userAppData.userId, target.id));
       if (renamed) await writeEntityArray(db, target.id, "tasks", tasks);
       return { ...report, applied: true };
     }),

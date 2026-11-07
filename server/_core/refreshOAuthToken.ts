@@ -6,6 +6,7 @@
  * Never throws — all errors are logged and swallowed so callers stay clean.
  */
 import { getOAuthToken, getUserOauthCredential, upsertOAuthToken } from "../db";
+import { exchangeMsRefreshToken, MS_TOKEN_TIMEOUT_MS } from "./msToken";
 
 interface TokenRefreshResult {
   access_token: string;
@@ -45,10 +46,9 @@ async function exchangeRefreshToken(
   clientSecret: string,
   tenantId?: string | null
 ): Promise<TokenRefreshResult | null> {
-  const url =
-    provider === "microsoft"
-      ? `https://login.microsoftonline.com/${tenantId?.trim() || "common"}/oauth2/v2.0/token`
-      : "https://oauth2.googleapis.com/token";
+  // Microsoft: the one shared exchange (tenant → MS_TENANT_ID → common, timeout) — audit F72.
+  if (provider === "microsoft") return exchangeMsRefreshToken({ refreshToken, clientId, clientSecret, tenantId });
+  const url = "https://oauth2.googleapis.com/token";
 
   const body = new URLSearchParams({
     client_id: clientId,
@@ -62,6 +62,7 @@ async function exchangeRefreshToken(
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: body.toString(),
+      signal: AbortSignal.timeout(MS_TOKEN_TIMEOUT_MS),
     });
     if (!resp.ok) {
       const text = await resp.text();

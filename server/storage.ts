@@ -16,10 +16,21 @@
 //
 // Preference order: S3 → Drive → Forge → throw (caller handles via data-URI
 // fallback).
+//
+// Audit F35: uploads are PRIVATE by default now. Drive files get no "anyone
+// with the link" permission, and storagePut returns an app URL
+// /api/files/<ref> served by server/_core/fileProxy.ts to signed-in users only
+// (safe Content-Type from an allow-list, nosniff, attachment unless image/pdf).
+// URLs stored before this change keep working untouched. Callers that need a
+// URL a third party can open pass { public: true } — today only the imported
+// ORIGINAL documents (note-originals/), which the note editor shows through
+// Google's Drive previewer / Microsoft's Office viewer (they fetch the file
+// themselves, without the user's cookie).
 
 import {
   S3Client,
   PutObjectCommand,
+  GetObjectCommand,
 } from "@aws-sdk/client-s3";
 import { ENV } from "./_core/env";
 import { desc, eq } from "drizzle-orm";
@@ -213,10 +224,17 @@ async function driveResumableUpload(
   return id ?? "";
 }
 
+/** App URL of a private stored file (served by fileProxy.ts to signed-in users). */
+function proxyUrl(kind: "d" | "s" | "f", id: string, name?: string): string {
+  const enc = (p: string) => p.split("/").map(encodeURIComponent).join("/");
+  return kind === "d" ? `/api/files/d/${encodeURIComponent(id)}/${encodeURIComponent(name || "file")}` : `/api/files/${kind}/${enc(id)}`;
+}
+
 async function storagePutDrive(
   relKey: string,
   data: Buffer | Uint8Array | string,
   contentType: string,
+  isPublic = false,
 ): Promise<{ key: string; url: string }> {
   const key = appendHashSuffix(normalizeKey(relKey));
   const filename = key.split("/").pop() ?? key;
@@ -243,6 +261,10 @@ async function storagePutDrive(
       : await driveMultipartUpload(token, metadata, body, contentType);
   if (!fileId) throw new Error("Drive upload returned empty file id");
 
+  // Private (default since audit F35): no public permission; served through
+  // the signed-in proxy.
+  if (!isPublic) return { key, url: proxyUrl("d", fileId, filename) };
+
   // Share "anyone with the link can view" so the public uc URL works.
   const permResp = await fetch(
     `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions`,
@@ -257,7 +279,9 @@ async function storagePutDrive(
   );
   if (!permResp.ok) {
     const msg = await permResp.text().catch(() => permResp.statusText);
-    console.warn(`[storage:drive] permission share failed (${permResp.status}): ${msg}`);
+    // console.error → the error log (audit F74): a public file that isn't
+    // shared shows as a broken image / viewer for everyone.
+    console.error(`[storage:drive] permission share failed (${permResp.status}): ${String(msg).slice(0, 300)}`);
     // Don't throw — file is uploaded; user can fix sharing manually if needed.
   }
 
@@ -307,6 +331,7 @@ async function storagePutS3(
   relKey: string,
   data: Buffer | Uint8Array | string,
   contentType: string,
+  isPublic = false,
 ): Promise<{ key: string; url: string }> {
   const key = appendHashSuffix(normalizeKey(relKey));
   const body =
@@ -323,13 +348,14 @@ async function storagePutS3(
       ContentType: contentType,
     }),
   );
-  return { key, url: publicUrlForKey(key) };
+  return { key, url: isPublic ? publicUrlForKey(key) : proxyUrl("s", key) };
 }
 
 async function storagePutForge(
   relKey: string,
   data: Buffer | Uint8Array | string,
   contentType: string,
+  isPublic = false,
 ): Promise<{ key: string; url: string }> {
   const forgeUrl = ENV.forgeApiUrl.replace(/\/+$/, "");
   const forgeKey = ENV.forgeApiKey;
@@ -367,17 +393,19 @@ async function storagePutForge(
     throw new Error(`Storage upload to S3 failed (${uploadResp.status})`);
   }
 
-  return { key, url: `/manus-storage/${key}` };
+  return { key, url: isPublic ? `/manus-storage/${key}` : proxyUrl("f", key) };
 }
 
 export async function storagePut(
   relKey: string,
   data: Buffer | Uint8Array | string,
   contentType = "application/octet-stream",
+  opts: { public?: boolean } = {},
 ): Promise<{ key: string; url: string }> {
-  if (hasS3Config()) return storagePutS3(relKey, data, contentType);
-  if (hasDriveConfig()) return storagePutDrive(relKey, data, contentType);
-  if (hasForgeConfig()) return storagePutForge(relKey, data, contentType);
+  const pub = opts.public === true;
+  if (hasS3Config()) return storagePutS3(relKey, data, contentType, pub);
+  if (hasDriveConfig()) return storagePutDrive(relKey, data, contentType, pub);
+  if (hasForgeConfig()) return storagePutForge(relKey, data, contentType, pub);
   throw new Error(
     "Storage not configured: set S3_BUCKET + S3_ACCESS_KEY_ID + S3_SECRET_ACCESS_KEY (S3-compatible), or GOOGLE_DRIVE_CLIENT_ID + GOOGLE_DRIVE_CLIENT_SECRET + GOOGLE_DRIVE_REFRESH_TOKEN + GOOGLE_DRIVE_FOLDER_ID (Drive), or BUILT_IN_FORGE_API_URL + BUILT_IN_FORGE_API_KEY (legacy).",
   );
@@ -411,6 +439,43 @@ export async function storagePutPrivate(
     return { key, provider: "drive", id: fileId };
   }
   throw new Error("Private storage needs S3 or Google Drive to be configured.");
+}
+
+export type StoredFile =
+  | { kind: "stream"; body: NodeJS.ReadableStream; length?: number }
+  | { kind: "redirect"; url: string }
+  | { kind: "missing" };
+
+/**
+ * Open a private stored file for the signed-in proxy (fileProxy.ts).
+ * ref kinds: "d" = Google Drive file id, "s" = S3 object key, "f" = Forge key.
+ */
+export async function storageOpen(kind: "d" | "s" | "f", id: string): Promise<StoredFile> {
+  if (kind === "d") {
+    if (!hasDriveConfig()) return { kind: "missing" };
+    const token = await getDriveAccessToken();
+    const resp = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?alt=media`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(60_000),
+    });
+    if (resp.status === 404) return { kind: "missing" };
+    if (!resp.ok || !resp.body) throw new Error(`Drive download failed (${resp.status})`);
+    const { Readable } = await import("stream");
+    const len = Number(resp.headers.get("content-length") || 0) || undefined;
+    return { kind: "stream", body: Readable.fromWeb(resp.body as any), length: len };
+  }
+  if (kind === "s") {
+    if (!hasS3Config()) return { kind: "missing" };
+    try {
+      const out: any = await getS3Client().send(new GetObjectCommand({ Bucket: ENV.s3Bucket, Key: normalizeKey(id) }));
+      return { kind: "stream", body: out.Body as NodeJS.ReadableStream, length: Number(out.ContentLength) || undefined };
+    } catch (e: any) {
+      if (e?.name === "NoSuchKey" || e?.$metadata?.httpStatusCode === 404) return { kind: "missing" };
+      throw e;
+    }
+  }
+  if (!hasForgeConfig()) return { kind: "missing" };
+  return { kind: "redirect", url: await storageGetSignedUrl(id) };
 }
 
 export async function storageGet(relKey: string): Promise<{ key: string; url: string }> {

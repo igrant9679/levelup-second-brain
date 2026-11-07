@@ -1,4 +1,4 @@
-import { eq, and, ne, isNull, asc } from "drizzle-orm";
+import { eq, and, ne, isNull, asc, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../db";
 import { userAppData, tasksTable, notesTable, ideasTable, externalTasks, users, systemSettings } from "../../drizzle/schema";
@@ -52,7 +52,7 @@ export async function isOwnerCtxUser(user: { id: number; openId?: string | null 
 const TEAM_PRESET_KEY = 'teamStarterPreset';
 
 // Keys that can be saved/loaded
-const DATA_KEYS =['projects', 'goals', 'journal', 'habits', 'contacts', 'teams', 'prefs', 'calEvents', 'clusters', 'programs', 'opportunities', 'atlas', 'atlasAnnotations', 'mindmaps', 'sheets', 'decks', 'finance', 'calGrid'] as const;
+const DATA_KEYS =['projects', 'goals', 'journal', 'habits', 'contacts', 'teams', 'prefs', 'calEvents', 'clusters', 'programs', 'opportunities', 'atlas', 'atlasAnnotations', 'mindmaps', 'sheets', 'decks', 'finance', 'calGrid', 'aiChat', 'coachTrash'] as const;
 /** Largest list a whole-data save accepts (mediumtext holds 16 MB). */
 const SAVE_MAX = 16_000_000;
 type DataKey = typeof DATA_KEYS[number];
@@ -443,7 +443,9 @@ export async function applyEntityChanges(db: any, userId: number, kind: EntityKi
 //     holds such elements.
 //   • object kinds (prefs, atlasAnnotations): an item is one top-level key,
 //     exchanged as {"id":key,"v":value} so both sides hash the same string.
-export const BLOB_LIST_KINDS = ['projects', 'goals', 'journal', 'habits', 'contacts', 'teams', 'calEvents', 'clusters', 'programs', 'opportunities', 'mindmaps', 'sheets', 'decks', 'calGrid'] as const;
+// aiChat / coachTrash (migration 0062): the assistant's chat history and the
+// coach's trash, each a JSON array of {id:string,…}.
+export const BLOB_LIST_KINDS = ['projects', 'goals', 'journal', 'habits', 'contacts', 'teams', 'calEvents', 'clusters', 'programs', 'opportunities', 'mindmaps', 'sheets', 'decks', 'calGrid', 'aiChat', 'coachTrash'] as const;
 export const BLOB_OBJECT_KINDS = ['prefs', 'atlasAnnotations'] as const;
 type BlobKind = typeof BLOB_LIST_KINDS[number] | typeof BLOB_OBJECT_KINDS[number];
 const _isObjectKind = (k: string) => (BLOB_OBJECT_KINDS as readonly string[]).includes(k);
@@ -574,6 +576,81 @@ export async function writeEntityArray(db: any, userId: number, kind: 'tasks' | 
   return json;
 }
 
+/** `.for('update')` when the query builder has it (real drizzle); the in-memory test DBs don't. */
+function _forUpdate(q: any): any { return typeof q?.for === 'function' ? q.for('update') : q; }
+/** Run fn in a transaction (one connection, row locks held until commit) when the db has one. */
+function _inTx<T>(db: any, fn: (tx: any) => Promise<T>): Promise<T> {
+  return typeof db.transaction === 'function' ? db.transaction(fn) : fn(db);
+}
+/**
+ * Read-modify-write of one user_app_data column under a row lock (audit F61):
+ * SELECT … FOR UPDATE inside a transaction, then fn decides; when it returns
+ * `write`, the column (and updatedAt) is written before the lock is released.
+ * The shared-item editors and the SimpleFIN job used to read, patch and write
+ * the whole JSON with no lock, so an edit made in between was lost.
+ */
+export async function _lockedBlob<R extends { write?: string; result: unknown }>(db: any, userId: number, col: string, fn: (stored: string | null | undefined) => Promise<R>): Promise<R["result"]> {
+  const C = (userAppData as any)[col];
+  if (!C) throw new Error('unknown column ' + col);
+  return _inTx(db, async (tx: any) => {
+    const rows = await _forUpdate(tx.select({ v: C }).from(userAppData).where(eq(userAppData.userId, userId)).limit(1));
+    const out = await fn(rows && rows[0] ? rows[0].v : undefined);
+    if (out.write !== undefined) await tx.update(userAppData).set({ [col]: out.write, updatedAt: new Date() }).where(eq(userAppData.userId, userId));
+    return out.result;
+  });
+}
+
+/**
+ * Every member's parsed `col` for the shared*ForMe readers (audit F71). They
+ * used to read and JSON.parse every member's blob on every call. Now a cheap
+ * first query fetches (userId, updatedAt, LENGTH(col)); rows whose stamp and
+ * length match the per-process cache are served from it, and only the others
+ * are fetched and parsed. The semantics are unchanged (still every member's
+ * rows — no assignee index, see CLAUDE.md -262). Cache safety:
+ *   - updatedAt is ON UPDATE CURRENT_TIMESTAMP (and every server write path in
+ *     this file sets it too), so any write moves the stamp…
+ *   - …except a second write within the same second: so a row is cached only
+ *     once its stamp is 2 s old, and the byte length must also match.
+ */
+const _blobCache = new Map<string, { at: number; len: number; value: any }>();
+const BLOB_CACHE_MAX = 2000, BLOB_CACHE_ENTRY_MAX = 8_000_000;
+export function _clearBlobCache(): void { _blobCache.clear(); }
+export async function _allParsedBlobs(db: any, col: string, fallback: any): Promise<Array<{ userId: number; value: any }>> {
+  const C = (userAppData as any)[col];
+  const stamp = (v: any) => { const t = v instanceof Date ? v.getTime() : v ? new Date(v).getTime() : NaN; return Number.isFinite(t) ? t : NaN; };
+  const meta: any[] = await db.select({ userId: userAppData.userId, updatedAt: userAppData.updatedAt, len: sql<number>`LENGTH(${C})` }).from(userAppData);
+  const out: Array<{ userId: number; value: any }> = [];
+  const miss = new Set<number>();
+  for (const m of meta) {
+    const c = _blobCache.get(col + ':' + m.userId);
+    const at = stamp(m.updatedAt);
+    if (c && Number.isFinite(at) && c.at === at && m.len != null && c.len === Number(m.len)) out.push({ userId: m.userId, value: c.value });
+    else miss.add(m.userId);
+  }
+  if (miss.size) {
+    const cols = { userId: userAppData.userId, updatedAt: userAppData.updatedAt, v: C };
+    const rows: any[] = miss.size === meta.length
+      ? await db.select(cols).from(userAppData)
+      : await db.select(cols).from(userAppData).where(inArray(userAppData.userId, Array.from(miss)));
+    const now = Date.now();
+    for (const r of rows) {
+      if (!miss.has(r.userId)) continue;
+      miss.delete(r.userId);
+      const key = col + ':' + r.userId;
+      let value: any;
+      try { value = r.v != null ? JSON.parse(r.v) : fallback; } catch { _blobCache.delete(key); continue; }
+      out.push({ userId: r.userId, value });
+      const at = stamp(r.updatedAt);
+      const len = r.v != null ? Buffer.byteLength(String(r.v), 'utf8') : 0;
+      if (r.v != null && Number.isFinite(at) && now - at >= 2000 && len <= BLOB_CACHE_ENTRY_MAX) {
+        if (_blobCache.size >= BLOB_CACHE_MAX) _blobCache.delete(_blobCache.keys().next().value as string);
+        _blobCache.set(key, { at, len, value });
+      } else _blobCache.delete(key);
+    }
+  }
+  return out;
+}
+
 /** Set finance._rev to (stored revision + 1) on an incoming Money blob. */
 async function _bumpFinanceRev(db: any, userId: number, json: string): Promise<string> {
   try {
@@ -654,7 +731,18 @@ export const appDataRouter = router({
       .where(eq(userAppData.userId, ctx.user.id))
       .limit(1);
 
-    if (!rows.length) return null;
+    if (!rows.length) {
+      // Audit F74: no user_app_data row yet, but tasks / notes / ideas live in
+      // their own tables — return those lists instead of null (null reads as
+      // "nothing on the server" to a client, which could then push empty lists).
+      const tasks = (await readTasks(db, ctx.user.id)).tasks;
+      const notes = (await readNotes(db, ctx.user.id)).notes;
+      const ideas = (await readIdeas(db, ctx.user.id)).ideas;
+      if (!tasks.length && !notes.length && !ideas.length) return null;
+      const empty: Record<string, unknown> = {};
+      for (const key of DATA_KEYS) empty[key] = null;
+      return { ...empty, tasks, notes, ideas, _tasksSource: 'relational', _notesSource: 'relational', _ideasSource: 'relational', updatedAt: null };
+    }
 
     const row = rows[0];
     const result: Record<string, unknown> = {};
@@ -713,6 +801,8 @@ export const appDataRouter = router({
         decks: z.string().max(SAVE_MAX).optional(),
         finance: z.string().max(SAVE_MAX).optional(),
         calGrid: z.string().max(SAVE_MAX).optional(),
+        aiChat: z.string().max(SAVE_MAX).optional(),
+        coachTrash: z.string().max(SAVE_MAX).optional(),
         /** -266: the Money revision this device last saw (sent with finance). */
         financeBaseRev: z.number().int().nullable().optional(),
       })
@@ -768,7 +858,7 @@ export const appDataRouter = router({
         await db
           .insert(userAppData)
           .values({ userId: ctx.user.id, ...updates })
-          .onDuplicateKeyUpdate({ set: updates });
+          .onDuplicateKeyUpdate({ set: { ...updates, updatedAt: new Date() } });
       } else if (hasRelational) {
         // Only relational entities in this save: still ensure the row exists
         // and bump updatedAt (the client's offline-merge logic dates server
@@ -959,6 +1049,7 @@ export const appDataRouter = router({
       const tasks = [...sharedRows.map((r: any) => mapRow(r, false)), ...delegatedRows.map((r: any) => mapRow(r, true))].filter(Boolean);
       return { ok: true as const, admin, tasks };
     } catch (e: any) {
+      console.error('[appData] shared tasks for user failed:', e); // → error log (audit F74)
       return { ok: false as const, tasks: [] as any[], error: String(e?.message || e) };
     }
   }),
@@ -982,14 +1073,14 @@ export const appDataRouter = router({
       const { canOverride } = await import("../_core/access");
       const admin = await isOwnerCtxUser(ctx.user as any); // -253: override UI is the owner's; canOverride() decides each write
       const owner = await isOwnerCtxUser(ctx.user as any);
-      const rows = await db.select({ userId: userAppData.userId, projects: userAppData.projects }).from(userAppData);
+      // Audit F71: rows unchanged since the last call are not re-read or re-parsed.
+      const rows = await _allParsedBlobs(db, 'projects', []);
       const out: any[] = [];
       const meId = ctx.user.id;
       const assignedToMe = (p: any) => _idAssigned(p, meId); // F12: numeric ids only
       const assignedToOthers = (p: any) => Array.isArray(p.assignees) && p.assignees.map((x: any) => Number(x)).some((n: number) => n && n !== meId);
       for (const r of rows) {
-        let arr: any;
-        try { arr = JSON.parse(r.projects || '[]'); } catch { continue; }
+        const arr: any = r.value;
         if (!Array.isArray(arr)) continue;
         if (r.userId === ctx.user.id) {
           // MY OWN projects that I've assigned to someone else → "delegated".
@@ -1014,6 +1105,7 @@ export const appDataRouter = router({
       }
       return { ok: true as const, admin, projects: out };
     } catch (e: any) {
+      console.error('[appData] shared projects for user failed:', e); // → error log (audit F74)
       return { ok: false as const, projects: [] as any[], error: String(e?.message || e) };
     }
   }),
@@ -1034,14 +1126,14 @@ export const appDataRouter = router({
       const { canOverride } = await import("../_core/access");
       const admin = await isOwnerCtxUser(ctx.user as any); // -253: override UI is the owner's; canOverride() decides each write
       const owner = await isOwnerCtxUser(ctx.user as any);
-      const rows = await db.select({ userId: userAppData.userId, programs: userAppData.programs }).from(userAppData);
+      // Audit F71: rows unchanged since the last call are not re-read or re-parsed.
+      const rows = await _allParsedBlobs(db, 'programs', []);
       const out: any[] = [];
       const meId = ctx.user.id;
       const assignedToMe = (p: any) => _idAssigned(p, meId); // F12: numeric ids only
       const assignedToOthers = (p: any) => Array.isArray(p.assignees) && p.assignees.map((x: any) => Number(x)).some((n: number) => n && n !== meId);
       for (const r of rows) {
-        let arr: any;
-        try { arr = JSON.parse(r.programs || '[]'); } catch { continue; }
+        const arr: any = r.value;
         if (!Array.isArray(arr)) continue;
         if (r.userId === ctx.user.id) {
           for (const p of arr) {
@@ -1063,6 +1155,7 @@ export const appDataRouter = router({
       }
       return { ok: true as const, admin, programs: out };
     } catch (e: any) {
+      console.error('[appData] shared programs for user failed:', e); // → error log (audit F74)
       return { ok: false as const, programs: [] as any[], error: String(e?.message || e) };
     }
   }),
@@ -1090,31 +1183,32 @@ export const appDataRouter = router({
       if (!db) return { ok: false as const, error: 'db unavailable' };
       try {
         const { canOverride } = await import("../_core/access");
-        const [appRow] = await db.select({ programs: userAppData.programs }).from(userAppData)
-          .where(eq(userAppData.userId, input.ownerUserId)).limit(1);
-        if (!appRow || !appRow.programs) return { ok: false as const, error: 'program not found' };
-        let arr: any;
-        try { arr = JSON.parse(appRow.programs); } catch { return { ok: false as const, error: 'bad data' }; }
-        if (!Array.isArray(arr)) return { ok: false as const, error: 'bad data' };
-        const prog = arr.find((x: any) => x && String(x.id) === input.programId);
-        if (!prog) return { ok: false as const, error: 'program not found' };
-        // F12: an assignee is named by numeric id only, never by name/email.
-        const allowed = (await canOverride(ctx.user as any, input.ownerUserId)) || input.ownerUserId === ctx.user.id
-          || _idAssigned(prog, ctx.user.id);
-        if (!allowed) return { ok: false as const, error: 'not authorized' };
-        const q = input.patch;
-        if (q.name != null) prog.name = q.name;
-        if (q.status != null) prog.status = q.status;
-        if (q.description != null) prog.description = q.description;
-        if (q.assignees != null) prog.assignees = q.assignees;
-        if (q.assigneeNames != null) prog.assigneeNames = q.assigneeNames;
-        if (q.primaryAssigneeId !== undefined) prog.primaryAssigneeId = q.primaryAssigneeId;
-        if (q.primaryAssigneeId != null && Array.isArray(q.assignees) && Array.isArray(q.assigneeNames)) {
-          const idx = q.assignees.indexOf(q.primaryAssigneeId);
-          if (idx >= 0) prog.assignedTo = q.assigneeNames[idx];
-        } else if (q.assignedTo != null) prog.assignedTo = q.assignedTo;
-        await db.update(userAppData).set({ programs: JSON.stringify(arr) }).where(eq(userAppData.userId, input.ownerUserId));
-        return { ok: true as const };
+        // Audit F61: read-modify-write under a row lock (SELECT … FOR UPDATE in
+        // a transaction) — a concurrent edit can't be lost between read and write.
+        return await _lockedBlob(db, input.ownerUserId, 'programs', async (stored) => {
+          if (!stored) return { result: { ok: false as const, error: 'program not found' } };
+          let arr: any;
+          try { arr = JSON.parse(stored); } catch { return { result: { ok: false as const, error: 'bad data' } }; }
+          if (!Array.isArray(arr)) return { result: { ok: false as const, error: 'bad data' } };
+          const prog = arr.find((x: any) => x && String(x.id) === input.programId);
+          if (!prog) return { result: { ok: false as const, error: 'program not found' } };
+          // F12: an assignee is named by numeric id only, never by name/email.
+          const allowed = (await canOverride(ctx.user as any, input.ownerUserId)) || input.ownerUserId === ctx.user.id
+            || _idAssigned(prog, ctx.user.id);
+          if (!allowed) return { result: { ok: false as const, error: 'not authorized' } };
+          const q = input.patch;
+          if (q.name != null) prog.name = q.name;
+          if (q.status != null) prog.status = q.status;
+          if (q.description != null) prog.description = q.description;
+          if (q.assignees != null) prog.assignees = q.assignees;
+          if (q.assigneeNames != null) prog.assigneeNames = q.assigneeNames;
+          if (q.primaryAssigneeId !== undefined) prog.primaryAssigneeId = q.primaryAssigneeId;
+          if (q.primaryAssigneeId != null && Array.isArray(q.assignees) && Array.isArray(q.assigneeNames)) {
+            const idx = q.assignees.indexOf(q.primaryAssigneeId);
+            if (idx >= 0) prog.assignedTo = q.assigneeNames[idx];
+          } else if (q.assignedTo != null) prog.assignedTo = q.assignedTo;
+          return { write: JSON.stringify(arr), result: { ok: true as const } };
+        });
       } catch (e: any) {
         return { ok: false as const, error: String(e?.message || e) };
       }
@@ -1135,14 +1229,14 @@ export const appDataRouter = router({
       const { canOverride } = await import("../_core/access");
       const admin = await isOwnerCtxUser(ctx.user as any); // -253: override UI is the owner's; canOverride() decides each write
       const owner = await isOwnerCtxUser(ctx.user as any);
-      const rows = await db.select({ userId: userAppData.userId, mindmaps: userAppData.mindmaps }).from(userAppData);
+      // Audit F71: rows unchanged since the last call are not re-read or re-parsed.
+      const rows = await _allParsedBlobs(db, 'mindmaps', []);
       const out: any[] = [];
       const meId = ctx.user.id;
       const assignedToMe = (p: any) => _idAssigned(p, meId); // F12: numeric ids only
       const assignedToOthers = (p: any) => Array.isArray(p.assignees) && p.assignees.map((x: any) => Number(x)).some((n: number) => n && n !== meId);
       for (const r of rows) {
-        let arr: any;
-        try { arr = JSON.parse((r as any).mindmaps || '[]'); } catch { continue; }
+        const arr: any = r.value;
         if (!Array.isArray(arr)) continue;
         if (r.userId === ctx.user.id) {
           for (const p of arr) {
@@ -1163,6 +1257,7 @@ export const appDataRouter = router({
       }
       return { ok: true as const, admin, mindmaps: out };
     } catch (e: any) {
+      console.error('[appData] shared mindmaps for user failed:', e); // → error log (audit F74)
       return { ok: false as const, mindmaps: [] as any[], error: String(e?.message || e) };
     }
   }),
@@ -1189,29 +1284,30 @@ export const appDataRouter = router({
       if (!db) return { ok: false as const, error: 'db unavailable' };
       try {
         const { canOverride } = await import("../_core/access");
-        const [appRow] = await db.select({ mindmaps: userAppData.mindmaps }).from(userAppData)
-          .where(eq(userAppData.userId, input.ownerUserId)).limit(1);
-        if (!appRow || !(appRow as any).mindmaps) return { ok: false as const, error: 'mind map not found' };
-        let arr: any;
-        try { arr = JSON.parse((appRow as any).mindmaps); } catch { return { ok: false as const, error: 'bad data' }; }
-        if (!Array.isArray(arr)) return { ok: false as const, error: 'bad data' };
-        const mm = arr.find((x: any) => x && String(x.id) === input.mindmapId);
-        if (!mm) return { ok: false as const, error: 'mind map not found' };
-        // F12: an assignee is named by numeric id only, never by name/email.
-        const allowed = (await canOverride(ctx.user as any, input.ownerUserId)) || input.ownerUserId === ctx.user.id
-          || _idAssigned(mm, ctx.user.id);
-        if (!allowed) return { ok: false as const, error: 'not authorized' };
-        const q = input.patch;
-        if (q.name != null) { mm.name = q.name; if (mm.title !== undefined) mm.title = q.name; }
-        if (q.assignees != null) mm.assignees = q.assignees;
-        if (q.assigneeNames != null) mm.assigneeNames = q.assigneeNames;
-        if (q.primaryAssigneeId !== undefined) mm.primaryAssigneeId = q.primaryAssigneeId;
-        if (q.primaryAssigneeId != null && Array.isArray(q.assignees) && Array.isArray(q.assigneeNames)) {
-          const idx = q.assignees.indexOf(q.primaryAssigneeId);
-          if (idx >= 0) mm.assignedTo = q.assigneeNames[idx];
-        } else if (q.assignedTo != null) mm.assignedTo = q.assignedTo;
-        await db.update(userAppData).set({ mindmaps: JSON.stringify(arr) }).where(eq(userAppData.userId, input.ownerUserId));
-        return { ok: true as const };
+        // Audit F61: read-modify-write under a row lock (SELECT … FOR UPDATE in
+        // a transaction) — a concurrent edit can't be lost between read and write.
+        return await _lockedBlob(db, input.ownerUserId, 'mindmaps', async (stored) => {
+          if (!stored) return { result: { ok: false as const, error: 'mind map not found' } };
+          let arr: any;
+          try { arr = JSON.parse(stored); } catch { return { result: { ok: false as const, error: 'bad data' } }; }
+          if (!Array.isArray(arr)) return { result: { ok: false as const, error: 'bad data' } };
+          const mm = arr.find((x: any) => x && String(x.id) === input.mindmapId);
+          if (!mm) return { result: { ok: false as const, error: 'mind map not found' } };
+          // F12: an assignee is named by numeric id only, never by name/email.
+          const allowed = (await canOverride(ctx.user as any, input.ownerUserId)) || input.ownerUserId === ctx.user.id
+            || _idAssigned(mm, ctx.user.id);
+          if (!allowed) return { result: { ok: false as const, error: 'not authorized' } };
+          const q = input.patch;
+          if (q.name != null) { mm.name = q.name; if (mm.title !== undefined) mm.title = q.name; }
+          if (q.assignees != null) mm.assignees = q.assignees;
+          if (q.assigneeNames != null) mm.assigneeNames = q.assigneeNames;
+          if (q.primaryAssigneeId !== undefined) mm.primaryAssigneeId = q.primaryAssigneeId;
+          if (q.primaryAssigneeId != null && Array.isArray(q.assignees) && Array.isArray(q.assigneeNames)) {
+            const idx = q.assignees.indexOf(q.primaryAssigneeId);
+            if (idx >= 0) mm.assignedTo = q.assigneeNames[idx];
+          } else if (q.assignedTo != null) mm.assignedTo = q.assignedTo;
+          return { write: JSON.stringify(arr), result: { ok: true as const } };
+        });
       } catch (e: any) {
         return { ok: false as const, error: String(e?.message || e) };
       }
@@ -1235,14 +1331,14 @@ export const appDataRouter = router({
       const { canOverride } = await import("../_core/access");
       const admin = await isOwnerCtxUser(ctx.user as any); // -253: override UI is the owner's; canOverride() decides each write
       const owner = await isOwnerCtxUser(ctx.user as any);
-      const rows = await db.select({ userId: userAppData.userId, sheets: userAppData.sheets }).from(userAppData);
+      // Audit F71: rows unchanged since the last call are not re-read or re-parsed.
+      const rows = await _allParsedBlobs(db, 'sheets', []);
       const out: any[] = [];
       const meId = ctx.user.id;
       const assignedToMe = (p: any) => _idAssigned(p, meId); // F12: numeric ids only
       const assignedToOthers = (p: any) => Array.isArray(p.assignees) && p.assignees.map((x: any) => Number(x)).some((n: number) => n && n !== meId);
       for (const r of rows) {
-        let arr: any;
-        try { arr = JSON.parse((r as any).sheets || '[]'); } catch { continue; }
+        const arr: any = r.value;
         if (!Array.isArray(arr)) continue;
         if (r.userId === ctx.user.id) {
           for (const p of arr) {
@@ -1265,6 +1361,7 @@ export const appDataRouter = router({
       }
       return { ok: true as const, admin, sheets: out };
     } catch (e: any) {
+      console.error('[appData] shared sheets for user failed:', e); // → error log (audit F74)
       return { ok: false as const, sheets: [] as any[], error: String(e?.message || e) };
     }
   }),
@@ -1298,49 +1395,50 @@ export const appDataRouter = router({
       if (!db) return { ok: false as const, error: 'db unavailable' };
       try {
         const { canOverride } = await import("../_core/access");
-        const [appRow] = await db.select({ sheets: userAppData.sheets }).from(userAppData)
-          .where(eq(userAppData.userId, input.ownerUserId)).limit(1);
-        if (!appRow || !(appRow as any).sheets) return { ok: false as const, error: 'sheet not found' };
-        let arr: any;
-        try { arr = JSON.parse((appRow as any).sheets); } catch { return { ok: false as const, error: 'bad data' }; }
-        if (!Array.isArray(arr)) return { ok: false as const, error: 'bad data' };
-        const sh = arr.find((x: any) => x && String(x.id) === input.sheetId);
-        if (!sh) return { ok: false as const, error: 'sheet not found' };
-        const admin = (await canOverride(ctx.user as any, input.ownerUserId));
-        const isItemOwner = input.ownerUserId === ctx.user.id;
-        const isAssignee = _idAssigned(sh, ctx.user.id); // F12: numeric ids only
-        if (!(admin || isItemOwner || isAssignee || sh.shareAll === true)) return { ok: false as const, error: 'not authorized' };
-        const q = input.patch;
-        // Content edits require 'edit' permission (owner/admin always may).
-        const hasContent = q.title != null || q.icon != null || q.color != null || q.theme !== undefined || q.columns != null || q.rows != null;
-        if (hasContent && !(admin || isItemOwner) && effShareMode(sh, 'edit') === 'view')
-          return { ok: false as const, error: 'view-only: the owner shared this sheet without edit permission' };
-        // Assignment changes stay with owner/admin/assignees (a share-all
-        // viewer can't reassign); share settings are owner/admin only.
-        const hasAssign = q.assignees != null || q.assigneeNames != null || q.primaryAssigneeId !== undefined || q.assignedTo != null;
-        if (hasAssign && !(admin || isItemOwner || isAssignee)) return { ok: false as const, error: 'not authorized to change assignment' };
-        if ((q.shareAll !== undefined || q.shareMode !== undefined) && !(admin || isItemOwner))
-          return { ok: false as const, error: 'only the owner can change share settings' };
-        if (q.shareAll !== undefined) sh.shareAll = q.shareAll;
-        if (q.shareMode !== undefined) sh.shareMode = q.shareMode;
-        if (q.title != null) sh.title = q.title;
-        if (q.icon != null) sh.icon = q.icon;
-        // -254: a co-editor's columns/rows/theme are cleaned (ids, sizes, colours, enums) — they reach the owner's markup
-        const SAN = await import("../_core/deckSheetSanitize");
-        if (q.theme !== undefined) sh.theme = SAN.sanitizeTheme(q.theme);
-        if (q.color != null) sh.color = SAN.safeColor(q.color);
-        if (q.columns != null) sh.columns = SAN.sanitizeSheetColumns(q.columns);
-        if (q.rows != null) sh.rows = SAN.sanitizeSheetRows(q.rows);
-        if (q.assignees != null) sh.assignees = q.assignees;
-        if (q.assigneeNames != null) sh.assigneeNames = q.assigneeNames;
-        if (q.primaryAssigneeId !== undefined) sh.primaryAssigneeId = q.primaryAssigneeId;
-        if (q.primaryAssigneeId != null && Array.isArray(q.assignees) && Array.isArray(q.assigneeNames)) {
-          const idx = q.assignees.indexOf(q.primaryAssigneeId);
-          if (idx >= 0) sh.assignedTo = q.assigneeNames[idx];
-        } else if (q.assignedTo != null) sh.assignedTo = q.assignedTo;
-        sh.updatedAt = new Date().toISOString();
-        await db.update(userAppData).set({ sheets: JSON.stringify(arr) }).where(eq(userAppData.userId, input.ownerUserId));
-        return { ok: true as const };
+        // Audit F61: read-modify-write under a row lock (SELECT … FOR UPDATE in
+        // a transaction) — a concurrent edit can't be lost between read and write.
+        return await _lockedBlob(db, input.ownerUserId, 'sheets', async (stored) => {
+          if (!stored) return { result: { ok: false as const, error: 'sheet not found' } };
+          let arr: any;
+          try { arr = JSON.parse(stored); } catch { return { result: { ok: false as const, error: 'bad data' } }; }
+          if (!Array.isArray(arr)) return { result: { ok: false as const, error: 'bad data' } };
+          const sh = arr.find((x: any) => x && String(x.id) === input.sheetId);
+          if (!sh) return { result: { ok: false as const, error: 'sheet not found' } };
+          const admin = (await canOverride(ctx.user as any, input.ownerUserId));
+          const isItemOwner = input.ownerUserId === ctx.user.id;
+          const isAssignee = _idAssigned(sh, ctx.user.id); // F12: numeric ids only
+          if (!(admin || isItemOwner || isAssignee || sh.shareAll === true)) return { result: { ok: false as const, error: 'not authorized' } };
+          const q = input.patch;
+          // Content edits require 'edit' permission (owner/admin always may).
+          const hasContent = q.title != null || q.icon != null || q.color != null || q.theme !== undefined || q.columns != null || q.rows != null;
+          if (hasContent && !(admin || isItemOwner) && effShareMode(sh, 'edit') === 'view')
+            return { result: { ok: false as const, error: 'view-only: the owner shared this sheet without edit permission' } };
+          // Assignment changes stay with owner/admin/assignees (a share-all
+          // viewer can't reassign); share settings are owner/admin only.
+          const hasAssign = q.assignees != null || q.assigneeNames != null || q.primaryAssigneeId !== undefined || q.assignedTo != null;
+          if (hasAssign && !(admin || isItemOwner || isAssignee)) return { result: { ok: false as const, error: 'not authorized to change assignment' } };
+          if ((q.shareAll !== undefined || q.shareMode !== undefined) && !(admin || isItemOwner))
+            return { result: { ok: false as const, error: 'only the owner can change share settings' } };
+          if (q.shareAll !== undefined) sh.shareAll = q.shareAll;
+          if (q.shareMode !== undefined) sh.shareMode = q.shareMode;
+          if (q.title != null) sh.title = q.title;
+          if (q.icon != null) sh.icon = q.icon;
+          // -254: a co-editor's columns/rows/theme are cleaned (ids, sizes, colours, enums) — they reach the owner's markup
+          const SAN = await import("../_core/deckSheetSanitize");
+          if (q.theme !== undefined) sh.theme = SAN.sanitizeTheme(q.theme);
+          if (q.color != null) sh.color = SAN.safeColor(q.color);
+          if (q.columns != null) sh.columns = SAN.sanitizeSheetColumns(q.columns);
+          if (q.rows != null) sh.rows = SAN.sanitizeSheetRows(q.rows);
+          if (q.assignees != null) sh.assignees = q.assignees;
+          if (q.assigneeNames != null) sh.assigneeNames = q.assigneeNames;
+          if (q.primaryAssigneeId !== undefined) sh.primaryAssigneeId = q.primaryAssigneeId;
+          if (q.primaryAssigneeId != null && Array.isArray(q.assignees) && Array.isArray(q.assigneeNames)) {
+            const idx = q.assignees.indexOf(q.primaryAssigneeId);
+            if (idx >= 0) sh.assignedTo = q.assigneeNames[idx];
+          } else if (q.assignedTo != null) sh.assignedTo = q.assignedTo;
+          sh.updatedAt = new Date().toISOString();
+          return { write: JSON.stringify(arr), result: { ok: true as const } };
+        });
       } catch (e: any) {
         return { ok: false as const, error: String(e?.message || e) };
       }
@@ -1362,14 +1460,14 @@ export const appDataRouter = router({
       const { canOverride } = await import("../_core/access");
       const admin = await isOwnerCtxUser(ctx.user as any); // -253: override UI is the owner's; canOverride() decides each write
       const owner = await isOwnerCtxUser(ctx.user as any);
-      const rows = await db.select({ userId: userAppData.userId, decks: userAppData.decks }).from(userAppData);
+      // Audit F71: rows unchanged since the last call are not re-read or re-parsed.
+      const rows = await _allParsedBlobs(db, 'decks', []);
       const out: any[] = [];
       const meId = ctx.user.id;
       const assignedToMe = (p: any) => _idAssigned(p, meId); // F12: numeric ids only
       const assignedToOthers = (p: any) => Array.isArray(p.assignees) && p.assignees.map((x: any) => Number(x)).some((n: number) => n && n !== meId);
       for (const r of rows) {
-        let arr: any;
-        try { arr = JSON.parse((r as any).decks || '[]'); } catch { continue; }
+        const arr: any = r.value;
         if (!Array.isArray(arr)) continue;
         if (r.userId === ctx.user.id) {
           for (const p of arr) {
@@ -1390,6 +1488,7 @@ export const appDataRouter = router({
       }
       return { ok: true as const, admin, decks: out };
     } catch (e: any) {
+      console.error('[appData] shared decks for user failed:', e); // → error log (audit F74)
       return { ok: false as const, decks: [] as any[], error: String(e?.message || e) };
     }
   }),
@@ -1421,45 +1520,46 @@ export const appDataRouter = router({
       if (!db) return { ok: false as const, error: 'db unavailable' };
       try {
         const { canOverride } = await import("../_core/access");
-        const [appRow] = await db.select({ decks: userAppData.decks }).from(userAppData)
-          .where(eq(userAppData.userId, input.ownerUserId)).limit(1);
-        if (!appRow || !(appRow as any).decks) return { ok: false as const, error: 'deck not found' };
-        let arr: any;
-        try { arr = JSON.parse((appRow as any).decks); } catch { return { ok: false as const, error: 'bad data' }; }
-        if (!Array.isArray(arr)) return { ok: false as const, error: 'bad data' };
-        const dk = arr.find((x: any) => x && String(x.id) === input.deckId);
-        if (!dk) return { ok: false as const, error: 'deck not found' };
-        const admin = (await canOverride(ctx.user as any, input.ownerUserId));
-        const isItemOwner = input.ownerUserId === ctx.user.id;
-        const isAssignee = _idAssigned(dk, ctx.user.id); // F12: numeric ids only
-        if (!(admin || isItemOwner || isAssignee || dk.shareAll === true)) return { ok: false as const, error: 'not authorized' };
-        const q = input.patch;
-        const hasContent = q.title != null || q.icon != null || q.color != null || q.theme !== undefined || q.slides != null;
-        if (hasContent && !(admin || isItemOwner) && effShareMode(dk, 'edit') === 'view')
-          return { ok: false as const, error: 'view-only: the owner shared this deck without edit permission' };
-        const hasAssign = q.assignees != null || q.assigneeNames != null || q.primaryAssigneeId !== undefined || q.assignedTo != null;
-        if (hasAssign && !(admin || isItemOwner || isAssignee)) return { ok: false as const, error: 'not authorized to change assignment' };
-        if ((q.shareAll !== undefined || q.shareMode !== undefined) && !(admin || isItemOwner))
-          return { ok: false as const, error: 'only the owner can change share settings' };
-        if (q.shareAll !== undefined) dk.shareAll = q.shareAll;
-        if (q.shareMode !== undefined) dk.shareMode = q.shareMode;
-        if (q.title != null) dk.title = q.title;
-        if (q.icon != null) dk.icon = q.icon;
-        // -254: a co-editor's slides/theme are cleaned (ids, geometry, colours, enums) — they reach the owner's markup
-        const SAN = await import("../_core/deckSheetSanitize");
-        if (q.theme !== undefined) dk.theme = SAN.sanitizeTheme(q.theme);
-        if (q.color != null) dk.color = SAN.safeColor(q.color);
-        if (q.slides != null) dk.slides = SAN.sanitizeSlides(q.slides);
-        if (q.assignees != null) dk.assignees = q.assignees;
-        if (q.assigneeNames != null) dk.assigneeNames = q.assigneeNames;
-        if (q.primaryAssigneeId !== undefined) dk.primaryAssigneeId = q.primaryAssigneeId;
-        if (q.primaryAssigneeId != null && Array.isArray(q.assignees) && Array.isArray(q.assigneeNames)) {
-          const idx = q.assignees.indexOf(q.primaryAssigneeId);
-          if (idx >= 0) dk.assignedTo = q.assigneeNames[idx];
-        } else if (q.assignedTo != null) dk.assignedTo = q.assignedTo;
-        dk.updatedAt = new Date().toISOString();
-        await db.update(userAppData).set({ decks: JSON.stringify(arr) }).where(eq(userAppData.userId, input.ownerUserId));
-        return { ok: true as const };
+        // Audit F61: read-modify-write under a row lock (SELECT … FOR UPDATE in
+        // a transaction) — a concurrent edit can't be lost between read and write.
+        return await _lockedBlob(db, input.ownerUserId, 'decks', async (stored) => {
+          if (!stored) return { result: { ok: false as const, error: 'deck not found' } };
+          let arr: any;
+          try { arr = JSON.parse(stored); } catch { return { result: { ok: false as const, error: 'bad data' } }; }
+          if (!Array.isArray(arr)) return { result: { ok: false as const, error: 'bad data' } };
+          const dk = arr.find((x: any) => x && String(x.id) === input.deckId);
+          if (!dk) return { result: { ok: false as const, error: 'deck not found' } };
+          const admin = (await canOverride(ctx.user as any, input.ownerUserId));
+          const isItemOwner = input.ownerUserId === ctx.user.id;
+          const isAssignee = _idAssigned(dk, ctx.user.id); // F12: numeric ids only
+          if (!(admin || isItemOwner || isAssignee || dk.shareAll === true)) return { result: { ok: false as const, error: 'not authorized' } };
+          const q = input.patch;
+          const hasContent = q.title != null || q.icon != null || q.color != null || q.theme !== undefined || q.slides != null;
+          if (hasContent && !(admin || isItemOwner) && effShareMode(dk, 'edit') === 'view')
+            return { result: { ok: false as const, error: 'view-only: the owner shared this deck without edit permission' } };
+          const hasAssign = q.assignees != null || q.assigneeNames != null || q.primaryAssigneeId !== undefined || q.assignedTo != null;
+          if (hasAssign && !(admin || isItemOwner || isAssignee)) return { result: { ok: false as const, error: 'not authorized to change assignment' } };
+          if ((q.shareAll !== undefined || q.shareMode !== undefined) && !(admin || isItemOwner))
+            return { result: { ok: false as const, error: 'only the owner can change share settings' } };
+          if (q.shareAll !== undefined) dk.shareAll = q.shareAll;
+          if (q.shareMode !== undefined) dk.shareMode = q.shareMode;
+          if (q.title != null) dk.title = q.title;
+          if (q.icon != null) dk.icon = q.icon;
+          // -254: a co-editor's slides/theme are cleaned (ids, geometry, colours, enums) — they reach the owner's markup
+          const SAN = await import("../_core/deckSheetSanitize");
+          if (q.theme !== undefined) dk.theme = SAN.sanitizeTheme(q.theme);
+          if (q.color != null) dk.color = SAN.safeColor(q.color);
+          if (q.slides != null) dk.slides = SAN.sanitizeSlides(q.slides);
+          if (q.assignees != null) dk.assignees = q.assignees;
+          if (q.assigneeNames != null) dk.assigneeNames = q.assigneeNames;
+          if (q.primaryAssigneeId !== undefined) dk.primaryAssigneeId = q.primaryAssigneeId;
+          if (q.primaryAssigneeId != null && Array.isArray(q.assignees) && Array.isArray(q.assigneeNames)) {
+            const idx = q.assignees.indexOf(q.primaryAssigneeId);
+            if (idx >= 0) dk.assignedTo = q.assigneeNames[idx];
+          } else if (q.assignedTo != null) dk.assignedTo = q.assignedTo;
+          dk.updatedAt = new Date().toISOString();
+          return { write: JSON.stringify(arr), result: { ok: true as const } };
+        });
       } catch (e: any) {
         return { ok: false as const, error: String(e?.message || e) };
       }
@@ -1470,8 +1570,9 @@ export const appDataRouter = router({
    * is ONE OBJECT per user (accounts/transactions/budgets/bills/goals) with
    * a `share` block {assignees, assigneeNames, primaryAssigneeId, shareAll,
    * shareMode}. Deliberately NOT owner/admin-visible-by-default like other
-   * entities — finance is sensitive, so ONLY explicit shares (assignee or
-   * shareAll) are returned, and there is no admin override on writes.
+   * entities — finance is sensitive, so ONLY explicit per-account shares
+   * (assignees) are returned — shareAll is ignored since audit F33 — and
+   * there is no admin override on writes.
    * shareMode defaults to 'view' here (the safe default for money).
    */
   sharedFinanceForMe: protectedProcedure.query(async ({ ctx }) => {
@@ -1480,21 +1581,27 @@ export const appDataRouter = router({
     try {
       const { adminListAllUsers } = await import("../db");
       const users = await adminListAllUsers();
-      const rows = await db.select({ userId: userAppData.userId, finance: userAppData.finance }).from(userAppData);
+      // Audit F71: rows unchanged since the last call are not re-read or re-parsed.
+      const rows = await _allParsedBlobs(db, 'finance', null);
       const meId = ctx.user.id;
       const out: any[] = [];
       for (const r of rows) {
         if (r.userId === meId) continue;
-        let fin: any; try { fin = JSON.parse((r as any).finance || 'null'); } catch { continue; }
+        const fin: any = r.value;
         if (!fin || typeof fin !== 'object') continue;
         const sh = fin.share || {};
-        const mine = (Array.isArray(sh.assignees) && sh.assignees.map((x: any) => Number(x)).includes(meId)) || sh.shareAll === true;
+        // Audit F33: only explicit per-account shares grant access to Money.
+        // "Share with everyone" (shareAll) matched every row in users — the
+        // demo account included — and is no longer honoured (the client turns
+        // old shareAll budgets into explicit lists).
+        const mine = Array.isArray(sh.assignees) && sh.assignees.map((x: any) => Number(x)).includes(meId);
         if (!mine) continue;
         const u = users.find(x => x.id === r.userId);
         out.push({ ownerUserId: r.userId, ownerName: (u && (u.name || u.email)) || ('user ' + r.userId), finance: fin, _readOnly: effShareMode(sh, 'view') === 'view' });
       }
       return { ok: true as const, budgets: out };
     } catch (e: any) {
+      console.error('[appData] shared budgets for user failed:', e); // → error log (audit F74)
       return { ok: false as const, budgets: [] as any[], error: String(e?.message || e) };
     }
   }),
@@ -1514,27 +1621,31 @@ export const appDataRouter = router({
       const db = await getDb();
       if (!db) return { ok: false as const, error: 'db unavailable' };
       try {
-        const [row] = await db.select({ finance: userAppData.finance }).from(userAppData)
-          .where(eq(userAppData.userId, input.ownerUserId)).limit(1);
-        if (!row || !(row as any).finance) return { ok: false as const, error: 'budget not found' };
-        let cur: any; try { cur = JSON.parse((row as any).finance); } catch { return { ok: false as const, error: 'bad data' }; }
-        const sh = (cur && cur.share) || {};
-        const meId = ctx.user.id;
-        const isItemOwner = input.ownerUserId === meId;
-        const isAssignee = Array.isArray(sh.assignees) && sh.assignees.map((x: any) => Number(x)).includes(meId);
-        if (!(isItemOwner || isAssignee || sh.shareAll === true)) return { ok: false as const, error: 'not authorized' };
-        if (!isItemOwner && effShareMode(sh, 'view') === 'view')
-          return { ok: false as const, error: 'view-only: the owner shared this budget without edit permission' };
         let next: any; try { next = JSON.parse(input.finance); } catch { return { ok: false as const, error: 'bad payload' }; }
         if (!next || typeof next !== 'object' || Array.isArray(next)) return { ok: false as const, error: 'bad payload' };
-        if (!isItemOwner) next.share = cur.share;
-        const curRev = Number(cur._rev) || 0;
-        if (input.baseRev != null && Number(input.baseRev) !== curRev) {
-          return { ok: false as const, conflict: true as const, error: 'This budget changed since you opened it.', finance: cur };
-        }
-        next._rev = curRev + 1;
-        await db.update(userAppData).set({ finance: JSON.stringify(next) }).where(eq(userAppData.userId, input.ownerUserId));
-        return { ok: true as const, rev: next._rev };
+        // Audit F61: the revision check and the write happen under a row lock,
+        // so two co-editors (or the bank-sync job) can't both pass the check.
+        return await _lockedBlob(db, input.ownerUserId, 'finance', async (stored) => {
+          if (!stored) return { result: { ok: false as const, error: 'budget not found' } };
+          let cur: any; try { cur = JSON.parse(stored); } catch { return { result: { ok: false as const, error: 'bad data' } }; }
+          const sh = (cur && cur.share) || {};
+          const meId = ctx.user.id;
+          const isItemOwner = input.ownerUserId === meId;
+          // Audit F33: only an explicit per-account share grants access to
+          // Money — "share with everyone" (shareAll) reached every account,
+          // the demo account included, and is no longer honoured.
+          const isAssignee = Array.isArray(sh.assignees) && sh.assignees.map((x: any) => Number(x)).includes(meId);
+          if (!(isItemOwner || isAssignee)) return { result: { ok: false as const, error: 'not authorized' } };
+          if (!isItemOwner && effShareMode(sh, 'view') === 'view')
+            return { result: { ok: false as const, error: 'view-only: the owner shared this budget without edit permission' } };
+          if (!isItemOwner) next.share = cur.share;
+          const curRev = Number(cur._rev) || 0;
+          if (input.baseRev != null && Number(input.baseRev) !== curRev) {
+            return { result: { ok: false as const, conflict: true as const, error: 'This budget changed since you opened it.', finance: cur } };
+          }
+          next._rev = curRev + 1;
+          return { write: JSON.stringify(next), result: { ok: true as const, rev: next._rev as number } };
+        });
       } catch (e: any) {
         return { ok: false as const, error: String(e?.message || e) };
       }
@@ -1555,14 +1666,14 @@ export const appDataRouter = router({
       const { canOverride } = await import("../_core/access");
       const admin = await isOwnerCtxUser(ctx.user as any); // -253: override UI is the owner's; canOverride() decides each write
       const owner = await isOwnerCtxUser(ctx.user as any);
-      const rows = await db.select({ userId: userAppData.userId, prefs: userAppData.prefs }).from(userAppData);
+      // Audit F71: rows unchanged since the last call are not re-read or re-parsed.
+      const rows = await _allParsedBlobs(db, 'prefs', {});
       const out: any[] = [];
       const meId = ctx.user.id;
       const assignedToMe = (p: any) => _idAssigned(p, meId); // F12: numeric ids only
       const assignedToOthers = (p: any) => Array.isArray(p.assignees) && p.assignees.map((x: any) => Number(x)).some((n: number) => n && n !== meId);
       for (const r of rows) {
-        let prefs: any;
-        try { prefs = JSON.parse(r.prefs || '{}'); } catch { continue; }
+        const prefs: any = r.value || {};
         const arr = Array.isArray(prefs.savedReports) ? prefs.savedReports : [];
         if (r.userId === ctx.user.id) {
           for (const p of arr) {
@@ -1583,6 +1694,7 @@ export const appDataRouter = router({
       }
       return { ok: true as const, admin, reports: out };
     } catch (e: any) {
+      console.error('[appData] shared reports for user failed:', e); // → error log (audit F74)
       return { ok: false as const, reports: [] as any[], error: String(e?.message || e) };
     }
   }),
@@ -1604,29 +1716,31 @@ export const appDataRouter = router({
       if (!db) return { ok: false as const, error: 'db unavailable' };
       try {
         const { canOverride } = await import("../_core/access");
-        const [appRow] = await db.select({ prefs: userAppData.prefs }).from(userAppData).where(eq(userAppData.userId, input.ownerUserId)).limit(1);
-        if (!appRow || !appRow.prefs) return { ok: false as const, error: 'report not found' };
-        let prefs: any;
-        try { prefs = JSON.parse(appRow.prefs); } catch { return { ok: false as const, error: 'bad data' }; }
-        const arr = Array.isArray(prefs.savedReports) ? prefs.savedReports : [];
-        const rep = arr.find((x: any) => x && String(x.id) === input.reportId);
-        if (!rep) return { ok: false as const, error: 'report not found' };
-        // F12: an assignee is named by numeric id only, never by name/email.
-        const allowed = (await canOverride(ctx.user as any, input.ownerUserId)) || input.ownerUserId === ctx.user.id
-          || _idAssigned(rep, ctx.user.id);
-        if (!allowed) return { ok: false as const, error: 'not authorized' };
-        const q = input.patch;
-        if (q.name != null) rep.name = q.name;
-        if (q.assignees != null) rep.assignees = q.assignees;
-        if (q.assigneeNames != null) rep.assigneeNames = q.assigneeNames;
-        if (q.primaryAssigneeId !== undefined) rep.primaryAssigneeId = q.primaryAssigneeId;
-        if (q.primaryAssigneeId != null && Array.isArray(q.assignees) && Array.isArray(q.assigneeNames)) {
-          const idx = q.assignees.indexOf(q.primaryAssigneeId);
-          if (idx >= 0) rep.assignedTo = q.assigneeNames[idx];
-        } else if (q.assignedTo != null) rep.assignedTo = q.assignedTo;
-        prefs.savedReports = arr;
-        await db.update(userAppData).set({ prefs: JSON.stringify(prefs) }).where(eq(userAppData.userId, input.ownerUserId));
-        return { ok: true as const };
+        // Audit F61: read-modify-write under a row lock (SELECT … FOR UPDATE in
+        // a transaction) — a concurrent edit can't be lost between read and write.
+        return await _lockedBlob(db, input.ownerUserId, 'prefs', async (stored) => {
+          if (!stored) return { result: { ok: false as const, error: 'report not found' } };
+          let prefs: any;
+          try { prefs = JSON.parse(stored); } catch { return { result: { ok: false as const, error: 'bad data' } }; }
+          const arr = Array.isArray(prefs.savedReports) ? prefs.savedReports : [];
+          const rep = arr.find((x: any) => x && String(x.id) === input.reportId);
+          if (!rep) return { result: { ok: false as const, error: 'report not found' } };
+          // F12: an assignee is named by numeric id only, never by name/email.
+          const allowed = (await canOverride(ctx.user as any, input.ownerUserId)) || input.ownerUserId === ctx.user.id
+            || _idAssigned(rep, ctx.user.id);
+          if (!allowed) return { result: { ok: false as const, error: 'not authorized' } };
+          const q = input.patch;
+          if (q.name != null) rep.name = q.name;
+          if (q.assignees != null) rep.assignees = q.assignees;
+          if (q.assigneeNames != null) rep.assigneeNames = q.assigneeNames;
+          if (q.primaryAssigneeId !== undefined) rep.primaryAssigneeId = q.primaryAssigneeId;
+          if (q.primaryAssigneeId != null && Array.isArray(q.assignees) && Array.isArray(q.assigneeNames)) {
+            const idx = q.assignees.indexOf(q.primaryAssigneeId);
+            if (idx >= 0) rep.assignedTo = q.assigneeNames[idx];
+          } else if (q.assignedTo != null) rep.assignedTo = q.assignedTo;
+          prefs.savedReports = arr;
+          return { write: JSON.stringify(prefs), result: { ok: true as const } };
+        });
       } catch (e: any) {
         return { ok: false as const, error: String(e?.message || e) };
       }
@@ -1641,29 +1755,42 @@ export const appDataRouter = router({
       // -253: admin alone is not enough — never another member's way into the owner's data.
       if (!(await (await import('../_core/access')).canOverride(ctx.user as any, input.ownerUserId))) return { ok: false as const, error: 'Only the workspace owner can take over this '+'report'+'.' };
       try {
-        const readPrefs = async (uid: number): Promise<any> => {
-          const [r] = await db.select({ prefs: userAppData.prefs }).from(userAppData).where(eq(userAppData.userId, uid)).limit(1);
-          try { return JSON.parse((r as any)?.prefs || '{}'); } catch { return {}; }
+        // Audit F66: both writes in ONE transaction with both rows locked
+        // (lower user id first, so two transfers can't deadlock), and the
+        // receiver is written first — a failure can no longer lose the report.
+        await db.insert(userAppData).values({ userId: ctx.user.id }).onDuplicateKeyUpdate({ set: { userId: ctx.user.id } });
+        const run = async (tx: any) => {
+          const lockPrefs = async (uid: number): Promise<any> => {
+            const q = tx.select({ prefs: userAppData.prefs }).from(userAppData).where(eq(userAppData.userId, uid)).limit(1);
+            const [r] = typeof q.for === 'function' ? await q.for('update') : await q;
+            try { return JSON.parse((r as any)?.prefs || '{}') || {}; } catch { return {}; }
+          };
+          const [first, second] = input.ownerUserId < ctx.user.id ? [input.ownerUserId, ctx.user.id] : [ctx.user.id, input.ownerUserId];
+          const locked: Record<number, any> = {};
+          locked[first] = await lockPrefs(first);
+          locked[second] = await lockPrefs(second);
+          const ownerPrefs = locked[input.ownerUserId];
+          const ownerArr = Array.isArray(ownerPrefs.savedReports) ? ownerPrefs.savedReports : [];
+          const idx = ownerArr.findIndex((x: any) => x && String(x.id) === input.reportId);
+          if (idx < 0) return { ok: false as const, error: 'report not found' };
+          const item = ownerArr[idx];
+          ownerArr.splice(idx, 1);
+          const prev: number[] = Array.isArray(item.assignees) ? item.assignees.map((x: any) => Number(x)).filter((n: number) => !isNaN(n)) : [];
+          if (!prev.includes(input.ownerUserId)) prev.push(input.ownerUserId);
+          item.assignees = prev;
+          item._prevOwnerUserId = input.ownerUserId;
+          ownerPrefs.savedReports = ownerArr;
+          const adminPrefs = locked[ctx.user.id];
+          const adminArr = Array.isArray(adminPrefs.savedReports) ? adminPrefs.savedReports : [];
+          if (adminArr.some((x: any) => x && String(x.id) === input.reportId)) item.id = String(item.id) + '-' + ctx.user.id;
+          adminArr.push(item);
+          adminPrefs.savedReports = adminArr;
+          const now = new Date();
+          await tx.update(userAppData).set({ prefs: JSON.stringify(adminPrefs), updatedAt: now }).where(eq(userAppData.userId, ctx.user.id));
+          await tx.update(userAppData).set({ prefs: JSON.stringify(ownerPrefs), updatedAt: now }).where(eq(userAppData.userId, input.ownerUserId));
+          return { ok: true as const, newOwnerUserId: ctx.user.id };
         };
-        const ownerPrefs = await readPrefs(input.ownerUserId);
-        const ownerArr = Array.isArray(ownerPrefs.savedReports) ? ownerPrefs.savedReports : [];
-        const idx = ownerArr.findIndex((x: any) => x && String(x.id) === input.reportId);
-        if (idx < 0) return { ok: false as const, error: 'report not found' };
-        const item = ownerArr[idx];
-        ownerArr.splice(idx, 1);
-        const prev: number[] = Array.isArray(item.assignees) ? item.assignees.map((x: any) => Number(x)).filter((n: number) => !isNaN(n)) : [];
-        if (!prev.includes(input.ownerUserId)) prev.push(input.ownerUserId);
-        item.assignees = prev;
-        item._prevOwnerUserId = input.ownerUserId;
-        ownerPrefs.savedReports = ownerArr;
-        const adminPrefs = await readPrefs(ctx.user.id);
-        const adminArr = Array.isArray(adminPrefs.savedReports) ? adminPrefs.savedReports : [];
-        if (adminArr.some((x: any) => x && String(x.id) === input.reportId)) item.id = String(item.id) + '-' + ctx.user.id;
-        adminArr.push(item);
-        adminPrefs.savedReports = adminArr;
-        await db.update(userAppData).set({ prefs: JSON.stringify(ownerPrefs) }).where(eq(userAppData.userId, input.ownerUserId));
-        await db.update(userAppData).set({ prefs: JSON.stringify(adminPrefs) }).where(eq(userAppData.userId, ctx.user.id));
-        return { ok: true as const, newOwnerUserId: ctx.user.id };
+        return await (typeof db.transaction === 'function' ? db.transaction(run) : run(db));
       } catch (e: any) {
         return { ok: false as const, error: String(e?.message || e) };
       }
@@ -1677,15 +1804,15 @@ export const appDataRouter = router({
       try {
         const { canOverride } = await import("../_core/access");
         if (!((await canOverride(ctx.user as any, input.ownerUserId)) || input.ownerUserId === ctx.user.id)) return { ok: false as const, error: 'not authorized' };
-        const [appRow] = await db.select({ prefs: userAppData.prefs }).from(userAppData).where(eq(userAppData.userId, input.ownerUserId)).limit(1);
-        if (!appRow || !appRow.prefs) return { ok: true as const };
-        let prefs: any;
-        try { prefs = JSON.parse(appRow.prefs); } catch { return { ok: false as const, error: 'bad data' }; }
-        if (Array.isArray(prefs.savedReports)) {
+        // Audit F61: under a row lock, like every shared write.
+        return await _lockedBlob(db, input.ownerUserId, 'prefs', async (stored) => {
+          if (!stored) return { result: { ok: true as const } };
+          let prefs: any;
+          try { prefs = JSON.parse(stored); } catch { return { result: { ok: false as const, error: 'bad data' } }; }
+          if (!Array.isArray(prefs.savedReports)) return { result: { ok: true as const } };
           prefs.savedReports = prefs.savedReports.filter((x: any) => !(x && String(x.id) === input.reportId));
-          await db.update(userAppData).set({ prefs: JSON.stringify(prefs) }).where(eq(userAppData.userId, input.ownerUserId));
-        }
-        return { ok: true as const };
+          return { write: JSON.stringify(prefs), result: { ok: true as const } };
+        });
       } catch (e: any) {
         return { ok: false as const, error: String(e?.message || e) };
       }
@@ -1729,6 +1856,7 @@ export const appDataRouter = router({
       const notes = [...sharedRows.map((r: any) => mapRow(r, false)), ...delegatedRows.map((r: any) => mapRow(r, true))].filter(Boolean);
       return { ok: true as const, admin, notes };
     } catch (e: any) {
+      console.error('[appData] shared notes for user failed:', e); // → error log (audit F74)
       return { ok: false as const, notes: [] as any[], error: String(e?.message || e) };
     }
   }),
@@ -1758,72 +1886,76 @@ export const appDataRouter = router({
       const db = await getDb();
       if (!db) return { ok: false as const, error: 'db unavailable' };
       try {
-        const [row] = await db.select().from(notesTable).where(and(eq(notesTable.userId, input.ownerUserId), eq(notesTable.noteId, input.noteId))).limit(1);
-        if (!row) return { ok: false as const, error: 'note not found' };
-        const { canOverride } = await import("../_core/access");
-        let rawNote: any = {};
-        try { rawNote = JSON.parse(row.raw || '{}') || {}; } catch {}
-        const admin = (await canOverride(ctx.user as any, input.ownerUserId));
-        const isItemOwner = row.userId === ctx.user.id;
-        // F12: numeric ids only (raw ids; the column only for a legacy note
-        // with no id list). Same rule the reader uses.
-        const isAssignee = _taskAssignedTo(row, ctx.user.id);
-        const allowed = admin || isItemOwner || isAssignee || rawNote.shareAll === true;
-        if (!allowed) return { ok: false as const, error: 'not authorized' };
-        const p = input.patch;
-        // Body edits need 'edit' permission (notes default to view-only).
-        if (p.bodyHtml != null && !(admin || isItemOwner) && effShareMode(rawNote, 'view') === 'view')
-          return { ok: false as const, error: 'view-only: the owner shared this note without edit permission' };
-        // A share-all viewer can't reassign; share settings are owner/admin only.
-        const hasAssign = p.assignees != null || p.assigneeNames != null || p.primaryAssigneeId !== undefined || p.assignedTo != null;
-        if (hasAssign && !(admin || isItemOwner || isAssignee)) return { ok: false as const, error: 'not authorized to change assignment' };
-        if ((p.shareAll !== undefined || p.shareMode !== undefined) && !(admin || isItemOwner))
-          return { ok: false as const, error: 'only the owner can change share settings' };
-        let primaryId: number | null | undefined = undefined;
-        let primaryName: string | undefined = p.assignedTo ?? undefined;
-        if (p.primaryAssigneeId !== undefined) {
-          primaryId = p.primaryAssigneeId;
-          if (Array.isArray(p.assignees) && Array.isArray(p.assigneeNames) && p.primaryAssigneeId != null) {
-            const idx = p.assignees.indexOf(p.primaryAssigneeId);
-            if (idx >= 0) primaryName = p.assigneeNames[idx];
+        // Audit F61: the row is read with SELECT … FOR UPDATE inside a
+        // transaction, so a concurrent edit can't be lost between read and write.
+        return await _inTx(db, async (tx: any) => {
+          const [row] = await _forUpdate(tx.select().from(notesTable).where(and(eq(notesTable.userId, input.ownerUserId), eq(notesTable.noteId, input.noteId))).limit(1));
+          if (!row) return { ok: false as const, error: 'note not found' };
+          const { canOverride } = await import("../_core/access");
+          let rawNote: any = {};
+          try { rawNote = JSON.parse(row.raw || '{}') || {}; } catch {}
+          const admin = (await canOverride(ctx.user as any, input.ownerUserId));
+          const isItemOwner = row.userId === ctx.user.id;
+          // F12: numeric ids only (raw ids; the column only for a legacy note
+          // with no id list). Same rule the reader uses.
+          const isAssignee = _taskAssignedTo(row, ctx.user.id);
+          const allowed = admin || isItemOwner || isAssignee || rawNote.shareAll === true;
+          if (!allowed) return { ok: false as const, error: 'not authorized' };
+          const p = input.patch;
+          // Body edits need 'edit' permission (notes default to view-only).
+          if (p.bodyHtml != null && !(admin || isItemOwner) && effShareMode(rawNote, 'view') === 'view')
+            return { ok: false as const, error: 'view-only: the owner shared this note without edit permission' };
+          // A share-all viewer can't reassign; share settings are owner/admin only.
+          const hasAssign = p.assignees != null || p.assigneeNames != null || p.primaryAssigneeId !== undefined || p.assignedTo != null;
+          if (hasAssign && !(admin || isItemOwner || isAssignee)) return { ok: false as const, error: 'not authorized to change assignment' };
+          if ((p.shareAll !== undefined || p.shareMode !== undefined) && !(admin || isItemOwner))
+            return { ok: false as const, error: 'only the owner can change share settings' };
+          let primaryId: number | null | undefined = undefined;
+          let primaryName: string | undefined = p.assignedTo ?? undefined;
+          if (p.primaryAssigneeId !== undefined) {
+            primaryId = p.primaryAssigneeId;
+            if (Array.isArray(p.assignees) && Array.isArray(p.assigneeNames) && p.primaryAssigneeId != null) {
+              const idx = p.assignees.indexOf(p.primaryAssigneeId);
+              if (idx >= 0) primaryName = p.assigneeNames[idx];
+            }
+          } else if (p.assignedTo != null && (isItemOwner || admin)) {
+            // F12: a legacy name/email reassignment is resolved into an id only
+            // when the item's owner (or an override) makes it, through the
+            // unique-name/email map (an ambiguous name resolves to nobody). An
+            // assignee sending a bare string changes only the label.
+            const key = p.assignedTo.trim().toLowerCase();
+            primaryId = key ? ((await _resolveUserIdMap()).get(key) ?? null) : null;
           }
-        } else if (p.assignedTo != null && (isItemOwner || admin)) {
-          // F12: a legacy name/email reassignment is resolved into an id only
-          // when the item's owner (or an override) makes it, through the
-          // unique-name/email map (an ambiguous name resolves to nobody). An
-          // assignee sending a bare string changes only the label.
-          const key = p.assignedTo.trim().toLowerCase();
-          primaryId = key ? ((await _resolveUserIdMap()).get(key) ?? null) : null;
-        }
-        const applyTo = (t: any) => {
-          if (p.title != null) t.title = p.title;
-          if (p.bodyHtml != null) {
-            t.bodyHtml = p.bodyHtml;
-            if (p.body != null) t.body = p.body;
-            t.updated = t.updatedAt = new Date().toISOString();
+          const applyTo = (t: any) => {
+            if (p.title != null) t.title = p.title;
+            if (p.bodyHtml != null) {
+              t.bodyHtml = p.bodyHtml;
+              if (p.body != null) t.body = p.body;
+              t.updated = t.updatedAt = new Date().toISOString();
+            }
+            if (p.shareAll !== undefined) t.shareAll = p.shareAll;
+            if (p.shareMode !== undefined) t.shareMode = p.shareMode;
+            if (p.assignees != null) t.assignees = p.assignees;
+            if (p.assigneeNames != null) t.assigneeNames = p.assigneeNames;
+            if (p.primaryAssigneeId !== undefined) t.primaryAssigneeId = p.primaryAssigneeId;
+            if (primaryName !== undefined) t.assignedTo = primaryName;
+            else if (p.assignedTo != null) t.assignedTo = p.assignedTo;
+          };
+          // Step 3a: the relational row IS the store — the blob write that used
+          // to happen here is gone (blob columns are frozen pre-3a snapshots).
+          let newRaw = row.raw;
+          try { const t = JSON.parse(row.raw || '{}'); applyTo(t); newRaw = JSON.stringify(t); } catch {}
+          const set: Record<string, unknown> = { raw: newRaw };
+          if (p.title != null) set.title = p.title.slice(0, 512);
+          if (primaryId !== undefined) set.assigneeId = primaryId ?? null;
+          await tx.update(notesTable).set(set).where(eq(notesTable.id, row.id));
+          // The owner's history keeps the note as it was before a teammate's edit.
+          if ((p.title != null || p.bodyHtml != null) && !isItemOwner && _noteTextChanged(row.raw, newRaw ?? '')) {
+            const v = versionFromRaw(input.noteId, row.raw, 'shared', 'Before ' + (ctx.user.name || 'a teammate') + '’s edit');
+            if (v) await recordNoteVersion(db, input.ownerUserId, v);
           }
-          if (p.shareAll !== undefined) t.shareAll = p.shareAll;
-          if (p.shareMode !== undefined) t.shareMode = p.shareMode;
-          if (p.assignees != null) t.assignees = p.assignees;
-          if (p.assigneeNames != null) t.assigneeNames = p.assigneeNames;
-          if (p.primaryAssigneeId !== undefined) t.primaryAssigneeId = p.primaryAssigneeId;
-          if (primaryName !== undefined) t.assignedTo = primaryName;
-          else if (p.assignedTo != null) t.assignedTo = p.assignedTo;
-        };
-        // Step 3a: the relational row IS the store — the blob write that used
-        // to happen here is gone (blob columns are frozen pre-3a snapshots).
-        let newRaw = row.raw;
-        try { const t = JSON.parse(row.raw || '{}'); applyTo(t); newRaw = JSON.stringify(t); } catch {}
-        const set: Record<string, unknown> = { raw: newRaw };
-        if (p.title != null) set.title = p.title.slice(0, 512);
-        if (primaryId !== undefined) set.assigneeId = primaryId ?? null;
-        await db.update(notesTable).set(set).where(eq(notesTable.id, row.id));
-        // The owner's history keeps the note as it was before a teammate's edit.
-        if ((p.title != null || p.bodyHtml != null) && !isItemOwner && _noteTextChanged(row.raw, newRaw ?? '')) {
-          const v = versionFromRaw(input.noteId, row.raw, 'shared', 'Before ' + (ctx.user.name || 'a teammate') + '’s edit');
-          if (v) await recordNoteVersion(db, input.ownerUserId, v);
-        }
-        return { ok: true as const };
+          return { ok: true as const };
+        });
       } catch (e: any) {
         return { ok: false as const, error: String(e?.message || e) };
       }
@@ -1845,30 +1977,34 @@ export const appDataRouter = router({
       const db = await getDb();
       if (!db) return { ok: false as const, error: 'db unavailable' };
       try {
-        const [row] = await db.select().from(tasksTable)
-          .where(and(eq(tasksTable.userId, input.ownerUserId), eq(tasksTable.taskId, input.taskId)))
-          .limit(1);
-        if (!row) return { ok: false as const, error: 'task not found' };
-        const { canOverride } = await import("../_core/access");
-        const allowed = (await canOverride(ctx.user as any, row.userId)) || row.userId === ctx.user.id || _taskAssignedTo(row, ctx.user.id); // F12: numeric ids only
-        if (!allowed) return { ok: false as const, error: 'not authorized' };
+        // Audit F61: the row is read with SELECT … FOR UPDATE inside a
+        // transaction, so a concurrent edit can't be lost between read and write.
+        return await _inTx(db, async (tx: any) => {
+          const [row] = await _forUpdate(tx.select().from(tasksTable)
+            .where(and(eq(tasksTable.userId, input.ownerUserId), eq(tasksTable.taskId, input.taskId)))
+            .limit(1));
+          if (!row) return { ok: false as const, error: 'task not found' };
+          const { canOverride } = await import("../_core/access");
+          const allowed = (await canOverride(ctx.user as any, row.userId)) || row.userId === ctx.user.id || _taskAssignedTo(row, ctx.user.id); // F12: numeric ids only
+          if (!allowed) return { ok: false as const, error: 'not authorized' };
 
-        const isDone = /done|complete|completed|closed/i.test(input.status);
-        const completedAt = isDone ? new Date().toISOString() : null;
+          const isDone = /done|complete|completed|closed/i.test(input.status);
+          const completedAt = isDone ? new Date().toISOString() : null;
 
-        // Step 3a: relational row is the sole store (blob write removed).
-        let newRaw = row.raw;
-        try {
-          const t = JSON.parse(row.raw || '{}');
-          t.status = input.status;
-          t.completedAt = completedAt;
-          newRaw = JSON.stringify(t);
-        } catch { /* keep old raw */ }
-        await db.update(tasksTable)
-          .set({ status: input.status.slice(0, 32), completedAt: completedAt ? completedAt.slice(0, 40) : null, raw: newRaw })
-          .where(eq(tasksTable.id, row.id));
+          // Step 3a: relational row is the sole store (blob write removed).
+          let newRaw = row.raw;
+          try {
+            const t = JSON.parse(row.raw || '{}');
+            t.status = input.status;
+            t.completedAt = completedAt;
+            newRaw = JSON.stringify(t);
+          } catch { /* keep old raw */ }
+          await tx.update(tasksTable)
+            .set({ status: input.status.slice(0, 32), completedAt: completedAt ? completedAt.slice(0, 40) : null, raw: newRaw })
+            .where(eq(tasksTable.id, row.id));
 
-        return { ok: true as const, status: input.status };
+          return { ok: true as const, status: input.status };
+        });
       } catch (e: any) {
         return { ok: false as const, error: String(e?.message || e) };
       }
@@ -1902,71 +2038,75 @@ export const appDataRouter = router({
       const db = await getDb();
       if (!db) return { ok: false as const, error: 'db unavailable' };
       try {
-        const [row] = await db.select().from(tasksTable)
-          .where(and(eq(tasksTable.userId, input.ownerUserId), eq(tasksTable.taskId, input.taskId))).limit(1);
-        if (!row) return { ok: false as const, error: 'task not found' };
-        const { canOverride } = await import("../_core/access");
-        // Authorized: override (owner / granted admin), the task's owner, or a
-        // member named on it by numeric id. F12: assignee = raw assignees /
-        // primaryAssigneeId, or the owner-save stamp for a legacy task with no
-        // id list — never a name/email match.
-        const override = await canOverride(ctx.user as any, row.userId);
-        const isItemOwner = row.userId === ctx.user.id;
-        const allowed = override || isItemOwner || _taskAssignedTo(row, ctx.user.id);
-        if (!allowed) return { ok: false as const, error: 'not authorized' };
-        const p = input.patch;
-        const isDone = p.status != null && /done|complete|completed|closed/i.test(p.status);
-        const completedAt = isDone ? new Date().toISOString() : null;
-        // A legacy reassignment by name/email string (no ids in the patch):
-        // resolved into the assigneeId stamp only when the task's OWNER (or an
-        // override) makes it, through the unique name/email map. An assignee
-        // sending a bare string changes only the label, not who has access.
-        // Empty string clears the assignment.
-        let newAssigneeId: number | null | undefined = undefined;
-        if (p.assignedTo != null && (isItemOwner || override)) {
-          const key = p.assignedTo.trim().toLowerCase();
-          newAssigneeId = key ? ((await _resolveUserIdMap()).get(key) ?? null) : null;
-        }
-        // Multi-assignee: derive the Primary Responsible's id + display name so
-        // the legacy single-assignee columns (assigneeId / assignedTo) keep
-        // pointing at the primary — existing relational queries still work.
-        let primaryId: number | null | undefined = newAssigneeId;
-        let primaryName: string | undefined = p.assignedTo ?? undefined;
-        if (p.primaryAssigneeId !== undefined) {
-          primaryId = p.primaryAssigneeId;
-          if (Array.isArray(p.assignees) && Array.isArray(p.assigneeNames) && p.primaryAssigneeId != null) {
-            const idx = p.assignees.indexOf(p.primaryAssigneeId);
-            if (idx >= 0) primaryName = p.assigneeNames[idx];
+        // Audit F61: the row is read with SELECT … FOR UPDATE inside a
+        // transaction, so a concurrent edit can't be lost between read and write.
+        return await _inTx(db, async (tx: any) => {
+          const [row] = await _forUpdate(tx.select().from(tasksTable)
+            .where(and(eq(tasksTable.userId, input.ownerUserId), eq(tasksTable.taskId, input.taskId))).limit(1));
+          if (!row) return { ok: false as const, error: 'task not found' };
+          const { canOverride } = await import("../_core/access");
+          // Authorized: override (owner / granted admin), the task's owner, or a
+          // member named on it by numeric id. F12: assignee = raw assignees /
+          // primaryAssigneeId, or the owner-save stamp for a legacy task with no
+          // id list — never a name/email match.
+          const override = await canOverride(ctx.user as any, row.userId);
+          const isItemOwner = row.userId === ctx.user.id;
+          const allowed = override || isItemOwner || _taskAssignedTo(row, ctx.user.id);
+          if (!allowed) return { ok: false as const, error: 'not authorized' };
+          const p = input.patch;
+          const isDone = p.status != null && /done|complete|completed|closed/i.test(p.status);
+          const completedAt = isDone ? new Date().toISOString() : null;
+          // A legacy reassignment by name/email string (no ids in the patch):
+          // resolved into the assigneeId stamp only when the task's OWNER (or an
+          // override) makes it, through the unique name/email map. An assignee
+          // sending a bare string changes only the label, not who has access.
+          // Empty string clears the assignment.
+          let newAssigneeId: number | null | undefined = undefined;
+          if (p.assignedTo != null && (isItemOwner || override)) {
+            const key = p.assignedTo.trim().toLowerCase();
+            newAssigneeId = key ? ((await _resolveUserIdMap()).get(key) ?? null) : null;
           }
-        }
-        const applyTo = (t: any) => {
-          if (p.title != null) t.title = p.title;
-          if (p.status != null) { t.status = p.status; t.completedAt = completedAt; }
-          if (p.priority != null) t.priority = p.priority;
-          if (p.due != null) t.due = p.due;
-          if (p.notes != null) t.notes = p.notes;
-          if (p.assignees != null) t.assignees = p.assignees;
-          if (p.assigneeNames != null) t.assigneeNames = p.assigneeNames;
-          if (p.primaryAssigneeId !== undefined) t.primaryAssigneeId = p.primaryAssigneeId;
-          if (primaryName !== undefined) t.assignedTo = primaryName;
-          else if (p.assignedTo != null) t.assignedTo = p.assignedTo;
-        };
+          // Multi-assignee: derive the Primary Responsible's id + display name so
+          // the legacy single-assignee columns (assigneeId / assignedTo) keep
+          // pointing at the primary — existing relational queries still work.
+          let primaryId: number | null | undefined = newAssigneeId;
+          let primaryName: string | undefined = p.assignedTo ?? undefined;
+          if (p.primaryAssigneeId !== undefined) {
+            primaryId = p.primaryAssigneeId;
+            if (Array.isArray(p.assignees) && Array.isArray(p.assigneeNames) && p.primaryAssigneeId != null) {
+              const idx = p.assignees.indexOf(p.primaryAssigneeId);
+              if (idx >= 0) primaryName = p.assigneeNames[idx];
+            }
+          }
+          const applyTo = (t: any) => {
+            if (p.title != null) t.title = p.title;
+            if (p.status != null) { t.status = p.status; t.completedAt = completedAt; }
+            if (p.priority != null) t.priority = p.priority;
+            if (p.due != null) t.due = p.due;
+            if (p.notes != null) t.notes = p.notes;
+            if (p.assignees != null) t.assignees = p.assignees;
+            if (p.assigneeNames != null) t.assigneeNames = p.assigneeNames;
+            if (p.primaryAssigneeId !== undefined) t.primaryAssigneeId = p.primaryAssigneeId;
+            if (primaryName !== undefined) t.assignedTo = primaryName;
+            else if (p.assignedTo != null) t.assignedTo = p.assignedTo;
+          };
 
-        // Step 3a: relational row is the sole store (blob write removed).
-        let newRaw = row.raw;
-        try { const t = JSON.parse(row.raw || '{}'); applyTo(t); newRaw = JSON.stringify(t); } catch { /* keep old raw */ }
-        const set: Record<string, unknown> = { raw: newRaw };
-        if (p.title != null) set.title = p.title.slice(0, 512);
-        if (p.status != null) { set.status = p.status.slice(0, 32); set.completedAt = completedAt ? completedAt.slice(0, 40) : null; }
-        if (p.priority != null) set.priority = p.priority.slice(0, 16);
-        if (p.due != null) set.due = p.due.slice(0, 32);
-        // Keep the relational single-assignee columns synced to the Primary.
-        if (primaryName !== undefined) set.assignedTo = String(primaryName).slice(0, 255);
-        else if (p.assignedTo != null) set.assignedTo = p.assignedTo.slice(0, 255);
-        if (primaryId !== undefined) set.assigneeId = primaryId ?? null;
-        await db.update(tasksTable).set(set).where(eq(tasksTable.id, row.id));
+          // Step 3a: relational row is the sole store (blob write removed).
+          let newRaw = row.raw;
+          try { const t = JSON.parse(row.raw || '{}'); applyTo(t); newRaw = JSON.stringify(t); } catch { /* keep old raw */ }
+          const set: Record<string, unknown> = { raw: newRaw };
+          if (p.title != null) set.title = p.title.slice(0, 512);
+          if (p.status != null) { set.status = p.status.slice(0, 32); set.completedAt = completedAt ? completedAt.slice(0, 40) : null; }
+          if (p.priority != null) set.priority = p.priority.slice(0, 16);
+          if (p.due != null) set.due = p.due.slice(0, 32);
+          // Keep the relational single-assignee columns synced to the Primary.
+          if (primaryName !== undefined) set.assignedTo = String(primaryName).slice(0, 255);
+          else if (p.assignedTo != null) set.assignedTo = p.assignedTo.slice(0, 255);
+          if (primaryId !== undefined) set.assigneeId = primaryId ?? null;
+          await tx.update(tasksTable).set(set).where(eq(tasksTable.id, row.id));
 
-        return { ok: true as const };
+          return { ok: true as const };
+        });
       } catch (e: any) {
         return { ok: false as const, error: String(e?.message || e) };
       }
@@ -1996,35 +2136,36 @@ export const appDataRouter = router({
       if (!db) return { ok: false as const, error: 'db unavailable' };
       try {
         const { canOverride } = await import("../_core/access");
-        const [appRow] = await db.select({ projects: userAppData.projects }).from(userAppData)
-          .where(eq(userAppData.userId, input.ownerUserId)).limit(1);
-        if (!appRow || !appRow.projects) return { ok: false as const, error: 'project not found' };
-        let arr: any;
-        try { arr = JSON.parse(appRow.projects); } catch { return { ok: false as const, error: 'bad data' }; }
-        if (!Array.isArray(arr)) return { ok: false as const, error: 'bad data' };
-        const proj = arr.find((x: any) => x && String(x.id) === input.projectId);
-        if (!proj) return { ok: false as const, error: 'project not found' };
-        // Authorize: admin, owner, or a member named on the project by numeric
-        // id (assignees / primaryAssigneeId). F12: the `assignee`/`assignedTo`
-        // name or email string never authorizes — both are editable.
-        const allowed = (await canOverride(ctx.user as any, input.ownerUserId)) || input.ownerUserId === ctx.user.id
-          || _idAssigned(proj, ctx.user.id);
-        if (!allowed) return { ok: false as const, error: 'not authorized' };
-        const q = input.patch;
-        if (q.name != null) proj.name = q.name;
-        if (q.status != null) proj.status = q.status;
-        if (q.due != null) proj.due = q.due;
-        if (q.desc != null) proj.desc = q.desc;
-        if (q.assignees != null) proj.assignees = q.assignees;
-        if (q.assigneeNames != null) proj.assigneeNames = q.assigneeNames;
-        if (q.primaryAssigneeId !== undefined) proj.primaryAssigneeId = q.primaryAssigneeId;
-        // Keep legacy assignedTo pointed at the Primary Responsible's name.
-        if (q.primaryAssigneeId != null && Array.isArray(q.assignees) && Array.isArray(q.assigneeNames)) {
-          const idx = q.assignees.indexOf(q.primaryAssigneeId);
-          if (idx >= 0) proj.assignedTo = q.assigneeNames[idx];
-        } else if (q.assignedTo != null) proj.assignedTo = q.assignedTo;
-        await db.update(userAppData).set({ projects: JSON.stringify(arr) }).where(eq(userAppData.userId, input.ownerUserId));
-        return { ok: true as const };
+        // Audit F61: read-modify-write under a row lock (SELECT … FOR UPDATE in
+        // a transaction) — a concurrent edit can't be lost between read and write.
+        return await _lockedBlob(db, input.ownerUserId, 'projects', async (stored) => {
+          if (!stored) return { result: { ok: false as const, error: 'project not found' } };
+          let arr: any;
+          try { arr = JSON.parse(stored); } catch { return { result: { ok: false as const, error: 'bad data' } }; }
+          if (!Array.isArray(arr)) return { result: { ok: false as const, error: 'bad data' } };
+          const proj = arr.find((x: any) => x && String(x.id) === input.projectId);
+          if (!proj) return { result: { ok: false as const, error: 'project not found' } };
+          // Authorize: admin, owner, or a member named on the project by numeric
+          // id (assignees / primaryAssigneeId). F12: the `assignee`/`assignedTo`
+          // name or email string never authorizes — both are editable.
+          const allowed = (await canOverride(ctx.user as any, input.ownerUserId)) || input.ownerUserId === ctx.user.id
+            || _idAssigned(proj, ctx.user.id);
+          if (!allowed) return { result: { ok: false as const, error: 'not authorized' } };
+          const q = input.patch;
+          if (q.name != null) proj.name = q.name;
+          if (q.status != null) proj.status = q.status;
+          if (q.due != null) proj.due = q.due;
+          if (q.desc != null) proj.desc = q.desc;
+          if (q.assignees != null) proj.assignees = q.assignees;
+          if (q.assigneeNames != null) proj.assigneeNames = q.assigneeNames;
+          if (q.primaryAssigneeId !== undefined) proj.primaryAssigneeId = q.primaryAssigneeId;
+          // Keep legacy assignedTo pointed at the Primary Responsible's name.
+          if (q.primaryAssigneeId != null && Array.isArray(q.assignees) && Array.isArray(q.assigneeNames)) {
+            const idx = q.assignees.indexOf(q.primaryAssigneeId);
+            if (idx >= 0) proj.assignedTo = q.assigneeNames[idx];
+          } else if (q.assignedTo != null) proj.assignedTo = q.assignedTo;
+          return { write: JSON.stringify(arr), result: { ok: true as const } };
+        });
       } catch (e: any) {
         return { ok: false as const, error: String(e?.message || e) };
       }
@@ -2073,18 +2214,15 @@ export const appDataRouter = router({
           return { ok: true as const };
         }
         // Blob-backed kinds (projects/goals/programs/mindmaps/sheets/decks).
-        const [appRow] = await db.select().from(userAppData).where(eq(userAppData.userId, input.ownerUserId)).limit(1);
-        const cur = appRow ? (appRow as any)[input.kind] : null;
-        if (cur) {
-          try {
-            const arr = JSON.parse(cur);
-            if (Array.isArray(arr)) {
-              const next = arr.filter((x: any) => x && String(x.id) !== input.itemId);
-              await db.update(userAppData).set({ [input.kind]: JSON.stringify(next) } as any).where(eq(userAppData.userId, input.ownerUserId));
-            }
-          } catch { /* blob unparseable */ }
-        }
-        return { ok: true as const };
+        // Audit F61: under a row lock, like every shared write.
+        return await _lockedBlob(db, input.ownerUserId, input.kind, async (cur) => {
+          if (!cur) return { result: { ok: true as const } };
+          let arr: any;
+          try { arr = JSON.parse(cur); } catch { return { result: { ok: true as const } }; /* blob unparseable */ }
+          if (!Array.isArray(arr)) return { result: { ok: true as const } };
+          const next = arr.filter((x: any) => x && String(x.id) !== input.itemId);
+          return { write: JSON.stringify(next), result: { ok: true as const } };
+        });
       } catch (e: any) {
         return { ok: false as const, error: String(e?.message || e) };
       }
@@ -2123,7 +2261,7 @@ export const appDataRouter = router({
         const writeArr = async (uid: number, arr: any[], deleteIds?: string[]) => {
           if (RELATIONAL) return writeEntityArray(db, uid, input.kind as 'tasks' | 'notes', arr, { deleteIds });
           const json = JSON.stringify(arr);
-          await db.update(userAppData).set(setObj(input.kind, json)).where(eq(userAppData.userId, uid));
+          await db.update(userAppData).set({ ...setObj(input.kind, json), updatedAt: new Date() }).where(eq(userAppData.userId, uid));
           return json;
         };
         const ownerArr = await readArr(input.ownerUserId);

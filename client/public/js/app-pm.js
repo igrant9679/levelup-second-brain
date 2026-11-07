@@ -119,7 +119,7 @@ function _pmYmd(d){if(!d)return '';var x=d instanceof Date?d:new Date(String(d).
 // A real YYYY-MM-DD goes through day numbers (-261: the Gantt called these
 // thousands of times per render); anything else takes the old Date path.
 var _pmDnVC=Object.create(null);
-function _pmDnV(s){if(typeof s!=='string'||s.length!==10)return NaN;var v=_pmDnVC[s];if(v!==undefined)return v;v=/^d{4}-dd-dd$/.test(s)?_pmDn(s):NaN;if(!isNaN(v)&&_pmYmdOfDn(v)!==s)v=NaN;return (_pmDnVC[s]=v);}
+function _pmDnV(s){if(typeof s!=='string'||s.length!==10)return NaN;var v=_pmDnVC[s];if(v!==undefined)return v;v=/^\d{4}-\d\d-\d\d$/.test(s)?_pmDn(s):NaN;if(!isNaN(v)&&_pmYmdOfDn(v)!==s)v=NaN;return (_pmDnVC[s]=v);}
 function _pmAddDays(ymd,n){var v=_pmDnV(ymd);if(!isNaN(v)&&isFinite(n)&&n===Math.floor(n))return _pmYmdOfDn(v+n);var d=new Date(ymd+'T12:00:00');d.setDate(d.getDate()+n);return _pmYmd(d);}
 function _pmDays(a,b){var va=_pmDnV(a),vb=_pmDnV(b);if(!isNaN(va)&&!isNaN(vb))return vb-va;return Math.round((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/86400000);}
 // Same text as toLocaleDateString(undefined,{month:'short',day:'numeric',year?}),
@@ -139,7 +139,23 @@ function _pmUid(){return Date.now().toString(36)+Math.random().toString(36).slic
 // ─── store ──────────────────────────────────────────────────────────────────
 var PM={people:[],records:[],loaded:false,at:null,error:null};
 var _pmLoading=null,_pmLk=0,_pmPending={};
-function _pmTagRec(r){if(r&&!r._lk)r._lk='id'+r.id;return r;}
+function _pmTagRec(r){if(r&&!r._lk)r._lk='id'+r.id;if(r)r._rev=Number((r.data||{})._rev)||0;return r;}
+// Audit F63: every save names the data._rev it is based on (rec._rev, from the
+// server); the server refuses a stale one (a delegate reply, an automatic
+// follow-up or another device changed the record) and returns what it holds.
+function _pmAdoptSaved(rec,s){
+  var sd=(s&&s.data)||{};rec._rev=Number(sd._rev)||0;var numbered=rec.data&&sd.no!=null&&rec.data.no!==sd.no;
+  if(rec.data&&typeof rec.data==='object'){if(sd.no!=null)rec.data.no=sd.no;if(sd._rev!=null)rec.data._rev=sd._rev;if(s.kind==='change'&&s.status==='proposed')delete rec.data.decidedAt;}
+  if(s.updatedAt)rec.updatedAt=s.updatedAt;
+  if(numbered){try{if(document.getElementById('pm-main'))pmRender();}catch(_){}}
+}
+function _pmAdoptStored(rec,s){
+  var lk=rec._lk;Object.keys(rec).forEach(function(k){if(k!=='_lk')delete rec[k];});
+  Object.assign(rec,s);delete rec.conflict;rec._lk=lk;rec._rev=Number((s.data||{})._rev)||0;
+  _pmMemoClear();
+  _pmToast('Changed elsewhere — please make your change again','warn');
+  try{if(document.getElementById('pm-main'))pmRender();}catch(_){}
+}
 function pmLoad(force){
   if(PM.loaded&&!force)return Promise.resolve(PM);
   if(_pmLoading)return _pmLoading;
@@ -172,16 +188,17 @@ function pmPut(rec){
   var p=prev.then(async function(){
     var payload={projectKey:rec.projectKey||'',kind:rec.kind,refType:rec.refType==null?null:String(rec.refType),refId:rec.refId==null?null:String(rec.refId),
       title:rec.title==null?null:String(rec.title).slice(0,500),status:rec.status==null?null:String(rec.status),data:rec.data==null?null:rec.data,sortOrder:Number(rec.sortOrder)||0};
-    if(rec.id)payload.id=rec.id;
+    if(rec.id){payload.id=rec.id;payload.baseRev=Number(rec._rev!=null?rec._rev:((rec.data||{})._rev))||0;}
     var s=await _trpc('pm.recordUpsert',payload,'mutation');
-    if(s&&s.id){rec.id=s.id;rec.createdAt=s.createdAt;}
+    if(s&&s.conflict){_pmAdoptStored(rec,s);return rec;}
+    if(s&&s.id){rec.id=s.id;rec.createdAt=s.createdAt;_pmAdoptSaved(rec,s);}
     return rec;
   });
   _pmPending[rec._lk]=p.catch(function(e){_pmToast('Could not save: '+String(e&&e.message||e).slice(0,140),'error');});
   return p;
 }
 function pmNew(kind,projectKey,fields){return Object.assign({kind:kind,projectKey:projectKey||'',refType:null,refId:null,title:'',status:null,data:{},sortOrder:0},fields||{});}
-async function pmDel(recs,label){
+async function pmDel(recs,label,opts){
   recs=(Array.isArray(recs)?recs:[recs]).filter(Boolean);if(!recs.length)return;
   var keys=recs.map(function(r){return r._lk;});
   PM.records=PM.records.filter(function(r){return keys.indexOf(r._lk)<0;});_pmMemoClear();
@@ -189,7 +206,8 @@ async function pmDel(recs,label){
   for(var i=0;i<recs.length;i++){try{await _pmPending[recs[i]._lk];}catch(_){}}
   var ids=recs.map(function(r){return r.id;}).filter(Boolean);
   if(!ids.length)return;
-  try{await _trpc('pm.recordDelete',{ids:ids},'mutation');}catch(e){_pmToast('Could not delete: '+(e&&e.message||e),'error');return;}
+  try{await _trpc('pm.recordDelete',{ids:ids},'mutation');}catch(e){_pmToast('Could not delete: '+(e&&e.message||e),'error');return false;}
+  if(opts&&opts.quiet)return ids; // caller offers its own Undo (F219)
   try{toast({type:'info',title:'Deleted',msg:(label||(recs.length+' item'+(recs.length===1?'':'s'))),duration:8000,actions:[{label:'Undo',primary:true,onClick:async function(){
     try{await _trpc('pm.recordRestore',{ids:ids},'mutation');recs.forEach(function(r){PM.records.push(r);});pmRender();}catch(e){_pmToast('Could not restore','error');}
   }}]});}catch(_){}
@@ -490,6 +508,7 @@ function pmRender(){
   }
   var proj=_pmState.proj;
   if(proj!=='all'&&!pmProject(proj)){_pmState.proj='all';proj='all';}
+  try{_pmLaborRefresh(proj);}catch(_){}
   var tabs=proj==='all'?PM_ALL_TABS:PM_TABS;
   if(!tabs.some(function(t){return t.id===_pmState.tab;}))_pmState.tab=tabs[0].id;
   var projects=pmProjects();
@@ -535,15 +554,25 @@ function _pmProjName(key){var p=key&&pmProject(key);return p?p.name:'';}
  *  auto follow-ups). */
 async function pmRefreshChanged(){
   if(!PM.loaded||!PM.at)return 0;
-  var since=PM.at;
+  // Audit F64: the cursor is the SERVER's time (bootstrap.at / changedSince.at),
+  // asked again with a 10 s overlap (rows seen twice are merged by id), so a
+  // browser clock that runs fast can't hide a delegate's reply.
+  var cur=_pd(PM.at),since=isNaN(cur)?PM.at:new Date(cur.getTime()-10000).toISOString();
   try{
-    var rows=await _trpc('pm.changedSince',{since:since},'query');
-    PM.at=new Date().toISOString();
+    var res=await _trpc('pm.changedSince',{since:since},'query');
+    var rows=Array.isArray(res)?res:((res&&res.rows)||[]);
+    if(res&&!Array.isArray(res)&&res.at)PM.at=res.at;
+    else{var mx=PM.at;rows.forEach(function(r){if(r.updatedAt&&String(r.updatedAt)>String(mx||''))mx=new Date(r.updatedAt).toISOString();});PM.at=mx;}
+    var seen={};rows=rows.filter(function(s){if(seen[s.id])return false;seen[s.id]=1;return true;});
     (rows||[]).forEach(function(s){
       var i=PM.records.findIndex(function(x){return x.id===s.id;});
       if(s.deleted){if(i>=0)PM.records.splice(i,1);return;}
       _pmTagRec(s);
-      if(i>=0){if(_pmPending[PM.records[i]._lk]&&_pd(PM.records[i].updatedAt)>_pd(s.updatedAt))return;s._lk=PM.records[i]._lk;PM.records[i]=s;}
+      if(i>=0){var lo=PM.records[i];
+        // nothing newer than what we hold (or a save of ours still on its way) → keep ours
+        if(s._rev&&lo._rev!=null&&s._rev<=lo._rev&&(s._rev<lo._rev||_pmPending[lo._lk]))return;
+        if(!s._rev&&_pmPending[lo._lk]&&_pd(lo.updatedAt)>_pd(s.updatedAt))return;
+        s._lk=lo._lk;PM.records[i]=s;_pmMemoClear();}
       else PM.records.push(s);
     });
     return (rows||[]).length;
@@ -1041,7 +1070,7 @@ function _pmRaciTable(key){
 }
 async function pmRaciExport(key,fmt){
   var t=_pmRaciTable(key),name='RACI - '+(_pmProjName(key)||'project');
-  if(fmt==='csv'){_pmDownload(name+'.csv',_pmCsv([t.head].concat(t.body)),'text/csv');return;}
+  if(fmt==='csv'){_pmDownload(name+'.csv','\ufeff'+_pmCsv([t.head].concat(t.body)),'text/csv');return;}
   await _pmXlsx(name+'.xlsx',[{name:'RACI',rows:[t.head].concat(t.body)},{name:'Key',rows:[['Letter','Meaning']].concat(Object.keys(PM_RACI_HELP).map(function(k){return [k,PM_RACI_HELP[k]];}))}]);
 }
 function pmRaciPrint(key){
@@ -1050,7 +1079,9 @@ function pmRaciPrint(key){
 }
 
 // ─── export helpers (shared) ────────────────────────────────────────────────
-function _pmCsv(rows){return rows.map(function(r){return r.map(function(c){var s=c==null?'':String(c);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}).join(',');}).join('\r\n');}
+// -275: cells starting with = + - @ are prefixed (spreadsheet formula
+// injection from Atlas/Nifty titles), and the downloads start with a BOM so Excel reads UTF-8.
+function _pmCsv(rows){return rows.map(function(r){return r.map(function(c){var s=c==null?'':String(c);if(typeof _csvSafe==='function')s=_csvSafe(s);return /[",\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}).join(',');}).join('\r\n');}
 function _pmDownload(name,content,mime){
   var blob=content instanceof Blob?content:new Blob([content],{type:mime||'text/plain'});
   var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name.replace(/[\\/:*?"<>|]+/g,'-');document.body.appendChild(a);a.click();
@@ -1063,7 +1094,7 @@ async function _pmXlsx(name,sheets){
     var wb=X.utils.book_new();
     sheets.forEach(function(sh){var ws=X.utils.aoa_to_sheet(sh.rows);if(sh.cols)ws['!cols']=sh.cols;X.utils.book_append_sheet(wb,ws,String(sh.name).slice(0,31));});
     X.writeFile(wb,name.replace(/[\\/:*?"<>|]+/g,'-'));
-  }catch(e){_pmToast('Excel export failed ('+(e&&e.message||e)+') — downloading CSV instead','warn');_pmDownload(name.replace(/\.xlsx$/,'.csv'),_pmCsv(sheets[0].rows),'text/csv');}
+  }catch(e){_pmToast('Excel export failed ('+(e&&e.message||e)+') — downloading CSV instead','warn');_pmDownload(name.replace(/\.xlsx$/,'.csv'),'\ufeff'+_pmCsv(sheets[0].rows),'text/csv');}
 }
 function _pmPrint(title,bodyHtml){
   var w=window.open('','_blank');if(!w){_pmToast('Allow pop-ups to print','warn');return;}
@@ -1163,7 +1194,7 @@ function pmRaidDialog(kind,id,key){
       var title=String(v('pmr-title')||'').trim();if(!title){_pmToast('Give it a title','warn');return;}
       var rec=r||pmNew(kind,key,{status:K.statuses[0],data:{}});
       var nd=Object.assign({},rec.data||{});
-      if(!nd.no)nd.no=1+_pmRaidList(kind,key).reduce(function(m,x){return Math.max(m,Number((x.data||{}).no)||0);},0);
+      // the number (RISK-3) is assigned by the server when the item is first saved (audit F223)
       var put=function(k,id){var x=v(id);if(x!==undefined)nd[k]=x==='__new'?nd[k]:x;};
       if(kind==='risk'){put('category','pmr-cat');nd.probability=Number(v('pmr-p'));nd.impact=Number(v('pmr-i'));put('owner','pmr-owner');put('response','pmr-resp');put('mitigation','pmr-mit');put('contingency','pmr-cont');put('triggerDate','pmr-trig');put('trend','pmr-trend');}
       if(kind==='issue'){put('description','pmr-desc');put('priority','pmr-pri');put('owner','pmr-owner');put('raised','pmr-raised');put('due','pmr-due');put('resolution','pmr-res');nd.escalated=!!v('pmr-esc');}
@@ -1177,7 +1208,7 @@ function pmRaidDialog(kind,id,key){
 }
 function pmRiskToIssue(id){
   var r=pmRec(id);if(!r)return;var d=r.data||{};
-  var iss=pmNew('issue',r.projectKey,{title:r.title,status:'open',data:{description:'Raised from risk '+_pmRaidNo(r)+(d.contingency?'. Contingency: '+d.contingency:''),priority:pmRiskScore(r)>=15?'High':'Medium',owner:d.owner||'',raised:_pmToday(),fromRisk:r.id,no:1+_pmRaidList('issue',r.projectKey).reduce(function(m,x){return Math.max(m,Number((x.data||{}).no)||0);},0)}});
+  var iss=pmNew('issue',r.projectKey,{title:r.title,status:'open',data:{description:'Raised from risk '+_pmRaidNo(r)+(d.contingency?'. Contingency: '+d.contingency:''),priority:pmRiskScore(r)>=15?'High':'Medium',owner:d.owner||'',raised:_pmToday(),fromRisk:r.id}});
   r.status='closed';r.data=Object.assign({},d,{closedNote:'Became an issue'});
   pmPut(r);pmPut(iss);pmCloseModal(true);_state_raid('issue');_pmToast('Logged as an issue');
 }
@@ -1470,8 +1501,9 @@ function pmChangeDialog(key,id){
   var wire=function(){pmWirePersonSelect('pmcr-by');document.getElementById('pmcr-save').onclick=function(){
     var v=function(x){return document.getElementById(x).value;};var t=v('pmcr-title').trim();if(!t)return;
     var rec=r||pmNew('change',key,{data:{}});var nd=Object.assign({},rec.data||{});
-    if(!nd.no)nd.no=1+pmRecs('change',key).reduce(function(m,x){return Math.max(m,Number((x.data||{}).no)||0);},0);
+    // CR number assigned by the server on first save (audit F223)
     var st=v('pmcr-st');if(st!==(rec.status||'proposed')&&st!=='proposed')nd.decidedAt=_pmToday();
+    if(st==='proposed')delete nd.decidedAt; // back to proposed = not decided (F223)
     Object.assign(nd,{scope:v('pmcr-scope'),requestedBy:v('pmcr-by')==='__new'?'':v('pmcr-by'),date:v('pmcr-date'),scheduleDays:Number(v('pmcr-days'))||0,costImpact:Number(v('pmcr-cost'))||0,reason:v('pmcr-why'),decisionNotes:v('pmcr-dec')});
     rec.title=t;rec.status=st;rec.data=nd;pmCloseModal(true);pmPut(rec);pmRender();};};
   wire();document.getElementById('pm-modal')._handlers=wire;
@@ -1539,6 +1571,10 @@ function _pmWbsOrdered(key){
   return out;
 }
 function _pmKids(nodes){var ch=Object.create(null);nodes.forEach(function(c){if(c.parent!=null)(ch[c.parent]=ch[c.parent]||[]).push(c.key);});nodes.forEach(function(n){n.children=ch[n.key]||[];});}
+/** A WBS row's length in work days: a milestone 0, an explicit 0 stays 0 (and
+ *  is scheduled as a milestone — audit F221; it used to become 1 day), a
+ *  missing or invalid value 1. */
+function _pmRowDur(d){d=d||{};if(d.milestone)return 0;if(d.duration===0||d.duration==='0')return 0;return Math.max(0,Number(d.duration)||1);}
 function pmScheduleNodes(key){
   var ww=_pmWorkWeekends(key);
   var wbs=_pmWbsOrdered(key);
@@ -1546,9 +1582,9 @@ function pmScheduleNodes(key){
     var keyOf=function(r){return 'wbs:'+(r.id||r._lk);};
     var byLk={};wbs.forEach(function(w){byLk[w.rec._lk]=w.rec;if(w.rec.id)byLk[String(w.rec.id)]=w.rec;});
     var nodes=wbs.map(function(w,i){var r=w.rec,d=r.data||{};var par=d.parentId&&byLk[d.parentId]?keyOf(byLk[d.parentId]):null;
-      return {key:keyOf(r),row:i+1,name:r.title||'(unnamed)',depth:w.depth,parent:par,dur:d.milestone?0:Math.max(0,Number(d.duration)||(d.milestone?0:1)),sne:_pmIsYmd(d.sne)?d.sne:null,
+      return {key:keyOf(r),row:i+1,name:r.title||'(unnamed)',depth:w.depth,parent:par,dur:_pmRowDur(d),sne:_pmIsYmd(d.sne)?d.sne:null,
         preds:(d.preds||[]).map(function(p){var t=byLk[String(p.id)];return t?{key:keyOf(t),type:p.type||'FS',lag:Number(p.lag)||0}:null;}).filter(Boolean),
-        milestone:!!d.milestone,done:r.status==='done'||_pmIsYmd(d.actualFinish),pct:_pmIsYmd(d.actualFinish)?100:Number(d.pct)||(r.status==='done'?100:0),refs:d.refs||[],imsType:d.imsType||'',rec:r,
+        milestone:!!d.milestone||_pmRowDur(d)===0,done:r.status==='done'||_pmIsYmd(d.actualFinish),pct:_pmIsYmd(d.actualFinish)?100:Number(d.pct)||(r.status==='done'?100:0),refs:d.refs||[],imsType:d.imsType||'',rec:r,
         actualStart:_pmIsYmd(d.actualStart)?d.actualStart:null,actualFinish:_pmIsYmd(d.actualFinish)?d.actualFinish:null};});
     // A row with linked tasks takes its progress from them when it has no %
     // of its own: completing the linked tasks used to leave the Gantt bar
@@ -1566,7 +1602,9 @@ function pmScheduleNodes(key){
   }
   var items=pmItems(key);var refs={};items.forEach(function(i){refs[i.ref]=1;});
   var nodes2=items.map(function(i,ix){
-    var s=i.start||null,f=i.due||null;var dur=s&&f?Math.max(1,_pmWorkBetween(s,f,ww)+1):1;
+    // Audit F221: a due date on a weekend means the work day before it (it used
+    // to push the finish to the Monday after).
+    var s=i.start||null,f=i.due?_pmPrevWork(i.due,ww):null;var dur=s&&f?Math.max(1,_pmWorkBetween(s,f,ww)+1):1;
     return {key:i.ref,row:ix+1,name:i.title,depth:0,parent:i.parent&&refs[i.parent]?i.parent:null,dur:i.milestone?0:dur,sne:s||(f?_pmAddWork(f,-(dur-1),ww):null),
       preds:(i.preds||[]).filter(function(p){return refs[p];}).map(function(p){return {key:p,type:'FS',lag:0};}),milestone:!!i.milestone,done:i.done,pct:i.done?100:0,refs:[i.ref],item:i,dated:!!(s||f)};
   });
@@ -1601,8 +1639,11 @@ function _pmCpmCalc(key){
   var q=leaves.filter(function(n){return !indeg[n.key];}).map(function(n){return n.key;}),order=[];
   for(var qi=0;qi<q.length;qi++){var k=q[qi];order.push(k);succ[k].forEach(function(s){if(--indeg[s.key]===0)q.push(s.key);});}
   var inOrd=Object.create(null);order.forEach(function(k){inOrd[k]=1;});
-  var cyc=leaves.filter(function(n){return !inOrd[n.key];}).map(function(n){return n.key;});
-  order=order.concat(cyc);
+  var rest=leaves.filter(function(n){return !inOrd[n.key];}).map(function(n){return n.key;});
+  order=order.concat(rest);
+  // Audit F221: report only the rows that are ON a loop — Kahn also leaves out
+  // everything downstream of one.
+  var cyc=_pmOnCycle(rest,succ);
   var M={order:order,predEdges:predEdges,by:by,idx:idx,leaves:leaves,p0:p0,ww:ww};
   var R=_pmForward(M,function(n){return n.dur;});
   var finish=leaves.reduce(function(m,n){return Math.max(m,R[n.key]?R[n.key].ef:0);},0);
@@ -1621,6 +1662,19 @@ function _pmCpmCalc(key){
   // the last day anything happens (a zero-length milestone finishes ON its day)
   var lastDay=leaves.reduce(function(m,n){var r=R[n.key];return r?Math.max(m,n.dur===0?r.es:r.ef-1):m;},0);
   return {mode:S.mode,nodes:nodes,start:p0,finish:date(Math.max(0,lastDay)),ww:ww,cycles:cyc.length,undated:S.mode==='items'?nodes.filter(function(n){return !n.dated&&!n.children.length;}).length:0,model:M};
+}
+/** Of the keys given (rows left out of the topological order), the ones on a cycle:
+ *  members of a strongly connected component of 2+ rows, or linked to
+ *  themselves (Tarjan, over edges between those rows only). */
+function _pmOnCycle(keys,succ){
+  var inSet=Object.create(null);keys.forEach(function(k){inSet[k]=1;});
+  var index=0,stack=[],on=Object.create(null),idx=Object.create(null),low=Object.create(null),out=[];
+  var strong=function(v){idx[v]=low[v]=index++;stack.push(v);on[v]=1;
+    (succ[v]||[]).forEach(function(e){var w=e.key;if(!inSet[w])return;if(idx[w]==null){strong(w);low[v]=Math.min(low[v],low[w]);}else if(on[w])low[v]=Math.min(low[v],idx[w]);});
+    if(low[v]===idx[v]){var comp=[],w;do{w=stack.pop();on[w]=0;comp.push(w);}while(w!==v);
+      if(comp.length>1||(succ[v]||[]).some(function(e){return e.key===v;}))out=out.concat(comp);}};
+  keys.forEach(function(k){if(idx[k]==null)strong(k);});
+  var set=Object.create(null);out.forEach(function(k){set[k]=1;});return keys.filter(function(k){return set[k];});
 }
 /** Forward pass over the leaves in topological order with durations from
  *  durOf(node) — pmCpm uses the planned durations, the Monte Carlo (-251)
@@ -1644,7 +1698,7 @@ function pmBaselineSave(key){
   var name=prompt('Name this baseline (a snapshot of today’s plan to compare against later):','Baseline '+_pmDate(_pmToday()));if(!name)return;
   var c=pmCpm(key),snap={};c.nodes.forEach(function(n){snap[n.key]={start:n.start,finish:n.finish,dur:n.dur};});
   var rec=pmNew('baseline',key,{title:name,data:{at:new Date().toISOString(),nodes:snap,start:c.start,finish:c.finish}});
-  pmPut(rec).then(function(){pmSetSettings(key,{baselineLk:rec._lk});pmRender();});
+  pmPut(rec).then(function(){pmSetSettings(key,{baselineLk:(rec.id?'id'+rec.id:rec._lk)})/* real saved id, not the temporary key (F223) */;pmRender();});
   _pmToast('📌 Baseline saved');
 }
 function _pmActiveBaseline(key){var lk=pmSettings(key).baselineLk;var b=pmBaselines(key);if(lk==='none')return null;return b.find(function(x){return x._lk===lk||'id'+x.id===lk;})||b[0]||null;}
@@ -1668,7 +1722,7 @@ function pmTab_schedule(key){
   var html='<div class="pm-bar">'+['week','month','quarter'].map(function(z){return '<button class="pm-chip'+(zoom===z?' on':'')+'" onclick="_pmState.ganttZoom=\''+z+'\';_pmSaveState();pmRender()">'+z[0].toUpperCase()+z.slice(1)+'</button>';}).join('')+
     '<button class="pm-chip'+(crit?' on':'')+'" onclick="_pmState.ganttCrit='+(!crit)+';_pmSaveState();pmRender()">⛓ Critical path</button>'+
     '<button class="pm-chip'+(hideDone?' on':'')+'" onclick="_pmState.ganttHideDone='+(!hideDone)+';_pmSaveState();pmRender()">Hide done</button>'+
-    '<span class="pm-muted">Baseline</span><select class="inp" onchange="pmSetSettings(\''+_pmJ(key)+'\',{baselineLk:this.value});pmRender()"><option value="none"'+(!base?' selected':'')+'>none</option>'+bases.map(function(b){return '<option value="'+_pmE(b._lk)+'"'+(base&&base._lk===b._lk?' selected':'')+'>'+_pmE(b.title)+'</option>';}).join('')+'</select>'+
+    '<span class="pm-muted">Baseline</span><select class="inp" onchange="pmSetSettings(\''+_pmJ(key)+'\',{baselineLk:this.value});pmRender()"><option value="none"'+(!base?' selected':'')+'>none</option>'+bases.map(function(b){return '<option value="'+_pmE(b.id?'id'+b.id:b._lk)+'"'+(base&&base._lk===b._lk?' selected':'')+'>'+_pmE(b.title)+'</option>';}).join('')+'</select>'+
     '<span class="sp"></span><button class="btn btn-s" onclick="pmBaselineSave(\''+_pmJ(key)+'\')">📌 Save baseline</button><button class="btn btn-s" onclick="pmMilestoneDialog(\''+_pmJ(key)+'\')">◆ Milestone</button>'+
     (c.mode==='wbs'||c.nodes.some(function(n){return n.item&&n.item.editable;})?'<button class="btn btn-s" onclick="pmWbsWriteBack(\''+_pmJ(key)+'\')" title="Copy the computed dates onto the linked LevelUp tasks">Write dates to tasks</button>':'')+'</div>';
   if(c.mode==='items')html+='<div class="pm-muted" style="margin-bottom:8px">Showing task dates'+(c.undated?' — '+c.undated+' item'+(c.undated===1?' has':'s have')+' no dates and '+(c.undated===1?'sits':'sit')+' at the project start':'')+'. Build a WBS on the <a href="javascript:void(0)" onclick="pmGo(null,\'ims\')">WBS / IMS</a> tab for durations, dependencies and an exportable schedule.</div>';
@@ -1738,8 +1792,21 @@ function pmWbsWriteBack(key){
   c.nodes.forEach(function(nd){if(nd.summary)return;(nd.refs||[]).forEach(function(ref){if(ref.indexOf('task:')!==0)return;var t=(D.tasks||[]).find(function(x){return 'task:'+x.id===ref;});if(t&&(t.startDate!==nd.start||t.due!==nd.finish))list.push({t:t,s:nd.start,f:nd.finish});});});
   if(!list.length){_pmToast('Tasks already match the schedule');return;}
   if(!confirm('Update start and due dates on '+list.length+' task'+(list.length===1?'':'s')+' to match the schedule?'))return;
+  // Audit F223: snapshot what the tasks held so the change can be undone.
+  var snap=list.map(function(x){return {id:x.t.id,startDate:x.t.startDate,due:x.t.due,updatedAt:x.t.updatedAt,s:x.s,f:x.f};});
   list.forEach(function(x){x.t.startDate=x.s;x.t.due=x.f;x.t.updatedAt=new Date().toISOString();n++;});
-  try{save('tasks');}catch(_){}_pmToast('Updated '+n+' task'+(n===1?'':'s'));pmRender();
+  try{save('tasks');}catch(_){}pmRender();
+  try{toast({type:'info',title:'Dates written',msg:'Updated '+n+' task'+(n===1?'':'s'),duration:10000,actions:[{label:'Undo',primary:true,onClick:function(){_pmWriteBackUndo(snap);}}]});}catch(_){_pmToast('Updated '+n+' task'+(n===1?'':'s'));}
+}
+/** Put back the start/due dates a "Write dates to tasks" changed — on the tasks
+ *  as they are NOW (looked up by id), and only where the date is still the one
+ *  written (a later edit wins). */
+function _pmWriteBackUndo(snap){
+  var n=0;(snap||[]).forEach(function(x){var t=(D.tasks||[]).find(function(y){return String(y.id)===String(x.id);});if(!t)return;var ch=false;
+    if(t.startDate===x.s){t.startDate=x.startDate;ch=true;}if(t.due===x.f){t.due=x.due;ch=true;}
+    if(ch){t.updatedAt=new Date().toISOString();n++;}});
+  try{save('tasks');}catch(_){}_pmMemoClear();try{pmRender();}catch(_){}
+  _pmToast('Restored the dates on '+n+' task'+(n===1?'':'s'));
 }
 
 // ═══ EDITABLE GANTT (build -250) ═══════════════════════════════════════════
@@ -1949,11 +2016,13 @@ document.addEventListener('click',function(e){
 //          Accomplishment Criteria (A01a) → tasks (A01a01)
 var PM_IMS_TYPES={event:'Event',accomplishment:'Significant accomplishment',criteria:'Accomplishment criteria',task:'Task'};
 function pmImsStyle(key){return pmSettings(key).imsStyle==='dod'?'dod':'msp';}
+/** 1 → A … 26 → Z, 27 → AA, 28 → AB … (audit F221: the 27th event was "A" again). */
+function _pmAlpha(n){n=Math.max(1,Math.floor(Number(n)||1));var s='';while(n>0){var r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26);}return s;}
 function pmWbsCodes(key){
   var ord=_pmWbsOrdered(key),style=pmImsStyle(key),codes={};
   if(style==='msp'){var stack=[];ord.forEach(function(w){stack.length=w.depth+1;stack[w.depth]=(stack[w.depth]||0)+1;for(var i=w.depth+1;i<stack.length;i++)stack[i]=0;codes[w.rec._lk]=stack.slice(0,w.depth+1).join('.');});}
   else{var c=[0,0,0,0];var path=[];ord.forEach(function(w){var d=Math.min(w.depth,3);c[d]++;for(var i=d+1;i<4;i++)c[i]=0;path[d]=c[d];
-    var code=String.fromCharCode(64+((path[0]-1)%26)+1);if(d>=1)code+=String(path[1]).padStart(2,'0');if(d>=2)code+=String.fromCharCode(96+((path[2]-1)%26)+1);if(d>=3)code+=String(path[3]).padStart(2,'0');codes[w.rec._lk]=code;});}
+    var code=_pmAlpha(path[0]);if(d>=1)code+=String(path[1]).padStart(2,'0');if(d>=2)code+=_pmAlpha(path[2]).toLowerCase();if(d>=3)code+=String(path[3]).padStart(2,'0');codes[w.rec._lk]=code;});}
   return codes;
 }
 function _pmPredText(r,rowOf){return ((r.data||{}).preds||[]).map(function(p){var n=rowOf[String(p.id)];if(!n)return '';return n+(p.type&&p.type!=='FS'?p.type:'')+(p.lag?(p.lag>0?'+':'')+p.lag+'d':'');}).filter(Boolean).join(', ');}
@@ -2201,7 +2270,9 @@ async function pmWbsClear(key){if(!confirm('Delete the whole WBS / IMS for this 
 async function _pmWbsCreate(key,rows){
   var existing=_pmWbsRecs(key);
   if(existing.length&&!confirm('Replace the current WBS / IMS ('+existing.length+' rows)?'))return false;
-  if(existing.length){await pmDel(existing,'Old WBS replaced');}
+  // Audit F219: the old rows go without their own Undo; ONE 'Undo build' below
+  // removes the new rows and brings the old ones back (two Undos left both).
+  var oldIds=null;if(existing.length){oldIds=await pmDel(existing,'Old WBS replaced',{quiet:true});if(oldIds===false)return false;}
   var base=Date.now()%1e6;
   var payload=rows.map(function(r,i){var d={duration:r.milestone?0:(r.duration!=null?r.duration:1),sne:r.sne||null,milestone:!!r.milestone,imsType:r.imsType||'',refs:r.refs||[],preds:[],parentId:null};
     // progress (MS Project import, -251)
@@ -2215,9 +2286,23 @@ async function _pmWbsCreate(key,rows){
     if(r.parent!=null&&saved[r.parent]){d.parentId=String(saved[r.parent].id);ch=true;}
     if(r.preds&&r.preds.length){d.preds=r.preds.filter(function(p){return saved[p.i];}).map(function(p){return {id:saved[p.i].id,type:p.type||'FS',lag:p.lag||0};});ch=true;}
     rec.data=d;if(ch)upd.push({id:rec.id,projectKey:key,kind:'wbs',title:rec.title,status:rec.status,sortOrder:rec.sortOrder,data:d});});
-  for(var u=0;u<upd.length;u+=200)await _trpc('pm.recordUpsertMany',{records:upd.slice(u,u+200)},'mutation');
-  saved.forEach(function(r){PM.records.push(r);});
+  for(var u=0;u<upd.length;u+=200){var back=await _trpc('pm.recordUpsertMany',{records:upd.slice(u,u+200)},'mutation');
+    (back||[]).forEach(function(b){var rec=saved.find(function(x){return x.id===b.id;});if(rec)_pmAdoptSaved(rec,b);});} // keep data._rev current (F63)
+  saved.forEach(function(r){PM.records.push(r);});_pmMemoClear();
+  if(existing.length)_pmWbsUndoToast(key,existing,oldIds||[],saved);
   void base;return saved;
+}
+function _pmWbsUndoToast(key,oldRecs,oldIds,saved){
+  try{toast({type:'info',title:'WBS rebuilt',msg:'The old WBS ('+oldRecs.length+' rows) was replaced',duration:10000,actions:[{label:'Undo build',primary:true,onClick:async function(){
+    var newIds=saved.map(function(r){return r.id;}).filter(Boolean),newLk=saved.map(function(r){return r._lk;});
+    try{
+      if(newIds.length)await _trpc('pm.recordDelete',{ids:newIds},'mutation');
+      PM.records=PM.records.filter(function(r){return newLk.indexOf(r._lk)<0;});
+      if(oldIds.length)await _trpc('pm.recordRestore',{ids:oldIds},'mutation');
+      oldRecs.forEach(function(r){if(!PM.records.some(function(x){return x._lk===r._lk;}))PM.records.push(r);});
+      _pmMemoClear();pmRender();_pmToast('Previous WBS restored');
+    }catch(e){_pmToast('Could not undo: '+(e&&e.message||e),'error');}
+  }}]});}catch(_){}
 }
 async function pmImsGenerate(key,mode){
   var items=pmItems(key),ww=_pmWorkWeekends(key);
@@ -2300,7 +2385,7 @@ async function pmImsExport(key,fmt){
   var name=(X.style==='dod'?'IMS':'WBS')+' - '+(_pmProjName(key)||'project');
   var head=['ID',X.style==='dod'?'IMS #':'WBS','Name','Type','Duration (work days)','Start','Finish','Predecessors','Total float','Critical','% complete','Linked task'];
   var body=X.rows.map(function(r){return [r.id,r.code,'  '.repeat(r.depth)+r.name,r.type,r.dur,r.start,r.finish,r.preds,r.float,r.critical?'yes':'',r.pct,r.linked];});
-  if(fmt==='csv'){_pmDownload(name+'.csv',_pmCsv([head].concat(body)),'text/csv');return;}
+  if(fmt==='csv'){_pmDownload(name+'.csv','\ufeff'+_pmCsv([head].concat(body)),'text/csv');return;}
   if(fmt==='xlsx'){await _pmXlsx(name+'.xlsx',[{name:X.style==='dod'?'IMS':'WBS',rows:[head].concat(body),cols:[{wch:5},{wch:9},{wch:50},{wch:22},{wch:10},{wch:11},{wch:11},{wch:14},{wch:9},{wch:8},{wch:9},{wch:30}]}]);return;}
   _pmDownload(name+'.xml',pmMspdiXml(key,X),'application/xml');
   _pmToast('Saved MS Project XML — open it in Microsoft Project (File → Open → XML)');
@@ -2423,7 +2508,7 @@ async function pmImsImportRun(){
   if(P.baseline&&Array.isArray(saved)){var snap={};Object.keys(P.baseline).forEach(function(i){var r=saved[i];if(r)snap['wbs:'+r.id]=P.baseline[i];});
     var bs=Object.keys(P.baseline).map(function(i){return P.baseline[i];});
     var rec=pmNew('baseline',key,{title:'Imported baseline',data:{at:new Date().toISOString(),nodes:snap,start:bs.map(function(b){return b.start;}).sort()[0],finish:bs.map(function(b){return b.finish;}).sort().pop()}});
-    await pmPut(rec);pmSetSettings(key,{baselineLk:rec._lk});}
+    await pmPut(rec);pmSetSettings(key,{baselineLk:(rec.id?'id'+rec.id:rec._lk)})/* real saved id, not the temporary key (F223) */;}
   _pmToast('Imported '+P.rows.length+' rows from Microsoft Project');pmRender();
 }
 function pmImsPrint(key){
@@ -2513,8 +2598,27 @@ function _pmLaborCost(key){
   var s=pmSettings(key),g=pmSettings('');if(!s.laborFromTime)return {cost:0,hours:0};
   var rate=Number(s.myRate||g.myRate||g.defaultRate)||0;if(!rate)return {cost:0,hours:0};
   var refs={};pmItems(key).forEach(function(i){if(i.kind==='task')refs[String(i.id)]=1;else if(i.kind==='external')refs[String(i.id)]=1;});
-  var mins=(Array.isArray(D.timeEntries)?D.timeEntries:[]).filter(function(e){return refs[String(e.taskId)];}).reduce(function(s2,e){return s2+(Number(e.durationMins)||0);},0);
+  // Audit F212: all-time minutes per task from the server (timeEntries.totalsForTasks),
+  // cached per project and refreshed on each PM render; D.timeEntries only holds
+  // the last 90 days, so it is the fallback while the server answer is missing.
+  var c=_pmLaborCache[key],mins;
+  if(c&&c.byTask)mins=Object.keys(refs).reduce(function(s2,id){return s2+(Number(c.byTask[id])||0);},0);
+  else mins=(Array.isArray(D.timeEntries)?D.timeEntries:[]).filter(function(e){return refs[String(e.taskId)];}).reduce(function(s2,e){return s2+(Number(e.durationMins)||0);},0);
   return {cost:mins/60*rate,hours:mins/60};
+}
+var _pmLaborCache=Object.create(null);
+function _pmLaborRefresh(key){
+  if(!key||key==='all'||window._pmLaborOff||typeof _trpc!=='function')return;
+  if(!pmSettings(key).laborFromTime)return;
+  var c=_pmLaborCache[key]||(_pmLaborCache[key]={});
+  if(c.busy||(c.at&&Date.now()-c.at<60000))return;
+  var ids={};pmItems(key).forEach(function(i){if(i.kind==='task'||i.kind==='external')ids[String(i.id)]=1;});
+  var list=Object.keys(ids).slice(0,2000);c.busy=true;
+  Promise.resolve(_trpc('timeEntries.totalsForTasks',{taskIds:list},'query')).then(function(rows){
+    var by={};(rows||[]).forEach(function(r){var k=String(r.taskId);by[k]=(by[k]||0)+(Number(r.mins)||0);});
+    var was=JSON.stringify(c.byTask||null);c.byTask=by;c.at=Date.now();c.busy=false;
+    if(JSON.stringify(by)!==was&&_pmState.proj===key&&document.getElementById('pm-main')){_pmMemoClear();pmRender();}
+  },function(e){c.busy=false;c.at=Date.now();if(/not found|No ".*" procedure|NOT_FOUND/i.test(String(e&&e.message||e)))window._pmLaborOff=true;});
 }
 /** Earned value (fuller in -252). Budget lines → the performance measurement
  *  baseline (PMB) unless marked management reserve; a line or cost may sit on
@@ -2934,12 +3038,26 @@ function pmTemplateNewProject(tkey){
   };
   wire();document.getElementById('pm-modal')._handlers=wire;
 }
+/** Work-day start offsets for template tasks: the template's own offset, pushed
+ *  later until every predecessor has finished (a 0-day milestone finishes where
+ *  it starts). Predecessor indexes that don't exist or loop are ignored. */
+function _pmTemplateOffsets(tasks){
+  var n=tasks.length,off=new Array(n),state=new Array(n);
+  var visit=function(i){if(state[i]===2)return off[i];if(state[i]===1)return Math.max(0,tasks[i].d|0);state[i]=1;
+    var x=tasks[i]||{},s=Math.max(0,x.d|0);
+    (x.pred||[]).forEach(function(p){if(p==null||p<0||p>=n||p===i)return;var ps=visit(p),pd=Math.max(0,tasks[p].dur|0);var endEx=ps+(tasks[p].ms?0:Math.max(1,pd));if(endEx>s)s=endEx;});
+    state[i]=2;off[i]=s;return s;};
+  for(var i=0;i<n;i++)visit(i);return off;
+}
 async function pmCreateFromTemplate(t,o){
   pmCloseModal(true);
   var now=new Date().toISOString(),me=(D.creds&&D.creds.userName)||'Me';
   var ww=false;var dateAt=function(off){return _pmAddWork(o.start,Math.max(0,off|0),ww);};
   var pid=typeof nextId==='function'?nextId(D.projects||[]):Date.now();
-  var last=(t.tasks||[]).reduce(function(m,x){return Math.max(m,(x.d||0)+(x.dur||0));},0);
+  // Audit F220: start offsets follow the dependencies (no task starts before its
+  // predecessor ends), in work days.
+  var offs=_pmTemplateOffsets(t.tasks||[]);
+  var last=(t.tasks||[]).reduce(function(m,x,i){return Math.max(m,offs[i]+Math.max(0,(x.dur||0)-1));},0);
   var proj={id:pid,name:o.name,desc:t.desc||'',status:'Active',area:'',owner:me,color:'#0891b2',startDate:o.start,due:dateAt(last),quarter:'',year:_pd(o.start).getFullYear(),kanbanAxis:'',pct:0,tags:['template:'+t.name],scope:{personal:false,business:true},milestones:[],linkedGoalIds:[],createdBy:me,createdAt:now};
   D.projects=Array.isArray(D.projects)?D.projects:[];D.projects.push(proj);
   if(o.programId){var pg=(D.programs||[]).find(function(p){return String(p.id)===String(o.programId);});if(pg){pg.projectIds=(pg.projectIds||[]).concat([pid]);try{save('programs');}catch(_){}}}
@@ -2947,7 +3065,7 @@ async function pmCreateFromTemplate(t,o){
   var key='p:'+pid,ids=[];
   (t.tasks||[]).forEach(function(x,i){
     var id=nextId(D.tasks);ids.push(id);
-    var start=dateAt(x.d||0),due=x.dur?_pmAddWork(start,Math.max(0,(x.dur||1)-1),ww):start;
+    var start=dateAt(offs[i]),due=x.dur?_pmAddWork(start,Math.max(0,(x.dur||1)-1),ww):start;
     D.tasks.push({id:id,title:String(x.t).slice(0,300),notes:'',priority:'Medium',status:'Not Started',smartList:'Task Intake',startDate:start,endDate:'',due:due,startTime:'',endTime:'',
       estimatedMins:(x.dur||0)*240,actualMins:0,energy:'medium',context:'',location:'Anywhere',pi:'Process',recurring:'None',projectId:pid,project:o.name,linkedGoalId:null,assignedTo:null,delegatedTo:null,
       snoozeUntil:'',reminder:'',myDay:false,isWorkTask:true,tags:x.ms?['milestone']:[],scope:{personal:false,business:true},subtasks:[],linkedNoteIds:[],
@@ -2961,7 +3079,8 @@ async function pmCreateFromTemplate(t,o){
     var cells={};var rm=(t.raci||{})[i]||(x.role?(function(){var c={};c[x.role]='RA';return c;})():{});
     Object.keys(rm).forEach(function(role){var pk=(o.roles||{})[role];if(pk)cells[pk]=(cells[pk]||'')+rm[role];});
     if(Object.keys(cells).length)recs.push({projectKey:key,kind:'raci',refType:'item',refId:'task:'+ids[i],title:x.t,data:{cells:cells}});
-    if(x.ms)recs.push({projectKey:key,kind:'milestone',title:x.t,data:{date:dateAt((x.d||0)+(x.dur||0))}});
+    // Audit F220: a milestone is the 'milestone'-tagged task only (it is what
+    // the schedule, Gantt and pmMilestones read) — no second milestone record.
   });
   (t.risks||[]).forEach(function(r,i){recs.push({projectKey:key,kind:'risk',title:r.t,status:'open',data:{no:i+1,probability:r.p||3,impact:r.i||3,mitigation:r.m||'',response:'Mitigate',owner:(o.roles||{})[(t.roles||[])[0]]||''}});});
   recs.push({projectKey:key,kind:'pmsettings',data:{raciPeople:people,startDate:o.start}});

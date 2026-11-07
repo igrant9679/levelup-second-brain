@@ -9,7 +9,7 @@
  * all admins, so role==='admin' is not a gate).
  *
  * system_settings keys used:
- *   aiKey_openai, aiKey_claude, aiKey_gemini   — provider API keys (plaintext)
+ *   aiKey_openai, aiKey_claude, aiKey_gemini   — provider API keys (encrypted at rest since audit F25; get/setSystemSetting handle it)
  *   aiProvider                                  — active provider id
  */
 import { z } from "zod";

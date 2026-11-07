@@ -2,6 +2,7 @@ import { and, desc, eq, gte, lte, sql, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { credentialAuditLog, emailDeliveryLog, emailNotificationPrefs, InsertCredentialAuditLog, InsertEmailDeliveryLog, InsertOAuthToken, InsertUser, InsertUserOauthCredential, InsertScheduledTaskLog, oauthTokens, scheduledTaskLog, systemSettings, userOauthCredentials, users, smtpImapAccounts, InsertSmtpImapAccount, SmtpImapAccount, userActivityLog, externalSourceCredentials, InsertExternalSourceCredential } from "../drizzle/schema";
 import { ENV } from './_core/env';
+import { decryptSecret, encryptSecret, SECRET_SETTING_KEY } from './_core/secrets';
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -109,6 +110,29 @@ export async function updateUserEmail(userId: number, newEmail: string): Promise
   const db = await getDb();
   if (!db) return;
   await db.update(users).set({ email: newEmail }).where(eq(users.id, userId));
+}
+
+/**
+ * Revoke every session of an account (audit F20): bump users.tokenVersion.
+ * Returns the new version (the caller re-issues its own cookie with it when
+ * the current device should stay signed in), or null without a database.
+ */
+export async function bumpTokenVersion(userId: number): Promise<number | null> {
+  const db = await getDb();
+  if (!db) return null;
+  await db.update(users).set({ tokenVersion: sql`${users.tokenVersion} + 1` }).where(eq(users.id, userId));
+  const [row] = await db.select({ tv: users.tokenVersion }).from(users).where(eq(users.id, userId)).limit(1);
+  return row ? Number(row.tv) || 0 : null;
+}
+
+/** Case-insensitive "does an account use this email?" (account creation, audit F70). */
+export async function emailHasAccount(email: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const key = String(email || '').trim().toLowerCase();
+  if (!key) return false;
+  const rows = await db.select({ id: users.id }).from(users).where(sql`LOWER(TRIM(${users.email})) = ${key}`).limit(1);
+  return rows.length > 0;
 }
 
 export async function updateUserName(userId: number, newName: string): Promise<void> {
@@ -279,12 +303,15 @@ export async function getSystemSetting(key: string): Promise<string | undefined>
   const db = await getDb();
   if (!db) return undefined;
   const result = await db.select().from(systemSettings).where(eq(systemSettings.key, key)).limit(1);
-  return result.length > 0 ? result[0].value : undefined;
+  if (!result.length) return undefined;
+  // AI keys are stored encrypted (audit F25); plaintext from before still reads.
+  return SECRET_SETTING_KEY.test(key) ? decryptSecret(result[0].value) : result[0].value;
 }
 
 export async function setSystemSetting(key: string, value: string): Promise<void> {
   const db = await getDb();
   if (!db) return;
+  if (SECRET_SETTING_KEY.test(key)) value = encryptSecret(value);
   await db.insert(systemSettings).values({ key, value }).onDuplicateKeyUpdate({ set: { value } });
 }
 

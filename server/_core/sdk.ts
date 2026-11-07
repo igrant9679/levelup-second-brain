@@ -22,7 +22,12 @@ export type SessionPayload = {
   openId: string;
   appId: string;
   name: string;
+  /** users.tokenVersion at issue time (audit F20). Missing claim = 0. */
+  tv?: number;
 };
+
+/** What a verified session cookie says. */
+export type VerifiedSession = { openId: string; appId: string; name: string; tv: number; exp: number | null };
 
 const EXCHANGE_TOKEN_PATH = `/webdev.v1.WebDevAuthPublicService/ExchangeToken`;
 const GET_USER_INFO_PATH = `/webdev.v1.WebDevAuthPublicService/GetUserInfo`;
@@ -166,13 +171,20 @@ class SDKServer {
    */
   async createSessionToken(
     openId: string,
-    options: { expiresInMs?: number; name?: string } = {}
+    options: { expiresInMs?: number; name?: string; tokenVersion?: number } = {}
   ): Promise<string> {
+    // The token carries the account's current tokenVersion so a later
+    // "sign out everywhere" / password change revokes it (audit F20).
+    let tv = options.tokenVersion;
+    if (tv === undefined) {
+      try { tv = Number((await db.getUserByOpenId(openId) as any)?.tokenVersion) || 0; } catch { tv = 0; }
+    }
     return this.signSession(
       {
         openId,
         appId: ENV.appId,
         name: options.name || "",
+        tv,
       },
       options
     );
@@ -191,6 +203,7 @@ class SDKServer {
       openId: payload.openId,
       appId: payload.appId,
       name: payload.name,
+      ...(payload.tv ? { tv: payload.tv } : {}),
     })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
       .setExpirationTime(expirationSeconds)
@@ -199,7 +212,7 @@ class SDKServer {
 
   async verifySession(
     cookieValue: string | undefined | null
-  ): Promise<{ openId: string; appId: string; name: string } | null> {
+  ): Promise<VerifiedSession | null> {
     if (!cookieValue) {
       console.warn("[Auth] Missing session cookie");
       return null;
@@ -210,7 +223,7 @@ class SDKServer {
       const { payload } = await jwtVerify(cookieValue, secretKey, {
         algorithms: ["HS256"],
       });
-      const { openId, appId, name } = payload as Record<string, unknown>;
+      const { openId, appId, name, tv, exp } = payload as Record<string, unknown>;
 
       // openId is the only required field — appId and name are metadata we tolerate being empty.
       if (!isNonEmptyString(openId)) {
@@ -222,6 +235,8 @@ class SDKServer {
         openId,
         appId: typeof appId === "string" ? appId : "",
         name: typeof name === "string" ? name : "",
+        tv: typeof tv === "number" && Number.isFinite(tv) ? tv : 0,
+        exp: typeof exp === "number" ? exp : null,
       };
     } catch (error) {
       console.warn("[Auth] Session verification failed", String(error));
@@ -251,6 +266,26 @@ class SDKServer {
       platform: loginMethod,
       loginMethod,
     } as GetUserInfoWithJwtResponse;
+  }
+
+  /**
+   * Cheap check for the body-size choice (audit F22): does the request carry
+   * a session cookie with a valid signature that hasn't expired? No database
+   * read — revocation is enforced later by authenticateRequest.
+   */
+  async hasValidSessionCookie(req: Pick<Request, "headers">): Promise<boolean> {
+    try {
+      const cookie = this.parseCookies(req.headers.cookie).get(COOKIE_NAME);
+      if (!cookie) return false;
+      await jwtVerify(cookie, this.getSessionSecret(), { algorithms: ["HS256"] });
+      return true;
+    } catch { return false; }
+  }
+
+  /** The verified session of a request (null when missing / invalid). */
+  async sessionOf(req: Pick<Request, "headers">): Promise<VerifiedSession | null> {
+    const cookie = this.parseCookies(req.headers.cookie).get(COOKIE_NAME);
+    return cookie ? this.verifySession(cookie) : null;
   }
 
   async authenticateRequest(req: Request): Promise<User> {
@@ -287,6 +322,13 @@ class SDKServer {
 
     if (!user) {
       throw ForbiddenError("User not found");
+    }
+
+    // Revoked session (audit F20): issued before the account's last password
+    // change / "sign out everywhere". A token with no tv claim counts as 0.
+    const curTv = Number((user as any).tokenVersion) || 0;
+    if (curTv !== session.tv) {
+      throw ForbiddenError("Session revoked");
     }
 
     // Every request used to write lastSignedIn; once an hour is enough.

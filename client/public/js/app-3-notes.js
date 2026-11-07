@@ -749,10 +749,23 @@ function _voiceBegin(SR){
     }
     if(finalText){
       _voiceSetInterim('');
-      const needsSpace=rte.innerText && !/\s$/.test(rte.innerText);
-      rte.appendChild(document.createTextNode((needsSpace?' ':'')+finalText.trim()+' '));
-      rte.dispatchEvent(new Event('input',{bubbles:true}));
-      _voicePlaceCaretEnd(rte);
+      // -275: insert at the caret when it is inside this editor; otherwise at
+      // the end, as before.
+      let range=null;
+      try{const sel=window.getSelection();if(sel&&sel.rangeCount){const r0=sel.getRangeAt(0);if(rte.contains(r0.startContainer))range=r0;}}catch(_){}
+      if(range){
+        const before=range.startContainer.nodeType===3?String(range.startContainer.textContent||'').slice(0,range.startOffset):'';
+        const node=document.createTextNode((before&&!/\s$/.test(before)?' ':'')+finalText.trim()+' ');
+        range.deleteContents();range.insertNode(node);
+        range.setStartAfter(node);range.collapse(true);
+        const sel=window.getSelection();sel.removeAllRanges();sel.addRange(range);
+        rte.dispatchEvent(new Event('input',{bubbles:true}));
+      }else{
+        const needsSpace=rte.innerText && !/\s$/.test(rte.innerText);
+        rte.appendChild(document.createTextNode((needsSpace?' ':'')+finalText.trim()+' '));
+        rte.dispatchEvent(new Event('input',{bubbles:true}));
+        _voicePlaceCaretEnd(rte);
+      }
     }
   };
   rec.onerror=(ev)=>{
@@ -1404,6 +1417,7 @@ function applyNotesFilters(){
       </div>`
     :'';
   const _sharedNotesHtml=(typeof _renderSharedNotesSection==='function')?_renderSharedNotesSection():'';
+  window._luNotesShown=notes;
   el.innerHTML=_banner+_sharedNotesHtml+((pinnedHtml+(html||''))||(_sharedNotesHtml?'':renderEmptyState({icon:'search',title:'No matches',hint:'No notes match your current filters. Try a broader search or clear the active filters.',ctaLabel:'Clear filters',ctaFn:'clearNotesFilters()'})));
 
   if(typeof curScreen!=='undefined'&&curScreen==='notes')_noteHighlightOpen(); // follow the search box in the open note
@@ -1531,27 +1545,34 @@ function filterNotesBySmart(filter,el){
   _persistPageState('notes',{smart:filter,category:'Recent'});
   applyNotesFilters();
 }
+// -275: exports take the notes the list is showing (search, folder, tags,
+// dates — it ignored every filter but "My Items"), write each body once
+// (body is derived from bodyHtml since -240, so the old "Rich Text Body"
+// section repeated it) and keep images as Markdown image links.
+function _notesExportSet(){
+  const shown=Array.isArray(window._luNotesShown)?window._luNotesShown:null;
+  if(shown&&shown.length)return shown;
+  return _notesMyOnly?D.notes.filter(n=>typeof _isMineCreated==='function'?_isMineCreated(n):true):D.notes;
+}
+function _noteMdForExport(n){
+  let md=String(n.body||'');
+  if(n.bodyHtml){
+    const imgs=[];
+    try{luParseInert(n.bodyHtml).querySelectorAll('img[src]').forEach(im=>{const src=im.getAttribute('src')||'';if(/^https?:/i.test(src)&&md.indexOf(src)<0)imgs.push('!['+String(im.getAttribute('alt')||'image').replace(/[\[\]]/g,'')+']('+src+')');else if(/^data:/i.test(src))imgs.push('_(an image stored inside the note is not included in Markdown)_');});}catch(_){}
+    if(imgs.length)md+=(md?'\n\n':'')+imgs.join('\n\n');
+  }
+  return md;
+}
 function exportNotesMarkdown(){
-  const me=D.creds.userName||'Idris Grant';
-  const notes=_notesMyOnly?D.notes.filter(n=>!n.createdBy||n.createdBy===me):D.notes;
+  const notes=_notesExportSet();
   if(!notes.length){toast('No notes to export.');return;}
   const md=notes.map(n=>{
     const lines=[
       `# ${n.title}`,
       `> **Tags:** ${(n.tags||[]).map(t=>'#'+t).join(' ')} | **Source:** ${n.source||''} | **Updated:** ${n.updated||''}`,
       '',
-      n.body||'',
+      _noteMdForExport(n),
     ];
-    // Include rich text body (bodyHtml) if present
-    if(n.bodyHtml){
-      const bodyMd=typeof _htmlToMd==='function'?_htmlToMd(n.bodyHtml):n.bodyHtml.replace(/<[^>]+>/g,'').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&nbsp;/g,' ').trim();
-      if(bodyMd){
-        lines.push('');
-        lines.push('## Rich Text Body');
-        lines.push('');
-        lines.push(bodyMd);
-      }
-    }
     lines.push('');
     lines.push('---');
     return lines.join('\n');
@@ -1565,8 +1586,7 @@ function exportNotesMarkdown(){
   toast(`⬇ Exported ${notes.length} notes as Markdown`);
 }
 function exportNotesPDF(){
-  const me=D.creds.userName||'Idris Grant';
-  const notes=_notesMyOnly?D.notes.filter(n=>!n.createdBy||n.createdBy===me):D.notes;
+  const notes=_notesExportSet();
   if(!notes.length){toast('No notes to export.');return;}
   let notesHtml='';
   notes.forEach((n,idx)=>{
@@ -1612,7 +1632,8 @@ function importMarkdownFiles(files){
     reader.onload=e=>{
       processed++;
       try{
-        const raw=e.target.result;
+        // Windows line endings (CRLF) broke the front-matter match (-275).
+        const raw=String(e.target.result||'').replace(/\r\n?/g,'\n');
         // Extract title from first H1 heading or filename
         const h1Match=raw.match(/^#\s+(.+)$/m);
         const nameNoExt=file.name.replace(/\.(md|markdown|txt)$/i,'');
@@ -1996,6 +2017,12 @@ async function confirmDocImport(){
       const t=n.title.trim().toLowerCase();
       const ex=D.notes.find(x=>(x.title||'').trim().toLowerCase()===t);
       if(ex){
+        // -275: keep what was there in the note's history before replacing it.
+        if((ex.body||ex.bodyHtml)&&((ex.body||'')!==(n.body||'')||(ex.bodyHtml||'')!==(n.bodyHtml||''))){
+          ex.versions=Array.isArray(ex.versions)?ex.versions:[];
+          ex.versions.push({title:ex.title||'',body:ex.body||'',bodyHtml:ex.bodyHtml||'',savedAt:new Date().toISOString(),from:'Before an import overwrote this note'});
+          if(ex.versions.length>20)ex.versions=ex.versions.slice(-20);
+        }
         ex.body=n.body;ex.bodyHtml=n.bodyHtml;ex.source=n.source;
         if(n.original)ex.original=n.original;
         if(n.tags.length)ex.tags=[...new Set([...(ex.tags||[]),...n.tags])];
@@ -2037,13 +2064,14 @@ async function confirmDocImport(){
   if(skipped)parts.push(`${skipped} skipped`);
   toast({type:'success',title:'📄 Document import complete',msg:parts.join(' · ')||'Nothing imported',duration:4500});
 }
-const _noteTemplates=[
+// -275: built when the menu opens, so dates and your name are current.
+function _noteTemplatesNow(){return [
   {label:'📅 Meeting Notes',icon:'📅',tags:['meetings'],body:`# Meeting Notes\n**Date:** ${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})}\n**Attendees:** \n**Facilitator:** \n\n## Agenda\n- \n- \n\n## Discussion\n\n## Decisions Made\n- \n\n## Action Items\n| Task | Owner | Due |\n|------|-------|-----|\n| | | |\n\n## Next Meeting\n**Date:** \n**Agenda:** `},
-  {label:'📁 Project Brief',icon:'📁',tags:['process'],body:`# Project Brief\n**Project:** \n**Owner:** ${D.creds.userName||'Idris Grant'}\n**Start Date:** ${_ymd(new Date())}\n**Target Date:** \n\n## Objective\n\n## Background & Context\n\n## Scope\n### In Scope\n- \n### Out of Scope\n- \n\n## Success Metrics\n- \n\n## Key Stakeholders\n| Name | Role | Involvement |\n|------|------|-------------|\n| | | |\n\n## Risks & Mitigations\n| Risk | Likelihood | Impact | Mitigation |\n|------|-----------|--------|-----------|\n| | | | |\n\n## Resources Needed\n- `},
+  {label:'📁 Project Brief',icon:'📁',tags:['process'],body:`# Project Brief\n**Project:** \n**Owner:** ${(D.creds&&D.creds.userName)||''}\n**Start Date:** ${_ymd(new Date())}\n**Target Date:** \n\n## Objective\n\n## Background & Context\n\n## Scope\n### In Scope\n- \n### Out of Scope\n- \n\n## Success Metrics\n- \n\n## Key Stakeholders\n| Name | Role | Involvement |\n|------|------|-------------|\n| | | |\n\n## Risks & Mitigations\n| Risk | Likelihood | Impact | Mitigation |\n|------|-----------|--------|-----------|\n| | | | |\n\n## Resources Needed\n- `},
   {label:'🗓 Weekly Review',icon:'🗓',tags:['strategy','productivity'],body:`# Weekly Review\n**Week of:** ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}\n\n## 🌟 Wins This Week\n- \n\n## 🚧 What Didn't Go Well\n- \n\n## 📊 Progress on Goals\n| Goal | Progress | Notes |\n|------|----------|-------|\n| | | |\n\n## 📌 Carry-Over Tasks\n- \n\n## 🔭 Focus for Next Week\n1. \n2. \n3. \n\n## 💡 Insights & Learnings\n`},
   {label:'💡 Idea Capture',icon:'💡',tags:['vision'],body:`# Idea: \n**Captured:** ${new Date().toLocaleDateString()}\n**Category:** \n\n## The Idea\n\n## Why It Matters\n\n## How It Could Work\n\n## Next Steps\n- [ ] \n\n## Related Notes\n- `},
   {label:'📚 Book Notes',icon:'📚',tags:['books','research'],body:`# Book Notes: [Title]\n**Author:** \n**Finished:** \n**Rating:** /5\n\n## One-Line Summary\n\n## Key Ideas\n1. \n2. \n3. \n\n## Favourite Quotes\n> \n\n## How I'll Apply This\n- \n\n## Related Books\n- `}
-];
+];}
 function openNoteTemplates(){
   const ov=document.createElement('div');
   ov.id='note-tmpl-ov';
@@ -2054,7 +2082,7 @@ function openNoteTemplates(){
     <button class="btn btn-s" style="height:24px;width:24px;padding:0" onclick="document.getElementById('note-tmpl-ov').remove()">✕</button>
   </div>
   <div style="font-size:11px;color:var(--t3);margin-bottom:12px">Select a template to create a new note with pre-filled structure.</div>
-  ${_noteTemplates.map((tmpl,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;cursor:pointer;border:1px solid var(--bd1);margin-bottom:6px" onmouseover="this.style.background='var(--s2)'" onmouseout="this.style.background=''" onclick="applyNoteTemplate(${i})">
+  ${_noteTemplatesNow().map((tmpl,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;cursor:pointer;border:1px solid var(--bd1);margin-bottom:6px" onmouseover="this.style.background='var(--s2)'" onmouseout="this.style.background=''" onclick="applyNoteTemplate(${i})">
     <span style="font-size:20px">${tmpl.icon}</span>
     <div><div style="font-size:12px;font-weight:600">${tmpl.label}</div><div style="font-size:11px;color:var(--t3)">${(tmpl.tags||[]).map(t=>'#'+t).join(' ')}</div></div>
   </div>`).join('')}
@@ -2063,7 +2091,7 @@ function openNoteTemplates(){
   ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
 }
 function applyNoteTemplate(idx){
-  const tmpl=_noteTemplates[idx];
+  const tmpl=_noteTemplatesNow()[idx];
   if(!tmpl)return;
   document.getElementById('note-tmpl-ov')?.remove();
   const newNote={
@@ -2110,7 +2138,7 @@ function renderNotes(){
   // Collapsible section headings (state persists in D.prefs.notesNavCollapsed)
   const _nnHead=(key,label)=>`<div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px;cursor:pointer;user-select:none;display:flex;align-items:center;gap:4px" onclick="_toggleNotesNavSec('${_jsAttr(key)}')" title="Click to ${_nnc(key)?'expand':'collapse'}"><span style="font-size:11px">${_nnc(key)?'▸':'▾'}</span>${label}</div>`;
   nav.innerHTML=`<div style="font-size:13px;font-weight:600;margin-bottom:10px;padding:0 4px">Notes</div>
-  ${['Recent','Favorites','Web Clips','Meeting Notes','Journal','Resources'].map((n,i)=>`<div class="nn ${i===0&&!_notesFilterStatus?'on':''}" onclick="filterNotesByCategory('${_jsAttr(n)}',this)">${n}</div>`).join('')}
+  ${['Recent','Favorites','Web Clips','Meeting Notes','Journal','Resources'].map((n,i)=>`<div class="nn ${(_notesFilterCategory||'Recent')===n&&!_notesFilterStatus&&(_notesFilterFolder===null||_notesFilterFolder===undefined)&&!_notesFilterSmart?'on':''}" onclick="filterNotesByCategory('${_jsAttr(n)}',this)">${n}</div>`).join('')}
   ${_nnHead('lifecycle','Lifecycle')}
   ${_nnc('lifecycle')?'':(()=>{
     const _u=D.notes.filter(n=>!n.folderId);
@@ -2610,16 +2638,23 @@ function setNotesViewMode(mode){
   D.prefs=D.prefs||{};
   D.prefs.notesViewMode=mode;
   save('prefs');
-  document.body.classList.toggle('notes-grid-view',mode==='grid');
+  _notesApplyLayoutClasses();
   // Re-render to refresh the toolbar segment highlight.
   if(typeof renderNotes==='function')renderNotes();
 }
-// Apply persisted view mode on initial load.
-try{if((D.prefs&&D.prefs.notesViewMode)==='grid')document.body.classList.add('notes-grid-view');}catch(_){}
+function _notesWide(){try{return !window.matchMedia||window.matchMedia('(min-width:901px)').matches;}catch(_){return true;}}
+function _notesApplyLayoutClasses(){
+  const wide=_notesWide();
+  document.body.classList.toggle('notes-grid-view',wide&&(D.prefs&&D.prefs.notesViewMode)==='grid');
+  if(!wide&&document.body.classList.contains('notes-focus-mode'))toggleNoteFocusMode(false);
+}
+// Apply persisted view mode on initial load, and again when the width changes.
+try{_notesApplyLayoutClasses();if(window.matchMedia){const mq=window.matchMedia('(min-width:901px)');(mq.addEventListener?mq.addEventListener('change',_notesApplyLayoutClasses):mq.addListener(_notesApplyLayoutClasses));}}catch(_){}
 // Notes distraction-free focus mode (#F). Toggles body class that hides nav +
 // list + rail and centers the editor. Esc exits.
 function toggleNoteFocusMode(force){
-  const want=force!==undefined?!!force:!document.body.classList.contains('notes-focus-mode');
+  let want=force!==undefined?!!force:!document.body.classList.contains('notes-focus-mode');
+  if(want&&!_notesWide()){want=false;if(typeof toast==='function')toast({type:'info',title:'Focus mode is for wider screens',msg:'On a phone the editor already fills the screen.'});}
   document.body.classList.toggle('notes-focus-mode',want);
   let exit=document.getElementById('notes-focus-exit');
   if(want&&!exit){

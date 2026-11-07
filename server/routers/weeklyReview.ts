@@ -67,7 +67,7 @@ export const weeklyReviewRouter = router({
       if (input.recipientEmail !== undefined) merged.recipientEmail = input.recipientEmail;
       const newPrefs = { ...prefs, weeklyReview: merged };
       if (row) {
-        await db.update(userAppData).set({ prefs: JSON.stringify(newPrefs) }).where(eq(userAppData.userId, ctx.user.id));
+        await db.update(userAppData).set({ prefs: JSON.stringify(newPrefs), updatedAt: new Date() }).where(eq(userAppData.userId, ctx.user.id));
       } else {
         await db.insert(userAppData).values({ userId: ctx.user.id, prefs: JSON.stringify(newPrefs) });
       }

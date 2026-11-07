@@ -574,9 +574,15 @@ function _tasksKbHandler(e){
 }
 document.addEventListener('keydown',_tasksKbHandler);
 // C: saved task views — capture current filter as a named view
+// -275: a saved view keeps tab, priority, My Items, view, sources, sort and
+// grouping, and restoring sets the tab index (the stale index overwrote the
+// restored filter on the next render).
 function _currentTaskViewState(){
-  const tabIdx=_taskTabDefs.findIndex(td=>td.filter===_taskFilter);
-  return {tabIdx:tabIdx>=0?tabIdx:0,priority:_taskPriorityFilter||'All',myOnly:!!_taskMyOnly,view:_taskView};
+  const tabIdx=typeof _taskFilterTabIdx==='number'?_taskFilterTabIdx:Math.max(0,_taskTabDefs.findIndex(td=>td.filter===_taskFilter));
+  return {tabIdx,priority:_taskPriorityFilter||'All',myOnly:!!_taskMyOnly,view:_taskView,
+    sources:Object.assign({},_getSourceFilter()),
+    sortBy:typeof _taskListSortBy!=='undefined'?_taskListSortBy:'',sortDir:typeof _taskListSortDir!=='undefined'?_taskListSortDir:'asc',
+    groupBy:typeof _taskListGroupBy!=='undefined'?_taskListGroupBy:'none'};
 }
 function saveCurrentTaskView(){
   const name=prompt('Name this view:','My view');
@@ -591,10 +597,16 @@ function saveCurrentTaskView(){
 function applySavedTaskView(id){
   const v=(D.prefs&&D.prefs.taskSavedViews||[]).find(x=>x.id===id);if(!v)return;
   const s=v.state||{};
-  if(typeof s.tabIdx==='number'&&_taskTabDefs[s.tabIdx])_taskFilter=_taskTabDefs[s.tabIdx].filter;
+  if(typeof s.tabIdx==='number'&&_taskTabDefs[s.tabIdx]){_taskFilterTabIdx=s.tabIdx;_taskFilter=_taskTabDefs[s.tabIdx].filter;}
   _taskPriorityFilter=s.priority||'All';
   _taskMyOnly=!!s.myOnly;
   if(s.view)_taskView=s.view;
+  _taskSourceDrill=null;
+  if(s.sources&&typeof s.sources==='object'){D.prefs.taskSourceFilter={personal:s.sources.personal!==false,smartsheet:s.sources.smartsheet!==false,nifty:s.sources.nifty!==false};save('prefs');}
+  if(typeof s.sortBy==='string')_taskListSortBy=s.sortBy;
+  if(s.sortDir==='asc'||s.sortDir==='desc')_taskListSortDir=s.sortDir;
+  if(typeof s.groupBy==='string')_taskListGroupBy=s.groupBy;
+  _persistPageState('tasks',{tabIdx:_taskFilterTabIdx,priority:_taskPriorityFilter,listSortBy:_taskListSortBy,listSortDir:_taskListSortDir,listGroupBy:_taskListGroupBy});
   if(typeof renderTasks==='function')renderTasks();
 }
 function deleteSavedTaskView(id,e){
@@ -1279,7 +1291,9 @@ function snoozeTask(id){
   t.due=t.due&&t.due!=='Carry Over'?t.due:ds;
   save('tasks');
   invalidateSearchIndex();
-  if(document.getElementById('myday-main'))renderScreen('myday');
+  // -275: re-render the screen you are on (it always re-rendered My Day,
+  // so snoozing from Tasks or Process left the row on screen).
+  if(typeof curScreen!=='undefined'&&typeof renderScreen==='function')renderScreen(curScreen);
   else renderCurrentTaskView();
   toast(`💭 Snoozed until tomorrow (${tomorrow.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})})`);
 }
@@ -2576,7 +2590,7 @@ function renderHome(){
         const habsScore=dailyHabits.length?(habsDone/dailyHabits.length)*30:15;
         const tDone=(D.tasks||[]).filter(t=>t.status==='Done'&&_dayOf(t.completedAt)===todayKey).length;
         const tasksScore=Math.min(tDone*8,40);
-        const focusMins=(D.prefs&&D.prefs.focusMinsToday)||0;
+        const focusMins=typeof _focusMinsToday==='function'?_focusMinsToday():0;
         const focusScore=Math.min(focusMins/2,20);
         const ovd=(D.tasks||[]).filter(t=>t.status!=='Done'&&t.due&&t.due<todayKey).length;
         const overduePenalty=Math.min(ovd*2,10);
@@ -2821,8 +2835,8 @@ function renderHome(){
     // Drag-to-reorder: wrap every card so it can be dragged. The drag
     // handle is on a tiny ⋮⋮ pill in the top-right of each card. Reorder
     // persists to D.prefs.homeCards via _moveHomeCard().
-    const wrapped=visCards.map((id,i)=>`<div class="home-card-wrap" data-home-id="${esc(id)}" draggable="true" ondragstart="_homeDragStart(event,'${esc(id)}')" ondragover="_homeDragOver(event,'${esc(id)}')" ondragleave="_homeDragLeave(event)" ondrop="_homeDrop(event,'${esc(id)}')" ondragend="_homeDragEnd(event)" style="position:relative">
-      <span class="home-card-drag" title="Drag to reorder" style="position:absolute;top:6px;right:8px;font-size:11px;color:var(--t3);background:var(--s3);border-radius:4px;padding:2px 5px;cursor:grab;opacity:0;transition:opacity .12s;z-index:5">⋮⋮</span>
+    const wrapped=visCards.map((id,i)=>`<div class="home-card-wrap" data-home-id="${esc(id)}" data-drop="home" data-drop-v="${esc(id)}" draggable="true" ondragstart="_homeDragStart(event,'${esc(id)}')" ondragover="_homeDragOver(event,'${esc(id)}')" ondragleave="_homeDragLeave(event)" ondrop="_homeDrop(event,'${esc(id)}')" ondragend="_homeDragEnd(event)" style="position:relative">
+      <span class="home-card-drag" role="button" tabindex="0" aria-label="Move card ${esc(id)}: arrow keys move it, or drag" title="Drag to reorder (or focus and use the arrow keys)" data-drag="homecard" data-drag-id="${esc(id)}" style="position:absolute;top:6px;right:8px;font-size:11px;color:var(--t3);background:var(--s3);border-radius:4px;padding:2px 5px;cursor:grab;opacity:.45;transition:opacity .12s;z-index:5">⋮⋮</span>
       ${cardHtml[id]}
     </div>`).join('');
     return `<div class="g3" id="home-grid">${wrapped}</div>${pinnedHtml}`;
@@ -2906,7 +2920,12 @@ let _taskProjectFilter=null;
 let _taskKindFilter=null;
 let _taskView=_tasksRestored.view||'clusters'; // 'list' | 'board' | 'matrix' | 'gantt' | 'calendar' | 'clusters'
 let _taskCalCursor=null; // YYYY-MM string for calendar nav
+// -275: bulk selection works in List and Clusters; anywhere else bulk mode
+// ends (it stayed on, invisibly, with the bar hidden after any re-render).
+function _bulkViewOk(){return _taskView==='list'||_taskView==='clusters'||!['board','matrix','gantt','calendar','focus','cards'].includes(_taskView);}
 function renderCurrentTaskView(){
+  if(_bulkMode&&!_bulkViewOk()){_bulkMode=false;_bulkSelected.clear();}
+  {const bar=document.getElementById('bulk-action-bar');if(bar){bar.style.display=_bulkMode?'flex':'none';const c=bar.querySelector('#bulk-count');if(c)c.textContent=_bulkSelected.size+' selected';}}
   // Render the read-only "Shared with you" section above the view (it lives in
   // a sibling container, so it persists no matter which view renders below).
   if(typeof _renderSharedTasksSection==='function')_renderSharedTasksSection();
@@ -2956,6 +2975,39 @@ function setTaskScope(my){_taskMyOnly=!!my;_persistPageState('tasks',{myOnly:_ta
 // as standalone tasks in List/Board/Matrix/etc.
 function _isSubtaskRow(t){ return !!(t&&t.parentTaskId); }
 function _topLevelTasks(arr){ return (arr||[]).filter(t=>!_isSubtaskRow(t)); }
+// ── "Mine" by account, not display name (build -275) ─────────────────────
+// My Items and GTD's "Waiting on" compared createdBy / assignedTo with your
+// CURRENT display name, so renaming yourself hid your old tasks and marked
+// them all delegated (the same class of bug as the demo-account collision).
+// Ids decide when the task has them; names fall back to every name this
+// account has used (D.prefs.myNames, recorded as it changes).
+function _myNames(){
+  const s=new Set();const add=n=>{n=String(n||'').trim().toLowerCase();if(n)s.add(n);};
+  add(D.creds&&D.creds.userName);(D.prefs&&Array.isArray(D.prefs.myNames)?D.prefs.myNames:[]).forEach(add);
+  return s;
+}
+function _rememberMyName(){
+  const cur=String(D.creds&&D.creds.userName||'').trim();if(!cur||!D.prefs)return;
+  const arr=Array.isArray(D.prefs.myNames)?D.prefs.myNames.slice():[];
+  if(arr.some(n=>String(n).toLowerCase()===cur.toLowerCase()))return;
+  arr.push(cur);D.prefs.myNames=arr.slice(-10);save('prefs');
+}
+function _isMineCreated(t){
+  if(!t)return false;
+  const me=D.creds&&D.creds.userId;
+  if(t.createdById!=null&&me!=null)return String(t.createdById)===String(me);
+  if(!t.createdBy)return true;
+  return _myNames().has(String(t.createdBy).trim().toLowerCase());
+}
+function _isAssignedElsewhere(t){
+  if(!t)return false;
+  const me=D.creds&&D.creds.userId;
+  if(me!=null&&t.primaryAssigneeId!=null)return String(t.primaryAssigneeId)!==String(me);
+  if(me!=null&&Array.isArray(t.assignees)&&t.assignees.length)return !t.assignees.map(String).includes(String(me));
+  const a=String(t.assignedTo||'').trim().toLowerCase();
+  return !!a&&!_myNames().has(a);
+}
+try{setTimeout(()=>{try{_rememberMyName();}catch(_){}},4000);}catch(_){}
 
 // ── Team-visibility (shared-workspace): tasks ASSIGNED to me by other members
 //    (or, for admins, every other member's tasks). They live in another user's
@@ -3339,10 +3391,10 @@ async function _saveSharedProgram(idx){
 // default (notes 'view', sheets/decks 'edit'), so old items behave as
 // they always did. Enforced server-side; these controls are the owner UI.
 function _shareEffMode(p,dflt){ return (p&&(p.shareMode==='view'||p.shareMode==='edit'))?p.shareMode:(dflt||'view'); }
-function _shareControlsHtml(idPrefix,item,dfltMode){
+function _shareControlsHtml(idPrefix,item,dfltMode,opts){
   const mode=_shareEffMode(item,dfltMode);
   return `<div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;padding-top:8px;border-top:1px dashed var(--bd1)">
-    <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t2);cursor:pointer"><input type="checkbox" id="${idPrefix}-shareall" ${item&&item.shareAll?'checked':''} style="width:13px;height:13px"> 🌐 Share with everyone in the workspace</label>
+    ${opts&&opts.noAll?'':`<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t2);cursor:pointer"><input type="checkbox" id="${idPrefix}-shareall" ${item&&item.shareAll?'checked':''} style="width:13px;height:13px"> 🌐 Share with everyone in the workspace</label>`}
     <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t2)">Permission
       <select id="${idPrefix}-sharemode" class="inp" style="height:24px;font-size:11px;width:auto;padding:0 6px">
         <option value="edit" ${mode==='edit'?'selected':''}>✏ Can edit</option>
@@ -3522,8 +3574,14 @@ function _renderRealSubtasksSection(parent){
   // backfillNestedSubtasks stamps _subtasksPromotedAt on the parent's raw.
   let legacyPromoted=false;
   try{
-    if(parent.raw){const r=JSON.parse(parent.raw);legacyPromoted=!!r._subtasksPromotedAt;}
+    if(parent._subtasksPromotedAt)legacyPromoted=true;
+    else if(typeof parent.raw==='string'){const r=JSON.parse(parent.raw);legacyPromoted=!!r._subtasksPromotedAt;}
   }catch{ /* fall through */ }
+  // Every legacy subtask already has a real child row with its title: done.
+  if(!legacyPromoted&&(parent.subtasks||[]).length&&children.length){
+    const kids=new Set(children.map(c=>String(c.title||'').trim().toLowerCase()));
+    if((parent.subtasks||[]).every(s=>kids.has(String(s&&(s.title||s.text)||'').trim().toLowerCase())))legacyPromoted=true;
+  }
   const legacyCount=(parent.subtasks||[]).length;
   const childRows=children.map(c=>{
     const done=c.status==='Done';
@@ -3604,8 +3662,13 @@ async function _promoteLegacySubtasks(){
 // _sourceOn(source) returning bool; consumed by every render path that
 // emits external rows + the native pipeline (when personal is off, native
 // tasks are excluded so the user can zoom into one company at a time).
+// -275: a Command Center drill-through narrows the sources only while its
+// chip is showing (_taskSourceDrill); it used to overwrite your saved source
+// chips, so after clearing it CF / LSI / Personal stayed switched off.
+let _taskSourceDrill=null;
+function _setSourceDrill(f){_taskSourceDrill=f?Object.assign({personal:true,smartsheet:true,nifty:true},f):null;}
 function _getSourceFilter(){
-  const f=(D.prefs&&D.prefs.taskSourceFilter)||{};
+  const f=_taskSourceDrill||(D.prefs&&D.prefs.taskSourceFilter)||{};
   return {
     personal:f.personal!==false,
     smartsheet:f.smartsheet!==false,
@@ -3621,6 +3684,7 @@ function _sourceOn(source){
 }
 function toggleSourceFilter(source){
   D.prefs=D.prefs||{};
+  _taskSourceDrill=null;
   const cur=_getSourceFilter();
   const key=source==='personal'?'personal':source;
   cur[key]=!cur[key];
@@ -3638,7 +3702,7 @@ function _renderSourceFilterChips(){
   // Hide CF/LSI chips when those sources have no data — keeps the UI clean
   // for users who haven't connected them.
   const chip=(on,active,color,label,count,key)=>`<button class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;background:${active?_luFillSafe(color):'transparent'};color:${active?'#fff':'var(--t2)'};border:1px solid ${active?color:'var(--bd2)'};border-radius:11px" onclick="toggleSourceFilter('${_jsAttr(key)}')" title="${active?'Click to hide':'Click to show'} ${label}">${label}${count?` <span>${count}</span>`:''}</button>`;
-  const personalCount=(D.tasks||[]).filter(t=>t.status!=='Done'&&t.status!=='Someday').length;
+  const personalCount=_topLevelTasks(D.tasks).filter(t=>t.status!=='Done'&&t.status!=='Someday').length;
   // CF fold-all chip — only appears when there's at least one CF
   // project group on the Tasks list (i.e. at least one orphan-subtask
   // row). Toggle label flips based on whether ANY CF project is
@@ -3680,6 +3744,7 @@ function setTaskTabIdx(idx){
   // would stay highlighted forever otherwise.
   const tabsRow=document.getElementById('tasks-tabs');
   if(tabsRow){tabsRow.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('on',i===idx));}
+  const tpb=document.getElementById('today-plan-banner');if(tpb)tpb.innerHTML=_todayPlanBannerHtml();
   renderCurrentTaskView();
 }
 function setTaskPriorityFilter(v){_taskPriorityFilter=v||'All';_persistPageState('tasks',{priority:_taskPriorityFilter});renderCurrentTaskView();}
@@ -3782,7 +3847,7 @@ function renderTaskList(){
   const list=document.getElementById('tasks-list');
   if(!list)return;
   let filtered=_sourceOn('personal')?_topLevelTasks(D.tasks).filter(_taskFilter):[];
-  if(_taskMyOnly)filtered=filtered.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
+  if(_taskMyOnly)filtered=filtered.filter(_isMineCreated);
   filtered=_applyPriorityFilter(filtered);
   // Inject external tasks (Smartsheet/Nifty) into the list. Coerced into a
   // task-shape so the existing sort + group-by + cardRow pipeline works.
@@ -3884,21 +3949,8 @@ function renderTaskList(){
       extShaped.length=0;
       grouped.forEach(t=>extShaped.push(t));
     })();
-    const tabLabel=_taskTabDefs&&_taskTabDefs[_taskFilterTabIdx]?_taskTabDefs[_taskFilterTabIdx].label:'';
-    let extFiltered=extShaped;
-    if(tabLabel==='Today')extFiltered=extShaped.filter(t=>t.status!=='Done'&&(t.due===today||(t._override&&t._override.myDay)));
-    else if(tabLabel==='This Week'){
-      const wkEnd=new Date();wkEnd.setDate(wkEnd.getDate()+7);
-      const wkEndStr=_ymd(wkEnd);
-      extFiltered=extShaped.filter(t=>t.status!=='Done'&&(!t.due||t.due<=wkEndStr));
-    }else if(tabLabel==='Done'){
-      extFiltered=extShaped.filter(t=>t.status==='Done');
-    }else if(tabLabel==='Someday'||tabLabel==='Recurring'){
-      extFiltered=[]; // not applicable to external rows
-    }else{
-      // All Active / Inbox: open rows only (drop Done).
-      extFiltered=extShaped.filter(t=>t.status!=='Done');
-    }
+    // Same tab predicate as your own tasks (-275).
+    const extFiltered=extShaped.filter(t=>{try{return !!_taskFilter(t);}catch(_){return false;}});
     filtered=filtered.concat(extFiltered);
   }
   // Apply column sort if active, else fall back to drag-reorder sortOrder.
@@ -4237,7 +4289,9 @@ if(typeof _tlBpWired==='undefined'){
 }
 // H: drag-to-reorder handlers for the List view. Persists t.sortOrder on D.tasks.
 let _tlDragId=null;
-function _tlDragStart(e,id){_tlDragId=id;e.target.classList.add('tl-dragging');try{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',String(id));}catch(_){}}
+function _tlDragStart(e,id){
+  if(typeof _taskListSortBy!=='undefined'&&_taskListSortBy){try{e.preventDefault();}catch(_){}toast({type:'info',title:'Sorted by a column',msg:'Clear the column sort (click the header again) to reorder by dragging.'});_tlDragId=null;return;}
+  _tlDragId=id;e.target.classList.add('tl-dragging');try{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',String(id));}catch(_){}}
 function _tlDragOver(e,id){if(_tlDragId&&_tlDragId!==id){e.preventDefault();e.currentTarget.classList.add('tl-drop-target');}}
 function _tlDragLeave(e){e.currentTarget.classList.remove('tl-drop-target');}
 function _tlDragEnd(e){e.target.classList.remove('tl-dragging');document.querySelectorAll('.tl-drop-target').forEach(el=>el.classList.remove('tl-drop-target'));_tlDragId=null;}
@@ -4250,11 +4304,17 @@ function _tlDrop(e,targetId){
   const visible=Array.from(document.querySelectorAll('#tasks-list [data-task-id]')).map(el=>_tidOf(el.dataset.taskId));
   const dragIdx=visible.indexOf(_tlDragId);const dropIdx=visible.indexOf(targetId);
   if(dragIdx<0||dropIdx<0)return;
+  // -275: only the rows on screen move, and only among the sortOrder slots
+  // they already hold. Every hidden task used to be renumbered (the Today
+  // tab scrambled the All Active order).
+  const before=visible.slice();
   visible.splice(dragIdx,1);visible.splice(dragIdx<dropIdx?dropIdx-1:dropIdx,0,_tlDragId);
-  visible.forEach((id,i)=>{const t=D.tasks.find(x=>x.id===id);if(t)t.sortOrder=i;});
-  // Tasks not in the visible set get pushed past the visible block.
-  const visibleSet=new Set(visible);
-  D.tasks.filter(t=>!visibleSet.has(t.id)).forEach((t,i)=>{t.sortOrder=visible.length+i+1000;});
+  const rows=before.map(id=>D.tasks.find(x=>String(x.id)===String(id))).filter(Boolean);
+  const base=rows.map((t,i)=>Number.isFinite(Number(t.sortOrder))?Number(t.sortOrder):i).sort((a,b)=>a-b);
+  // make the slots strictly increasing (ties or gaps from old data)
+  for(let i=1;i<base.length;i++)if(base[i]<=base[i-1])base[i]=base[i-1]+1;
+  let k=0;
+  visible.forEach(id=>{const t=D.tasks.find(x=>String(x.id)===String(id));if(t)t.sortOrder=base[k++];});
   save('tasks');
   renderCurrentTaskView();
 }
@@ -4264,8 +4324,10 @@ function renderTaskFocus(){
   const list=document.getElementById('tasks-list');
   if(!list)return;
   const today=_todayStr;
-  let pool=D.tasks.filter(t=>!t.createdBy||!_taskMyOnly||t.createdBy===(D.creds.userName||'Idris Grant'));
-  if(_taskMyOnly)pool=D.tasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
+  // -275: top-level tasks only (subtask rows were counted twice) and "mine"
+  // by account, not display name.
+  let pool=_topLevelTasks(D.tasks);
+  if(_taskMyOnly)pool=pool.filter(_isMineCreated);
   pool=_applyPriorityFilter(pool.slice());
   const active=t=>t.status!=='Done'&&t.status!=='Someday';
   const seen=new Set();
@@ -4336,7 +4398,7 @@ function renderTaskCards(){
   const today=_todayStr;
   // 1. Native top-level tasks — mirrors renderTaskList's filter pipeline.
   let nativeTasks=_sourceOn('personal')?_topLevelTasks(D.tasks).filter(_taskFilter):[];
-  if(_taskMyOnly)nativeTasks=nativeTasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
+  if(_taskMyOnly)nativeTasks=nativeTasks.filter(_isMineCreated);
   nativeTasks=_applyPriorityFilter(nativeTasks);
   // 2. External tasks — skipped under My Items (no createdBy on ext rows).
   let extCards=[];
@@ -4502,7 +4564,7 @@ function renderTaskBoard(){
     {id:'sd',label:'Someday',status:'Someday',color:'var(--warn)'}
   ];
   let tasks=_sourceOn('personal')?_topLevelTasks(D.tasks):[];
-  if(_taskMyOnly)tasks=tasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
+  if(_taskMyOnly)tasks=tasks.filter(_isMineCreated);
   tasks=_applyPriorityFilter(tasks);
   // External tasks → stay on the rail/Today rollups when this view is "My
   // tasks only" (they aren't yours by createdBy). Otherwise inject as
@@ -4641,6 +4703,8 @@ document.addEventListener('pointerdown',e=>{
   const el=e.target&&e.target.closest?e.target.closest('[data-drag]'):null;
   if(!el||_luDrag.on)return;
   if(e.target.closest('button,a,input,select,textarea,label,[contenteditable="true"],.cal-resize-handle'))return;
+  // A mouse inside an HTML5-draggable wrapper (Home cards) uses that drag.
+  if(e.pointerType==='mouse'&&el.closest('[draggable="true"]'))return;
   const d=_luDrag;
   clearTimeout(d.timer);
   Object.assign(d,{el,kind:el.getAttribute('data-drag'),id:el.getAttribute('data-drag-id')||'',x:e.clientX,y:e.clientY,on:false,touch:e.pointerType!=='mouse'});
@@ -4668,6 +4732,34 @@ window.addEventListener('click',e=>{if(_luDrag.swallow){e.stopPropagation();e.pr
   document.head.appendChild(s);
 })();
 // Board: drop a card on a column to set its status.
+// Home cards (touch drag via the handle) and keyboard moves (-275).
+function _homeCardMoveTo(fromId,toId,after){
+  const prefs=getHomeCardPrefs().slice().sort((a,b)=>a.order-b.order);
+  const fi=prefs.findIndex(x=>x.id===fromId);if(fi<0)return false;
+  const moved=prefs.splice(fi,1)[0];
+  let ti=prefs.findIndex(x=>x.id===toId);if(ti<0)return false;
+  if(after)ti++;
+  prefs.splice(ti,0,moved);prefs.forEach((x,i)=>{x.order=i;});
+  saveHomeCardPrefs(prefs);return true;
+}
+_luDropRoutes.home=function(kind,id,toId){
+  if(kind!=='homecard'||!toId||id===toId)return;
+  if(_homeCardMoveTo(id,toId,false))renderScreen('home');
+};
+document.addEventListener('keydown',e=>{const h=e.target&&e.target.closest?e.target.closest('.home-card-drag[data-drag-id]'):null;if(h)_homeCardKey(e,h.getAttribute('data-drag-id'));},true);
+function _homeCardKey(e,id){
+  const k=e.key;if(!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Home','End'].includes(k))return;
+  e.preventDefault();e.stopPropagation();
+  const vis=Array.from(document.querySelectorAll('#home-grid .home-card-wrap')).map(el=>el.getAttribute('data-home-id'));
+  const i=vis.indexOf(id);if(i<0)return;
+  let j=i;
+  if(k==='ArrowUp'||k==='ArrowLeft')j=i-1;else if(k==='ArrowDown'||k==='ArrowRight')j=i+1;else if(k==='Home')j=0;else if(k==='End')j=vis.length-1;
+  if(j<0||j>=vis.length||j===i)return;
+  if(!_homeCardMoveTo(id,vis[j],j>i))return;
+  renderScreen('home');
+  setTimeout(()=>{const h=document.querySelector('#home-grid .home-card-wrap[data-home-id="'+CSS.escape(id)+'"] .home-card-drag');if(h)h.focus();},30);
+  if(typeof toast==='function')toast({type:'info',title:'Card moved',duration:900});
+}
 _luDropRoutes.board=function(kind,id,status){
   if(kind!=='task'||!status)return;
   const t=(D.tasks||[]).find(x=>String(x.id)===String(id));
@@ -4682,7 +4774,7 @@ function renderTaskMatrix(){
   const list=document.getElementById('tasks-list');
   if(!list)return;
   let tasks=_sourceOn('personal')?_topLevelTasks(D.tasks).filter(t=>t.status!=='Done'&&t.status!=='Someday'):[];
-  if(_taskMyOnly)tasks=tasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
+  if(_taskMyOnly)tasks=tasks.filter(_isMineCreated);
   tasks=_applyPriorityFilter(tasks);
   // Effort: 1=Low(estimatedMins<=30), 2=Med(<=90), 3=High(>90) | Impact: High=3, Medium=2, Low=1
   const effortScore=t=>{const m=t.estimatedMins||30;return m<=30?1:m<=90?2:3;};
@@ -4767,7 +4859,7 @@ function renderTaskMatrix(){
     Tasks are placed automatically based on their <strong>Priority</strong> (Impact: High = top row, Low = bottom row) and <strong>Estimated minutes</strong> (Effort: ≤90m = left column, &gt;90m = right column).
     <strong>Drag any task</strong> between quadrants to update both at once — drops snap the task to that quadrant's typical Priority + estimated minutes. Click a card to open the full drawer for fine-tuning.
   </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${quadHtml}</div>`;
+  <div class="lu-mtx-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:10px">${quadHtml}</div>`;
 }
 // Matrix drag-to-reposition: drop on a quadrant snaps the task's priority +
 // estimatedMins so it falls into that quadrant on the next render.
@@ -4829,7 +4921,7 @@ function renderTaskGantt(){
   let skippedLocal=0,skippedExt=0;
   const localUniverse=_sourceOn('personal')?_topLevelTasks(D.tasks).filter(t=>t.status!=='Done'):[];
   let tasks=localUniverse.filter(t=>{const ok=!!(t.due||t.startDate);if(!ok)skippedLocal++;return ok;}).map(t=>Object.assign({},t,{_source:'local'}));
-  if(_taskMyOnly)tasks=tasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
+  if(_taskMyOnly)tasks=tasks.filter(_isMineCreated);
   tasks=_applyPriorityFilter(tasks);
   // Overlay external tasks with dates (localDue overrides, or source-provided
   // due/startDate). Skipped under "My Items" scope. Externals are click-to-
@@ -4956,13 +5048,26 @@ function quickAddTask(){
   const p=_taskSmartParse(raw);
   if(!p.title){inp.focus();return;}
   // Resolve project name -> project obj if it matches an existing project.
+  // -275: @project matches an exact name first, then a name that STARTS with
+  // the text, then a unique "contains" (it took the first project containing
+  // the text, so @a attached whichever project had an "a").
   let projectId=null,projectName='';
   if(p.project){
-    const proj=(D.projects||[]).find(pr=>(pr.name||'').toLowerCase().includes(p.project.toLowerCase()));
+    const q=p.project.toLowerCase().trim();const ps=(D.projects||[]).filter(pr=>pr&&pr.name);
+    let proj=ps.find(pr=>pr.name.toLowerCase()===q)||null;
+    if(!proj){const st=ps.filter(pr=>pr.name.toLowerCase().startsWith(q));if(st.length===1)proj=st[0];}
+    if(!proj&&q.length>=3){const co=ps.filter(pr=>pr.name.toLowerCase().includes(q));if(co.length===1)proj=co[0];}
     if(proj){projectId=proj.id;projectName=proj.name;}else{projectName=p.project;}
   }
+  // Same shape as tasks made anywhere else (-275): a real id, createdAt,
+  // sortOrder, predecessorIds and comments.
+  const _minOrder=(D.tasks||[]).reduce((m,t)=>Math.min(m,Number.isFinite(Number(t&&t.sortOrder))?Number(t.sortOrder):m),0);
   const newTask={
-    id:Date.now(),
+    id:nextId(D.tasks),
+    createdAt:new Date().toISOString(),
+    sortOrder:_minOrder-1,
+    predecessorIds:[],
+    comments:[],
     title:p.title,
     priority:p.priority||'Medium',
     status:'Not Started',
@@ -4982,9 +5087,11 @@ function quickAddTask(){
     recurring:'None',
     subtasks:[],
     linkedGoalId:null,
-    assignedTo:D.creds.userName||'Idris Grant',
-    createdBy:D.creds.userName||'Idris Grant'
+    assignedTo:(D.creds&&D.creds.userName)||'',
+    createdBy:(D.creds&&D.creds.userName)||'',
+    createdById:(D.creds&&D.creds.userId!=null)?D.creds.userId:undefined
   };
+  if(newTask.createdById===undefined)delete newTask.createdById;
   D.tasks.unshift(newTask);
   save('tasks');
   updateSidebarBadges();
@@ -5002,21 +5109,22 @@ function quickAddTask(){
   toast(bits.length?`✓ Added · ${bits.join(' · ')}`:'✓ Task added!');
 }
 // ─── Cluster progress roll-up ────────────────────────────────────────────────
+// -275: the dashboard counted subtasks and compared ids strictly, so its
+// numbers differed from the Tasks view. One helper for both.
+function clusterMembers(cluster){
+  const projIds=new Set((cluster&&cluster.projectIds||[]).map(String));
+  return _topLevelTasks(D.tasks).filter(t=>t&&((t.clusterId!=null&&String(t.clusterId)===String(cluster.id))||(t.projectId!=null&&projIds.has(String(t.projectId)))));
+}
 function clusterProgress(cluster){
-  const projIds=new Set(cluster.projectIds||[]);
-  const directTasks=D.tasks.filter(t=>String(t.clusterId)===String(cluster.id)||(t.projectId&&projIds.has(t.projectId)));
+  const directTasks=clusterMembers(cluster);
   if(!directTasks.length)return 0;
   const done=directTasks.filter(t=>t.status==='Done').length;
   return Math.round((done/directTasks.length)*100);
 }
-function clusterTaskCount(cluster){
-  const projIds=new Set(cluster.projectIds||[]);
-  return D.tasks.filter(t=>String(t.clusterId)===String(cluster.id)||(t.projectId&&projIds.has(t.projectId))).length;
-}
+function clusterTaskCount(cluster){return clusterMembers(cluster).length;}
 function clusterOverdueCount(cluster){
   const today=_todayStr;
-  const projIds=new Set(cluster.projectIds||[]);
-  return D.tasks.filter(t=>(String(t.clusterId)===String(cluster.id)||(t.projectId&&projIds.has(t.projectId)))&&t.status!=='Done'&&t.due&&t.due<today).length;
+  return clusterMembers(cluster).filter(t=>t.status!=='Done'&&t.due&&t.due<today).length;
 }
 // ─── Render Tasks Clusters View ──────────────────────────────────────────────
 let _clusterCollapsed={};
@@ -5045,7 +5153,7 @@ function renderTaskCalendar(){
   const list=document.getElementById('tasks-list');
   if(!list)return;
   let filtered=_sourceOn('personal')?_topLevelTasks(D.tasks).filter(_taskFilter):[];
-  if(_taskMyOnly)filtered=filtered.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
+  if(_taskMyOnly)filtered=filtered.filter(_isMineCreated);
   filtered=_applyPriorityFilter(filtered);
   const cur=_taskCalCursor||_todayStr.slice(0,7);
   const [yy,mm]=cur.split('-').map(Number);
@@ -5248,7 +5356,7 @@ function renderTaskClusters(){
   // made "I ticked the Boat tasks and they don't show" — they were saved,
   // just never rendered. Subtasks without their own clusterId stay hidden
   // (they live under their parent).
-  const scoped=_taskMyOnly?D.tasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant')):D.tasks;
+  const scoped=_taskMyOnly?D.tasks.filter(_isMineCreated):D.tasks;
   const universe=_sourceOn('personal')?scoped.filter(t=>!_isSubtaskRow(t)||t.clusterId!=null):[];
   // Apply tab filter (All Active, Today, This Week, Inbox, Recurring, Someday, Done) and priority filter.
   let visible=typeof _taskFilter==='function'?universe.filter(_taskFilter):universe.filter(t=>t.status!=='Done'&&t.status!=='Someday');
@@ -5566,7 +5674,7 @@ function saveCluster(id){
   });
   save('clusters');save('tasks');
   closeModal();
-  renderTaskClusters();
+  if(typeof curScreen!=='undefined'&&curScreen==='clusters'&&typeof renderScreen==='function')renderScreen('clusters');else renderTaskClusters();
   toast({type:'success',title:`✓ Cluster saved`,msg:`${projIds.length} project${projIds.length===1?'':'s'} · ${taskIds.length} direct task${taskIds.length===1?'':'s'}`,duration:2500});
 }
 function deleteCluster(id){
@@ -5605,6 +5713,7 @@ function _applyPriorityFilter(tasks){
   if(_taskProjectFilter){
     out=out.filter(t=>{
       const label=t.project||((t.projectId&&(D.projects||[]).find(p=>p.id===t.projectId)||{}).name)||'';
+      if(_taskProjectFilter==='(no project)')return !label;
       return label===_taskProjectFilter;
     });
   }
@@ -5634,6 +5743,7 @@ function _applyPriorityFilter(tasks){
 }
 function setTaskKindFilter(kind){
   _taskKindFilter=kind||null;
+  if(!_taskKindFilter&&!_taskProjectFilter&&!_taskAssigneeFilter)_taskSourceDrill=null;
   if(typeof renderTasks==='function')renderTasks();
 }
 function clearTaskKindFilter(){setTaskKindFilter(null);}
@@ -5642,8 +5752,7 @@ function clearTaskKindFilter(){setTaskKindFilter(null);}
 // the user can fix dates on every project's hidden rows in one place.
 function _drillIntoDatelessTasks(){
   D.prefs=D.prefs||{};
-  D.prefs.taskSourceFilter={personal:true,smartsheet:true,nifty:true};
-  save('prefs');
+  _setSourceDrill({personal:true,smartsheet:true,nifty:true});
   _taskFilterTabIdx=0;
   _taskFilter=t=>true;
   _taskMyOnly=false;
@@ -5659,11 +5768,10 @@ function _drillIntoDatelessTasks(){
 function _ccDrillIntoKind(kind){
   const hat=_ccHat();
   D.prefs=D.prefs||{};
-  if(hat==='cf')D.prefs.taskSourceFilter={personal:false,smartsheet:true,nifty:false};
-  else if(hat==='lsi')D.prefs.taskSourceFilter={personal:false,smartsheet:false,nifty:true};
-  else if(hat==='personal')D.prefs.taskSourceFilter={personal:true,smartsheet:false,nifty:false};
-  else D.prefs.taskSourceFilter={personal:true,smartsheet:true,nifty:true};
-  save('prefs');
+  if(hat==='cf')_setSourceDrill({personal:false,smartsheet:true,nifty:false});
+  else if(hat==='lsi')_setSourceDrill({personal:false,smartsheet:false,nifty:true});
+  else if(hat==='personal')_setSourceDrill({personal:true,smartsheet:false,nifty:false});
+  else _setSourceDrill(null);
   _taskFilterTabIdx=0;
   _taskFilter=t=>true;
   _taskMyOnly=false;
@@ -5675,6 +5783,7 @@ function _ccDrillIntoKind(kind){
 }
 function setTaskProjectFilter(name){
   _taskProjectFilter=name||null;
+  if(!_taskKindFilter&&!_taskProjectFilter&&!_taskAssigneeFilter)_taskSourceDrill=null;
   if(typeof renderTasks==='function')renderTasks();
 }
 function clearTaskProjectFilter(){setTaskProjectFilter(null);}
@@ -5694,14 +5803,13 @@ function _ccDrillIntoAssignee(name){
   _taskProjectFilter=null;
   nav('tasks');
 }
-function clearTaskAssigneeFilter(){_taskAssigneeFilter=null;if(typeof renderTasks==='function')renderTasks();}
+function clearTaskAssigneeFilter(){_taskAssigneeFilter=null;if(!_taskKindFilter&&!_taskProjectFilter)_taskSourceDrill=null;if(typeof renderTasks==='function')renderTasks();}
 function _ccDrillIntoProject(name, source){
   D.prefs=D.prefs||{};
   // Source filter: turn off the irrelevant sources for clarity.
-  if(source==='smartsheet')D.prefs.taskSourceFilter={personal:false,smartsheet:true,nifty:false};
-  else if(source==='nifty')D.prefs.taskSourceFilter={personal:false,smartsheet:false,nifty:true};
-  else D.prefs.taskSourceFilter={personal:true,smartsheet:false,nifty:false};
-  save('prefs');
+  if(source==='smartsheet')_setSourceDrill({personal:false,smartsheet:true,nifty:false});
+  else if(source==='nifty')_setSourceDrill({personal:false,smartsheet:false,nifty:true});
+  else _setSourceDrill({personal:true,smartsheet:false,nifty:false});
   _taskFilterTabIdx=0; // All
   _taskFilter=t=>true;
   _taskMyOnly=false;
@@ -5764,7 +5872,7 @@ function renderTaskRailHTML(){
   const doneToday=allTasks.filter(t=>t.status==='Done'&&_dayOf(t.completedAt)===todayKey).length;
   const myDay=allTasks.filter(t=>t.myDay&&t.status!=='Done').length;
   const overdue=allTasks.filter(t=>t.status!=='Done'&&t.due&&t.due<todayKey).sort((a,b)=>(a.due||'').localeCompare(b.due||''));
-  const focusMins=(D.prefs&&D.prefs.focusMinsToday)||0;
+  const focusMins=typeof _focusMinsToday==='function'?_focusMinsToday():0;
 
   const widgets={
     quickStats:`<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px">
@@ -6500,6 +6608,21 @@ function _extAnnotationChips(ov){
   return bits.length?`<span style="display:inline-flex;gap:3px;align-items:center;flex-wrap:wrap">${bits.join('')}</span>`:'';
 }
 
+// -275: built from the tab switch too (it appeared only on a full render).
+function _todayPlanBannerHtml(){
+    // N: AI Today's Plan banner — only shown when the active filter is the Today tab
+    const isToday=_taskFilterTabIdx===1;
+    if(!isToday)return '';
+    const todayCount=D.tasks.filter(t=>t.status!=='Done'&&(t.due===_todayStr||t.startDate===_todayStr||t.myDay)).length;
+    if(!todayCount)return '';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin:6px 0;background:linear-gradient(90deg,color-mix(in srgb,var(--ac) 14%,transparent),color-mix(in srgb,var(--purp) 14%,transparent));border:1px solid color-mix(in srgb,var(--ac) 30%,var(--bd2));border-radius:8px"><span style="font-size:18px">🧭</span><div style="flex:1"><div style="font-size:11px;font-weight:600">Want a plan for today?</div><div style="font-size:11px;color:var(--t3)">AI ranks your ${todayCount} task${todayCount===1?'':'s'} by impact + energy + deadlines.</div></div><button id="ai-today-plan-btn" class="btn btn-p" style="font-size:11px;height:28px" onclick="aiTodaysPlan()">🧭 Today's Plan</button></div>`;
+}
+function _taskRowMyDay(t){return !!(t&&(t.myDay||(t._override&&t._override.myDay)||(t._ext&&t._ext.override&&t._ext.override.myDay)));}
+function _taskIsInbox(t){
+  if(!t||t.status==='Done'||t.status==='Someday')return false;
+  const s=String(t.status||'').trim();
+  return s===''||s==='Not Started'||/^(to ?do|open|new|backlog|not started)$/i.test(s);
+}
 function renderTasks(){
   // Compute week bounds for This Week filter
   const _twNow=new Date();
@@ -6519,11 +6642,15 @@ function renderTasks(){
     return d>=_twStart&&d<=_twEnd;
   }
   // _todayStr is global
+  // -275: each tab is ONE predicate, used for your tasks and for Nifty /
+  // Atlas rows in List, Cards and every other view (List used a rolling 7
+  // days for external rows and its own Today/Inbox rules).
+  const _tdy=t=>t.status!=='Someday'&&(t.due===_todayStr||t.startDate===_todayStr||_taskRowMyDay(t));
   _taskTabDefs=[
     {label:'All Active',filter:t=>t.status!=='Done'&&t.status!=='Someday'},
-    {label:'Today',filter:t=>t.due===_todayStr||t.startDate===_todayStr,badge:D.tasks.filter(t=>t.due===_todayStr||t.startDate===_todayStr).length||undefined},
-    {label:'This Week',filter:_taskInWeek,badge:D.tasks.filter(_taskInWeek).length||undefined},
-    {label:'Inbox',filter:t=>t.status==='Not Started'},
+    {label:'Today',filter:_tdy,badge:_topLevelTasks(D.tasks).filter(_tdy).length||undefined},
+    {label:'This Week',filter:_taskInWeek,badge:_topLevelTasks(D.tasks).filter(_taskInWeek).length||undefined},
+    {label:'Inbox',filter:_taskIsInbox},
     {label:'Recurring',filter:t=>t.recurring&&t.recurring!=='None'},
     {label:'Someday',filter:t=>t.status==='Someday'},
     {label:'Done',filter:t=>t.status==='Done'},
@@ -6547,8 +6674,8 @@ function renderTasks(){
     const moreLabel=inOverflow?`${cur.icon} ${cur.label} ▾`:'⋯ More ▾';
     return `<div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden">${seg}</div><div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:11px;padding:0 8px;background:${inOverflow?'var(--ac)':''};color:${inOverflow?'#fff':''}" onclick="event.stopPropagation();togglePopMenu('tasks-more-views')">${moreLabel}</button><div id="tasks-more-views" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:140px;box-shadow:0 4px 16px rgba(0,0,0,.35)">${overflow.map(v=>`<button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;background:transparent;border:none;text-align:left;color:${_taskView===v.k?'var(--ach)':'var(--t1)'}" onclick="closePopMenu('tasks-more-views');setTaskView('${_jsAttr(v.k)}')">${v.icon} ${v.label}${_taskView===v.k?' ✓':''}</button>`).join('')}</div></div>`;
   })()}<div style="position:relative;display:inline-block"><button id="bulk-toggle-btn" class="btn btn-s" style="height:28px;font-size:11px" onclick="event.stopPropagation();toggleTaskAIMenu(event)" title="Tools menu">🛠 Tools ▾</button><div id="task-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();toggleBulkMode()">☑ Bulk Select Mode</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ach);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();window._syncDiagnose&&window._syncDiagnose()">🩺 Diagnose sync</button><div style="height:1px;background:var(--bd1);margin:4px 2px"></div><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();aiDecomposeGoal()">🧩 Decompose Goal</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--red);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();aiDeadlineRisk()">⚠️ Risk Check</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ach);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();aiAutoPriority()">✨ Auto-Priority</button><div style="height:1px;background:var(--bd1);margin:4px 2px"></div><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();exportTasks('csv')">⬇ Export CSV</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();exportTasks('html')">📄 Export HTML (Word-ready)</button></div></div><button class="btn btn-p" onclick="openFA('task')">+ Full Add Task</button></div></div>
-  <div id="bulk-action-bar" style="display:none;align-items:center;gap:6px;padding:6px 0;margin-bottom:6px;background:var(--acs);border:1px solid var(--ac);border-radius:6px;padding:6px 10px">
-    <span id="bulk-count" style="font-size:11px;color:var(--ach);font-weight:600;flex:1">0 selected</span>
+  <div id="bulk-action-bar" style="display:${_bulkMode&&_bulkViewOk()?'flex':'none'};align-items:center;gap:6px;padding:6px 0;margin-bottom:6px;background:var(--acs);border:1px solid var(--ac);border-radius:6px;padding:6px 10px">
+    <span id="bulk-count" style="font-size:11px;color:var(--ach);font-weight:600;flex:1">${_bulkSelected.size} selected</span>
     <button class="btn btn-p" style="height:24px;font-size:11px" onclick="bulkAction('done')">✓ Done</button>
     <button class="btn btn-s" style="height:24px;font-size:11px" onclick="bulkAction('someday')">💤 Someday</button>
     <button class="btn btn-s" style="height:24px;font-size:11px" onclick="bulkAction('project')">${_icon('folder',12,'currentColor')} Move</button>
@@ -6573,14 +6700,7 @@ function renderTasks(){
       return `<div style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:color-mix(in srgb,${k.c} 18%,transparent);border:1px solid ${k.c};border-radius:13px;font-size:11px;color:${_luAccentText(k.c)};font-weight:600">${k.e} ${esc(k.l)}<span style="cursor:pointer;font-weight:400" onclick="clearTaskKindFilter()" title="Clear status filter">✕</span></div>`;
     })():''}
   </div>`:''}
-  ${(()=>{
-    // N: AI Today's Plan banner — only shown when the active filter is the Today tab
-    const isToday=_taskTabDefs[1]&&_taskFilter===_taskTabDefs[1].filter;
-    if(!isToday)return '';
-    const todayCount=D.tasks.filter(t=>t.status!=='Done'&&(t.due===_todayStr||t.startDate===_todayStr||t.myDay)).length;
-    if(!todayCount)return '';
-    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin:6px 0;background:linear-gradient(90deg,color-mix(in srgb,var(--ac) 14%,transparent),color-mix(in srgb,var(--purp) 14%,transparent));border:1px solid color-mix(in srgb,var(--ac) 30%,var(--bd2));border-radius:8px"><span style="font-size:18px">🧭</span><div style="flex:1"><div style="font-size:11px;font-weight:600">Want a plan for today?</div><div style="font-size:11px;color:var(--t3)">AI ranks your ${todayCount} task${todayCount===1?'':'s'} by impact + energy + deadlines.</div></div><button id="ai-today-plan-btn" class="btn btn-p" style="font-size:11px;height:28px" onclick="aiTodaysPlan()">🧭 Today's Plan</button></div>`;
-  })()}
+  <div id="today-plan-banner">${_todayPlanBannerHtml()}</div>
   <div id="task-quick-add" style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;margin-bottom:6px">
     <span style="font-size:14px;color:var(--ach)">+</span>
     <!-- Chrome honeypot: a hidden, off-screen email + password pair Chrome

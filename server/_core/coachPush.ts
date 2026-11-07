@@ -33,7 +33,29 @@ export async function getVapidKeys(): Promise<{ publicKey: string; privateKey: s
   return _vapid;
 }
 
+/**
+ * Audit F21: a push "endpoint" is a URL the server POSTs to, so only the real
+ * Web Push services are accepted (https, default port, no credentials):
+ * Chrome/Edge/Android (FCM), Firefox (Mozilla autopush), Windows (WNS) and
+ * Safari/iOS (Apple). Anything else could point the server at an internal
+ * address. Checked when a device subscribes AND again before each send, so a
+ * row stored before this check is skipped.
+ */
+const PUSH_HOSTS_EXACT = new Set(["fcm.googleapis.com", "android.googleapis.com", "updates.push.services.mozilla.com", "web.push.apple.com"]);
+const PUSH_HOST_SUFFIXES = [".push.services.mozilla.com", ".notify.windows.com", ".push.apple.com"];
+export function isAllowedPushEndpoint(endpoint: unknown): boolean {
+  let u: URL;
+  try { u = new URL(String(endpoint ?? "")); } catch { return false; }
+  if (u.protocol !== "https:" || u.username || u.password || (u.port && u.port !== "443")) return false;
+  const h = u.hostname.toLowerCase().replace(/\.$/, "");
+  if (PUSH_HOSTS_EXACT.has(h)) return true;
+  // Google's push hosts are <name>.googleapis.com; only the push ones.
+  if (/^(fcm|android|jmt17|push)[a-z0-9-]*\.googleapis\.com$/.test(h)) return true;
+  return PUSH_HOST_SUFFIXES.some((s) => h.endsWith(s) && h.length > s.length);
+}
+
 export async function savePushSubscription(userId: number, sub: { endpoint: string; p256dh: string; auth: string; userAgent?: string }) {
+  if (!isAllowedPushEndpoint(sub.endpoint)) throw new Error("That push address is not a known push service");
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
   // An endpoint belongs to one browser profile; if another account used it
@@ -64,6 +86,7 @@ export async function sendPushToUser(userId: number, payload: { title: string; b
   let sent = 0, failed = 0; let lastError: string | undefined;
   const body = JSON.stringify({ title: payload.title.slice(0, 120), body: payload.body.slice(0, 240), url: payload.url || "/", tag: payload.tag, id: payload.id });
   for (const s of subs) {
+    if (!isAllowedPushEndpoint(s.endpoint)) { failed++; lastError = "endpoint is not a known push service (skipped)"; continue; }
     try {
       await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, body, { TTL: 6 * 3600, urgency: "normal" });
       sent++;

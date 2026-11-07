@@ -53,6 +53,32 @@ export async function assertPublicUrl(raw: string): Promise<URL> {
   return u;
 }
 
+/**
+ * A bare host name a member supplies for a raw socket connection (the SMTP /
+ * IMAP connection test and mail sending, audit F21) must be on the public
+ * internet: same rules as assertPublicUrl — localhost / .local / .internal
+ * names refused, and EVERY DNS answer must be a public address (loopback,
+ * private, CGNAT, link-local incl. 169.254.169.254 metadata, ULA, multicast
+ * and documentation ranges refused). Returns the vetted addresses; connect
+ * to the first one (with the name kept for TLS) so a second DNS answer can't
+ * swap in an internal address between check and connect.
+ */
+export async function assertPublicHost(rawHost: string): Promise<{ host: string; addresses: string[] }> {
+  const host = String(rawHost || "").trim().replace(/^\[|\]$/g, "").replace(/\.$/, "");
+  if (!host || host.length > 253 || /[\s/@?#]/.test(host)) throw new BlockedUrlError("That isn't a valid server name.");
+  if (/^(localhost|.*\.localhost|.*\.internal|.*\.local)$/i.test(host)) throw new BlockedUrlError("That server is not on the public internet.");
+  const addrs = net.isIP(host) ? [{ address: host }] : await lookup(host, { all: true, verbatim: true }).catch(() => []);
+  if (!addrs.length) throw new BlockedUrlError("That server name could not be found.");
+  if (!addrs.every((a) => isPublicIp(a.address))) throw new BlockedUrlError("That server is not on the public internet.");
+  return { host, addresses: addrs.map((a) => a.address) };
+}
+
+/** assertPublicHost, shaped for a socket client: the address to dial plus the TLS server name. */
+export async function publicConnectTarget(rawHost: string): Promise<{ connectHost: string; servername?: string }> {
+  const { host, addresses } = await assertPublicHost(rawHost);
+  return { connectHost: addresses[0], servername: net.isIP(host) ? undefined : host };
+}
+
 /** fetch() that only ever talks to public addresses, re-checking every redirect. */
 export async function safeFetch(raw: string, init: RequestInit = {}, maxRedirects = 5): Promise<Response> {
   let url = raw;

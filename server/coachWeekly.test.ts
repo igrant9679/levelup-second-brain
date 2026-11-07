@@ -46,11 +46,12 @@ describe("sanitize — replies may do a little more", () => {
     { tool: "delete", args: { entity: "task", id: 11 } },
     { tool: "complete_task", args: { id: 99 } },
   ] });
-  it("lets a reply complete tasks and remember facts, never delete", () => {
+  // -275 (audit F27): an emailed reply may complete tasks but no longer
+  // writes memory (the email body is untrusted text).
+  it("lets a reply complete tasks, never remember or delete", () => {
     const s = sanitize(raw, ids, undefined, "reply")!;
-    expect(s.actions.map((a) => a.tool)).toEqual(["complete_task", "update_task", "remember"]);
+    expect(s.actions.map((a) => a.tool)).toEqual(["complete_task", "update_task"]);
     expect(s.actions[0].args.id).toBe("11");
-    expect(s.actions[2].args).toEqual({ area: "basics", fact: "Off every Friday afternoon" });
     expect(s.dropped!.join(" | ")).toMatch(/would delete.*tool not allowed.*unknown task/);
   });
   it("keeps scheduled check-ins to the old, non-completing list", () => {

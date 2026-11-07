@@ -114,8 +114,12 @@ describe("signed OAuth state", () => {
 
 // ── recipients ────────────────────────────────────────────────────────────
 describe("alternate email recipients", () => {
-  it("are honored only for the owner", async () => {
+  it("are honored only for the owner, once confirmed (-275, audit F29)", async () => {
+    const db = await import("./db");
+    (db.getSystemSetting as any).mockImplementation(async (k: string) => k === "recipientConfirmed:1" ? JSON.stringify([{ email: "assistant@else.com", at: "x" }]) : null);
     expect(await allowedRecipient(OWNER, "assistant@else.com")).toBe("assistant@else.com");
+    expect(await allowedRecipient(OWNER, "unconfirmed@else.com")).toBe("owner@test.com");
+    (db.getSystemSetting as any).mockReset();
     expect(await allowedRecipient(TEAMMATE, "someone@else.com")).toBe("mate@test.com");
     expect(await allowedRecipient(TEAMMATE, "MATE@test.com")).toBe("mate@test.com");
     expect(await allowedRecipient(TEAMMATE, null)).toBe("mate@test.com");

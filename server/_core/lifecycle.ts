@@ -11,7 +11,11 @@
  *   sendLedger releases claims whose email never went out, so the next
  *   instance's tick sends it instead of the day's email being lost.
  * - `isShuttingDown()`: long passes check it between users.
+ * - Since audit F62 a tick also takes the MySQL named lock lu_job_<name>
+ *   (server/_core/dbLock.ts), so two instances never run the same job at once.
  */
+import { withNamedLock } from "./dbLock";
+
 const running = new Set<string>();
 const active = new Set<Promise<unknown>>();
 const cleanups: Array<() => unknown> = [];
@@ -27,7 +31,19 @@ export function job<T>(name: string, fn: () => Promise<T>): Promise<T | undefine
   }
   running.add(name);
   const p = (async () => {
-    try { return await fn(); } finally { running.delete(name); }
+    try {
+      // Cross-instance (audit F62): during a deploy the old and new instance
+      // both tick, and a second replica would too. GET_LOCK on a dedicated
+      // connection, timeout 0 — another instance already running this job
+      // means this tick is skipped. No database to lock with → the
+      // in-process guard above is all there is, and the job runs.
+      const r = await withNamedLock(`lu_job_${name}`, 0, fn);
+      if (r.acquired === false) {
+        console.log(`[${name}] running on another instance — skipping this tick`);
+        return undefined;
+      }
+      return r.value;
+    } finally { running.delete(name); }
   })();
   active.add(p);
   p.then(() => active.delete(p), () => active.delete(p));

@@ -435,6 +435,13 @@
       "when": 1792001100000,
       "tag": "0061_prefs_mediumtext",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "5",
+      "when": 1792001200000,
+      "tag": "0062_secrets_sessions_indexes",
+      "breakpoints": true
     }
   ]
 }

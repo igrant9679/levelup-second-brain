@@ -16,7 +16,8 @@
 //   • AUTONOMY — ask | auto | full, stored as the agent's own flags
 //     (aiAgent.autoWrite / aiAgent.autoDelete) so there is one source of truth.
 //     "full" lets deletes run without a card; every agent delete is snapshotted
-//     into D.prefs.coach.trash so it can be restored after a reload too.
+//     into D.coachTrash (its own synced list since -275, audit F73 — it used to
+//     ride in prefs and add up to ~1.5 MB) so it can be restored after a reload.
 //
 // Everything here wraps app-agent/part1/part2 functions by global
 // reassignment (the same pattern app-agent.js uses on part2). app-agent.js is
@@ -68,9 +69,12 @@ function _coachPrefs(){
   if(!c.profile.fields||typeof c.profile.fields!=='object')c.profile.fields={};
   if(!c.interview||typeof c.interview!=='object')c.interview={};
   if(!c.interview.done||typeof c.interview.done!=='object')c.interview.done={};
-  if(!Array.isArray(c.trash))c.trash=[];
   return c;
 }
+// The assistant's trash (audit F73): D.coachTrash = [{id, ent, item, at, label}],
+// saved with save('coachTrash'). Never D.prefs.coach.trash again.
+function _coachTrash(){if(!Array.isArray(D.coachTrash))D.coachTrash=[];return D.coachTrash;}
+function _coachTrashSave(){try{save('coachTrash');}catch(_){}}
 function _coachSave(){try{save('prefs');}catch(_){}}
 // Autonomy lives in the agent's own flags so the ⚙ popover and this stay in step.
 function _coachAutonomy(){var p=(typeof _agentPrefs==='function')?_agentPrefs():{};return p.autoDelete?'full':(p.autoWrite?'auto':'ask');}
@@ -198,18 +202,20 @@ function _coachSaveList(key){
     try{if(spec&&spec[0]){var r=_agentFind(spec[0],a.id,spec[1]);if(r&&r.item)snap=JSON.parse(JSON.stringify(r.item));}}catch(_){}
     var res=orig(a);
     if(res&&res.ok&&snap){
-      try{var js=JSON.stringify(snap);if(js.length<=COACH_TRASH_ITEM_MAX){var c=_coachPrefs();c.trash.unshift({ent:ent,item:snap,at:new Date().toISOString(),label:String(snap.title||snap.name||snap.payee||ent)});c.trash=c.trash.slice(0,COACH_TRASH_MAX);_coachSave();res.summary+=' (restorable: Settings → AI Coach)';}}catch(_){}
+      try{var js=JSON.stringify(snap);if(js.length<=COACH_TRASH_ITEM_MAX){var tr=_coachTrash();tr.unshift({id:'ct_'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),ent:ent,item:snap,at:new Date().toISOString(),label:String(snap.title||snap.name||snap.payee||ent)});if(tr.length>COACH_TRASH_MAX)tr.splice(COACH_TRASH_MAX);_coachTrashSave();res.summary+=' (restorable: Settings → AI Coach)';}}catch(_){}
     }
     return res;
   };
 })();
-function coachTrashRestore(i){
-  var c=_coachPrefs();var t=c.trash[i];if(!t)return;
+function coachTrashRestore(ref){
+  // by id (the list syncs between devices, so a position can point at another item)
+  var tr=_coachTrash();var i=tr.findIndex(function(x){return x&&String(x.id)===String(ref);});
+  if(i<0&&typeof ref==='number')i=ref;var t=tr[i];if(!t)return;
   var spec=_coachListFor(t.ent);if(!spec||!spec[0]){toast('Cannot restore that kind of item here.');return;}
   var list=spec[0];
   if(list.some(function(x){return String(x.id)===String(t.item.id);})){toast('It is already back.');}
   else{list.push(t.item);_coachSaveList(spec[2]);}
-  c.trash.splice(i,1);_coachSave();
+  tr.splice(i,1);_coachTrashSave();
   try{renderScreen(curScreen);}catch(_){}
   _coachRenderSettings();
   toast('Restored '+t.ent+' "'+t.label+'"');
@@ -476,12 +482,13 @@ function _coachRenderSettings(){
   var fieldsHtml=fk.length?fk.map(function(k){return '<div style="display:flex;gap:8px;align-items:center;font-size:12px;padding:3px 0"><span style="color:var(--t3);min-width:110px">'+esc(k)+'</span><span style="flex:1">'+esc(fields[k])+'</span><button class="btn btn-s" style="height:22px;font-size:10.5px;padding:0 7px" onclick="_coachSetField(\''+k+'\',\'\');_coachRenderSettings()">✕</button></div>';}).join(''):'';
   var by={};c.profile.facts.forEach(function(f){(by[f.area]=by[f.area]||[]).push(f);});
   var factsHtml=Object.keys(by).length?Object.keys(by).map(function(a){var lab=(COACH_AREAS.find(function(x){return x.id===a;})||{label:a}).label;
-    return '<div style="margin:8px 0 2px;font-size:10.5px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">'+esc(lab)+'</div>'+by[a].slice().reverse().map(function(f){return '<div style="display:flex;gap:8px;align-items:flex-start;font-size:12px;padding:3px 0"><span style="flex:1;line-height:1.4">'+esc(f.text)+'</span><button class="btn btn-s" style="height:22px;font-size:10.5px;padding:0 7px;flex:none" title="Forget this" onclick="_coachForget(\''+f.id+'\');_coachRenderSettings()">✕</button></div>';}).join('');}).join('')
+    return '<div style="margin:8px 0 2px;font-size:10.5px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">'+esc(lab)+'</div>'+by[a].slice().reverse().map(function(f){return '<div style="display:flex;gap:8px;align-items:flex-start;font-size:12px;padding:3px 0"><span style="flex:1;line-height:1.4">'+esc(f.text)+(_coachLooksImperative(f.text)?'<br><span style="color:var(--warn);font-size:11px">⚠ Reads like an instruction to the assistant, not a fact about you. It goes into every conversation — remove it unless you wrote it.</span>':'')+'</span><button class="btn btn-s" style="height:22px;font-size:10.5px;padding:0 7px;flex:none" title="Forget this" onclick="_coachForget(\''+f.id+'\');_coachRenderSettings()">✕</button></div>';}).join('');}).join('')
     :'<div style="font-size:12px;color:var(--t3)">Nothing yet. The coach learns as you talk to it — or run the interview.</div>';
   var addHtml='<div style="display:flex;gap:6px;margin-top:10px"><select id="coach-add-area" class="inp" style="height:28px;font-size:12px;max-width:150px">'+COACH_AREAS.map(function(a){return '<option value="'+a.id+'">'+esc(a.label)+'</option>';}).join('')+'</select><input id="coach-add-fact" class="inp" style="height:28px;font-size:12px;flex:1" placeholder="Tell the coach something about you…" onkeydown="if(event.key===\'Enter\')coachAddFact()"><button class="btn btn-p" style="height:28px;font-size:11.5px" onclick="coachAddFact()">Add</button></div>';
   var intHtml='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">'+COACH_AREAS.map(function(a){var d=c.interview.done[a.id];return '<span style="font-size:11px;padding:3px 8px;border-radius:10px;background:'+(d?'color-mix(in srgb,#10b981 18%,var(--s3))':'var(--s3)')+';color:'+(d?'#10b981':'var(--t2)')+'">'+(d?'✓ ':'')+esc(a.label)+'</span>';}).join('')+'</div>'+
     '<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-p" style="height:28px;font-size:11.5px" onclick="coachStart(\'interview\')">'+(pr.done?(pr.done<pr.total?'Continue the interview':'Talk it through again'):'Start the interview')+'</button>'+(pr.done?'<button class="btn btn-s" style="height:28px;font-size:11.5px" onclick="coachResetInterview()">Restart from scratch</button>':'')+'</div>';
-  var trashHtml=c.trash.length?c.trash.map(function(t,i){return '<div style="display:flex;gap:8px;align-items:center;font-size:12px;padding:3px 0"><span style="color:var(--t3);min-width:80px">'+esc(t.ent)+'</span><span style="flex:1">'+esc(t.label)+'</span><span style="color:var(--t3);font-size:11px">'+esc(String(t.at).slice(0,10))+'</span><button class="btn btn-s" style="height:22px;font-size:10.5px;padding:0 8px" onclick="coachTrashRestore('+i+')">Restore</button></div>';}).join('')
+  var trash=_coachTrash();
+  var trashHtml=trash.length?trash.map(function(t,i){return '<div style="display:flex;gap:8px;align-items:center;font-size:12px;padding:3px 0"><span style="color:var(--t3);min-width:80px">'+esc(t.ent)+'</span><span style="flex:1">'+esc(t.label)+'</span><span style="color:var(--t3);font-size:11px">'+esc(String(t.at).slice(0,10))+'</span><button class="btn btn-s" style="height:22px;font-size:10.5px;padding:0 8px"'+_act('coachTrashRestore',[t.id!=null?t.id:i])+'>Restore</button></div>';}).join('')
     :'<div style="font-size:12px;color:var(--t3)">Nothing deleted by the assistant.</div>';
   body.innerHTML=
     '<div id="coach-checkins-card"></div>'+
@@ -513,11 +520,27 @@ var COACH_SLOTS_C=[{id:'morning',icon:'☀️',label:'Morning plan',time:'07:30'
 var COACH_SCHEDULED_TOOLS=['update_task','block_time','create_task','add_subtasks','move_to_cluster']; // mirrors server/_core/coachCron.ts
 // Round two (-220): once a week each, on their own day (0=Sun … 6=Sat), plus
 // two unscheduled kinds — a money alert, and the coach's answer to an email
-// reply. A reply is the user asking, so it may also complete a task and
-// remember a fact (COACH_REPLY_TOOLS, mirrors the server). Never delete.
+// reply. A reply is the user asking, so it may also complete a task
+// (COACH_REPLY_TOOLS, mirrors the server). Never delete. A "remember" on a
+// reply or delegate message (older servers sent them) is never applied on its
+// own — it waits for the user's tap (audit F27), whatever the autonomy.
 var COACH_WEEKLY_C=[{id:'weekly',icon:'📅',label:'Weekly plan',time:'18:00',day:0},{id:'money',icon:'💰',label:'Money check-in',time:'10:00',day:6}];
 var COACH_KIND_META={moneyalert:{id:'moneyalert',icon:'⚠️',label:'Money alert',time:''},reply:{id:'reply',icon:'✉️',label:'Coach reply',time:''},delegate:{id:'delegate',icon:'🤝',label:'Delegate update',time:''}};
 var COACH_REPLY_TOOLS=COACH_SCHEDULED_TOOLS.concat(['complete_task','remember']);
+/** Facts that read like orders to the assistant ("always…", "ignore…", "you
+ *  must…", "do not ask…") — text lifted from an email or a document, not
+ *  something about the user (audit F27). Shown with a warning; never silent. */
+function _coachLooksImperative(text){
+  var t=String(text||'').replace(/\s+/g,' ').trim();if(!t)return false;
+  return /^(please\s+)?(always|never|ignore|disregard|forget|do not|don't|dont|stop|make sure|remember to|from now on|you must|you should|you need)\b/i.test(t)
+    ||/\b(ignore|disregard|override|bypass)\b[^.]{0,40}\b(instructions?|rules?|prompts?|above|previous|prior|settings?|approvals?)\b/i.test(t)
+    ||/\byou\s+(must|should|need to|have to|are to|will always|shall)\b/i.test(t)
+    ||/\b(do not|don't|never|no need to)\s+(ask|confirm|check|tell|warn|mention|notify)\b/i.test(t)
+    ||/\bwithout\s+(asking|confirm(ing|ation)?|approval|telling)\b/i.test(t)
+    ||/\b(the\s+)?(assistant|coach|ai|claude|chatgpt|model|bot)\s+(must|should|will|shall|is to|has to|needs to)\b/i.test(t)
+    ||/\b(system prompt|new instructions|developer mode|jailbreak)\b/i.test(t)
+    ||/\balways\b/i.test(t);
+}
 // A delegate's "done" (PM module, -222) proposes completing the task: same list as a reply.
 function _coachToolsFor(kind){return kind==='reply'||kind==='delegate'?COACH_REPLY_TOOLS:COACH_SCHEDULED_TOOLS;}
 function _coachSafeActions(msg){
@@ -577,7 +600,9 @@ function _coachRenderCheckins(){
     '<div style="margin-bottom:10px"><div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Send them by</div>'+
       chk(k.channels.inapp!==false,'coachCkChannel(\'inapp\',this.checked)','In-app message')+chk(k.channels.email!==false,'coachCkChannel(\'email\',this.checked)','Email')+
       chk(pushOn,'coachCkPushToggle(this.checked)','Phone push')+
-      '<div id="coach-push-line" style="font-size:11px;color:var(--t3);margin-top:2px"></div></div>'+
+      '<div id="coach-push-line" style="font-size:11px;color:var(--t3);margin-top:2px"></div>'+
+      '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px"><span style="font-size:11.5px;color:var(--t3)">Email them to</span><input id="coach-ck-recipient" type="email" class="inp" aria-label="Check-in email address" placeholder="your account address" value="'+esc(k.recipientEmail||'')+'" style="height:28px;font-size:12px;width:min(260px,100%)" onchange="coachCkRecipient(this.value)"></div>'+
+      '<div id="coach-recipient-line" style="font-size:11px;color:var(--t3);margin-top:2px"></div></div>'+
     '<div style="margin-bottom:10px">'+slots+'</div>'+
     '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:12px"><span style="font-size:11.5px;color:var(--t3);margin-right:4px">On these days</span>'+days+
       '<span style="font-size:11.5px;color:var(--t3);margin-left:12px">Pause until</span><input type="date" class="inp" value="'+(k.pausedUntil||'')+'" style="height:28px;font-size:12px;width:150px" onchange="coachCkPause(this.value)">'+(k.pausedUntil?'<button class="btn btn-s" style="height:26px;font-size:11px" onclick="coachCkPause(\'\')">Resume</button>':'')+'</div>'+
@@ -589,6 +614,34 @@ function _coachRenderCheckins(){
   '</div>';
   _coachRenderCheckinStatus();
   try{if(typeof _coachRenderPushLine==='function')_coachRenderPushLine();}catch(_){}
+  _coachRenderRecipientLine();
+}
+// ─── a different check-in address must be confirmed (audit F29) ────────────
+// The server sends to prefs.coach.checkins.recipientEmail only once someone
+// clicked the confirmation link emailed to it (and only for the owner);
+// until then check-ins go to the account address.
+function coachCkRecipient(v){
+  var k=_coachCheckins();v=String(v||'').trim().toLowerCase();
+  if(v&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)){toast('That does not look like an email address');return;}
+  k.recipientEmail=v||null;_coachSaveNow();_coachRenderRecipientLine();
+}
+async function _coachRenderRecipientLine(){
+  var el=document.getElementById('coach-recipient-line');if(!el)return;
+  var k=_coachCheckins(),email=String(k.recipientEmail||'').trim().toLowerCase();
+  if(!email){el.textContent='Check-ins go to your account address.';return;}
+  var s=null;try{s=await _trpc('coach.recipients.status',undefined,'query');}catch(_){}
+  el=document.getElementById('coach-recipient-line');if(!el)return;
+  if(!s){el.textContent='Could not check this address right now.';return;}
+  if(s.account&&String(s.account).toLowerCase()===email){el.textContent='That is your account address.';return;}
+  if(!s.owner){el.textContent='Only the workspace owner can send check-ins to another address — they go to your account address.';return;}
+  var ok=(s.confirmedEmails||[]).indexOf(email)>=0;
+  el.innerHTML=ok?'<span style="color:var(--ok)">✓ '+esc(email)+' is confirmed</span>':
+    '<span style="color:var(--warn)">'+esc(email)+' is unconfirmed</span> — check-ins go to your account address until it is. <button type="button" class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px"'+_act('coachSendRecipientConfirm',[email])+'>Send confirmation link</button>';
+}
+async function coachSendRecipientConfirm(email){
+  try{var r=await _trpc('coach.recipients.sendConfirm',{email:String(email||''),kind:'coach'},'mutation');
+    toast('✉️ Confirmation link sent to '+((r&&r.sentTo)||email)+' — open it from that inbox');}
+  catch(e){toast('Could not send: '+String(e&&e.message||e).slice(0,140));}
 }
 async function _coachRenderCheckinStatus(){
   var el=document.getElementById('coach-ck-status');if(!el)return;
@@ -621,13 +674,17 @@ function _coachSyncCalendar(){
 function _coachTranscriptIndex(id){var h=_aiChatHistory();for(var i=h.length-1;i>=0;i--){if(h[i]&&h[i].coachId===id)return i;}return -1;}
 async function coachLoadInbox(){
   if(_coachDelivering)return;
-  var res;try{res=await _trpc('coach.inbox',{limit:20},'query');}catch(_){return;}
+  var res;try{res=await _trpc('coach.inbox',{limit:50},'query');}catch(_){return;}
   if(!Array.isArray(res))return;
   _coachInbox=res;
   _coachDelivering=true;
   var newest=null;
   try{
-    var fresh=res.filter(function(m){return Date.now()-_pd(m.createdAt).getTime()<36*3600e3;}).slice().reverse();
+    // Audit F217: anything still owed is delivered whatever its age — unread
+    // messages and ones whose changes were never applied (a delegate's "done"
+    // carrying complete_task, seen days later). Older read+settled ones stay out
+    // (a cleared transcript doesn't refill).
+    var fresh=res.filter(_coachOwed).slice().reverse();
     for(var i=0;i<fresh.length;i++){var d=await _coachDeliver(fresh[i]);if(d&&fresh[i].status==='new')newest=fresh[i];}
   }finally{_coachDelivering=false;}
   if(newest&&_coachCheckins().channels.inapp!==false&&!_coachDeepLink)_coachToast(newest);
@@ -635,17 +692,24 @@ async function coachLoadInbox(){
   try{if(typeof updateSidebarBadges==='function')updateSidebarBadges();}catch(_){}
   try{if(document.getElementById('coach-hero'))_coachInjectHero();}catch(_){}
 }
+function _coachOwed(m){return !!m&&(Date.now()-_pd(m.createdAt).getTime()<36*3600e3||m.status==='new'||m.applyState==='pending');}
 // Returns true when this call newly added the message to the transcript.
 async function _coachDeliver(msg){
   if(_coachTranscriptIndex(msg.id)>=0)return false;
   var meta=_coachSlotMeta(msg.kind);
   var entry={role:'assistant',content:'**'+meta.icon+' '+meta.label+' — '+msg.title+'**\n\n'+msg.body,coachId:msg.id,coachKind:msg.kind,ask:null,pending:null,actions:null,ts:_pd(msg.createdAt).getTime()||Date.now()};
   var safe=_coachSafeActions(msg);
-  var summary=null;
+  var summary=null,memEntry=null;
   if(safe.length&&msg.applyState==='pending'){
     var claimed=false;try{var cr=await _trpc('coach.claimApply',{id:msg.id},'mutation');claimed=!!(cr&&cr.claimed);}catch(_){}
     if(claimed){
-      if(_coachAutonomy()==='ask'){entry.pending=safe.map(function(a){return {tool:a.tool,args:a.args||{},why:a.why||''};});}
+      // Audit F27: memory from an emailed reply / a delegate's message waits for a tap.
+      var mem=(msg.kind==='reply'||msg.kind==='delegate')?safe.filter(function(a){return a.tool==='remember';}):[];
+      if(mem.length){safe=safe.filter(function(a){return a.tool!=='remember';});
+        memEntry={role:'assistant',content:'From that email I could remember:\n\n'+mem.map(function(a){var f=String((a.args||{}).fact||(a.args||{}).text||'');return '- '+f+(_coachLooksImperative(f)?' ⚠ *reads like an instruction, not a fact about you*':'');}).join('\n')+'\n\nApprove only what you said yourself.',coachId:null,coachMemOf:msg.id,coachKind:msg.kind,ask:null,actions:null,ts:entry.ts+1,
+          pending:mem.map(function(a){return {tool:a.tool,args:a.args||{},why:a.why||'from an email'};})};}
+      if(!safe.length){}
+      else if(_coachAutonomy()==='ask'){entry.pending=safe.map(function(a){return {tool:a.tool,args:a.args||{},why:a.why||''};});}
       else{
         entry.actions=safe.map(function(a){var r=_agentExec({tool:a.tool,args:a.args||{}});return {tool:a.tool,args:a.args,ok:!!r.ok,summary:r.ok?r.summary:(r.error||'failed'),ref:r.ref||null,undo:r.undo||null};});
         summary=entry.actions.map(function(a){return (a.ok?'✓ ':'✗ ')+a.summary;}).join('\n');
@@ -656,6 +720,7 @@ async function _coachDeliver(msg){
   // An email reply: show what they wrote, then the coach's answer.
   if(msg.kind==='reply'&&msg.userText)_agentPush({role:'user',content:'✉️ '+msg.userText,coachReplyOf:msg.id,ts:entry.ts-1});
   _agentPush(entry);
+  if(memEntry)_agentPush(memEntry);
   try{var p=document.getElementById('ai-panel');if(p&&p.classList.contains('show'))_renderAIChatHistory();}catch(_){}
   return true;
 }
@@ -725,10 +790,20 @@ function _coachStartPolling(){
   if(_coachPollTimer)return;
   _coachPollTimer=setInterval(function(){
     if(document.visibilityState!=='visible')return;
-    var k=_coachCheckins();if(!k.enabled)return;
+    if(!_coachShouldPoll())return;
     _coachSyncCalendar();coachLoadInbox();
   },3*60*1000);
-  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'&&_coachCheckins().enabled){_coachSyncCalendar();coachLoadInbox();}});
+  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'&&_coachShouldPoll()){_coachSyncCalendar();coachLoadInbox();}});
+}
+/** Poll while check-ins are on OR something is handed off and a delegate may
+ *  reply (audit F217 — delegate updates were only fetched with check-ins on). */
+function _coachShouldPoll(){
+  try{if(_coachCheckins().enabled)return true;}catch(_){}
+  return _coachHasOpenDelegations();
+}
+function _coachHasOpenDelegations(){
+  try{if(typeof PM!=='undefined'&&PM&&PM.loaded&&typeof pmRecs==='function')return pmRecs('delegation').some(function(r){return r.status!=='done'&&r.status!=='cancelled';});}catch(_){}
+  try{return (D.tasks||[]).some(function(t){return t&&t.delegatedTo&&!(typeof _isExtDone==='function'?_isExtDone(t.status):/^done$/i.test(String(t.status||'')));});}catch(_){return false;}
 }
 // ─── phone push (build -213) ───────────────────────────────────────────────
 // Each device subscribes on its own (Settings → AI Coach → Phone push). The

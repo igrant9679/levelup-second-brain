@@ -35,7 +35,7 @@ const WIDGET_TEMPLATES=[
   {id:'t-focus-spark',label:'⏱ Focus total (sparkline)',w:{title:'Focus This Period',source:'focus',filter:{},groupBy:'day(date)',metric:'sum(mins)',viz:'sparkline',color:'#a855f7',sizeW:6}},
   {id:'t-projects-status',label:'📁 Projects by status',w:{title:'Projects by Status',source:'projects',filter:{},groupBy:'status',metric:'count',viz:'donut',color:'#a855f7',sizeW:6}},
   {id:'t-ideas-stage',label:'💡 Ideas by stage',w:{title:'Ideas Pipeline',source:'ideas',filter:{},groupBy:'stage',metric:'count',viz:'donut',color:'#eab308',sizeW:6}},
-  {id:'t-habits-heat',label:'🔥 Habit consistency (heatmap)',w:{title:'Daily Habit Activity',source:'habits',filter:{},groupBy:'_total',metric:'count',viz:'kpi',color:'#10b981',sizeW:3}},
+  {id:'t-habits-heat',label:'🔥 Habit check-ins (total)',w:{title:'Daily Habit Activity',source:'habits',filter:{},groupBy:'_total',metric:'count',viz:'kpi',color:'#10b981',sizeW:3}},
   // ── Cross-source command-center widgets ────────────────────────────────────
   // These use the `allTasks` source (native + Smartsheet + Nifty) so a single
   // widget surfaces "what's on Idris's plate across CF + LSI + Personal".
@@ -120,7 +120,7 @@ const WIDGET_SOURCES={
   tasks:    {arr:()=>D.tasks||[],     dateField:'completedAt',label:'Tasks'},
   habits:   {arr:()=>D.habits||[],    dateField:null,         label:'Habits'},
   goals:    {arr:()=>D.goals||[],     dateField:'createdAt',  label:'Goals'},
-  journal:  {arr:()=>D.journal||[],   dateField:'date',       label:'Journal'},
+  journal:  {arr:()=>(D.journal||[]).map(j=>{const d=typeof _journalDayOf==='function'?_journalDayOf(j):'';return d&&d!==j.date?Object.assign({},j,{date:d}):j;}),dateField:'date',label:'Journal'},
   projects: {arr:()=>D.projects||[],  dateField:null,         label:'Projects'},
   ideas:    {arr:()=>D.ideas||[],     dateField:'createdAt',  label:'Ideas'},
   bookmarks:{arr:()=>D.bookmarks||[], dateField:null,         label:'Bookmarks'},
@@ -152,15 +152,29 @@ const WIDGET_SOURCES={
         // completedAt = LevelUp-side first-seen-as-done timestamp (or null
         // when still open). Drives "Tasks Completed (by day)" rollups.
         completedAt:done?(et.completedAt||et.fetchedAt||null):null,
-        project:et.projectLabel||(et.source==='smartsheet'?'CF':'LSI'),
+        project:et.projectLabel||(et.source==='smartsheet'?'CF':et.source==='nifty'?'LSI':String(et.source||'External')),
         assignee:et.assignee,
         myDay:!!ov.myDay,
         _source:et.source,
-        _sourceLabel:et.source==='smartsheet'?'CF':'LSI',
+        _sourceLabel:et.source==='smartsheet'?'CF':et.source==='nifty'?'LSI':String(et.source||'External'),
       };
     });
-    return local.concat(ext);
-  },dateField:'completedAt',label:'All tasks (Personal + CF + LSI)'},
+    // CommunityForce work lives in Atlas since -223 (-275: it was missing here).
+    const atlas=[];
+    if(D.atlas&&Array.isArray(D.atlas.activities)){
+      const projName={};(D.atlas.projects||[]).forEach(p=>{if(p)projName[String(p.id)]=p.name||'';});
+      const ST={todo:'Not Started',doing:'In Progress',blocked:'Blocked',done:'Done'};
+      const ymd=v=>/^\d{4}-\d{2}-\d{2}/.test(String(v||''))?String(v).slice(0,10):'';
+      D.atlas.activities.forEach(x=>{
+        if(!x||!(x.subtask||x.task))return;
+        const done=x.status==='done';
+        atlas.push({id:'atlas:'+x.id,title:x.subtask||x.task,status:ST[x.status]||'Not Started',priority:x.priority||'Medium',
+          due:ymd(x.dueDate),completedAt:done?(x.completedAt||x.updatedAt||null):null,project:projName[String(x.projectId)]||'CF',
+          assignee:x.ownerText||'',myDay:false,_source:'atlas',_sourceLabel:'CF'});
+      });
+    }
+    return local.concat(ext,atlas);
+  },dateField:'completedAt',label:'All tasks (Personal + CF (Atlas) + LSI)'},
   // Time entries source — every completed timer in the last 90d. Normalised
   // so a widget can groupBy day/week/project/source and metric=sum(mins).
   // Joins to D.tasks for project + title; falls back to externalTasks for
@@ -223,11 +237,11 @@ const WIDGET_SOURCES={
         due:ov.localDue||et.due,
         startDate:et.startDate,
         completedAt:done?(et.completedAt||et.fetchedAt||null):null,
-        project:et.projectLabel||(et.source==='smartsheet'?'CF':'LSI'),
+        project:et.projectLabel||(et.source==='smartsheet'?'CF':et.source==='nifty'?'LSI':String(et.source||'External')),
         assignee:et.assignee||'(unassigned)',
         myDay:!!ov.myDay,
         source:et.source,                                          // 'smartsheet' | 'nifty'
-        sourceLabel:et.source==='smartsheet'?'CF':'LSI',
+        sourceLabel:et.source==='smartsheet'?'CF':et.source==='nifty'?'LSI':String(et.source||'External'),
         hasPendingPush:!!(ov.pendingStatus),
       };
     });
@@ -396,7 +410,7 @@ function _renderWidget(w,idx){
   }else if(w.viz==='donut'){
     const total=data.values.reduce((a,b)=>a+(Number(b)||0),0)||1;
     let acc=0;
-    const palette=[color,'#3b82f6','#a855f7','#22c55e','#f59e0b','#ef4444','#06b6d4','#ec4899'];
+    const palette=[color].concat(['#3b82f6','#a855f7','#22c55e','#f59e0b','#ef4444','#06b6d4','#ec4899','#64748b'].filter(c=>c.toLowerCase()!==String(color||'').toLowerCase()));
     const stops=data.labels.map((k,i)=>{const v=data.values[i]||0;const start=acc/total*100;acc+=v;const end=acc/total*100;return `${palette[i%palette.length]} ${start}% ${end}%`;}).join(',');
     body=`<div style="display:flex;gap:14px;align-items:center"><div class="lu-donut" style="background:conic-gradient(${stops});width:90px;height:90px;border-radius:50%;flex-shrink:0;mask:radial-gradient(circle,transparent 36%,#000 38%);-webkit-mask:radial-gradient(circle,transparent 36%,#000 38%)"></div><div style="flex:1;display:flex;flex-direction:column;gap:4px;font-size:11px">${data.labels.map((k,i)=>`<div style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;background:${palette[i%palette.length]};border-radius:2px;flex-shrink:0"></span><span style="flex:1;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(k)}</span><strong>${data.values[i]}</strong></div>`).join('')||'<div style="color:var(--t3)">No data</div>'}</div></div>`;
   }else if(w.viz==='table'){
@@ -1642,6 +1656,15 @@ function _archiveItems(){
   (D.notes||[]).forEach(n=>{if(n.archived)items.push({type:'Note',id:n.id,title:n.title||'(untitled note)',date:(n.updated||n.createdAt||''),restore:'note'});});
   return items.sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
 }
+// -275: clicking an archived item's title opens it; it used to reopen a
+// completed task (clearing completedAt) with no confirmation.
+function archiveOpen(type,id){
+  const pick=(arr)=>(arr||[]).find(x=>String(x.id)===String(id));
+  if(type==='task'){const t=pick(D.tasks);if(t&&typeof openDrawer==='function')openDrawer('task',t);}
+  else if(type==='project'){const p=pick(D.projects);if(p&&typeof openDrawer==='function')openDrawer('project',p);}
+  else if(type==='goal'){const g=pick(D.goals);if(g&&typeof openDrawer==='function')openDrawer('goal',g);}
+  else if(type==='note'){const n=pick(D.notes);if(n){nav('notes');setTimeout(()=>{if(typeof showNoteInEditor==='function')showNoteInEditor(n.id);},200);}}
+}
 function archiveRestore(type,id){
   if(type==='task'){const t=D.tasks.find(x=>x.id===id);if(t){setTaskStatus(t,'Not Started');toast('↩ Task reopened');}}
   else if(type==='project'){const p=D.projects.find(x=>x.id===id);if(p){p.archived=false;save('projects');toast('↩ Project restored');}}
@@ -1660,7 +1683,7 @@ function renderArchive(){
   const typeColors={Task:'var(--ac)',Project:'var(--purp)',Goal:'var(--red)',Note:'var(--ok)'};
   const rows=items.length?items.map(i=>`<div class="lr">
     <span style="font-size:11px;font-weight:700;padding:2px 6px;border-radius:4px;background:var(--s3);color:${typeColors[i.type]||'var(--t3)'}">${i.type}</span>
-    <span class="rt" style="cursor:pointer" onclick="archiveRestore('${_jsAttr(i.restore)}',${_tidLit(i.id)})" title="Open / restore">${esc(i.title)}</span>
+    <span class="rt" style="cursor:pointer"${_act('archiveOpen',[i.restore,i.id])} title="Open">${esc(i.title)}</span>
     <span class="rm">${fmt(i.date)||'<span style="color:var(--t3)">—</span>'}</span>
     <span class="acts"><button class="btn btn-s" style="height:20px;font-size:10px;padding:0 8px" onclick="archiveRestore('${_jsAttr(i.restore)}',${_tidLit(i.id)})">${i.type==='Goal'?'Open':'↩ Restore'}</button></span>
   </div>`).join(''):`<div style="text-align:center;padding:36px 16px;color:var(--t3);font-size:12px">Nothing archived${_archiveTab!=='All'?` in ${_archiveTab}s`:''}${_archiveSearch?' matching your search':''}. Completed tasks, archived projects, finished goals and archived notes appear here.</div>`;
@@ -1673,9 +1696,9 @@ function renderArchive(){
 function renderMyDay(){
 // Restore the user's last subnav choice; default to Execute (most-used view).
 const _mdSec=(D.prefs&&D.prefs.myDaySection)||'e';
-$('myday-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('sun',22,'var(--page-accent)')}Today</h1><p style="font-size:12px;color:var(--t2)">${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · ${D.tasks.filter(t=>t.myDay).length} selected</p>${_focusViewTabs('myday')}</div><div style="display:flex;gap:4px"><button class="btn btn-s" onclick="startFreshMyDay()" title="Clear all My Day flags and start fresh for today">🔄 Start Fresh</button><button class="btn btn-s" onclick="D.tasks.forEach(t=>t.myDay=false);save('tasks');renderScreen('myday')">Clear All</button><button class="btn btn-p" onclick="openFA('task')">+ Full Add</button></div></div>
+$('myday-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('sun',22,'var(--page-accent)')}Today</h1><p style="font-size:12px;color:var(--t2)">${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · ${_topLevelTasks(D.tasks).filter(t=>t.myDay).length} selected</p>${_focusViewTabs('myday')}</div><div style="display:flex;gap:4px"><button class="btn btn-s" onclick="startFreshMyDay()" title="Clear all My Day flags and start fresh for today">🔄 Start Fresh</button><button class="btn btn-s" onclick="D.tasks.forEach(t=>t.myDay=false);save('tasks');renderScreen('myday')">Clear All</button><button class="btn btn-p" onclick="openFA('task')">+ Full Add</button></div></div>
 <div id="md-p" style="display:${_mdSec==='p'?'':'none'}">${_renderCapacityIndicator()}<div class="sec-h" style="display:flex;align-items:center;justify-content:space-between"><span>📋 Plan — Select tasks for today</span><div style="display:flex;gap:5px"><button class="btn btn-s" style="font-size:11px;height:24px;color:var(--purp);border-color:var(--purp)" onclick="aiSmartSchedule()" title="AI builds a time-blocked schedule that respects your calendar + peak focus hours">🧠 AI Smart Plan</button><button class="btn btn-s" style="font-size:11px;height:24px" onclick="scheduleMyDay()" title="Linear auto-assign (basic) — ignores calendar events">🗓 Basic Schedule</button></div></div>
-<div class="cd">${D.tasks.filter(t=>t.status!=='Done').map(t=>`<div class="lr" onclick="openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))"><div class="chk ${t.myDay?'on':''}" onclick="event.stopPropagation();D.tasks.find(x=>x.id==${_tidLit(t.id)}).myDay=!D.tasks.find(x=>x.id==${_tidLit(t.id)}).myDay;save('tasks');renderScreen('myday')"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${t.context}</span><span style="cursor:pointer;font-size:12px" title="Toggle My Day">${t.myDay?'☀️':'○'}</span></div>`).join('')}</div></div>
+<div class="cd">${_topLevelTasks(D.tasks).filter(t=>t.status!=='Done').map(t=>`<div class="lr" onclick="openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))"><div class="chk ${t.myDay?'on':''}" onclick="event.stopPropagation();D.tasks.find(x=>x.id==${_tidLit(t.id)}).myDay=!D.tasks.find(x=>x.id==${_tidLit(t.id)}).myDay;save('tasks');renderScreen('myday')"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${t.context}</span><span style="cursor:pointer;font-size:12px" title="Toggle My Day">${t.myDay?'☀️':'○'}</span></div>`).join('')}</div></div>
 <div id="md-e" style="display:${_mdSec==='e'?'':'none'}">
 <div id="pomo-bar" style="background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
   <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
@@ -1702,9 +1725,9 @@ $('myday-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1
 <div id="md-exec-summary">${getMdExecSummary('all')}</div><div id="md-exec-list">${renderMdExecList('all')}</div></div>
 <div id="md-w" style="display:${_mdSec==='w'?'':'none'}"><div class="sec-h" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap"><span>🌙 Wrap-Up</span><span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-s" onclick="_luCopyStandup()" title="Yesterday, today and blockers, ready to paste into Slack, Teams or email">📋 Copy as standup</button><button class="btn btn-s" onclick="nav('standup')">See the standup</button></span></div>
 <div class="g3" style="margin-bottom:12px">
-  <div class="stat"><div class="stat-n" style="color:var(--ok)">${D.tasks.filter(t=>t.status==='Done'&&t.completedAt&&_dayOf(t.completedAt)===_todayStr).length}</div><div class="stat-l">Done today</div></div>
-  <div class="stat"><div class="stat-n" style="color:var(--warn)">${D.tasks.filter(t=>t.myDay&&t.status!=='Done').length}</div><div class="stat-l">Carried over</div></div>
-  <div class="stat"><div class="stat-n" style="color:var(--ach)">${Math.floor((D.prefs&&D.prefs.focusMinsToday||0)/60)+'h '+(D.prefs&&D.prefs.focusMinsToday||0)%60+'m'}</div><div class="stat-l">Focus time</div></div>
+  <div class="stat"><div class="stat-n" style="color:var(--ok)">${_topLevelTasks(D.tasks).filter(t=>t.status==='Done'&&t.completedAt&&_dayOf(t.completedAt)===_todayStr).length}</div><div class="stat-l">Done today</div></div>
+  <div class="stat"><div class="stat-n" style="color:var(--warn)">${_topLevelTasks(D.tasks).filter(t=>t.myDay&&t.status!=='Done').length}</div><div class="stat-l">Carried over</div></div>
+  <div class="stat"><div class="stat-n" style="color:var(--ach)">${Math.floor(_focusMinsToday()/60)+'h '+_focusMinsToday()%60+'m'}</div><div class="stat-l">Focus time</div></div>
 </div>
 <div class="cd">
   <div style="font-size:12px;font-weight:600;margin-bottom:8px">📝 Daily Reflection</div>
@@ -1836,7 +1859,7 @@ function saveWrapUp(){
     improve?'**What could be improved:**\n'+improve:'',
     tomorrow?'**Top priority for tomorrow:**\n'+tomorrow:'',
     '---',
-    '🍅 Focus sessions today: '+(D.prefs&&D.prefs.focusMinsToday||0)+' mins',
+    '🍅 Focus sessions today: '+_focusMinsToday()+' mins',
     '✅ Tasks done: '+D.tasks.filter(t=>t.status==='Done'&&_dayOf(t.completedAt)===_todayStr).length,
     '⏳ Carried over: '+D.tasks.filter(t=>t.myDay&&t.status!=='Done').length,
   ].filter(Boolean).join('\n\n');
@@ -1968,8 +1991,11 @@ function pomoToggle(){
   } else {
     _pomoRunning=true;
     if(btn)btn.textContent='⏸ Pause';
+    // -275: the end time is fixed when the timer starts or resumes; each tick
+    // reads the clock (a counter drifted or stalled in a background tab).
+    const _pomoEnd=Date.now()+_pomoSecs*1000;
     _pomoInterval=setInterval(()=>{
-      _pomoSecs--;
+      _pomoSecs=Math.max(0,Math.round((_pomoEnd-Date.now())/1000));
       _pomoUpdateDisplay();
       if(_pomoSecs<=0){
         clearInterval(_pomoInterval);
@@ -1982,9 +2008,8 @@ function pomoToggle(){
             const t=D.tasks.find(x=>x.id===_pomoTaskId);
             if(t&&t.status!=='Done'){const tid=_pomoTaskId;setTimeout(()=>toast({type:'info',title:'Session done on "'+t.title+'"',msg:'Is the task finished?',duration:9000,actions:[{label:'✓ Mark done',primary:true,onClick:()=>toggleTask(tid)}]}),400);}
           }
-          // Log focus time to D.prefs
+          // Log focus time to D.prefs (today = focusLog[today]; -275)
           D.prefs=D.prefs||{};
-          D.prefs.focusMinsToday=(D.prefs.focusMinsToday||0)+Math.round(_pomoTotal/60);
           // Record in 7-day rolling log
           const _today=_ymd(new Date());
           D.prefs.focusLog=D.prefs.focusLog||{};
@@ -2064,9 +2089,12 @@ function renderMyWeek(){
   }
   // Unscheduled tasks (no startDate, not done)
   const unscheduled=D.tasks.filter(t=>!t.startDate&&!t.due&&t.status!=='Done').slice(0,10);
+  // -275: overdue = due before TODAY (and before this week); viewing a
+  // future week flagged every earlier task as overdue.
+  const _todayYmd=_ymd(new Date());
   const overdue=D.tasks.filter(t=>{
-    const td=t.startDate||t.due||'';
-    return td&&td<weekStart&&t.status!=='Done';
+    const td=t.due||t.startDate||'';
+    return td&&td<weekStart&&td<_todayYmd&&t.status!=='Done';
   });
   const colHtml=days.map((d,i)=>{
     const ds=fmt(d);
@@ -2147,7 +2175,7 @@ function renderMyYear(){
   const journalCount=D.journal.length;
   const topStreak=D.habits.reduce((b,h)=>h.streak>b.streak?h:b,{streak:0,title:'—',icon:''});
   const focusLog=D.prefs&&D.prefs.focusLog||{};
-  const totalFocusMins=Object.values(focusLog).reduce((s,v)=>s+v,0)+(D.prefs.focusMinsToday||0);
+  const totalFocusMins=Object.values(focusLog).reduce((s,v)=>s+v,0); // focusLog already holds today (-275)
 
   // Goal timeline
   const goalTimeline=D.goals.map(g=>{
@@ -2267,7 +2295,7 @@ function _gtdBuckets(){
   const me=D.creds.userName||'Idris Grant';
   const today=_todayStr;
   const snoozed=t=>t.snoozeUntil&&String(t.snoozeUntil).slice(0,10)>=today&&t.status!=='Done';
-  const delegated=t=>t.status!=='Done'&&(t.status==='Delegated'||!!t.delegatedTo||(t.assignedTo&&t.assignedTo!==me));
+  const delegated=t=>t.status!=='Done'&&(t.status==='Delegated'||!!t.delegatedTo||_isAssignedElsewhere(t));
   const dated=t=>!!(t.due||t.startDate);
   return {
     Inbox:t=>t.status==='Not Started'&&!dated(t)&&!delegated(t)&&!snoozed(t)&&!t.myDay,
@@ -2282,10 +2310,24 @@ function _gtdBuckets(){
 function setProcessGtdTab(tab){_processGtdTab=tab;renderProcess();}
 // Triage actions — these are what "feed" each bucket.
 function gtdDoNext(id){const t=D.tasks.find(x=>x.id===id);if(!t)return;t.myDay=true;t.snoozeUntil='';if(t.status==='Someday'||t.status==='Not Started')setTaskStatus(t,'In Progress',{noSave:true});save('tasks');renderProcess();toast('⚡ Moved to Do Next');}
-function gtdSchedule(id){const t=D.tasks.find(x=>x.id===id);if(!t)return;const v=prompt('Schedule for (YYYY-MM-DD):',t.due||_ymd(new Date()));if(!v)return;t.due=v.trim();t.snoozeUntil='';if(t.status==='Not Started'||t.status==='Someday')setTaskStatus(t,'In Progress',{noSave:true});save('tasks');renderProcess();toast('📅 Scheduled for '+t.due);}
+// -275: Schedule picks a real date (a typed prompt accepted any text), and
+// Send to Inbox says what it clears and asks first.
+function gtdSchedule(id){const t=D.tasks.find(x=>x.id===id);if(!t)return;
+  const m=document.getElementById('modal-content');const bg=document.getElementById('modal-capture');
+  if(!m||!bg){const v=prompt('Schedule for (YYYY-MM-DD):',t.due||_ymd(new Date()));if(v&&/^\d{4}-\d{2}-\d{2}$/.test(v.trim()))_gtdScheduleApply(id,v.trim());else if(v)toast('Use the format YYYY-MM-DD');return;}
+  m.innerHTML='<div style="padding:16px;max-width:360px"><h2 style="font-size:14px;font-weight:600;margin-bottom:10px">\ud83d\udcc5 Schedule \u201c'+esc(String(t.title||'').slice(0,60))+'\u201d</h2>'
+    +'<div class="field"><label for="gtd-sched-date">Date</label><input type="date" class="inp" id="gtd-sched-date" value="'+esc(t.due||_ymd(new Date()))+'"></div>'
+    +'<div class="dr-actions"><button class="btn btn-p"'+_act('_gtdScheduleFromModal',[String(id)])+'>Schedule</button><button class="btn btn-s" onclick="closeModal()">Cancel</button></div></div>';
+  bg.classList.add('show');setTimeout(()=>{const i=document.getElementById('gtd-sched-date');if(i)i.focus();},60);
+}
+function _gtdScheduleFromModal(id){const v=(document.getElementById('gtd-sched-date')||{}).value;if(!v){toast('Pick a date');return;}closeModal();_gtdScheduleApply(D.tasks.find(x=>String(x.id)===String(id))?.id,v);}
+function _gtdScheduleApply(id,v){const t=D.tasks.find(x=>x.id===id);if(!t)return;t.due=v;t.snoozeUntil='';if(t.status==='Not Started'||t.status==='Someday')setTaskStatus(t,'In Progress',{noSave:true});save('tasks');renderProcess();toast('📅 Scheduled for '+t.due);}
 function gtdSomeday(id){const t=D.tasks.find(x=>x.id===id);if(!t)return;setTaskStatus(t,'Someday',{noSave:true});t.myDay=false;t.snoozeUntil='';save('tasks');renderProcess();toast('🗓 Moved to Someday');}
 function gtdDone(id){const t=D.tasks.find(x=>x.id===id);if(!t)return;setTaskStatus(t,'Done');renderProcess();toast('✓ Done');}
-function gtdToInbox(id){const t=D.tasks.find(x=>x.id===id);if(!t)return;setTaskStatus(t,'Not Started',{noSave:true});t.myDay=false;t.snoozeUntil='';t.due='';t.startDate='';t.assignedTo='';save('tasks');renderProcess();toast('📥 Back to Inbox');}
+function gtdToInbox(id){const t=D.tasks.find(x=>x.id===id);if(!t)return;
+  const lose=[t.due&&('due '+t.due),t.startDate&&('start '+t.startDate),t.assignedTo&&('assigned to '+t.assignedTo)].filter(Boolean);
+  if(lose.length&&!confirm('Send "'+String(t.title||'').slice(0,60)+'" back to the Inbox?\n\nThis clears: '+lose.join(', ')+'.'))return;
+  setTaskStatus(t,'Not Started',{noSave:true});t.myDay=false;t.snoozeUntil='';t.due='';t.startDate='';t.assignedTo='';save('tasks');renderProcess();toast('📥 Back to Inbox');}
 function renderProcess(){
   const sparkIdeas=(D.ideas||[]).filter(x=>x.stage==='spark');
   const _gtdB=_gtdBuckets();
@@ -2305,7 +2347,7 @@ function renderProcess(){
     Done:'Completed tasks.',
   };
   if(!_gtdB[_processGtdTab])_processGtdTab='Inbox';
-  const bucketTasks=D.tasks.filter(_gtdB[_processGtdTab]);
+  const bucketTasks=_topLevelTasks(D.tasks).filter(_gtdB[_processGtdTab]);
   function gtdRow(t){
     const inbox=_processGtdTab==='Inbox';
     const acts=inbox
@@ -2323,7 +2365,7 @@ function renderProcess(){
     return `<div class="gtd-item">${taskRow(t,false)}<div class="gtd-acts">${acts}</div></div>`;
   }
   const tabBarG=`<div class="tabs gtd-tabs">${_gtdOrder.map(name=>{
-    const n=D.tasks.filter(_gtdB[name]).length;
+    const n=_topLevelTasks(D.tasks).filter(_gtdB[name]).length;
     return `<div class="tab ${_processGtdTab===name?'on':''}" onclick="setProcessGtdTab('${name.replace(/'/g,"\\'")}')">${_gtdIcons[name]} ${name==='Delegated'?'Waiting on':name}${n?` <span class="tc">${n}</span>`:''}</div>`;
   }).join('')}</div>`;
   const emptyMsg={
@@ -2360,9 +2402,9 @@ ${tabBarG}
         </div>
       </div>`;
     }).join('')}`;
-  const inbox=D.tasks.filter(_gtdB.Inbox).length;
+  const inbox=_topLevelTasks(D.tasks).filter(_gtdB.Inbox).length;
   const today=_todayStr;
-  const overdueProc=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<today).length;
+  const overdueProc=_topLevelTasks(D.tasks).filter(t=>t.status!=='Done'&&t.due&&t.due<today).length;
   $('process-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px">
     <div>
       <h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('zap',22,'var(--page-accent)')}Process (GTD)</h1>
@@ -2378,6 +2420,7 @@ ${tabBarG}
   ${_processTab==='tasks'?tasksHtml:ideasHtml}`;
 }
 // ====== FOCUS / POMODORO ======
+let _focusLen=25*60;
 let _focusTimer=null,_focusSecsLeft=25*60,_focusRunning=false,_focusSessions=JSON.parse(localStorage.getItem('lu_focus_sessions')||'[]'),_focusTaskId=null;
 function renderFocus(){
   const el=$('focus-main');
@@ -2410,9 +2453,9 @@ function renderFocus(){
   <div style="display:flex;gap:8px;justify-content:center;margin-bottom:20px">
     <button class="btn btn-p" style="padding:10px 24px;font-size:14px" onclick="toggleFocusTimer()">${_focusRunning?'⏸ Pause':'▶ Start'}</button>
     <button class="btn btn-s" onclick="resetFocusTimer()">↺ Reset</button>
-    <button class="btn btn-s" onclick="_focusSecsLeft=5*60;renderFocus()">5 min</button>
-    <button class="btn btn-s" onclick="_focusSecsLeft=15*60;renderFocus()">15 min</button>
-    <button class="btn btn-s" onclick="_focusSecsLeft=25*60;renderFocus()">25 min</button>
+    <button class="btn btn-s" onclick="_focusSecsLeft=_focusLen=5*60;renderFocus()">5 min</button>
+    <button class="btn btn-s" onclick="_focusSecsLeft=_focusLen=15*60;renderFocus()">15 min</button>
+    <button class="btn btn-s" onclick="_focusSecsLeft=_focusLen=25*60;renderFocus()">25 min</button>
   </div>
   <div style="margin-bottom:20px">
     <label style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Focusing on task</label>
@@ -2455,21 +2498,24 @@ function toggleFocusTimer(){
     renderFocus();
   } else {
     _focusRunning=true;
+    if(!_focusLen||_focusSecsLeft>_focusLen)_focusLen=_focusSecsLeft;
     renderFocus();
+    const _focusEnd=Date.now()+_focusSecsLeft*1000;
     _focusTimer=setInterval(()=>{
-      _focusSecsLeft--;
+      _focusSecsLeft=Math.max(0,Math.round((_focusEnd-Date.now())/1000));
       const mins=Math.floor(_focusSecsLeft/60),secs=_focusSecsLeft%60;
       const clk=document.getElementById('focus-clock');
       if(clk)clk.textContent=String(mins).padStart(2,'0')+':'+String(secs).padStart(2,'0');
       const ring=document.getElementById('focus-ring');
-      const pct=Math.round((1-_focusSecsLeft/(25*60))*100);
+      const pct=Math.round((1-_focusSecsLeft/(_focusLen||25*60))*100);
       if(ring)ring.style.strokeDashoffset=553-(553*pct/100);
       if(_focusSecsLeft<=0){
         clearInterval(_focusTimer);
         _focusRunning=false;
         const task=_focusTaskId?D.tasks.find(t=>t.id===_focusTaskId):null;
-        if(task){task.timeSpent=(task.timeSpent||0)+25;save('tasks');}
-        const sess={id:Date.now(),date:_todayStr,time:new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}),mins:25,taskId:_focusTaskId,taskTitle:task?task.title:'Free focus'};
+        const _len=Math.max(1,Math.round((_focusLen||25*60)/60));
+        if(task){task.timeSpent=(task.timeSpent||0)+_len;save('tasks');}
+        const sess={id:Date.now(),date:_ymd(new Date()),time:new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}),mins:_len,taskId:_focusTaskId,taskTitle:task?task.title:'Free focus'};
         _focusSessions.push(sess);
         localStorage.setItem('lu_focus_sessions',JSON.stringify(_focusSessions));
         // Update focusLog for heatmap and persist to server via save('prefs')
@@ -2478,9 +2524,8 @@ function toggleFocusTimer(){
         D.prefs.focusByHour=D.prefs.focusByHour||{};
         const _hh=new Date().getHours();
         D.prefs.focusByHour[_hh]=(D.prefs.focusByHour[_hh]||0)+sess.mins;
-        D.prefs.focusMinsToday=(D.prefs.focusMinsToday||0)+sess.mins;
         save('prefs');
-        _focusSecsLeft=25*60;
+        _focusSecsLeft=_focusLen||25*60;
         toast('🍅 Focus session complete! Great work.');
         renderFocus();
       }
@@ -2518,6 +2563,34 @@ function _habitScheduledDays(h){
   }
   return null;
 }
+// Minutes focused today, from the day log (focusMinsToday was a counter that
+// never reset, so "today" showed a lifetime total) (-275).
+function _focusMinsToday(){const l=D.prefs&&D.prefs.focusLog;return (l&&Number(l[_ymd(new Date())]))||0;}
+// ── Habit reminders (build -275) ───────────────────────────────────────────
+// A habit's Reminder time was stored and never used. Once a minute: an active
+// habit scheduled today, not done yet, whose time passed in the last 15
+// minutes, gets one reminder per day on this device (toast, plus a system
+// notification when the browser allows it).
+function _habitReminderTick(){
+  try{
+    if(!Array.isArray(D.habits)||!D.habits.length)return;
+    const now=new Date(),today=_ymd(now),mins=now.getHours()*60+now.getMinutes();
+    D.habits.forEach(h=>{
+      if(!h||!h.reminderTime||h.status==='Archived'||h.status==='Paused')return;
+      const m=String(h.reminderTime).match(/^(\d{1,2}):(\d{2})/);if(!m)return;
+      const at=(+m[1])*60+(+m[2]);if(mins<at||mins-at>15)return;
+      const sched=typeof _habitScheduledDays==='function'?_habitScheduledDays(h):null;
+      if(sched&&!sched.has(now.getDay()))return;
+      if((h.completedDates||[]).includes(today))return;
+      const key='lu_habit_rem_'+h.id+'_'+today;
+      try{if(localStorage.getItem(key))return;localStorage.setItem(key,'1');}catch(_){return;}
+      const title='Habit reminder: '+String(h.title||'habit');
+      if(typeof toast==='function')toast({type:'info',title,msg:'Tick it off when it\'s done.',duration:8000,actions:[{label:'Open Habits',primary:true,onClick:()=>nav('habits')}]});
+      try{if(window.Notification&&Notification.permission==='granted'&&document.visibilityState!=='visible')new Notification(title,{body:'Due at '+h.reminderTime,tag:key});}catch(_){}
+    });
+  }catch(e){console.warn('[habits] reminder check failed',e);}
+}
+if(!window._luHabitRemTimer){window._luHabitRemTimer=setInterval(_habitReminderTick,60000);setTimeout(_habitReminderTick,15000);}
 function cadencePerWeek(cadence){
   if(!cadence||cadence==='Daily')return 7;
   if(cadence==='Weekdays')return 5;
@@ -4222,7 +4295,7 @@ function aiWellbeingReport(){
   // Habits this week
   const habitScore=D.habits.length?Math.round(D.habits.reduce((sum,h)=>{
     const done=(h.completedDates||[]).filter(d=>weekDates.includes(d)).length;
-    const target=h.frequency==='Daily'?7:h.frequency==='3x/week'?3:h.frequency==='Weekly'?1:7;
+    const target=Math.max(1,cadencePerWeek(h.cadence||h.frequency));
     return sum+(done/target);
   },0)/D.habits.length*100):0;
   // Journal mood this week
@@ -4779,7 +4852,7 @@ function renderCoach(){
 
   // Focus
   const focusLog=D.prefs&&D.prefs.focusLog||{};
-  const focusToday=D.prefs&&D.prefs.focusMinsToday||0;
+  const focusToday=_focusMinsToday();
   const focusWeek=Object.entries(focusLog).filter(([d])=>d>=weekStart&&d<=weekEnd).reduce((s,[,v])=>s+v,0); // focusLog already holds today (no +focusMinsToday)
   const focusAvgDay=weekTasks.length?Math.round(focusWeek/7):0;
 

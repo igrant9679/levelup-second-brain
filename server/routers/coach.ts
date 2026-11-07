@@ -10,7 +10,10 @@
  *   coach.status       — AI provider, timezone in use, today's runs, push
  *                        devices, the email-reply mailbox (-220)
  *   coach.checkReplies — read the reply mailbox now instead of waiting ≤3 min
- *   coach.pushKey / pushSubscribe / pushUnsubscribe / pushTest — web push (-213)
+ *   coach.pushKey / pushSubscribe / pushUnsubscribe / pushTest — web push (-213);
+ *                        pushSubscribe takes only real push services (audit F21)
+ *   coach.recipients.status / .sendConfirm — alternate addresses + their
+ *                        confirmation links (audit F29, routers/recipients.ts)
  *
  * Check-in SETTINGS are client-owned (prefs.coach.checkins, saved with prefs);
  * the server only reads them, so there is no savePrefs here on purpose.
@@ -25,9 +28,10 @@ import { COACH_KIND_LABELS, COACH_SLOTS, COACH_SLOT_IDS, localNow, processCoachC
 import { coachReplyStatus, getReplyInboxAddress, pollCoachReplies } from "../_core/coachReplies";
 import { resolveWorkspaceAI } from "../_core/workspaceAI";
 // Importing coachPush also registers it as the check-ins' push channel.
-import { countPushSubscriptions, getVapidKeys, removePushSubscription, savePushSubscription, sendPushToUser } from "../_core/coachPush";
+import { countPushSubscriptions, getVapidKeys, isAllowedPushEndpoint, removePushSubscription, savePushSubscription, sendPushToUser } from "../_core/coachPush";
 import { spendQuota } from "../_core/quota";
 import { assertOwner } from "../_core/ownerGuard";
+import { recipientsRouter } from "./recipients";
 
 async function requireDb() {
   const db = await getDb();
@@ -128,11 +132,18 @@ export const coachRouter = router({
 
   pushSubscribe: protectedProcedure
     .input(z.object({ endpoint: z.string().url().max(512), p256dh: z.string().min(10).max(255), auth: z.string().min(4).max(255), userAgent: z.string().max(255).optional() }))
-    .mutation(async ({ ctx, input }) => { await savePushSubscription(ctx.user.id, input); return { ok: true }; }),
+    .mutation(async ({ ctx, input }) => {
+      // Audit F21: only real Web Push services (the server POSTs to this URL).
+      if (!isAllowedPushEndpoint(input.endpoint)) throw new TRPCError({ code: "BAD_REQUEST", message: "That push address is not a known push service." });
+      await savePushSubscription(ctx.user.id, input); return { ok: true };
+    }),
 
   pushUnsubscribe: protectedProcedure
     .input(z.object({ endpoint: z.string().max(512) }))
     .mutation(async ({ ctx, input }) => { await removePushSubscription(ctx.user.id, input.endpoint); return { ok: true }; }),
+
+  /** Alternate addresses and their confirmation links (audit F29): coach.recipients.status / .sendConfirm */
+  recipients: recipientsRouter,
 
   pushTest: protectedProcedure.mutation(async ({ ctx }) => {
     const r = await sendPushToUser(ctx.user.id, { title: "🧭 LevelUp coach", body: "Push works on this device. Check-ins will arrive here.", url: "/", tag: "coach-test" });

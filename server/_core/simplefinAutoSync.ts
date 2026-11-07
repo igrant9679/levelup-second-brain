@@ -15,11 +15,10 @@
  *
  * Mirrors the client's sfSync semantics exactly: dedupe key 's:'+id,
  * category RULES applied (first payee-substring match), cleared:true,
- * balance = abs(reported), 7-day re-pull overlap. The blob is re-read
- * immediately before writing to keep the read-modify-write window small
- * (whole-blob saves from a live client can still race it — same
- * characteristic every finance write has; the overnight schedule makes
- * it a non-issue in practice).
+ * balance = abs(reported), 7-day re-pull overlap. The merge runs on the
+ * current budget under a row lock (SELECT … FOR UPDATE in a transaction,
+ * audit F61) and bumps _rev, so neither a co-editor's save nor the owner's
+ * own (financeBaseRev, -266) can be lost to — or overwrite — the sync.
  */
 
 import { eq } from "drizzle-orm";
@@ -27,6 +26,7 @@ import { getDb } from "../db";
 import { billReconcile } from "./billSchedule";
 import { userAppData } from "../../drizzle/schema";
 import { job } from "./lifecycle";
+import { userNow, userTz } from "./userTime";
 
 interface PullResult { linked: number; added: number; balances: number; }
 
@@ -49,8 +49,18 @@ export function safeRuleRegex(src: string): RegExp | null {
 /**
  * Merge one SimpleFIN /accounts payload into a finance object, in place.
  * Pure given its inputs — exported for tsx unit tests.
+ *
+ * - `tz` (audit F196): a transaction's day is its posted time on the
+ *   OWNER's clock (prefs.coach.tz via userTz) — toISOString's UTC day put an
+ *   evening purchase on the next day. Callers without a zone get UTC (old
+ *   behaviour).
+ * - Each new transaction keeps the bank's own text in `rawDesc` (audit
+ *   F185), and category rules are tested against BOTH the payee and that
+ *   description: a match on either files it. The in-app re-runs test the
+ *   stored payee, so a rule written against either text now behaves the
+ *   same on sync and in the app.
  */
-export function mergeSimplefinPull(fin: any, sfAccounts: any[], nowYmd: string): PullResult {
+export function mergeSimplefinPull(fin: any, sfAccounts: any[], nowYmd: string, tz = "UTC"): PullResult {
   const res: PullResult = { linked: 0, added: 0, balances: 0 };
   if (!fin || typeof fin !== 'object') return res;
   fin.accounts = Array.isArray(fin.accounts) ? fin.accounts : [];
@@ -69,17 +79,19 @@ export function mergeSimplefinPull(fin: any, sfAccounts: any[], nowYmd: string):
     }
     return d.includes(m.toLowerCase());
   };
-  const applyRules = (desc: string): string | null => {
-    const d = String(desc || '').toLowerCase();
-    if (!d) return null;
-    const hit = rules.find(r => ruleTest(r, d));
+  /** First rule matching ANY of the texts (payee, bank description). */
+  const applyRules = (...texts: string[]): string | null => {
+    const ds = texts.map((t) => String(t || '').toLowerCase()).filter(Boolean);
+    if (!ds.length) return null;
+    const hit = rules.find(r => ds.some((d) => ruleTest(r, d)));
     return hit ? hit.catId : null;
   };
   const tsToDate = (v: any): string | null => {
     const n = Number(v);
     if (!n || !isFinite(n)) return null;
     const d = new Date(n > 1e12 ? n : n * 1000);
-    return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+    if (isNaN(d.getTime())) return null;
+    try { return userNow(tz, d).ymd; } catch { return d.toISOString().slice(0, 10); }
   };
   const seen = new Set<string>();
   fin.transactions.forEach((t: any) => { const b = t.bankTxId || t.sophtronId; if (b) seen.add('s:' + b); });
@@ -109,12 +121,15 @@ export function mergeSimplefinPull(fin: any, sfAccounts: any[], nowYmd: string):
       if (seen.has(key)) continue;
       seen.add(key);
       const desc = String(t.description || t.payee || t.memo || '').slice(0, 300);
+      const payee = String(t.payee || desc).slice(0, 120);
+      const rawDesc = String(t.description || '').slice(0, 300);
       const amount = isFinite(Number(t.amount)) ? Number(t.amount) : 0;
-      const catId = applyRules(desc) || (amount > 0 ? 'inc-other' : 'misc-other');
+      const catId = applyRules(payee, rawDesc || desc) || (amount > 0 ? 'inc-other' : 'misc-other');
       const memo = t.memo ? String(t.memo).slice(0, 200) : '';
       fin.transactions.push({
         id: 'sf-' + id, bankTxId: id, date,
-        payee: String(t.payee || desc).slice(0, 120), catId,
+        payee, catId,
+        ...(rawDesc ? { rawDesc } : {}),
         accountId: acct.id, notes: (memo && memo !== desc) ? memo : '',
         amount, cleared: true,
       });
@@ -201,17 +216,23 @@ export async function runSimplefinAutoSync(opts?: { userId?: number; force?: boo
       const payload = await sfGet(accessUrl, { "start-date": String(Math.floor(startMs / 1000)) });
       const sfAccounts = Array.isArray(payload?.accounts) ? payload.accounts : [];
 
-      // Re-read the blob right before writing to shrink the race window.
-      const [fresh] = await db.select({ finance: userAppData.finance }).from(userAppData).where(eq(userAppData.userId, row.userId)).limit(1);
-      let cur: any; try { cur = JSON.parse((fresh as any)?.finance || 'null'); } catch { cur = null; }
-      if (!cur || typeof cur !== 'object') { out.skipped++; continue; }
-      const nowYmd = new Date().toISOString().slice(0, 10);
-      const res = mergeSimplefinPull(cur, sfAccounts, nowYmd);
-      const billsPaid = reconcileBills(cur, nowYmd);
-      cur.settings = cur.settings && typeof cur.settings === 'object' ? cur.settings : {};
-      cur.settings._autoSyncLastAt = new Date().toISOString();
-      cur._rev = (Number(cur._rev) || 0) + 1; // shared co-editors must reload before writing
-      await db.update(userAppData).set({ finance: JSON.stringify(cur) }).where(eq(userAppData.userId, row.userId));
+      // Merge into the CURRENT budget under a row lock (audit F61): the row is
+      // read with SELECT … FOR UPDATE in a transaction and written before the
+      // lock is released, so an edit saved meanwhile is never overwritten.
+      const merged = await lockedFinanceMerge(db, row.userId, (cur, prefs) => {
+        // The owner's clock (audit F196): transaction days and "today" for
+        // bills are local days, not UTC.
+        const tz = userTz(prefs);
+        const nowYmd = userNow(tz).ymd;
+        const res = mergeSimplefinPull(cur, sfAccounts, nowYmd, tz);
+        const billsPaid = reconcileBills(cur, nowYmd);
+        cur.settings = cur.settings && typeof cur.settings === 'object' ? cur.settings : {};
+        cur.settings._autoSyncLastAt = new Date().toISOString();
+        cur._rev = (Number(cur._rev) || 0) + 1; // shared co-editors must reload before writing
+        return { res, billsPaid };
+      });
+      if (!merged) { out.skipped++; continue; }
+      const { res, billsPaid } = merged;
       out.synced++; out.added += res.added;
       const errs = (Array.isArray(payload?.errors) ? payload.errors : []).map((e: any) => String(e).slice(0, 120));
       console.log(`[simplefin-sync] user ${row.userId}: ${res.linked} accounts, +${res.added} tx, ${res.balances} balances${billsPaid ? `, ${billsPaid} bills auto-marked paid` : ''}${errs.length ? ' · bridge says: ' + errs.join(' | ') : ''}`);
@@ -221,6 +242,25 @@ export async function runSimplefinAutoSync(opts?: { userId?: number; force?: boo
     }
   }
   return out;
+}
+
+/**
+ * Read the user's Money (and prefs, for the time zone) with SELECT … FOR
+ * UPDATE inside a transaction, let `fn` change the budget in place, and write
+ * it back before the lock is released. null when there is no budget.
+ */
+async function lockedFinanceMerge<T>(db: any, userId: number, fn: (fin: any, prefs: any) => T): Promise<T | null> {
+  const run = async (tx: any) => {
+    const q = tx.select({ finance: userAppData.finance, prefs: userAppData.prefs }).from(userAppData).where(eq(userAppData.userId, userId)).limit(1);
+    const [fresh] = typeof q.for === 'function' ? await q.for('update') : await q;
+    let cur: any; try { cur = JSON.parse((fresh as any)?.finance || 'null'); } catch { cur = null; }
+    if (!cur || typeof cur !== 'object') return null;
+    let prefs: any = null; try { prefs = JSON.parse((fresh as any)?.prefs || 'null'); } catch { prefs = null; }
+    const result = fn(cur, prefs);
+    await tx.update(userAppData).set({ finance: JSON.stringify(cur), updatedAt: new Date() }).where(eq(userAppData.userId, userId));
+    return result;
+  };
+  return typeof db.transaction === 'function' ? db.transaction(run) : run(db);
 }
 
 let _started = false;

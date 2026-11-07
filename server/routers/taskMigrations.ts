@@ -24,6 +24,36 @@ async function requireDb() {
   return db;
 }
 
+/**
+ * Fields a promoted subtask inherits from its parent (audit F96). They were
+ * written only to the table columns, but the client reads tasks from `raw`,
+ * so promoted subtasks showed with no priority, due date, project, cluster or
+ * assignee. Copied into raw exactly as the parent's raw holds them.
+ */
+export const INHERITED_SUBTASK_FIELDS = [
+  'priority', 'due', 'startDate', 'project', 'projectId', 'clusterId',
+  'assignee', 'assignees', 'assigneeNames', 'primaryAssigneeId', 'assignedTo', 'assigneeId',
+] as const;
+
+/** The raw JSON of a subtask promoted from parent raw `praw`. */
+export function promotedSubtaskRaw(praw: Record<string, any>, st: JsonSubtask, childTaskId: string, parentTaskId: string, index: number): Record<string, any> {
+  const out: Record<string, any> = {};
+  for (const k of INHERITED_SUBTASK_FIELDS) {
+    if (praw[k] !== undefined && praw[k] !== null && praw[k] !== '') out[k] = Array.isArray(praw[k]) ? praw[k].slice() : praw[k];
+  }
+  return {
+    ...out,
+    id: childTaskId,
+    title: st.title,
+    status: st.done ? 'Done' : 'Not Started',
+    done: !!st.done,
+    ...(st.done ? { completedAt: new Date().toISOString() } : {}),
+    descHtml: st.descHtml ?? null,
+    parentTaskId,
+    _promotedFromSubtaskIndex: index,
+  };
+}
+
 interface JsonSubtask {
   id?: number | string;
   title?: string;
@@ -86,21 +116,14 @@ export const taskMigrationsRouter = router({
             createdBy: parent.createdBy,
             parentTaskId: parent.taskId,
             recurrenceRule: null,
-            raw: JSON.stringify({
-              id: childTaskId,
-              title: st.title,
-              status: st.done ? 'Done' : 'Not Started',
-              done: !!st.done,
-              descHtml: st.descHtml ?? null,
-              parentTaskId: parent.taskId,
-              _promotedFromSubtaskIndex: i,
-            }),
+            raw: JSON.stringify(promotedSubtaskRaw(raw as Record<string, any>, st, childTaskId, parent.taskId, i)),
           });
           subtasksPromoted++;
           i++;
         }
 
-        // Stamp the parent so a re-run skips it.
+        // Stamp the parent so a re-run skips it — and so the client can hide
+        // the "Promote legacy subtasks" button (it reads parent._subtasksPromotedAt).
         const updatedRaw = { ...raw, _subtasksPromotedAt: new Date().toISOString() };
         await db.update(tasksTable)
           .set({ raw: JSON.stringify(updatedRaw) })

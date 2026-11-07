@@ -27,6 +27,8 @@ import { startSimplefinAutoSyncCron } from "./simplefinAutoSync";
 import { startAutomationCron } from "./automationEngine";
 import { startBackupCron } from "./backup";
 import { installShutdown } from "./lifecycle";
+import { installBodyParsers } from "./bodyLimits";
+import { registerFileRoutes } from "./fileProxy";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -74,11 +76,13 @@ async function startServer() {
     if (req.secure) res.setHeader("Strict-Transport-Security", "max-age=15552000");
     next();
   });
-  // Configure body parser with larger size limit for file uploads
-  // Body limit ~200mb so a 100MB import file (base64 encoded ~133MB) fits.
-  app.use(express.json({ limit: "200mb" }));
-  app.use(express.urlencoded({ limit: "200mb", extended: true }));
+  // Body parsers (audit F22): 1 MB unless the request carries a valid session
+  // cookie; signed-in requests keep ~200 MB (a 100 MB import is ~133 MB of
+  // base64, appData.save sends lists up to ~16M chars). See bodyLimits.ts.
+  installBodyParsers(app, (req) => sdk.hasValidSessionCookie(req));
   registerStorageProxy(app);
+  // Private uploads, signed-in only (audit F35).
+  registerFileRoutes(app);
   registerOAuthRoutes(app);
   registerProviderOAuthCallbacks(app);
 
@@ -283,6 +287,7 @@ async function startServer() {
   });
 
   registerBookmarkletRoutes(app, sdk);
+  (await import("./recipientConfirm")).registerRecipientConfirmRoutes(app);
 
   // ---- Public bookmark share endpoint: GET /api/share/:token ----
   // Returns share metadata + bookmarks for a given share token (no auth required).
@@ -379,6 +384,8 @@ async function startServer() {
     try { startBackupCron(); } catch (e) { console.error('[startup] backup cron failed:', e); }
     // One-time (-253): invited teammates become ordinary members; the owner grants admin.
     import('./roleMigration').then(m => m.demoteInvitedAdminsOnce()).catch(e => console.error('[startup] role change failed:', e));
+    // One-time (audit F25): encrypt secrets still stored in plaintext. Never throws.
+    import('./secretsMigration').then(m => m.encryptExistingSecretsOnce()).catch(e => console.error('[startup] secrets encryption pass failed:', e));
     // Atlas integration env-var boot diagnostic. Prints only the
     // configured/length status — never the value — so logs are safe.
     try {

@@ -276,7 +276,10 @@ function renderStandup(){
   const blockers=tasks.filter(t=>{
     if(t.status==='Done')return false;
     const tags=(t._raw&&t._raw.tags)||((t._ext&&t._ext.override&&t._ext.override.localTags)||'').split(',');
-    return tags.some(tag=>/block/i.test(String(tag||'')))||/block/i.test(t.status||'')||(t.due&&t.due<today);
+    if(tags.some(tag=>/block/i.test(String(tag||'')))||/block/i.test(t.status||'')||(t.due&&t.due<today))return true;
+    // -275: a task waiting on an unfinished predecessor is blocked too.
+    const own=t._raw||t;
+    return Array.isArray(own.predecessorIds)&&own.predecessorIds.some(pid=>{const pt=(D.tasks||[]).find(x=>String(x.id)===String(pid));return pt&&pt.status!=='Done';});
   });
 
   const renderColumn=(title,emoji,rows,empty,color)=>{
@@ -331,7 +334,7 @@ function renderStandup(){
     ${renderColumn('Blockers','🚧',blockers,'No blockers — clear runway.','#ef4444')}
   </div>
   <div class="cd" style="padding:11px 13px;border-left:3px solid var(--page-accent)">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-size:12px;font-weight:600">📝 Standup summary (markdown)</div><span style="font-size:11px;color:var(--t3)">Click "Copy summary" to copy this</span></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-size:12px;font-weight:600">📝 Standup summary (markdown)</div><span style="font-size:11px;color:var(--t3)">Click "📋 Copy" to copy this</span></div>
     <pre id="standup-md" style="font-size:11px;color:var(--t2);background:var(--s3);padding:10px;border-radius:6px;overflow-x:auto;white-space:pre-wrap;font-family:'SF Mono',Menlo,monospace;line-height:1.55">${esc(summary())}</pre>
   </div>`;
   if(!document.getElementById('standup-resp-css')){
@@ -815,9 +818,14 @@ function _reportStageAging(open){
     </tr>`;
   }).join('')||'<tr><td colspan="4" style="padding:14px;text-align:center;color:var(--t3);font-size:11px">No open opportunities.</td></tr>';
   // Stalled list: open opps not updated in 60+ days. Cap to top 8.
-  const stalled=open.filter(o=>{const d=daysSince(o.updatedAt);return d!=null&&d>=60;}).sort((a,b)=>(new Date(a.updatedAt||0).getTime())-(new Date(b.updatedAt||0).getTime())).slice(0,8);
+  // -275: last real activity = stage change, else a LevelUp edit; deals
+  // copied from the retired Smartsheet sync have no reliable date (their
+  // updatedAt froze at -223), so they are left out instead of all turning
+  // "stalled 60d+".
+  const lastAct=o=>{if(o.source==='smartsheet')return null;const h=Array.isArray(o.stageHistory)&&o.stageHistory.length?o.stageHistory[o.stageHistory.length-1]:null;const cands=[o.stageAt,h&&(h.at||h.date),o.updatedAt].filter(Boolean).map(v=>Date.parse(v)).filter(n=>!isNaN(n));return cands.length?new Date(Math.max(...cands)).toISOString():null;};
+  const stalled=open.filter(o=>{const la=lastAct(o);if(!la)return false;const d=daysSince(la);return d!=null&&d>=60;}).sort((a,b)=>Date.parse(lastAct(a))-Date.parse(lastAct(b))).slice(0,8);
   const stalledBody=stalled.length?stalled.map(o=>{
-    const d=daysSince(o.updatedAt);
+    const d=daysSince(lastAct(o));
     return `<div class="lr" style="padding:5px 0;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:8px;cursor:pointer" onclick="openOpportunityDetail(${o.id})">
       <span style="font-size:11px;color:var(--t1);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(o.name||'')}</span>
       <span style="font-size:11px;color:${d>=120?'var(--red)':'var(--warn)'};font-weight:600;flex-shrink:0">${d}d</span>
@@ -1180,8 +1188,9 @@ Pick exactly 3 actions. Avoid actions already in existingTasks. Be specific (men
     const raw=String(res?.result||res?.text||'').trim();
     const mm=raw.match(/\{[\s\S]*\}/);if(!mm)throw new Error('AI returned no JSON');
     const out=JSON.parse(mm[0]);
-    const actionRows=(out.actions||[]).slice(0,3).map((a,i)=>`<div style="padding:9px 11px;background:var(--s3);border-radius:6px;margin-bottom:6px">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:6px"><div style="font-size:12px;color:var(--t1);font-weight:600">${i+1}. ${esc(a.title||'')}</div><button class="btn btn-s" style="height:22px;font-size:11px;color:var(--ach)" onclick='_addAiActionToOpp(${oppId},${JSON.stringify(a).replace(/"/g,"&quot;")})'>+ Add task</button></div>
+    window._oppAiActions=(out.actions||[]).slice(0,3);
+    const actionRows=window._oppAiActions.map((a,i)=>`<div style="padding:9px 11px;background:var(--s3);border-radius:6px;margin-bottom:6px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:6px"><div style="font-size:12px;color:var(--t1);font-weight:600">${i+1}. ${esc(a.title||'')}</div><button class="btn btn-s" style="height:22px;font-size:11px;color:var(--ach)"${_act('_addAiActionToOpp',[String(oppId),i])}>+ Add task</button></div>
       ${a.owner?`<div style="font-size:11px;color:var(--t3);margin-top:2px">👤 ${esc(a.owner)}</div>`:''}
       ${a.why?`<div style="font-size:11px;color:var(--t2);margin-top:3px">${esc(a.why)}</div>`:''}
     </div>`).join('');
@@ -1198,17 +1207,23 @@ Pick exactly 3 actions. Avoid actions already in existingTasks. Be specific (men
     m.innerHTML=`<div style="padding:14px 16px;max-width:480px"><div style="font-size:13px;font-weight:600;color:var(--red)">AI failed</div><div style="font-size:11px;color:var(--t2);margin-top:6px">${esc(e.message||String(e))}</div><div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn btn-s" onclick="closeModal()">Close</button></div></div>`;
   }
 }
-function _addAiActionToOpp(oppId,actionJson){
+function _addAiActionToOpp(oppId,idx){
   const o=_opps().find(x=>String(x.id)===String(oppId));if(!o)return;
-  const a=typeof actionJson==='string'?JSON.parse(actionJson):actionJson;
-  const id=Date.now()+Math.floor(Math.random()*1000);
+  // -275: the button passes an index into the actions just shown (the action
+  // JSON in a single-quoted attribute broke on any apostrophe), and the
+  // AI's "owner" is only a suggestion in the notes: assigning by an invented
+  // name could match a real teammate.
+  const a=(typeof idx==='number'&&Array.isArray(window._oppAiActions))?window._oppAiActions[idx]:(typeof idx==='object'&&idx?idx:null);
+  if(!a)return;
+  const id=nextId(D.tasks);
+  const owner=String(a.owner||'').trim();
   D.tasks.unshift({
     id,
-    title:a.title||'(unnamed)',
+    title:String(a.title||'(unnamed)').slice(0,300),
     status:'Not Started',
     priority:'Medium',
-    notes:a.why||'',
-    assignedTo:a.owner||'',
+    notes:String(a.why||'').slice(0,1000)+(owner?(a.why?'\n':'')+'Suggested owner: '+owner.slice(0,80):''),
+    assignedTo:'',
     linkedOpportunityId:String(o.id),
     createdAt:new Date().toISOString(),
     createdBy:(D.creds&&D.creds.userName)||'',
@@ -1933,16 +1948,30 @@ function renderProjectsTeamKanban(header){
     return;
   }
   const pool=_topLevelTasks(D.tasks).filter(t=>t.projectId!=null&&t.projectId!=='');
-  const allMembers=D.teams.flatMap(t=>t.members);
-  // Build columns: one per member + Unassigned
-  const cols=[...allMembers.map(m=>({key:m.name,label:m.name,color:m.color,initials:m.name.split(' ').map(w=>w[0]).join('')})),{key:null,label:'Unassigned',color:'var(--t3)',initials:'?'}];
+  // -275: someone in two teams got two columns, and a task assigned to a
+  // name not on any team appeared nowhere. One column per person (by account
+  // id, else name) plus "Other" and "Unassigned".
+  const seenM=new Set();const allMembers=[];
+  (D.teams||[]).flatMap(t=>t.members||[]).forEach(m=>{if(!m||!m.name)return;const k=m.userId!=null?'u:'+m.userId:'n:'+String(m.name).trim().toLowerCase();if(seenM.has(k))return;seenM.add(k);allMembers.push(m);});
+  const memberNames=new Set(allMembers.map(m=>String(m.name).trim().toLowerCase()));
+  const memberIds=new Set(allMembers.filter(m=>m.userId!=null).map(m=>String(m.userId)));
+  const colOfTask=t=>{
+    if(t.primaryAssigneeId!=null&&memberIds.has(String(t.primaryAssigneeId))){const m=allMembers.find(x=>String(x.userId)===String(t.primaryAssigneeId));if(m)return m.name;}
+    const a=String(t.assignedTo||'').trim();
+    if(!a)return null;
+    if(memberNames.has(a.toLowerCase()))return allMembers.find(x=>String(x.name).trim().toLowerCase()===a.toLowerCase()).name;
+    return '__other__';
+  };
+  const cols=[...allMembers.map(m=>({key:m.name,label:m.name,color:m.color,initials:String(m.name).split(' ').map(w=>w[0]).join('')}))];
+  if(pool.some(t=>colOfTask(t)==='__other__'))cols.push({key:'__other__',label:'Other people',color:'var(--t2)',initials:'\u2026'});
+  cols.push({key:null,label:'Unassigned',color:'var(--t3)',initials:'?'});
   const colHtml=cols.map(col=>{
-    const tasks=pool.filter(t=>t.status!=='Done'&&(col.key===null?(t.assignedTo==null||t.assignedTo===''):(t.assignedTo===col.key)));
-    const done=pool.filter(t=>t.status==='Done'&&(col.key===null?(t.assignedTo==null||t.assignedTo===''):(t.assignedTo===col.key))).length;
+    const tasks=pool.filter(t=>t.status!=='Done'&&colOfTask(t)===col.key);
+    const done=pool.filter(t=>t.status==='Done'&&colOfTask(t)===col.key).length;
     return`<div style="flex:1;min-width:200px;max-width:280px">
       <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:6px 6px 0 0;background:var(--s3);margin-bottom:6px">
         <div style="width:22px;height:22px;border-radius:50%;background:${_luFillSafe(col.color)};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">${col.initials}</div>
-        <span style="font-size:11px;font-weight:600;flex:1">${col.label}</span>
+        <span style="font-size:11px;font-weight:600;flex:1">${esc(col.label)}</span>
         <span style="font-size:11px;color:var(--t3)">${tasks.length} active · ${done} done</span>
       </div>
       ${tasks.map(t=>{const pname=t.project||((D.projects||[]).find(x=>String(x.id)===String(t.projectId))||{}).name||'';return `<div class="cd" style="cursor:pointer;margin-bottom:6px;border-left:3px solid ${pillClass(t.priority)==='hi'?'var(--red)':pillClass(t.priority)==='md'?'var(--warn)':'var(--ok)'}" onclick="openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))">
@@ -2783,14 +2812,18 @@ async function _saveExternalTaskPicker(){
   }catch(e){toast({type:'warn',title:'Save failed',msg:e.message||String(e)});}
 }
 function renderProjectsKanban(header){
-  const cols=['Not Started','In Progress','On Hold','Completed'];
-  const colMap={'Not Started':'Not Started','Active':'In Progress','On Hold':'On Hold','Completed':'Completed'};
+  // -275: Done/Complete = Completed, Planning = Not Started; any status not
+  // listed gets an "Other" column instead of vanishing from the board.
+  const colMap={'Not Started':'Not Started','Planning':'Not Started','Active':'In Progress','In Progress':'In Progress','On Hold':'On Hold','Paused':'On Hold','Completed':'Completed','Complete':'Completed','Done':'Completed'};
   // Apply filters (search + health + archive) but ignore the status select since columns ARE statuses.
   const savedStatus=_projStatusFilter;_projStatusFilter='All';
   const filtered=_filteredProjects();
   _projStatusFilter=savedStatus;
+  const _base=['Not Started','In Progress','On Hold','Completed'];
+  const _colOf=p=>colMap[p.status||'Not Started']||'Other';
+  const cols=_base.concat(filtered.some(p=>_colOf(p)==='Other')?['Other']:[]);
   const colHtml=cols.map(col=>{
-    const ps=filtered.filter(p=>(colMap[p.status]||p.status)===col);
+    const ps=filtered.filter(p=>_colOf(p)===col);
     return`<div style="flex:1;min-width:180px;max-width:260px">
       <div style="font-size:11px;font-weight:600;padding:6px 8px;border-radius:6px 6px 0 0;background:var(--s3);margin-bottom:6px">${col} <span style="font-size:11px;color:var(--t3)">(${ps.length})</span></div>
       ${ps.map(p=>`<div class="cd" style="cursor:pointer;margin-bottom:6px;border-left:3px solid ${p.color};${p.archived?'opacity:.55':''}" onclick="openProject(${p.id})">

@@ -15,6 +15,23 @@ import { publicProcedure, protectedProcedure, adminProcedure, router } from '../
 import { sendEmail } from '../_core/sendEmail';
 import { assertOwner } from '../_core/ownerGuard';
 import { appOrigin } from '../_core/appOrigin';
+import { rlHit, clientIp } from '../_core/rateLimit';
+import { createUserSerialised } from '../_core/dbLock';
+import { createHash } from 'crypto';
+
+/**
+ * Throttle the public invite endpoints (audit F19): per IP and per token, in
+ * the persistent limiter (shared by every instance, kept across deploys).
+ * Tokens are 256-bit, so this is about bcrypt CPU and noise, not guessing.
+ */
+async function throttleInvite(kind: 'validate' | 'accept', req: any, token: string): Promise<void> {
+  const ip = clientIp(req);
+  const t = createHash('sha256').update(token).digest('hex').slice(0, 32);
+  const [ipLimit, tLimit, win] = kind === 'validate' ? [60, 30, 15 * 60_000] : [10, 5, 3600_000];
+  if (!(await rlHit(`inv:${kind}:ip:${ip}`, ipLimit, win)) || !(await rlHit(`inv:${kind}:t:${t}`, tLimit, win))) {
+    throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: 'Too many attempts with this invite. Wait a while and try again.' });
+  }
+}
 
 
 // ─── Email helpers ────────────────────────────────────────────────────────────
@@ -170,9 +187,10 @@ export const teamInvitesRouter = router({
 
   // ── Public: validate token (used on the accept-invite page) ──────────────
   validate: publicProcedure
-    .input(z.object({ token: z.string().min(1) }))
-    .query(async ({ input }) => {
+    .input(z.object({ token: z.string().min(1).max(200) }))
+    .query(async ({ input, ctx }) => {
       const token = input.token.trim();
+      await throttleInvite('validate', ctx?.req, token);
       const invite = await db.getTeamInviteByToken(token);
       if (!invite) {
         // Most common cause: the invite was RESENT (resend regenerates the
@@ -206,7 +224,8 @@ export const teamInvitesRouter = router({
       name: z.string().min(1).max(128),
       password: z.string().min(8).max(128),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      await throttleInvite('accept', ctx?.req, input.token.trim());
       const invite = await db.getTeamInviteByToken(input.token.trim());
       if (!invite) throw new TRPCError({ code: 'NOT_FOUND', message: 'This invite link is no longer valid — it may have been replaced by a newer invite or removed. Ask your admin to resend it.' });
       if (invite.accepted) throw new TRPCError({ code: 'BAD_REQUEST', message: 'This invite has already been used — your account already exists. Use the Sign in option instead.' });
@@ -221,14 +240,19 @@ export const teamInvitesRouter = router({
       const { eq } = await import('drizzle-orm');
 
       let userId: number;
+      const taken = (): never => {
+        // Never let an invite replace an existing account's password, name
+        // or role: that would let whoever holds the invite link take it over.
+        throw new TRPCError({ code: 'CONFLICT', message: 'This email already has a LevelUp account. Use Sign in (or Forgot password) instead.' });
+      };
       try {
-        const [existing] = await dbConn.select().from(users).where(eq(users.email, invite.email)).limit(1);
-
-        if (existing) {
-          // Never let an invite replace an existing account's password, name
-          // or role: that would let whoever holds the invite link take it over.
-          throw new TRPCError({ code: 'CONFLICT', message: 'This email already has a LevelUp account. Use Sign in (or Forgot password) instead.' });
-        } else {
+        // Audit F70: serialised with every other account creation
+        // (GET_LOCK lu_user_create), the email checked case-insensitively
+        // inside the lock — two accepts of the same invite, or an accept racing
+        // a sign-up, can't create two accounts.
+        userId = await createUserSerialised(invite.email, (e) => Promise.resolve().then(() => db.emailHasAccount(e)).catch(() => false), taken, async () => {
+          const [existing] = await dbConn.select().from(users).where(eq(users.email, invite.email)).limit(1);
+          if (existing) taken();
           // openId is varchar(64) — token is 64 hex chars, so truncate to fit
           const openId = `inv:${invite.token.slice(0, 60)}`;
           await dbConn.insert(users).values({
@@ -241,10 +265,11 @@ export const teamInvitesRouter = router({
             lastSignedIn: new Date(),
           });
           const [created] = await dbConn.select().from(users).where(eq(users.email, invite.email)).limit(1);
-          userId = created.id;
-        }
+          return created.id as number;
+        });
       } catch (dbErr: any) {
         if (dbErr instanceof TRPCError) throw dbErr;
+        if (dbErr?.message === 'busy') throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: 'Busy creating another account — please try again in a moment.' });
         console.error('[teamInvites.accept] DB error creating user:', dbErr);
         throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to create account. Please try again or contact support.' });
       }

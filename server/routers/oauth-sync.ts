@@ -33,6 +33,8 @@ function graphUtc(v?: { dateTime?: string; timeZone?: string } | null): string {
 }
 import Imap from "imap";
 import { mailTlsOptions } from "../_core/mailTrust";
+import { publicConnectTarget } from "../_core/netGuard";
+import { exchangeMsRefreshToken, MS_TOKEN_TIMEOUT_MS } from "../_core/msToken";
 // @ts-ignore - mailparser has no @types package
 import { simpleParser } from "mailparser";
 
@@ -55,8 +57,11 @@ async function testSmtpConnection(input: {
   // our "TLS" option for 465 endpoints and got "Greeting never received".
   const port = Number(input.smtpPort) || 587;
   const secure = port === 465 ? true : port === 587 ? false : input.smtpEncryption === 'ssl';
+  // Audit F21: only a public host — never an internal address or the cloud
+  // metadata endpoint — and dial the vetted address (name kept for TLS).
+  const target = await publicConnectTarget(input.smtpHost);
   const transporter = nodemailer.createTransport({
-    host: input.smtpHost,
+    host: target.connectHost,
     port,
     secure,
     requireTLS: !secure && input.smtpEncryption !== 'none',
@@ -64,7 +69,7 @@ async function testSmtpConnection(input: {
       user: input.smtpUsername,
       pass: input.smtpPassword,
     },
-    tls: mailTlsOptions(), // certificates verified unless MAIL_TLS_INSECURE=true (audit F8)
+    tls: { ...mailTlsOptions(), ...(target.servername ? { servername: target.servername } : {}) }, // certificates verified unless MAIL_TLS_INSECURE=true (audit F8)
     connectionTimeout: 10000, // 10 s
     greetingTimeout: 10000,   // 10 s — prevents "Greeting never received" hang
     socketTimeout: 15000,
@@ -161,24 +166,12 @@ async function refreshMsToken(token: { refreshToken: string | null; userId: numb
   const clientId = await resolveClientId(token.userId, "microsoft");
   const clientSecret = await resolveClientSecret(token.userId, "microsoft");
   if (!clientId || !clientSecret) return null;
-  // Use tenant-specific endpoint for single-tenant apps
+  // Tenant-specific endpoint for single-tenant apps; the shared exchange
+  // (server/_core/msToken.ts, audit F72) — user tenant → MS_TENANT_ID → common,
+  // no scope param (all consented scopes come back), 20 s timeout.
   const userCred = await db.getUserOauthCredential(token.userId, "microsoft");
-  const tenantId = userCred?.tenantId?.trim() || process.env.MS_TENANT_ID || "common";
-  const resp = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: buildFormBody({
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: token.refreshToken,
-      grant_type: "refresh_token",
-      // No scope param: Microsoft then returns ALL originally-consented scopes.
-      // The old hardcoded list silently STRIPPED any extra scope (e.g. OneNote's
-      // Notes.Read) from the access token on every refresh.
-    }),
-  });
-  if (!resp.ok) return null;
-  const data = await resp.json() as { access_token: string; expires_in: number; refresh_token?: string };
+  const data = await exchangeMsRefreshToken({ refreshToken: token.refreshToken, clientId, clientSecret, tenantId: userCred?.tenantId });
+  if (!data) return null;
   const expiresAt = new Date(Date.now() + data.expires_in * 1000);
   await db.upsertOAuthToken({
     userId: token.userId,
@@ -204,6 +197,7 @@ async function refreshGoogleToken(token: { refreshToken: string | null; userId: 
       refresh_token: token.refreshToken,
       grant_type: "refresh_token",
     }),
+    signal: AbortSignal.timeout(MS_TOKEN_TIMEOUT_MS),
   });
   if (!resp.ok) return null;
   const data = await resp.json() as { access_token: string; expires_in: number };
@@ -1119,13 +1113,16 @@ export const oauthSyncRouter = router({
         // 587 = STARTTLS, regardless of the stored encryption label.
         const smtpPort = Number(account.smtpPort) || 587;
         const smtpSecure = smtpPort === 465 ? true : smtpPort === 587 ? false : account.smtpEncryption === 'ssl';
+        let target: { connectHost: string; servername?: string };
+        try { target = await publicConnectTarget(account.smtpHost); } // audit F21
+        catch (e: any) { throw new TRPCError({ code: "BAD_REQUEST", message: String(e?.message || e) }); }
         const transporter = nodemailer.createTransport({
-          host: account.smtpHost,
+          host: target.connectHost,
           port: smtpPort,
           secure: smtpSecure,
           requireTLS: !smtpSecure && account.smtpEncryption !== 'none',
           auth: { user: account.smtpUsername, pass: account.smtpPassword },
-          tls: mailTlsOptions(),
+          tls: { ...mailTlsOptions(), ...(target.servername ? { servername: target.servername } : {}) },
           connectionTimeout: 15000,
           greetingTimeout: 15000,
           socketTimeout: 20000,
@@ -1429,6 +1426,9 @@ export const oauthSyncRouter = router({
       smtpPassword: z.string().min(1),
     }))
     .mutation(async ({ ctx, input }) => {
+      // Audit F21: a mail host must be on the public internet.
+      try { await publicConnectTarget(input.imapHost); await publicConnectTarget(input.smtpHost); }
+      catch (e: any) { throw new TRPCError({ code: "BAD_REQUEST", message: String(e?.message || e) }); }
       // Save account directly — use testSmtpImapConnection to verify separately
       await db.upsertSmtpImapAccount({
         userId: ctx.user.id,
@@ -1486,14 +1486,15 @@ export const oauthSyncRouter = router({
         // --- IMAP check ---
         (async () => {
           const t0 = Date.now();
+          const target = await publicConnectTarget(input.imapHost); // audit F21
           await new Promise<void>((resolve, reject) => {
             const imap = new Imap({
               user: input.imapUsername,
               password: input.imapPassword,
-              host: input.imapHost,
+              host: target.connectHost,
               port: input.imapPort,
               tls: input.imapEncryption !== 'none',
-              tlsOptions: mailTlsOptions(),
+              tlsOptions: { ...mailTlsOptions(), ...(target.servername ? { servername: target.servername } : {}) },
               authTimeout: 8000,
               connTimeout: 8000,
             });

@@ -29,6 +29,7 @@ import JSZip from "jszip";
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { storagePut } from "../storage";
+import { assertZipWithinLimits } from "../_core/zipGuard";
 
 const DATE_RE =
   /^(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday),\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}$/i;
@@ -367,6 +368,7 @@ export const wordImportRouter = router({
     )
     .mutation(async ({ input }) => {
       const buffer = Buffer.from(input.fileBase64, "base64");
+      assertZipWithinLimits(buffer); // audit F22: zip-bomb caps before mammoth/JSZip inflate it
       const docTitle = (input.fileName ?? "doc").replace(/\.[^.]+$/, "");
       const skipBinaries = input.skipBinaries === true;
 
@@ -379,7 +381,9 @@ export const wordImportRouter = router({
         try {
           const safe = docTitle.replace(/\s+/g, "-").replace(/[^a-z0-9-]/gi, "").slice(0, 48) || "document";
           const mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-          const { url } = await storagePut(`note-originals/${Date.now()}-${safe}.docx`, buffer, mime);
+          // Public on purpose (audit F35): the note editor shows the original
+          // through Microsoft's Office viewer, which fetches it without a cookie.
+          const { url } = await storagePut(`note-originals/${Date.now()}-${safe}.docx`, buffer, mime, { public: true });
           original = { url, name: input.fileName ?? `${docTitle}.docx`, mime, size: buffer.length };
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);

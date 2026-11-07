@@ -10,7 +10,10 @@
  *
  *   1. the token must match the message's owner (HMAC — coachToken),
  *   2. the From address must be that user's account email or their check-in
- *      address (prefs.coach.checkins.recipientEmail),
+ *      address (prefs.coach.checkins.recipientEmail — owner only, and only
+ *      once confirmed by link, recipientConfirm.ts), and the receiving
+ *      server's Authentication-Results must not show it forged
+ *      (senderAuthVerdict: DMARC fail / no aligned DKIM or SPF pass → refused),
  *   3. auto-replies (out-of-office etc.) are ignored — otherwise an
  *      out-of-office answering the coach's answer would loop forever,
  *   4. at most REPLY_HOURLY_CAP replies per user per hour are answered,
@@ -30,6 +33,7 @@ import { coachToken, parseCoachRef, processCoachReply } from "./coachCron";
 import { parsePmRef, processDelegateReply } from "./pmDelegation";
 import { isOwner } from "./ownerGuard";
 import { mailTlsOptions, ownerUserIds } from "./mailTrust";
+import { isRecipientConfirmed } from "./recipientConfirm";
 import { job } from "./lifecycle";
 
 const POLL_MS = 3 * 60 * 1000;
@@ -111,9 +115,49 @@ export function isAutoReply(h: Record<string, string[] | undefined>, subject: st
   return /^(auto(matic)?\s*reply|auto:|out of (the )?office|autoreply|undeliverable|delivery status notification)/i.test(String(subject || "").trim());
 }
 
+// ─── sender authentication (audit F28) ─────────────────────────────────────
+/** Same domain, or one a subdomain of the other (relaxed alignment). */
+function aligned(a: string, b: string): boolean {
+  a = a.toLowerCase().replace(/\.$/, ""); b = b.toLowerCase().replace(/\.$/, "");
+  if (!a || !b) return false;
+  return a === b || a.endsWith("." + b) || b.endsWith("." + a);
+}
+const domainOf = (v: string) => { const s = String(v || "").trim().replace(/^[<"]+|[>"]+$/g, ""); const at = s.lastIndexOf("@"); return (at >= 0 ? s.slice(at + 1) : s).toLowerCase(); };
+/**
+ * Is this email really from `from`? Reads the receiving server's
+ * Authentication-Results header (RFC 8601). The topmost header is the one our
+ * own mailbox provider added (anything below it came with the message and
+ * could be forged), so the decision is made on it; a dmarc=fail in any of them
+ * also rejects.
+ *   - dmarc=fail                                   → reject
+ *   - dmarc=pass for the From domain               → accept
+ *   - dkim=pass with header.d aligned to From      → accept
+ *   - spf=pass with smtp.mailfrom aligned to From  → accept
+ *   - otherwise                                    → reject
+ * No header at all → accept with `missing` (the provider may not add one;
+ * the caller warns).
+ */
+export function senderAuthVerdict(headers: string[] | undefined, fromAddr: string): { ok: boolean; missing?: boolean; reason?: string } {
+  const list = (headers || []).map((h) => String(h || "").replace(/\s+/g, " ").trim()).filter(Boolean);
+  if (!list.length) return { ok: true, missing: true };
+  const fromDomain = domainOf(fromAddr);
+  const parse = (h: string) => h.split(";").slice(1).map((seg) => {
+    const m = seg.match(/^\s*(dkim|spf|dmarc)\s*=\s*([a-z]+)/i);
+    if (!m) return null;
+    const prop = (k: string) => { const r = seg.match(new RegExp(`(?:^|\\s)${k.replace(".", "\\.")}=("?)([^\\s";]+)\\1`, "i")); return r ? r[2] : ""; };
+    return { method: m[1].toLowerCase(), result: m[2].toLowerCase(), d: prop("header.d") || domainOf(prop("header.i")), mailfrom: domainOf(prop("smtp.mailfrom")), hfrom: domainOf(prop("header.from")) };
+  }).filter(Boolean) as Array<{ method: string; result: string; d: string; mailfrom: string; hfrom: string }>;
+  if (list.some((h) => parse(h).some((r) => r.method === "dmarc" && r.result === "fail"))) return { ok: false, reason: "DMARC failed" };
+  const res = parse(list[0]);
+  if (res.some((r) => r.method === "dmarc" && r.result === "pass" && (!r.hfrom || aligned(r.hfrom, fromDomain)))) return { ok: true };
+  if (res.some((r) => r.method === "dkim" && r.result === "pass" && aligned(r.d, fromDomain))) return { ok: true };
+  if (res.some((r) => r.method === "spf" && r.result === "pass" && aligned(r.mailfrom, fromDomain))) return { ok: true };
+  return { ok: false, reason: "no DKIM or SPF pass for " + (fromDomain || "the sender") };
+}
+
 // ─── IMAP ──────────────────────────────────────────────────────────────────
-const HEADER_FIELDS = "HEADER.FIELDS (FROM MESSAGE-ID IN-REPLY-TO REFERENCES SUBJECT DATE AUTO-SUBMITTED PRECEDENCE X-AUTOREPLY X-AUTORESPOND X-AUTO-RESPONSE-SUPPRESS)";
-function connect(a: Account): Promise<Imap> {
+const HEADER_FIELDS = "HEADER.FIELDS (FROM MESSAGE-ID IN-REPLY-TO REFERENCES SUBJECT DATE AUTO-SUBMITTED PRECEDENCE X-AUTOREPLY X-AUTORESPOND X-AUTO-RESPONSE-SUPPRESS AUTHENTICATION-RESULTS)";
+export function imapConnect(a: Account): Promise<Imap> {
   // Port-aware like sendEmail: 993 is implicit TLS, 143 is STARTTLS; the
   // stored label only decides for other ports.
   const port = Number(a.imapPort) || 993;
@@ -123,6 +167,10 @@ function connect(a: Account): Promise<Imap> {
     autotls: !tls && a.imapEncryption !== "none" ? "required" : "never",
     tlsOptions: mailTlsOptions(), connTimeout: 15000, authTimeout: 15000,
   } as any);
+  // Audit F228: an error listener for the connection's whole life. A second
+  // socket error (after the first rejected connect, or mid-poll) used to have
+  // no listener and an unhandled 'error' event crashes the process.
+  imap.on("error", (e: any) => { console.error("[coach-replies] IMAP error:", String(e?.message || e).slice(0, 200)); });
   return new Promise((resolve, reject) => {
     imap.once("ready", () => resolve(imap));
     imap.once("error", reject);
@@ -167,7 +215,7 @@ export async function pollCoachReplies(opts?: { force?: boolean }): Promise<{ ok
   let imap: Imap | null = null;
   const skip = (why: string) => { result.skipped.push(why); };
   try {
-    imap = await connect(acct);
+    imap = await imapConnect(acct);
     await p<any>((cb) => imap!.openBox("INBOX", true, cb));
     const sinceDay = new Date(Date.now() - LOOKBACK_DAYS * 86400e3);
     const uids = (await p<number[]>((cb) => imap!.search([["SINCE", sinceDay]], cb))).slice(-MAX_SCAN);
@@ -175,6 +223,14 @@ export async function pollCoachReplies(opts?: { force?: boolean }): Promise<{ ok
     const heads = await fetchAll(imap, uids, HEADER_FIELDS);
     const todo: Array<{ uid: number; userId: number; parentId: number; from: string; dedupeKey: string }> = [];
     const pmTodo: Array<{ uid: number; ref: { id: number; token: string }; from: string; messageId: string; subject: string }> = [];
+    let warnedNoAuth = false;
+    /** Audit F28: refuse a reply whose sender the receiving server could not authenticate. */
+    const authOk = (hd: Record<string, string[] | undefined>, from: string, what: string): boolean => {
+      const v = senderAuthVerdict(hd["authentication-results"], from);
+      if (v.missing && !warnedNoAuth) { warnedNoAuth = true; console.warn("[coach-replies] reply mailbox adds no Authentication-Results header — sender addresses cannot be verified"); }
+      if (!v.ok) { skip(`${what}: sender ${from} not authenticated (${v.reason})`); return false; }
+      return true;
+    };
     for (const h of heads) {
       const hd = Imap.parseHeader(h.buf.toString("utf8")) as Record<string, string[] | undefined>;
       const msgId = String((hd["message-id"] || [])[0] || "").trim();
@@ -187,6 +243,7 @@ export async function pollCoachReplies(opts?: { force?: boolean }): Promise<{ ok
         const subj = String((hd.subject || [])[0] || "");
         const fromP = addressOf(String((hd.from || [])[0] || ""));
         if (isAutoReply(hd, subj)) { skip(`auto-reply from ${fromP}`); continue; }
+        if (!authOk(hd, fromP, `delegation #${pref.id}`)) continue;
         pmTodo.push({ uid: h.uid, ref: pref, from: fromP, messageId: msgId, subject: subj });
         continue;
       }
@@ -195,6 +252,7 @@ export async function pollCoachReplies(opts?: { force?: boolean }): Promise<{ ok
       const subject = String((hd.subject || [])[0] || "");
       const from = addressOf(String((hd.from || [])[0] || ""));
       if (isAutoReply(hd, subject)) { skip(`auto-reply from ${from}`); continue; }
+      if (!authOk(hd, from, `#${ref.id}`)) continue;
       const [parent] = await db.select({ id: coachMessages.id, userId: coachMessages.userId, createdAt: coachMessages.createdAt }).from(coachMessages).where(eq(coachMessages.id, ref.id)).limit(1);
       if (!parent || coachToken(parent.userId, parent.id) !== ref.token) { skip(`bad token for #${ref.id}`); continue; }
       if (Date.now() - new Date(parent.createdAt).getTime() > PARENT_MAX_AGE_DAYS * 86400e3) { skip(`#${ref.id} too old`); continue; }
@@ -205,9 +263,9 @@ export async function pollCoachReplies(opts?: { force?: boolean }): Promise<{ ok
       const [u] = await db.select({ id: users.id, openId: users.openId, email: users.email }).from(users).where(eq(users.id, parent.userId)).limit(1);
       const [ad] = await db.select({ prefs: userAppData.prefs }).from(userAppData).where(eq(userAppData.userId, parent.userId)).limit(1);
       let alt = ""; try { alt = String(JSON.parse(ad?.prefs || "{}")?.coach?.checkins?.recipientEmail || ""); } catch { /* ignore */ }
-      // The alternate address is honored only for the workspace owner (it is
-      // client-written and unverified).
-      if (alt && !(u && (await isOwner(u)))) alt = "";
+      // The alternate address is honored only for the workspace owner, and
+      // only once confirmed by the link emailed to it (audit F29).
+      if (alt && !(u && (await isOwner(u)) && (await isRecipientConfirmed(u.id, alt)))) alt = "";
       const allowed = [u?.email, alt].filter(Boolean).map((e) => String(e).trim().toLowerCase());
       if (!allowed.includes(from)) { skip(`#${ref.id}: sender ${from} is not the account's address`); continue; }
       const [cnt] = await db.select({ id: coachMessages.id }).from(coachMessages)

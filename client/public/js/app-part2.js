@@ -100,6 +100,8 @@ function renderSettingsHTML(){
   <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--brd)"><div style="font-size:12px;font-weight:600;margin-bottom:8px">Session</div>
   <button class="btn btn-s" style="margin-bottom:8px" onclick="doLogout()">🚪 Sign Out &amp; Switch User</button>
   <div style="font-size:11px;color:var(--t3);margin-bottom:12px">Signs you out and returns to the login screen. Your data is preserved.</div>
+  <button class="btn btn-s" style="margin-bottom:8px"${_act('signOutEverywhere',[])}>🔒 Sign out on every other device</button>
+  <div style="font-size:11px;color:var(--t3);margin-bottom:12px">Ends every other session (a lost phone, a shared computer). This device stays signed in. Resetting your password does this too.</div>
   <div style="font-size:12px;font-weight:600;margin-bottom:8px">This device</div>
   <button class="btn btn-s" onclick="clearLocalCacheAndReload()" title="Your data on the server is not touched">🧹 Clear this device's cache</button>
   <div style="font-size:11px;color:var(--t3);margin-top:4px">Reloads everything fresh from the server. (Was "Reset All Data" — it only ever cleared this browser.)</div></div>
@@ -112,7 +114,7 @@ function renderSettingsHTML(){
     <div style="font-size:12px;font-weight:600;margin-bottom:10px">Workspace</div>
     <div class="lr" style="padding:6px 0">
       <div style="flex:1"><div style="font-size:12px;font-weight:500">Workspace Name</div><div style="font-size:11px;color:var(--t3)">Shown in the sidebar header</div></div>
-      <input class="inp" id="gen-workspace-name" style="max-width:200px;font-size:12px" value="${esc(D.prefs&&D.prefs.workspaceName||'LevelUp')}" oninput="D.prefs=D.prefs||{};D.prefs.workspaceName=this.value;const wl=document.getElementById('workspace-label');if(wl)wl.textContent=this.value||'LevelUp';saveAll()">
+      <input class="inp" id="gen-workspace-name" style="max-width:200px;font-size:12px" value="${esc(D.prefs&&D.prefs.workspaceName||'LevelUp')}" oninput="D.prefs=D.prefs||{};D.prefs.workspaceName=this.value;const wl=document.getElementById('workspace-label');if(wl)wl.textContent=this.value||'LevelUp';clearTimeout(window._luWsNameT);window._luWsNameT=setTimeout(()=>save('prefs'),700)">
     </div>
     <div class="lr" style="padding:6px 0">
       <div style="flex:1"><div style="font-size:12px;font-weight:500">Default Home Screen</div><div style="font-size:11px;color:var(--t3)">Module shown on launch</div></div>
@@ -175,23 +177,11 @@ function renderSettingsHTML(){
     </div>
   </div>
 
-  <!-- Language -->
-  <div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--brd)">
-    <div style="font-size:12px;font-weight:600;margin-bottom:10px">Language &amp; Region</div>
-    <div class="lr" style="padding:6px 0">
-      <div style="flex:1"><div style="font-size:12px;font-weight:500">Language</div><div style="font-size:11px;color:var(--t3)">UI display language</div></div>
-      <select class="inp" id="gen-language" style="max-width:160px;font-size:12px" onchange="D.prefs=D.prefs||{};D.prefs.language=this.value;saveAll()">
-        ${[{v:'en',l:'English'},{v:'es',l:'Español'},{v:'fr',l:'Français'},{v:'de',l:'Deutsch'},{v:'pt',l:'Português'}].map(o=>`<option value="${o.v}" ${(D.prefs&&D.prefs.language||'en')===o.v?'selected':''}>${o.l}</option>`).join('')}
-      </select>
-    </div>
-  </div>
-
   <!-- Behaviour -->
   <div>
     <div style="font-size:12px;font-weight:600;margin-bottom:10px">Behaviour</div>
     <div class="lr" style="padding:6px 0">
-      <div style="flex:1"><div style="font-size:12px;font-weight:500">Auto-save</div><div style="font-size:11px;color:var(--t3)">Automatically save changes as you type</div></div>
-      <div class="tog ${!(D.prefs&&D.prefs.autoSave===false)?'on':''}" id="tog-autosave" onclick="D.prefs=D.prefs||{};D.prefs.autoSave=!this.classList.contains('on');this.classList.toggle('on');saveAll()"></div>
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Saving</div><div style="font-size:11px;color:var(--t3)">Every change is saved as you make it and synced to your other devices. There is nothing to switch on.</div></div>
     </div>
     <div class="lr" style="padding:6px 0">
       <div style="flex:1"><div style="font-size:12px;font-weight:500">Keyboard Shortcuts</div><div style="font-size:11px;color:var(--t3)">Enable global keyboard shortcuts (?, Cmd+K, etc.)</div></div>
@@ -409,7 +399,7 @@ function renderSettingsHTML(){
   <!-- Daily Morning Digest (server-side) -->
   <div id="daily-digest-panel" style="margin-bottom:16px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
     <div style="font-size:12px;font-weight:600;margin-bottom:4px">☀ Daily Morning Digest Email</div>
-    <p style="font-size:11px;color:var(--t3);margin-bottom:8px">A single email each morning summarizing today's plate across CommunityForce (Smartsheet), LSI Media (NiftyPM), and your personal LevelUp tasks. Sent only when there's something to surface.</p>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:8px">A single email each morning summarizing today's plate across your LevelUp tasks, NiftyPM tasks and calendar. Sent only when there's something to surface.</p>
     <div id="daily-digest-body" style="font-size:11px;color:var(--t2)">Loading…</div>
   </div>
 
@@ -1247,6 +1237,17 @@ async function adminDemoCleanup(apply){
   }catch(e){if(out)out.textContent='Failed: '+String(e&&e.message||e).slice(0,200);}
 }
 
+// Open Settings on one tab. The Atlas "Configure integration" button used to
+// toggle every .si element on the page (the main sidebar too), not just the
+// Settings tab list (-275).
+function _openSettingsTab(id){
+  if(typeof nav==='function')nav('settings');
+  setTimeout(()=>{
+    const scr=document.getElementById('s-settings')||document;
+    const tab=Array.from(scr.querySelectorAll('.si')).find(x=>String(x.getAttribute('onclick')||'').includes("'"+id+"'"));
+    if(tab)showSetTab(tab,id);
+  },60);
+}
 function showSetTab(el,id){
   el.parentElement.querySelectorAll('.si').forEach(x=>x.classList.remove('on'));el.classList.add('on');
   document.querySelectorAll('.sp').forEach(x=>x.style.display='none');
@@ -1274,6 +1275,7 @@ async function _hydrateDailyDigestPanel(){
   try{
     const p=await _trpc('dailyDigest.getPrefs',undefined,'query');
     body.innerHTML=_renderDailyDigestPanelHTML(p);
+    _luRecipientStatus('digest','digest-rcpt-status');
   }catch(e){
     body.innerHTML=`<div style="color:var(--red);font-size:11px">Failed to load: ${esc(e.message||String(e))}</div>`;
   }
@@ -1301,6 +1303,7 @@ function _renderDailyDigestPanelHTML(p){
       </div>
     </div>
     <div style="font-size:11px;color:var(--t3);margin-top:8px">Resolves to: <code style="background:var(--s3);padding:1px 4px;border-radius:3px">${esc(recipient)}</code></div>
+    <div id="digest-rcpt-status" style="font-size:11px;margin-top:4px"></div>
     <div style="display:flex;gap:6px;margin-top:10px">
       <button class="btn btn-p" style="height:28px;font-size:11px" onclick="_digestSendNow()">📧 Send now (test)</button>
       <button class="btn btn-s" style="height:28px;font-size:11px" onclick="_hydrateDailyDigestPanel()">Reload</button>
@@ -1323,6 +1326,24 @@ async function _saveDigestTime(){
     await _trpc('dailyDigest.savePrefs',{time:v},'mutation');
     toast({type:'success',title:`Send time set to ${v}`,duration:1500});
   }catch(e){toast({type:'warn',title:'Save failed',msg:e.message||String(e)});}
+}
+// -275 (F29): an alternate recipient is used only after it is confirmed by a
+// link sent to it (server: coach.recipients). Until then mail goes to the
+// account's own address; this line says so and offers the link.
+async function _luRecipientStatus(kind,elId){
+  const el=document.getElementById(elId);if(!el)return;
+  let st=null;try{st=await _trpc('coach.recipients.status',undefined,'query');}catch(_){el.textContent='';return;}
+  const a=st&&Array.isArray(st.addresses)?st.addresses.find(x=>x&&x.kind===kind):null;
+  if(!a||!a.email){el.innerHTML='';return;}
+  if(a.confirmed){el.innerHTML='<span style="color:var(--ok)">\u2713 '+esc(a.email)+' is confirmed</span>';return;}
+  el.innerHTML='<span style="color:var(--warn)">\u26a0 '+esc(a.email)+' is not confirmed yet \u2014 mail goes to '+esc(st.account||'your account email')+' until you open the link sent to it.</span> '
+    +'<button type="button" class="btn btn-s" style="height:22px;font-size:11px;margin-left:4px"'+_act('_luRecipientConfirm',[kind,a.email,elId])+'>Send confirmation link</button>';
+}
+async function _luRecipientConfirm(kind,email,elId){
+  try{const r=await _trpc('coach.recipients.sendConfirm',{email,kind},'mutation');
+    toast({type:'success',title:'Confirmation link sent',msg:'To '+((r&&r.sentTo)||email)+'. It works for 7 days.'});
+  }catch(e){toast({type:'warn',title:"Couldn't send the link",msg:String(e&&e.message||e).slice(0,160)});}
+  _luRecipientStatus(kind,elId);
 }
 async function _saveDigestRecipient(){
   const v=document.getElementById('digest-recipient').value.trim();
@@ -1358,6 +1379,7 @@ async function _hydrateWeeklyReviewPanel(){
   try{
     const p=await _trpc('weeklyReview.getPrefs',undefined,'query');
     body.innerHTML=_renderWeeklyReviewPanelHTML(p);
+    _luRecipientStatus('weekly','weekly-rcpt-status');
   }catch(e){
     body.innerHTML=`<div style="color:var(--red);font-size:11px">Failed to load: ${esc(e.message||String(e))}</div>`;
   }
@@ -1392,6 +1414,7 @@ function _renderWeeklyReviewPanelHTML(p){
       </div>
     </div>
     <div style="font-size:11px;color:var(--t3);margin-top:8px">Resolves to: <code style="background:var(--s3);padding:1px 4px;border-radius:3px">${esc(recipient)}</code></div>
+    <div id="weekly-rcpt-status" style="font-size:11px;margin-top:4px"></div>
     <div style="display:flex;gap:6px;margin-top:10px">
       <button class="btn btn-p" style="height:28px;font-size:11px" onclick="_weeklySendNow()">📧 Send now (test)</button>
       <button class="btn btn-s" style="height:28px;font-size:11px" onclick="_hydrateWeeklyReviewPanel()">Reload</button>
@@ -2412,7 +2435,7 @@ function exportData(){
 
   // Build CSV for tasks
   const csvHeader='id,title,priority,due,context,project,status,myDay,energy\n';
-  const csvRows=D.tasks.map(t=>[t.id,`"${(t.title||'').replace(/"/g,'""')}"`,t.priority,t.due,t.context,t.project,t.status,t.myDay,t.energy].join(',')).join('\n');
+  const csvRows=D.tasks.map(t=>[t.id,t.title||'',t.priority,t.due,t.context,t.project,t.status,t.myDay,t.energy].map(_csvCell).join(',')).join('\n');
   const csvStr=csvHeader+csvRows;
 
   // Build Markdown notes
@@ -2713,7 +2736,7 @@ function handleOneNoteFiles(files){
       if(!bodyText||bodyText.length<20){
         bodyText='[PDF imported: '+file.name+']\n\nFile size: '+(file.size/1024).toFixed(1)+' KB\n\nThe PDF did not contain extractable text (it may be a scanned image). For best results, export from OneNote as a Word document and paste the text here.';
       } else {
-        bodyText=bodyText.substring(0,8000)+(bodyText.length>8000?'\n\n[...truncated at 8000 chars]':'');
+        // -275: the whole text is kept (it was cut at 8,000 characters).
       }
       const noteId=nextId(D.notes);
       D.notes.push({id:noteId,title:title||nameNoExt,tags:[tag.toLowerCase().replace(/\s+/g,'-'),'onenote'],source:'OneNote Import',original,updated:new Date().toISOString(),createdAt:new Date().toISOString(),starred:false,body:bodyText,createdBy:D.creds.userName||'Idris Grant'});
@@ -2919,16 +2942,17 @@ ${typeof LU_AI_PRIMER!=='undefined'?LU_AI_PRIMER:''}`;
   if(turns.length)out+=HDR+turns.join('\n\n');
   return _aiClampStr(out,AI_SYS_MAX);                  // belt and braces
 }
-function _aiChatHistory(){return (D.prefs&&D.prefs.aiChat&&Array.isArray(D.prefs.aiChat.messages))?D.prefs.aiChat.messages:[];}
+// Build -275: the conversation is its own synced list, D.aiChat (one item per
+// message, merged per message across devices), no longer D.prefs.aiChat.
+function _aiChatHistory(){if(!Array.isArray(D.aiChat))D.aiChat=[];return D.aiChat;}
 function _aiChatPushMessage(role,content){
-  D.prefs.aiChat=D.prefs.aiChat||{messages:[]};
-  D.prefs.aiChat.messages.push({role,content,ts:Date.now()});
-  // Bound to last 50 to keep the prefs blob manageable
-  if(D.prefs.aiChat.messages.length>50)D.prefs.aiChat.messages=D.prefs.aiChat.messages.slice(-50);
-  save('prefs');
+  const h=_aiChatHistory();
+  h.push({id:'m_'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),role,content,ts:Date.now()});
+  if(h.length>50)h.splice(0,h.length-50);
+  save('aiChat');
 }
 function _aiChatClear(){
-  D.prefs.aiChat={messages:[]};save('prefs');
+  D.aiChat=[];save('aiChat');
   const c=document.getElementById('ai-chat');if(c)c.innerHTML='';
   _renderAIChatHistory();
   toast('Conversation cleared');
@@ -3335,7 +3359,7 @@ function renderNotifPanel(){
   list.innerHTML=notifs.map(n=>{
     const isRead=readIds.has(n.id);
     return`<div style="display:flex;gap:10px;padding:10px 8px;border-radius:8px;transition:background .15s;border-bottom:1px solid var(--bd1);${isRead?'opacity:.55':''}" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''">
-      <div style="font-size:18px;flex-shrink:0;width:28px;text-align:center;cursor:pointer" onclick="_runNotif('${_jsAttr(String(n.id))}')">${n.icon}</div>
+      <div style="font-size:18px;flex-shrink:0;width:28px;text-align:center;cursor:pointer" onclick="_runNotif('${_jsAttr(String(n.id))}')">${esc(n.icon)}</div>
       <div style="flex:1;min-width:0;cursor:pointer" role="button" tabindex="0" onclick="_runNotif('${_jsAttr(String(n.id))}')" onkeydown="if(event.key==='Enter'){_runNotif('${_jsAttr(String(n.id))}')}">
         <div style="font-size:11px;font-weight:600;color:${typeColor[n.type]||'var(--t1)'}">${esc(n.title)}${isRead?'<span style="font-size:11px;color:var(--t3);margin-left:4px">✓ read</span>':''}</div>
         <div style="font-size:11px;color:var(--t1);margin:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(n.body)}</div>
@@ -3692,9 +3716,9 @@ function aiAutoTagNote(id){
   const m=document.getElementById('modal-content');
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:10px">✨ AI Auto-Tag — ${esc(n.title)}</h2>
   <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Suggested tags based on note content. Click to toggle, then Apply.</div>
-  ${existingTags.length?`<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--t3);margin-bottom:4px">Current tags:</div><div style="display:flex;gap:4px;flex-wrap:wrap">${existingTags.map(t=>`<span style="font-size:11px;background:var(--acs);color:var(--ach);padding:2px 7px;border-radius:10px">#${t}</span>`).join('')}</div></div>`:''}
+  ${existingTags.length?`<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--t3);margin-bottom:4px">Current tags:</div><div style="display:flex;gap:4px;flex-wrap:wrap">${existingTags.map(t=>`<span style="font-size:11px;background:var(--acs);color:var(--ach);padding:2px 7px;border-radius:10px">#${esc(t)}</span>`).join('')}</div></div>`:''}
   <div style="margin-bottom:12px"><div style="font-size:11px;color:var(--t3);margin-bottom:6px">Suggested new tags (click to select):</div>
-  <div id="autotag-chips" style="display:flex;gap:6px;flex-wrap:wrap">${newSuggestions.map(t=>`<span class="autotag-chip" data-tag="${t}" style="font-size:11px;background:var(--s3);border:1px solid var(--bd2);color:var(--t2);padding:4px 10px;border-radius:12px;cursor:pointer;transition:all .15s" onclick="this.classList.toggle('sel');this.style.background=this.classList.contains('sel')?'var(--acs)':'var(--s3)';this.style.color=this.classList.contains('sel')?'var(--ach)':'var(--t2)';this.style.borderColor=this.classList.contains('sel')?'var(--ac)':'var(--bd2)'">#${t}</span>`).join('')}</div></div>
+  <div id="autotag-chips" style="display:flex;gap:6px;flex-wrap:wrap">${newSuggestions.map(t=>`<span class="autotag-chip" data-tag="${esc(t)}" style="font-size:11px;background:var(--s3);border:1px solid var(--bd2);color:var(--t2);padding:4px 10px;border-radius:12px;cursor:pointer;transition:all .15s" onclick="this.classList.toggle('sel');this.style.background=this.classList.contains('sel')?'var(--acs)':'var(--s3)';this.style.color=this.classList.contains('sel')?'var(--ach)':'var(--t2)';this.style.borderColor=this.classList.contains('sel')?'var(--ac)':'var(--bd2)'">#${esc(t)}</span>`).join('')}</div></div>
   <div style="display:flex;gap:8px;margin-top:4px">
   <button class="btn btn-p" onclick="(function(){
     const chips=document.querySelectorAll('.autotag-chip.sel');
@@ -3750,8 +3774,25 @@ async function bulkAutoTagNotes(){
 }
 
 // ====== JOURNAL HELPERS ======
+// Consecutive local days with at least one entry, ending today (or
+// yesterday, so the streak survives until you write today). It used to be the
+// number of entries, capped at 30 (-275).
 function calcJournalStreak(){
-  return D.journal.length > 0 ? Math.min(D.journal.length, 30) : 0;
+  const days=new Set();
+  (D.journal||[]).forEach(j=>{const d=_journalDayOf(j);if(d)days.add(d);});
+  if(!days.size)return 0;
+  const d=new Date();d.setHours(12,0,0,0);
+  if(!days.has(_ymd(d))){d.setDate(d.getDate()-1);if(!days.has(_ymd(d)))return 0;}
+  let n=0;while(days.has(_ymd(d))&&n<3660){n++;d.setDate(d.getDate()-1);}
+  return n;
+}
+function _journalDayOf(j){
+  if(!j)return '';
+  const v=j.date||j.createdAt||'';
+  if(/^\d{4}-\d{2}-\d{2}/.test(String(v)))return typeof _dayOf==='function'?_dayOf(v):String(v).slice(0,10);
+  const t=Date.parse(v);if(!isNaN(t))return _ymd(new Date(t));
+  if(j.createdAt){const c=Date.parse(j.createdAt);if(!isNaN(c))return _ymd(new Date(c));}
+  return '';
 }
 function shareJournalEntry(id){
   const j=D.journal.find(x=>x.id===id);
@@ -4490,8 +4531,10 @@ function recurringOffset(cadence){
 // Returns null when the series has ended.
 function _nextRecurringDue(task){
   const rule=(typeof _parseRecurrenceRule==='function')?_parseRecurrenceRule(task.recurrenceRule):{};
-  const map={Daily:'daily',Weekly:'weekly','Bi-weekly':'weekly',Monthly:'monthly',Yearly:'yearly'};
+  const map={Daily:'daily',Weekly:'weekly','Bi-weekly':'weekly',Monthly:'monthly',Yearly:'yearly',Weekdays:'weekly'};
   const freq=rule.freq||map[task.recurring];
+  // "Weekdays" (Full Add) = weekly on Mon–Fri unless the rule names days (-275).
+  if(task.recurring==='Weekdays'&&!(Array.isArray(rule.byDay)&&rule.byDay.length))rule.byDay=[1,2,3,4,5];
   if(!freq)return null;
   let n=parseInt(rule.interval,10);
   if(!Number.isFinite(n)||n<1)n=task.recurring==='Bi-weekly'?2:1;
@@ -4533,8 +4576,13 @@ function maybeSpawnRecurring(task){
   // Avoid duplicates: check if a future instance already exists
   const alreadyExists=D.tasks.some(t=>t._recurringFrom!=null&&String(t._recurringFrom)===String(task.id)&&t.status!=='Done');
   if(alreadyExists)return;
-  const newTask=Object.assign({},task,{
+  // -275: the copy keeps what describes the work, not what happened to the
+  // last one (comments, time spent, pushes to Nifty, activity, hand-offs).
+  const _drop=['comments','actualMins','timeSpent','timeLog','pushedTo','pushedAt','niftyTaskId','externalId','_externalId','activity','activityLog','history','delegatedTo','delegation','handoff','updatedAt','carriedOver','carriedFrom','snoozedUntil','_ghost','sortOrder','doneAt','lastNudgeAt'];
+  const base=Object.assign({},task);_drop.forEach(k=>{delete base[k];});
+  const newTask=Object.assign(base,{
     id:nextId(D.tasks),
+    createdAt:new Date().toISOString(),
     status:'Not Started',
     myDay:false,
     doneToday:false,
@@ -5130,6 +5178,14 @@ async function changePassword(){
   } finally {
     if(btn){btn.disabled=false;btn.textContent='Update Password';}
   }
+}
+// -275 (audit F20): sessions can be revoked. The server bumps the account's
+// token version, so every other device's sign-in stops working; this device
+// gets a fresh cookie.
+async function signOutEverywhere(){
+  if(!confirm('Sign out on every other device? They will need to sign in again. This device stays signed in.'))return;
+  try{await _trpc('auth.signOutEverywhere',undefined,'mutation');toast({type:'success',title:'Signed out everywhere else',msg:'Other devices must sign in again.'});}
+  catch(e){toast({type:'error',title:"Couldn't sign out other devices",msg:String(e&&e.message||e).slice(0,160)});}
 }
 async function doLogout(){
   // Push anything still inside the 2s debounce, then drop the whole local
@@ -5853,7 +5909,8 @@ function renderFAJournal(ej){
   const habitsDone=ej?ej.habitsDone:D.habits.filter(h=>h.doneToday).length;
   const habitsTotal=ej?ej.habitsTotal:D.habits.length;
   const v=x=>esc(x==null?'':x);
-  const dateVal=ej?_faJournalISO(ej):today;
+  const dateVal=ej?_faJournalISO(ej):(window._faJournalDate&&/^\d{4}-\d{2}-\d{2}$/.test(window._faJournalDate)?window._faJournalDate:today);
+  window._faJournalDate=null;
   const energies=['low','medium','high'];
   const energy=ej&&ej.energy?ej.energy:'medium';
   if(!energies.includes(energy))energies.push(energy);
@@ -6180,7 +6237,7 @@ function doFASave(addAnother){
         highlights:document.getElementById('fa-highlights')?.value||'',
         challenges:document.getElementById('fa-challenges')?.value||'',
         gratitude:document.getElementById('fa-gratitude')?.value||'',
-        sleep:parseFloat(document.getElementById('fa-sleep')?.value)||null,
+        sleep:(v=>{v=String(v==null?'':v).trim();if(v==='')return null;const n=parseFloat(v);return isNaN(n)?null:n;})(document.getElementById('fa-sleep')?.value),
         exercise:document.getElementById('fa-exercise')?.value||'',
         habitsDone:D.habits.filter(h=>h.doneToday).length,
         habitsTotal:D.habits.length,
@@ -6388,9 +6445,11 @@ let _bkShares=[];
 let _bkMultiSelect=false,_bkSelected=new Set(); // bulk selection state
 async function loadCollections(){
   try{_bkCollections=await _trpc('bookmarks.collections.list',null,'query');}catch(e){_bkCollections=[];}
+  if(!Array.isArray(_bkCollections))_bkCollections=[];
 }
 async function loadShares(){
   try{_bkShares=await _trpc('bookmarks.shares.list',null,'query');}catch(e){_bkShares=[];}
+  if(!Array.isArray(_bkShares))_bkShares=[];
 }
 
 async function loadBookmarks(){
@@ -6401,10 +6460,11 @@ async function loadBookmarks(){
     if(_bkReadFilter==='read') params.isRead=true;
     else if(_bkReadFilter==='unread') params.isRead=false;
     const res=await _trpc('bookmarks.list',params,'query');
-    _bkData=res.bookmarks||[];
-    _bkTotal=res.total||0;
+    _bkData=(res&&Array.isArray(res.bookmarks))?res.bookmarks:[];
+    _bkTotal=(res&&Number(res.total))||0;
   }catch(e){console.error('Failed to load bookmarks',e);_bkData=[];_bkTotal=0;}
   try{_bkTags=await _trpc('bookmarks.tags',null,'query');}catch(e){_bkTags=[];}
+  if(!Array.isArray(_bkTags))_bkTags=[];
   _bkLoading=false;
 }
 
@@ -6430,9 +6490,9 @@ async function loadRelatedBookmarks(entityType, entityId){
     }
     el.innerHTML = items.map(b => `
       <div style="display:flex;align-items:flex-start;gap:6px;padding:5px 0;border-bottom:1px solid var(--bd1)">
-        ${b.favicon ? `<img src="${b.favicon}" style="width:14px;height:14px;margin-top:2px;flex-shrink:0" onerror="this.style.display='none'">` : '<span style="font-size:12px;flex-shrink:0">🔖</span>'}
+        ${b.favicon&&_luSafeHref(b.favicon,true)!=='#' ? `<img src="${_luSafeHref(b.favicon,true)}" style="width:14px;height:14px;margin-top:2px;flex-shrink:0" onerror="this.style.display='none'">` : '<span style="font-size:12px;flex-shrink:0">🔖</span>'}
         <div style="flex:1;min-width:0">
-          <a href="${b.url}" target="_blank" rel="noopener" style="font-size:11px;font-weight:500;color:var(--ach);text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(b.title||b.url)}">${esc(b.title||b.url)}</a>
+          <a href="${_luSafeHref(b.url)}" target="_blank" rel="noopener" style="font-size:11px;font-weight:500;color:var(--ach);text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(b.title||b.url)}">${esc(b.title||b.url)}</a>
           ${b.description ? `<div style="font-size:11px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(b.description.slice(0,80))}</div>` : ''}
         </div>
         <button class="btn btn-s" style="font-size:11px;padding:1px 5px;color:var(--red);flex-shrink:0" onclick="unlinkBookmarkFromEntity('${_jsAttr(entityType)}',${entityId},${b.id})" title="Remove link">✕</button>
@@ -7629,7 +7689,7 @@ function importContactsCSV(){
 }
 function exportContactsCSV(){
   const headers=['name','title','company','email','phone','linkedin','location','tags','notes','enriched','enrichedAt'];
-  const rows=D.contacts.map(c=>[c.name,c.title||'',c.company||'',c.email||'',c.phone||'',c.linkedin||'',c.location||'',(c.tags||[]).join(';'),c.notes||'',c.enriched?'yes':'no',c.enrichedAt||''].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
+  const rows=D.contacts.map(c=>[c.name,c.title||'',c.company||'',c.email||'',c.phone||'',c.linkedin||'',c.location||'',(c.tags||[]).join(';'),c.notes||'',c.enriched?'yes':'no',c.enrichedAt||''].map(v=>`"${_csvSafe(String(v)).replace(/"/g,'""')}"`).join(','));
   const csv=headers.join(',')+String.fromCharCode(10)+rows.join(String.fromCharCode(10));
   const blob=new Blob([csv],{type:'text/csv'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='contacts-export.csv';a.click();
@@ -8031,9 +8091,22 @@ function _onenoteMergePage(p,markdown){
   const isMeeting=/meeting/i.test(secTag)||/meeting/i.test(p.title||'');
   let n=D.notes.find(x=>x.onenotePageId===p.id);
   if(n){
-    // The page changed in OneNote: keep LevelUp's copy in the note history
-    // first (it may hold edits made here), then take OneNote's text.
-    if((n.body||'').trim()!==String(markdown||'').trim()){
+    // -275: edited in LevelUp since the last OneNote sync applied? Then keep
+    // LevelUp's text, file OneNote's version in the note history and flag the
+    // conflict (it used to be replaced silently). Notes synced before -275
+    // have no sync time; for those, the old rule (history copy + replace).
+    const syncedAt=Date.parse(n.onenoteSyncedAt||'')||0;
+    const editedAt=Date.parse(n.updatedAt||n.updated||'')||0;
+    const differs=(n.body||'').trim()!==String(markdown||'').trim();
+    if(differs&&syncedAt&&editedAt>syncedAt+5000){
+      n.versions=n.versions||[];
+      n.versions.push({title:p.title||n.title||'',body:String(markdown||''),bodyHtml:'',savedAt:new Date().toISOString(),from:'OneNote version, not applied: this note was edited in LevelUp since the last sync'});
+      if(n.versions.length>20)n.versions=n.versions.slice(-20);
+      n.onenoteConflict={at:new Date().toISOString(),lastModified:p.lastModified||''};
+      if(p.lastModified)n.onenoteLastModified=p.lastModified;
+      return 'conflict';
+    }
+    if(differs){
       n.versions=n.versions||[];
       n.versions.push({title:n.title||'',body:n.body||'',bodyHtml:n.bodyHtml||'',savedAt:new Date().toISOString(),from:'LevelUp copy before a OneNote sync replaced it'});
       if(n.versions.length>20)n.versions=n.versions.slice(-20);
@@ -8043,6 +8116,8 @@ function _onenoteMergePage(p,markdown){
     if(p.title)n.title=p.title;
     if(p.lastModified)n.onenoteLastModified=p.lastModified;
     n.updated=n.updatedAt=new Date().toISOString();
+    n.onenoteSyncedAt=n.updatedAt;
+    delete n.onenoteConflict;
     return 'updated';
   }
   n={
@@ -8056,6 +8131,7 @@ function _onenoteMergePage(p,markdown){
     updated:new Date().toISOString(),starred:false,
     onenotePageId:p.id,
     onenoteLastModified:p.lastModified||'',
+    onenoteSyncedAt:new Date().toISOString(),
     createdBy:(D.creds&&D.creds.userName)||'',
     createdAt:p.createdAt||new Date().toISOString()
   };
@@ -8102,7 +8178,7 @@ async function startOnenoteImport(scope,pageId,pageName){
     return;
   }
   _onProg(true,'Importing '+work.length+' page'+(work.length!==1?'s':'')+'…',0);
-  let created=0,updated=0,failed=0,done=0;
+  let created=0,updated=0,failed=0,done=0,conflicts=0;
   for(let i=0;i<work.length;i+=10){
     const batch=work.slice(i,i+10);
     let res=null;
@@ -8115,16 +8191,16 @@ async function startOnenoteImport(scope,pageId,pageName){
       const pg=byId[p.id];
       if(!pg||!pg.ok){failed++;return;}
       const r=_onenoteMergePage(p,pg.markdown);
-      if(r==='created')created++;else updated++;
+      if(r==='created')created++;else if(r==='conflict')conflicts++;else updated++;
     });
     const pct=Math.round(done/work.length*100);
     _onProg(true,'Imported '+done+' of '+work.length+' pages'+(failed?' ('+failed+' failed)':''),pct);
   }
-  if(created||updated)save('notes');
+  if(created||updated||conflicts)save('notes');
   _onProg(false);
   const browser=document.getElementById('on-browser');
   if(browser)browser.style.display='';
-  toast((failed?'⚠':'✅')+' OneNote sync: '+created+' new · '+updated+' updated'+(skippedCount?' · '+skippedCount+' unchanged':'')+(failed?' · '+failed+' failed':''));
+  toast((failed?'⚠':'✅')+' OneNote sync: '+created+' new · '+updated+' updated'+(skippedCount?' · '+skippedCount+' unchanged':'')+(conflicts?' · '+conflicts+' kept your LevelUp edits (OneNote\'s version is in the note history)':'')+(failed?' · '+failed+' failed':''));
   if(typeof curScreen!=='undefined'&&curScreen==='notes'&&typeof renderNotes==='function')renderNotes();
 }
 // Remember a section as THE meeting-notes source (where Outlook files your
@@ -8249,24 +8325,49 @@ function _aiGuardInput(procedure,input){
   }
   return out;
 }
+// Atlas allocation share (%). A 0% assignment is 0, not 100 (it used to read
+// e.pct||100, so 0% cost the full salary) (-275).
+function _atPct(e){if(!e||typeof e!=='object'||e.pct==null||e.pct==='')return 100;const n=Number(e.pct);return isFinite(n)?n:100;}
 async function _trpc(procedure,input,method='query'){
   input=_aiGuardInput(procedure,input);
+  // Items shared with you: every loader swallowed failures, so a broken
+  // load looked like "nothing shared". Report them (error log + one notice
+  // per session) without changing what the loaders get back (-275).
+  if(/^appData\.shared\w+ForMe$/.test(procedure)){
+    let res;
+    try{res=await _trpcRaw(procedure,input,method);}
+    catch(e){_luSharedLoadFailed(procedure,e&&e.message);throw e;}
+    if(res&&res.ok===false)_luSharedLoadFailed(procedure,res.error);
+    return res;
+  }
+  return _trpcRaw(procedure,input,method);
+}
+function _luSharedLoadFailed(procedure,msg){
+  const m='Shared items failed to load ('+String(procedure).replace(/^appData\./,'')+'): '+String(msg||'unknown error').slice(0,200);
+  console.warn('[shared]',m);
+  try{if(typeof _luErrReport==='function')_luErrReport(m,null,'shared-load');}catch(_){}
+  if(!window._luSharedFailToast&&typeof toast==='function'){window._luSharedFailToast=1;toast({type:'warning',title:"Some items shared with you didn't load",msg:'They will be retried on the next refresh.',duration:5000});}
+}
+async function _trpcRaw(procedure,input,method='query'){
   const url='/api/trpc/'+procedure;
   if(method==='query'){
     const resp=await fetch(url+'?input='+encodeURIComponent(JSON.stringify({json:input})),{credentials:'include'});
-    const data=await resp.json();
-    if(data.error){
-      const msg=data.error.json?.message||data.error.message||data.error.data?.message||'tRPC error';
-      throw new Error(msg);
-    }
-    return data.result?.data?.json??data.result?.data;
+    return _trpcResult(resp);
   }
   const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({json:input})});
-  const data=await resp.json();
-  if(data.error){
+  return _trpcResult(resp);
+}
+// A reply that is not a tRPC answer (proxy error page, deploy gap, empty
+// body) throws instead of quietly returning undefined: callers then took
+// "undefined" as data and crashed later (Bookmarks did .map on it) (-275).
+async function _trpcResult(resp){
+  let data=null;
+  try{data=await resp.json();}catch(_){data=null;}
+  if(data&&data.error){
     const msg=data.error.json?.message||data.error.message||data.error.data?.message||'tRPC error';
     throw new Error(msg);
   }
+  if(!data||typeof data!=='object'||!('result' in data))throw new Error('Server error'+(resp&&resp.status?' ('+resp.status+')':'')+' — please try again');
   return data.result?.data?.json??data.result?.data;
 }
 
@@ -9729,6 +9830,29 @@ function _luUndoToast(key,removed,title,name,rerender){
 // show no bar. PM's 15 tabs and Money's 11 wrapped into 4-5 rows: one
 // scrolling strip now (active tab kept in view), and any PM / Money table
 // that isn't in a scroll box scrolls sideways instead of being cut off.
+// ── Readable text + finger-sized targets (build -275) ─────────────────────
+// Audit 1 F232: text below 10.5px on every screen (inline font-size:9px/10px
+// in markup built by the bundles); F231: buttons, chips and pills under 30px
+// on phones. One injected sheet (not index.html — prod serves the Vite-built
+// copy) raises inline 8–10.5px text to 11px, and on touch screens up to
+// 900px wide gives buttons, links-as-buttons, selects and chips a minimum
+// height. Tiny counter badges defined in index.html classes are left alone.
+function _luReadableCSS(){
+  if(document.getElementById('lu-readable-css'))return;
+  const st=document.createElement('style');st.id='lu-readable-css';
+  const small=['8px','8.5px','9px','9.5px','10px','10.5px'].map(v=>'[style*="font-size:'+v+'"],[style*="font-size: '+v+'"]').join(',');
+  st.textContent=[
+    small+'{font-size:11px!important}',
+    '.sh-foot-l,.lu-mini-week-cell .lu-mini-week-dow{font-size:11px!important}',
+    '@media (max-width:900px) and (pointer:coarse){',
+    ' .mn button:not(.tog):not(.chk):not(.tlc-chk),.mn .btn,.mn select,.mn a.btn,.drawer button:not(.tog):not(.chk),.drawer .btn{min-height:36px}',
+    ' .mn .chip,.mn .pill,.mn .fin-chip,.mn .tag,.mn .sh-pill{min-height:30px;display:inline-flex;align-items:center}',
+    ' .mn .tab,.mn [role="tab"]{min-height:40px}',
+    '}'
+  ].join('\n');
+  document.head.appendChild(st);
+}
+try{_luReadableCSS();}catch(_){}
 function _luPhoneCSS(){
   if(document.getElementById('lu-phone-css'))return;
   const st=document.createElement('style');st.id='lu-phone-css';
@@ -11359,7 +11483,7 @@ const _origSave=window.save||save;
 // Debounce timers for server sync (one per data key)
 const _syncTimers={};
 // Keys that are synced to the server
-const _syncKeys=new Set(['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','prefs','calEvents','clusters','programs','opportunities','atlasAnnotations','mindmaps','sheets','decks','finance','calGrid']);
+const _syncKeys=new Set(['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','prefs','calEvents','clusters','programs','opportunities','atlasAnnotations','mindmaps','sheets','decks','finance','calGrid','aiChat','coachTrash']);
 // SAFETY GUARD: never push to the server until loadServerData() has
 // successfully pulled (or confirmed there is no) server data. Without this,
 // a cleared-localStorage boot shows built-in seed data and the 2s auto-sync
@@ -11416,8 +11540,8 @@ if(typeof document!=='undefined'&&!window._luSyncFlushWired){
 // until it is clean (_luItemsSafe).
 const _LU_ENTITY_KEYS=new Set(['tasks','notes','ideas']);
 const _LU_OBJ_KEYS=new Set(['prefs','atlasAnnotations']);
-const _LU_ITEM_KEYS=new Set(['tasks','notes','ideas','projects','goals','journal','habits','contacts','teams','calEvents','clusters','programs','opportunities','mindmaps','sheets','decks','calGrid','prefs','atlasAnnotations']);
-const _LU_ITEM_LABEL={tasks:'task',notes:'note',ideas:'idea',projects:'project',goals:'goal',journal:'journal entry',habits:'habit',contacts:'contact',teams:'team',calEvents:'calendar event',clusters:'cluster',programs:'program',opportunities:'opportunity',mindmaps:'mind map',sheets:'sheet',decks:'deck',calGrid:'calendar event',atlasAnnotations:'Atlas note'};
+const _LU_ITEM_KEYS=new Set(['tasks','notes','ideas','projects','goals','journal','habits','contacts','teams','calEvents','clusters','programs','opportunities','mindmaps','sheets','decks','calGrid','aiChat','coachTrash','prefs','atlasAnnotations']);
+const _LU_ITEM_LABEL={tasks:'task',notes:'note',ideas:'idea',projects:'project',goals:'goal',journal:'journal entry',habits:'habit',contacts:'contact',teams:'team',calEvents:'calendar event',clusters:'cluster',programs:'program',opportunities:'opportunity',mindmaps:'mind map',sheets:'sheet',decks:'deck',calGrid:'calendar event',aiChat:'assistant message',coachTrash:'deleted item',atlasAnnotations:'Atlas note'};
 // The synced items of a key as an array: list keys are themselves; object
 // keys become [{id:key,v:value}] (undefined values are not synced).
 function _luObjItems(o){
@@ -11434,6 +11558,54 @@ function _luFromItems(k,arr){
   const o={};(arr||[]).forEach(x=>{if(x&&x.id!=null)o[x.id]=x.v;});return o;
 }
 // Every element has a usable, unique id (always true for object keys).
+// ── Assistant conversation + coach trash leave prefs (build -275) ──────────
+// Both used to ride in the synced preferences (D.prefs.aiChat.messages,
+// D.prefs.coach.trash): one prefs key each, so two devices chatting at once
+// conflicted on the whole key and one device's messages were dropped, and the
+// trash (25 × up to 60 KB) bloated prefs. They are their own per-item lists
+// now: D.aiChat (messages) and D.coachTrash ({id, ent, item, at, label}).
+// Anything still in prefs (this device's old copy, or a not-yet-updated
+// device) is moved over by _luMovePrefsLists — ids are derived from the
+// content, so two devices moving the same messages produce the same items.
+if(!Array.isArray(D.aiChat)){try{D.aiChat=JSON.parse(localStorage.getItem('lu_aiChat')||'null');}catch(_){D.aiChat=null;}if(!Array.isArray(D.aiChat))D.aiChat=[];}
+if(!Array.isArray(D.coachTrash)){try{D.coachTrash=JSON.parse(localStorage.getItem('lu_coachTrash')||'null');}catch(_){D.coachTrash=null;}if(!Array.isArray(D.coachTrash))D.coachTrash=[];}
+function _luMovePrefsLists(){
+  let moved=false;const P=D.prefs||{};
+  const idOf=(pfx,x)=>pfx+_luHash(JSON.stringify(x));
+  const fold=(key,items,cap,mkId,sortBy)=>{
+    const list=Array.isArray(D[key])?D[key]:(D[key]=[]);
+    const have=new Set(list.map(x=>x&&String(x.id)));
+    let add=0;
+    for(const x of items){
+      if(!x||typeof x!=='object')continue;
+      const y=Object.assign({},x);
+      if(y.id==null||String(y.id)==='')y.id=mkId(y);
+      if(have.has(String(y.id)))continue;
+      have.add(String(y.id));list.push(y);add++;
+    }
+    if(sortBy)list.sort(sortBy);
+    if(list.length>cap)list.splice(0,list.length-cap);
+    return add;
+  };
+  // Elements without an id (written by an old build) get one, or the list
+  // could not sync item by item.
+  const fixIds=(key,pfx)=>{let f=false;const seen=new Set();(D[key]||[]).forEach(x=>{if(!x||typeof x!=='object')return;if(x.id==null||String(x.id)===''||seen.has(String(x.id))){x.id=idOf(pfx,[x.role,x.ts,x.at,String(x.content||x.label||'').slice(0,200),seen.size]);f=true;}seen.add(String(x.id));});return f;};
+  if(fixIds('aiChat','m'))save('aiChat');
+  if(fixIds('coachTrash','ct'))save('coachTrash');
+  if(P.aiChat){
+    const msgs=Array.isArray(P.aiChat.messages)?P.aiChat.messages:[];
+    if(fold('aiChat',msgs,50,m=>idOf('m',[m.role,m.ts,String(m.content||'').slice(0,200)]),(a,b)=>(Number(a&&a.ts)||0)-(Number(b&&b.ts)||0)))save('aiChat');
+    delete P.aiChat;moved=true;
+  }
+  if(P.coach&&Array.isArray(P.coach.trash)){
+    // Trash is newest first.
+    if(fold('coachTrash',P.coach.trash,25,t=>idOf('ct',[t.ent,t.at,t.label]),(a,b)=>String(b&&b.at||'').localeCompare(String(a&&a.at||''))))save('coachTrash');
+    delete P.coach.trash;moved=true;
+  }
+  if(moved)save('prefs');
+  return moved;
+}
+try{_luMovePrefsLists();}catch(e){console.warn('[sync] moving chat/trash out of prefs failed',e);}
 function _luItemsSafe(k){
   if(_LU_OBJ_KEYS.has(k)||_LU_ENTITY_KEYS.has(k))return true;
   const seen=new Set();
@@ -11660,7 +11832,7 @@ async function _luPullItems(){
       if(JSON.stringify(D[k])!==before){changed=true;if(k==='prefs')prefsChanged=true;try{_safeOrigSave(k);}catch(_){}}
       if(m.push){_dirtyKeys.add(k);setTimeout(()=>_pushKeyToServer(k),800);}
     }
-    if(prefsChanged){try{if(Array.isArray(D.prefs.aiTopics))D.aiTopics=D.prefs.aiTopics.slice();}catch(_){}try{if(typeof applyPrefs==='function')applyPrefs();}catch(_){}}
+    if(prefsChanged){try{_luMovePrefsLists();}catch(_){}try{if(Array.isArray(D.prefs.aiTopics))D.aiTopics=D.prefs.aiTopics.slice();}catch(_){}try{if(typeof applyPrefs==='function')applyPrefs();}catch(_){}}
     if(changed){try{invalidateSearchIndex();}catch(_){}try{if(typeof curScreen!=='undefined'&&typeof renderScreen==='function'&&!_luEditing())renderScreen(curScreen);}catch(_){}}
   }catch(e){console.warn('[appData] refresh failed',e&&e.message);}
   finally{_luPulling=false;}
@@ -12096,6 +12268,23 @@ function _luQuotaWarn(kind,msg,key){
     document.head.appendChild(s);
   }catch(_){}
 })();
+// Last-saved shape of each task object (ignoring updatedAt, sortOrder and
+// transient _fields). A task first seen is only recorded; one whose shape
+// changed since the last save is stamped updatedAt = now.
+const _luTaskShape=new WeakMap();
+function _luTaskSig(t){
+  const o={};for(const key of Object.keys(t)){if(key==='updatedAt'||key==='sortOrder'||key.charAt(0)==='_')continue;o[key]=t[key];}
+  try{return JSON.stringify(o);}catch(_){return '';}
+}
+function _luStampTaskEdits(){
+  const now=new Date().toISOString();
+  for(const t of (Array.isArray(D.tasks)?D.tasks:[])){
+    if(!t||typeof t!=='object')continue;
+    const sig=_luTaskSig(t),prev=_luTaskShape.get(t);
+    if(prev!==undefined&&prev!==sig)t.updatedAt=now;
+    _luTaskShape.set(t,sig);
+  }
+}
 window.save=function(k){
   // Mirror aiTopics through prefs.aiTopics for server sync (the server's
   // user_app_data table has no aiTopics column, so we ride along with prefs).
@@ -12109,6 +12298,9 @@ window.save=function(k){
       _syncTimers['prefs']=setTimeout(()=>_pushKeyToServer('prefs'),2000);
     }
   }
+  // Tasks edited anywhere (drawer, pills, inline title/due/priority…) get
+  // updatedAt, so "Stalled" means untouched, not just old (-275).
+  if(k==='tasks'){try{_luStampTaskEdits();}catch(e){console.warn('[tasks] stamp failed',e);}}
   // One note body (-240): body always follows bodyHtml, whoever wrote it.
   if(k==='notes'&&typeof _noteNormalizeAll==='function'){try{_noteNormalizeAll();}catch(e){console.warn('[notes] normalize failed',e);}}
   _safeOrigSave(k);
@@ -12183,7 +12375,7 @@ async function loadServerData(){
         if(typeof curScreen!=='undefined'&&typeof renderScreen==='function')setTimeout(()=>renderScreen(curScreen),60);
       }
     }else{
-    const keys=['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','calEvents','clusters','programs','opportunities','mindmaps','sheets','decks','calGrid'];
+    const keys=['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','calEvents','clusters','programs','opportunities','mindmaps','sheets','decks','calGrid','aiChat','coachTrash'];
     // The calendar grid was browser-only until 2026-10-15. On each device's FIRST
     // calGrid sync, keep ALL of its own events (another device may have
     // uploaded first, and these are not remote deletions); after that the
@@ -12205,8 +12397,9 @@ async function loadServerData(){
     try{ if(sd&&sd.updatedAt!=null)_srvUpd=_pd(sd.updatedAt).getTime()||0; }catch(_){ _srvUpd=0; }
     const _GRACE=90*1000;
     const _itemTime=x=>{
-      const t=Date.parse(x&&(x.createdAt||x.updatedAt||x.created)||0);
+      const t=Date.parse(x&&(x.createdAt||x.updatedAt||x.created||x.at)||0);
       if(t)return t;
+      if(x&&typeof x.ts==='number'&&x.ts>1e12)return x.ts; // assistant messages (-275)
       return (x&&typeof x.id==='number'&&x.id>1e12)?x.id:0; // Date.now() id
     };
     keys.forEach(k=>{
@@ -12350,6 +12543,7 @@ async function loadServerData(){
       }
       changed=true;
     }
+    try{if(_luMovePrefsLists())changed=true;}catch(e){console.warn('[sync] chat/trash move failed',e);}
     if(changed){
       applyPrefs();
       // Re-render current screen with restored data
@@ -12501,7 +12695,7 @@ function renderMindmaps(){
       ${maps.map(m => `
         <div style="background:var(--s2);border:1px solid var(--bd2);border-radius:10px;padding:16px;cursor:pointer;transition:border-color .15s" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='var(--bd2)'" onclick="mmOpen(${m.id})">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-            <span style="font-size:20px">${m.icon||'🧠'}</span>
+            <span style="font-size:20px">${esc(m.icon||'🧠')}</span>
             <div style="flex:1;min-width:0">
               <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.title)}</div>
               <div style="font-size:11px;color:var(--t3)">${m.nodes.length} nodes · ${m.edges.length} connections</div>
@@ -12692,7 +12886,7 @@ function renderMindmapCanvas(){
   main.innerHTML = `
   <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap">
     <button class="btn btn-s" style="height:28px;font-size:11px" onclick="mmClose()">← Back</button>
-    <h2 style="font-size:16px;font-weight:700;margin:0">${mm.icon} ${esc(mm.title)}</h2>
+    <h2 style="font-size:16px;font-weight:700;margin:0">${esc(mm.icon||'')} ${esc(mm.title)}</h2>
     <span style="flex:1"></span>
     <input id="mm-search" placeholder="🔍 Search…" value="${esc(_mmSearchQuery)}" style="height:26px;font-size:11px;width:140px;padding:0 8px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;color:var(--t1)" oninput="mmSearch(this.value)">
     <button class="btn btn-s" style="height:28px;font-size:11px" onclick="mmUndo()" title="Undo (Cmd/Ctrl+Z)">↶</button>
@@ -12771,7 +12965,7 @@ function mmDrawNodes(){
     // Collapse triangle (M13) — only when this node has children
     const hasKids=_mmHasChildren(n.id);
     const collapseBtn=hasKids?`<span class="mm-node-collapse" title="${n.collapsed?'Expand subtree':'Collapse subtree'}" onclick="event.stopPropagation();mmToggleCollapse(${_tidLit(n.id)})">${n.collapsed?'▸':'▾'}</span>`:'';
-    const iconHtml=n.icon?`<span class="mm-node-icon">${n.icon}</span>`:'';
+    const iconHtml=n.icon?`<span class="mm-node-icon">${esc(n.icon)}</span>`:'';
     const textHtml=editing
       ? `<input class="mm-node-edit" value="${esc(n.text||'')}" onclick="event.stopPropagation()" onkeydown="mmInlineEditKey(event,${_tidLit(n.id)})" onblur="mmInlineEditCommit(${_tidLit(n.id)},this.value)" autofocus>`
       : `<span class="mm-node-text" ondblclick="event.stopPropagation();mmStartInlineEdit(${_tidLit(n.id)})">${esc(n.text||'(empty)')}</span>`;
@@ -13089,7 +13283,7 @@ function mmRenderSidePanel(){
   const outEdges=_mmCurrent.edges.filter(e=>e.from===node.id||e.to===node.id);
   side.innerHTML=`
     <div class="mm-side-h">
-      <span style="font-size:18px">${node.icon||'•'}</span>
+      <span style="font-size:18px">${esc(node.icon||'•')}</span>
       <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(node.text||'')}</span>
       <span class="mm-side-close" onclick="mmCloseSidePanel()">✕</span>
     </div>
@@ -13971,19 +14165,32 @@ function _shHelpers(sheet,ctx){
 const _shCompiled=new Map();
 function _shCompile(f){
   let hit=_shCompiled.get(f); if(hit)return hit;
-  const re=/\s*(?:(\d+(?:\.\d+)?)|("(?:[^"]*)")|(\$?[A-Za-z]{1,2}\$?\d+:\$?[A-Za-z]{1,2}\$?\d+)|(\$?[A-Za-z]{1,2}\$?\d+)|([A-Za-z_]+)(?=\s*\()|(<=|>=|<>|\*\*|[-+*/%^(),<>=])|(#REF!))/g;
-  let js='',last=0,m,err=null;
+  const re=/\s*(?:(\d+(?:\.\d+)?)|("(?:[^"]*)")|(\$?[A-Za-z]{1,2}\$?\d+:\$?[A-Za-z]{1,2}\$?\d+)|(\$?[A-Za-z]{1,2}\$?\d+)|([A-Za-z_]+)(?=\s*\()|(<=|>=|<>|\*\*|[-+*/%^(),<>=&])|(#REF!)|([Tt][Rr][Uu][Ee]|[Ff][Aa][Ll][Ss][Ee])(?![A-Za-z0-9_(]))/g;
+  // Output pieces; "&" wraps its argument (from the last "(" / "," / start
+  // at the same depth to the next "," / ")" / end) as ("" + (a) + (b)), so it
+  // binds loosest, like Excel's text join.
+  const out=[];const stk=[{start:0,cat:false}];let last=0,m,err=null;
+  const closeArg=()=>{const t=stk[stk.length-1];if(t&&t.cat){out.push('))');t.cat=false;}};
   while((m=re.exec(f))){
     if(m.index!==last){ err='#ERR'; break; }
-    if(m[1]!=null)js+=m[1];
-    else if(m[2]!=null)js+=JSON.stringify(m[2].slice(1,-1));
-    else if(m[3]!=null)js+='H.r("'+m[3].replace(/\$/g,'').toUpperCase()+'")';
-    else if(m[4]!=null)js+='H.c("'+m[4].replace(/\$/g,'').toUpperCase()+'")';
-    else if(m[5]!=null)js+='H.fn.'+m[5].toUpperCase();
-    else if(m[6]!=null){ let op=m[6]; if(op==='^')op='**'; else if(op==='<>')op='!=='; else if(op==='=')op='==='; js+=op; }
+    if(m[1]!=null)out.push(m[1]);
+    else if(m[2]!=null)out.push(JSON.stringify(m[2].slice(1,-1)));
+    else if(m[3]!=null)out.push('H.r("'+m[3].replace(/\$/g,'').toUpperCase()+'")');
+    else if(m[4]!=null)out.push('H.c("'+m[4].replace(/\$/g,'').toUpperCase()+'")');
+    else if(m[5]!=null)out.push('H.fn.'+m[5].toUpperCase());
+    else if(m[6]!=null){ let op=m[6];
+      if(op==='('){out.push('(');stk.push({start:out.length,cat:false});}
+      else if(op===','){closeArg();out.push(',');stk[stk.length-1].start=out.length;}
+      else if(op===')'){closeArg();if(stk.length<2){err='#ERR';break;}stk.pop();out.push(')');}
+      else if(op==='&'){const t=stk[stk.length-1];if(!t.cat){out.splice(t.start,0,'(""+(');t.cat=true;}out.push(')+(');}
+      else{ if(op==='^')op='**'; else if(op==='<>')op='!=='; else if(op==='=')op='==='; else if(op==='%')op='/100'; out.push(op); }
+    }
     else if(m[7]!=null){ err='#REF!'; break; }
+    else if(m[8]!=null)out.push(/^t/i.test(m[8])?'true':'false');
     last=re.lastIndex;
   }
+  if(!err){closeArg();if(stk.length!==1)err='#ERR';}
+  const js=out.join('');
   if(!err&&last!==f.length)err='#ERR';
   if(!err){ try{ hit={fn:Function('H','return ('+js+')')}; }catch(_){ err='#ERR'; } }
   if(err)hit={err};
@@ -14378,10 +14585,11 @@ function shSaveAssign(){ if(!_sheetCurrent)return; let g=null; try{ if(typeof _m
 function _shSnap(){ if(!_sheetCurrent)return; try{ _sheetUndo.push(JSON.stringify({columns:_sheetCurrent.columns,rows:_sheetCurrent.rows})); if(_sheetUndo.length>40)_sheetUndo.shift(); _sheetRedo=[]; }catch(_){} }
 function shUndo(){ if(!_sheetCurrent||!_sheetUndo.length)return toast('Nothing to undo'); try{ _sheetRedo.push(JSON.stringify({columns:_sheetCurrent.columns,rows:_sheetCurrent.rows})); const s=JSON.parse(_sheetUndo.pop()); _sheetCurrent.columns=s.columns; _sheetCurrent.rows=s.rows; saveSheets(); renderSheetGrid(); }catch(_){} }
 function shRedo(){ if(!_sheetCurrent||!_sheetRedo.length)return toast('Nothing to redo'); try{ _sheetUndo.push(JSON.stringify({columns:_sheetCurrent.columns,rows:_sheetCurrent.rows})); const s=JSON.parse(_sheetRedo.pop()); _sheetCurrent.columns=s.columns; _sheetCurrent.rows=s.rows; saveSheets(); renderSheetGrid(); }catch(_){} }
-function shExportCSV(){ const s=_sheetCurrent; if(!s)return; const esc2=v=>{ v=(v==null?'':String(v)); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; };
+function shExportCSV(){ const s=_sheetCurrent; if(!s)return; const esc2=v=>{ v=_csvSafe(v==null?'':String(v)); return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; };
   const head=s.columns.map(c=>esc2(c.name)).join(',');
   const lines=_shPass(s,()=>s.rows.map(r=>s.columns.map(c=>{ let v=(r.cells||{})[c.id]; if(typeof v==='string'&&v.charAt(0)==='=')v=_shEval(s,v,0); return esc2(v); }).join(',')));
-  const blob=new Blob([[head].concat(lines).join('\n')],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=(s.title||'sheet')+'.csv'; a.click(); URL.revokeObjectURL(a.href); toast('⬇ CSV exported');
+  // BOM so Excel reads accented text as UTF-8 (-275)
+  const blob=new Blob(['\ufeff'+[head].concat(lines).join('\r\n')],{type:'text/csv;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=(s.title||'sheet')+'.csv'; a.click(); URL.revokeObjectURL(a.href); toast('⬇ CSV exported');
 }
 async function _loadSharedSheets(){
   try{ if(typeof _trpc!=='function')return; _sharedSheetsLoaded=true;
@@ -15032,7 +15240,7 @@ function renderAtlas(){
       <div style="font-size:14px;margin-bottom:8px">No Atlas snapshot yet.</div>
       <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Pull the first snapshot from Atlas to populate this page.</div>
       <button class="btn btn-p" onclick="_atlasPullNow()">↻ Pull from Atlas now</button>
-      <div style="margin-top:10px"><button class="btn btn-s" onclick="nav('settings');setTimeout(()=>{document.querySelectorAll('.sp').forEach(x=>x.style.display='none');const p=document.getElementById('sp-5');if(p)p.style.display='';document.querySelectorAll('.si').forEach((x,i)=>x.classList.toggle('on',i===5));},50)">→ Configure integration</button></div>
+      <div style="margin-top:10px"><button class="btn btn-s"${_act('_openSettingsTab',['sp-5'])}>→ Configure integration</button></div>
     </div>`;
     const r=document.getElementById('atlas-rail');if(r)r.innerHTML='';
     return;
@@ -15109,7 +15317,7 @@ function _atlasProjectsHTML(snap,category){
     const cost=(snap.departments||[]).reduce((sum,d)=>sum+(d.members||[]).reduce((s2,m)=>{
       const e=(m.projects||[]).find(x=>(typeof x==='object'?x.id:x)===p.id);
       if(!e)return s2;
-      const pct=typeof e==='object'?(e.pct||100):100;
+      const pct=_atPct(e);
       return s2+Math.round((m.cost||0)*pct/100);
     },0),0);
     const rev=p.revenue||p.targetRevenue||0;
@@ -15665,8 +15873,8 @@ function _atlasDrawerDetailsHTML(type,e){
 }
 function _atlasDetailsProject(p){
   const snap=D.atlas||{};
-  const cost=(snap.departments||[]).reduce((sum,d)=>sum+(d.members||[]).reduce((s2,m)=>{const e=(m.projects||[]).find(x=>(typeof x==='object'?x.id:x)===p.id);if(!e)return s2;const pct=typeof e==='object'?(e.pct||100):100;return s2+Math.round((m.cost||0)*pct/100);},0),0);
-  const team=[];(snap.departments||[]).forEach(d=>(d.members||[]).forEach(m=>{const e=(m.projects||[]).find(x=>(typeof x==='object'?x.id:x)===p.id);if(e)team.push({m,pct:typeof e==='object'?(e.pct||100):100,clinId:e&&e.clinId});}));
+  const cost=(snap.departments||[]).reduce((sum,d)=>sum+(d.members||[]).reduce((s2,m)=>{const e=(m.projects||[]).find(x=>(typeof x==='object'?x.id:x)===p.id);if(!e)return s2;const pct=_atPct(e);return s2+Math.round((m.cost||0)*pct/100);},0),0);
+  const team=[];(snap.departments||[]).forEach(d=>(d.members||[]).forEach(m=>{const e=(m.projects||[]).find(x=>(typeof x==='object'?x.id:x)===p.id);if(e)team.push({m,pct:_atPct(e),clinId:e&&e.clinId});}));
   const rev=p.revenue||p.targetRevenue||0;
   return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       ${_atlasFld('Category',p.category)}${_atlasFld('Customer',p.customer)}
@@ -15699,7 +15907,7 @@ function _atlasDetailsMember(m){
   const certs=(m.certifications||[]).map(id=>{const c=(snap.certifications||[]).find(x=>x.id===id);return c?c.name:'';}).filter(Boolean);
   const locName=(snap.locations||[]).find(x=>x.id===m.location);
   const clrName=(snap.clearances||[]).find(x=>x.id===m.clearance);
-  const projAssign=(m.projects||[]).map(e=>{const id=typeof e==='object'?e.id:e;const pct=typeof e==='object'?(e.pct||100):100;const p=(snap.projects||[]).find(x=>x.id===id);return {p,pct,id};}).filter(x=>x.p);
+  const projAssign=(m.projects||[]).map(e=>{const id=typeof e==='object'?e.id:e;const pct=_atPct(e);const p=(snap.projects||[]).find(x=>x.id===id);return {p,pct,id};}).filter(x=>x.p);
   const cls=[];if(m.sme)cls.push(['SME','#7C5CBF']);if(m.hub)cls.push(['Hub','#0D9488']);if(m.associate)cls.push(['Associate','#D97706']);if(m.proposal)cls.push(['Proposal','#059669']);if(m.recruiter)cls.push(['Recruiter','#7C3AED']);
   return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       ${_atlasFld('Role',m.role)}${_atlasFld('Department',m._dept)}
@@ -16044,7 +16252,14 @@ async function _loadSharedFinance(){
   }catch(_){}
 }
 // ── formatting / date helpers ──────────────────────────────────────────
-function _finFmt(n,dec){ const neg=n<0; const v=Math.abs(Number(n)||0); const s='$'+v.toLocaleString('en-US',{minimumFractionDigits:dec==null?2:dec,maximumFractionDigits:dec==null?2:dec}); return neg?'-'+s:s; }
+// The budget's currency symbol (settings.currency, "$" by default) — it was
+// stored but every amount was printed with "$" (-275).
+function _finCur(){ try{ const c=_finData().settings&&_finData().settings.currency; return (typeof c==='string'&&c.trim()&&c.trim().length<=4)?c.trim():'$'; }catch(_){ return '$'; } }
+function finSetCurrency(c){
+  if(_finGuard())return;
+  const f=_finData(); f.settings=f.settings||{}; f.settings.currency=String(c||'$').slice(0,4); _finSave(); renderMoney();
+}
+function _finFmt(n,dec){ const neg=n<0; const v=Math.abs(Number(n)||0); const s=_finCur()+v.toLocaleString('en-US',{minimumFractionDigits:dec==null?2:dec,maximumFractionDigits:dec==null?2:dec}); return neg?'-'+s:s; }
 function _finYM(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
 function _finMonthLabel(ym){ const p=ym.split('-'); return new Date(Number(p[0]),Number(p[1])-1,1).toLocaleDateString('en-US',{month:'long',year:'numeric'}); }
 function _finShiftMonth(delta){ const p=_finMonth.split('-'); const d=new Date(Number(p[0]),Number(p[1])-1+delta,1); _finMonth=_finYM(d);
@@ -16339,7 +16554,7 @@ function _finCSS(){
 '#s-money .fin-amount-neg{color:var(--t1);font-weight:650}',
 '#s-money .fin-chip{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:10px;background:var(--s3);color:var(--t2);white-space:nowrap}',
 '#s-money .fin-tx-wrap{overflow-x:auto}',
-'@media (max-width:900px){ #s-money .fin-kpi .n{font-size:17px} #s-money table.fin-tx th:nth-child(4),#s-money table.fin-tx td:nth-child(4){display:none} }'
+'@media (max-width:900px){ #s-money .fin-kpi .n{font-size:17px} #s-money table.fin-tx .fin-c-acct{display:none} }'
   ].join('\n');
   document.head.appendChild(st);
 }
@@ -16364,7 +16579,7 @@ function _finDonut(items,centerLabel){
   const arcs=top.map((x,i)=>{const len=x.value/total*C; const gap=Math.min(2,len/2);
     const s=`<circle r="40" cx="50" cy="50" fill="none" stroke="${_finPal(i)}" stroke-width="14" stroke-dasharray="${(len-gap).toFixed(2)} ${(C-len+gap).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 50 50)"><title>${esc(x.label)}: ${_finFmt(x.value,0)} (${Math.round(x.value/total*100)}%)</title></circle>`; off+=len; return s;}).join('');
   return `<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-    <svg viewBox="0 0 100 100" width="96" height="96" style="flex:0 0 auto">${arcs}<text x="50" y="50" text-anchor="middle" dominant-baseline="middle" font-size="11" font-weight="700" fill="var(--t1)">${esc(centerLabel||_finFmt(total,0))}</text></svg>
+    <svg viewBox="0 0 100 100" width="96" height="96" style="flex:0 0 auto" role="img" aria-label="${esc('Chart: '+top.map(x=>x.label+' '+_finFmt(x.value,0)+' ('+Math.round(x.value/total*100)+'%)').join(', '))}">${arcs}<text x="50" y="50" text-anchor="middle" dominant-baseline="middle" font-size="11" font-weight="700" fill="var(--t1)">${esc(centerLabel||_finFmt(total,0))}</text></svg>
     <div style="font-size:11px;line-height:1.7;min-width:0;flex:1">${top.map((x,i)=>`<div style="display:flex;gap:6px;align-items:center"><span style="width:9px;height:9px;border-radius:2px;background:${_finPal(i)};flex:0 0 auto"></span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--t2)">${esc(x.label)}</span><b style="color:var(--t1)">${_finFmt(x.value,0)}</b><span style="color:var(--t3);width:34px;text-align:right">${Math.round(x.value/total*100)}%</span></div>`).join('')}</div></div>`;
 }
 /* Vertical bars. series [{name,values,color?}] (1 or 2 → paired), labels[].
@@ -16378,14 +16593,17 @@ function _finBars(series,labels){
     return `<rect x="${x.toFixed(1)}" y="${base-h}" width="${bw.toFixed(1)}" height="${Math.max(0,h)}" rx="2" fill="${colors[k]}"><title>${esc(lb)} · ${esc(s.name)}: ${_finFmt(v,0)}</title></rect>${isMax?`<text x="${(x+bw/2).toFixed(1)}" y="${base-h-3}" font-size="9" text-anchor="middle" fill="var(--t2)">${_finFmt(v,0)}</text>`:''}`;}).join('')).join('');
   const xl=labels.map((lb,i)=>`<text x="${(slot*i+slot/2).toFixed(1)}" y="${H-8}" font-size="9" text-anchor="middle" fill="var(--t3)">${esc(lb)}</text>`).join('');
   const legend=series.length>1?`<div style="display:flex;gap:12px;font-size:10px;color:var(--t3);margin-top:2px">${series.map((s,i)=>`<span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${colors[i]};vertical-align:middle;margin-right:4px"></span>${esc(s.name)}</span>`).join('')}</div>`:'';
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-height:150px"><line x1="0" x2="${W}" y1="${base}" y2="${base}" stroke="var(--bd1)"/>${bars}${xl}</svg>${legend}`;
+  // Text summary for screen readers (-275): every bar's value.
+  const sum='Chart: '+labels.map((lb,i)=>lb+' '+series.map(s=>(series.length>1?s.name+' ':'')+_finFmt(s.values[i]||0,0)).join(', ')).join('; ');
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-height:150px" role="img" aria-label="${esc(sum)}"><line x1="0" x2="${W}" y1="${base}" y2="${base}" stroke="var(--bd1)"/>${bars}${xl}</svg>${legend}`;
 }
 /* Single-series line with markers (one series → no legend; the title names it). */
 function _finLine(points,labels){
   const n=points.length; if(n<2||!points.some(v=>v))return '<div style="font-size:11px;color:var(--t3);padding:8px 0">Needs a couple of months of history.</div>';
   const W=Math.max(260,n*44),H=110,base=88,top=14; const min=Math.min(0,...points),max=Math.max(...points); const y=v=>base-Math.round((v-min)/Math.max(1,max-min)*(base-top)); const step=W/n;
   const pts=points.map((v,i)=>`${(step*i+step/2).toFixed(1)},${y(v)}`).join(' ');
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-height:150px"><line x1="0" x2="${W}" y1="${base}" y2="${base}" stroke="var(--bd1)"/><polyline fill="none" stroke="${_finPal(0)}" stroke-width="2" points="${pts}"/>${points.map((v,i)=>`<circle cx="${(step*i+step/2).toFixed(1)}" cy="${y(v)}" r="4" fill="${_finPal(0)}" stroke="var(--s1)" stroke-width="2"><title>${esc(labels[i])}: ${_finFmt(v,0)}</title></circle>`).join('')}${labels.map((lb,i)=>`<text x="${(step*i+step/2).toFixed(1)}" y="${H-8}" font-size="9" text-anchor="middle" fill="var(--t3)">${esc(lb)}</text>`).join('')}</svg>`;
+  const sum='Chart: '+labels.map((lb,i)=>lb+' '+_finFmt(points[i]||0,0)).join(', ');
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-height:150px" role="img" aria-label="${esc(sum)}"><line x1="0" x2="${W}" y1="${base}" y2="${base}" stroke="var(--bd1)"/><polyline fill="none" stroke="${_finPal(0)}" stroke-width="2" points="${pts}"/>${points.map((v,i)=>`<circle cx="${(step*i+step/2).toFixed(1)}" cy="${y(v)}" r="4" fill="${_finPal(0)}" stroke="var(--s1)" stroke-width="2"><title>${esc(labels[i])}: ${_finFmt(v,0)}</title></circle>`).join('')}${labels.map((lb,i)=>`<text x="${(step*i+step/2).toFixed(1)}" y="${H-8}" font-size="9" text-anchor="middle" fill="var(--t3)">${esc(lb)}</text>`).join('')}</svg>`;
 }
 /* Horizontal ranked list with proportional bars (top payees etc.). */
 function _finRankBars(items,max){
@@ -16510,6 +16728,8 @@ function renderMoney(){
   const m=document.getElementById('money-main'); if(!m)return;
   _finCSS(); ensureFin();
   if(_finShared==null){try{_finSeedTransferRules();_finSeedCheckRule();}catch(e){console.warn('[money] transfer seed failed',e);}}
+  if(_finShared==null){try{if(_finReconcileIncome(_finData()))_finSave();}catch(e){console.warn('[money] income reconcile failed',e);}}
+  if(_finShared==null){try{_finMigrateShareAll();}catch(_){}}
   // Right rail (build -192) — populated after the synchronous render below.
   setTimeout(()=>{try{_populateMoneyRail();}catch(e){console.warn('[money] rail failed',e);}},0);
   if(typeof _finSnapshotNetWorth==='function'){try{_finSnapshotNetWorth();}catch(_){}}
@@ -16529,9 +16749,9 @@ function renderMoney(){
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
       ${switcher}
       <span style="display:inline-flex;align-items:center;gap:2px;background:var(--s2);border:1px solid var(--bd1);border-radius:8px;height:28px;padding:0 4px">
-        <button class="btn btn-s" style="height:22px;border:none;background:none;font-size:12px" onclick="_finShiftMonth(-1)">‹</button>
+        <button class="btn btn-s" style="height:22px;border:none;background:none;font-size:12px" aria-label="Previous month" onclick="_finShiftMonth(-1)">‹</button>
         <span style="font-size:11px;font-weight:600;min-width:104px;text-align:center">${_finMonthLabel(_finMonth)}</span>
-        <button class="btn btn-s" style="height:22px;border:none;background:none;font-size:12px" onclick="_finShiftMonth(1)">›</button>
+        <button class="btn btn-s" style="height:22px;border:none;background:none;font-size:12px" aria-label="Next month" onclick="_finShiftMonth(1)">›</button>
       </span>
       ${viewingShared?'':`<button class="btn btn-s" style="height:28px;font-size:11px" onclick="finOpenShare()">👥 Share</button>
       <button class="btn btn-s" style="height:28px;font-size:11px" onclick="finOpenImport()">📥 Import</button>
@@ -16582,7 +16802,7 @@ function _finOverviewHtml(){
   </div>
   <div class="fin-grid">
     <div class="fin-card"><h3>📊 Cash flow — last 6 months</h3>
-      <svg viewBox="0 0 300 110" style="width:100%;max-width:420px">
+      <svg viewBox="0 0 300 110" style="width:100%;max-width:420px" role="img" aria-label="${esc('Cash flow: '+flow.map(x=>_finMonShort(x.m)+' income '+_finFmt(x.inc,0)+', spending '+_finFmt(x.exp,0)).join('; '))}">
         ${flow.map((x,i)=>{const bx=10+i*48;const ih=Math.round(x.inc/maxFlow*80);const eh=Math.round(x.exp/maxFlow*80);return `
           <rect x="${bx}" y="${90-ih}" width="16" height="${Math.max(1,ih)}" rx="2" fill="var(--ok)" opacity=".85"><title>Income ${_finFmt(x.inc,0)}</title></rect>
           <rect x="${bx+18}" y="${90-eh}" width="16" height="${Math.max(1,eh)}" rx="2" fill="var(--red)" opacity=".75"><title>Spent ${_finFmt(x.exp,0)}</title></rect>
@@ -16646,7 +16866,8 @@ function _finTxHtml(){
     ${ro?'':`<button class="btn btn-s" style="height:28px;font-size:11px" onclick="finOpenCsv()">⬆ CSV</button>
     <button class="btn btn-s" style="height:28px;font-size:11px" onclick="finOpenRules()">⚙ Rules</button>
     <button class="btn btn-s" style="height:28px;font-size:11px;color:var(--purp)" onclick="finAICategorize()" title="AI proposes a category + rule for every uncategorized payee; you approve before anything is written">✨ AI categorize</button>
-    <button class="btn btn-s" style="height:28px;font-size:11px" onclick="finDetectRecurring()" title="Scan history for monthly recurring charges">🔍 Recurring</button>`}
+    <button class="btn btn-s" style="height:28px;font-size:11px" onclick="finDetectRecurring()" title="Scan history for monthly recurring charges">🔍 Recurring</button>
+    <select class="inp" aria-label="Currency symbol" title="Currency symbol for this budget" style="height:28px;font-size:11px;width:auto" onchange="finSetCurrency(this.value)">${['$','€','£','¥','₹','C$','A$','CHF'].map(c=>`<option ${_finCur()===c?'selected':''}>${c}</option>`).join('')}</select>`}
   </div>
   ${_finTxInsightsHtml(rows,rangeLabel)}
   ${ro?'':`<div id="fin-bulk" style="display:${_finTxSel.size?'flex':'none'};gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px;padding:8px 10px;background:color-mix(in srgb,var(--page-accent) 12%,var(--s2));border:1px solid var(--bd2);border-radius:8px">
@@ -16660,14 +16881,14 @@ function _finTxHtml(){
     <button class="btn btn-s" style="height:26px;font-size:11px;margin-left:auto"${_act('finTxBulk',['none'])}>✕ Clear</button>
   </div>`}
   <div class="fin-card fin-tx-wrap" style="padding:0">
-  <table class="fin-tx"><thead><tr>${ro?'':`<th style="width:22px"><input type="checkbox" aria-label="Select all shown"${_act('finTxSelAll',[],{ev:true,stop:true})}></th>`}<th title="Cleared / reconciled against your statement">✓</th><th>Date</th><th>Payee</th><th>Category</th><th>Account</th><th style="text-align:right">Amount</th><th></th></tr></thead><tbody>
+  <table class="fin-tx"><thead><tr>${ro?'':`<th style="width:22px"><input type="checkbox" aria-label="Select all shown"${_act('finTxSelAll',[],{ev:true,stop:true})}></th>`}<th title="Cleared / reconciled against your statement">✓</th><th>Date</th><th>Payee</th><th>Category</th><th class="fin-c-acct">Account</th><th style="text-align:right">Amount</th><th></th></tr></thead><tbody>
   ${rows.length?rows.slice(0,500).map(t=>{const c=_finCat(t.catId);const a=f.accounts.find(x=>String(x.id)===String(t.accountId||''));return `<tr style="cursor:pointer" onclick="finOpenTx('${_jsAttr(String(t.id))}')">
     ${ro?'':`<td><input type="checkbox" data-txsel="${esc(String(t.id))}" aria-label="Select ${esc(t.payee||'transaction')}" ${_finTxSel.has(String(t.id))?'checked':''}${_act('finTxToggleSel',[String(t.id)],{ev:true,stop:true})}></td>`}
     <td><span title="${t.cleared?'Cleared — matches your statement':'Uncleared'}" style="cursor:pointer;font-size:13px;color:${t.cleared?'var(--ok)':'var(--bd2)'}" onclick="event.stopPropagation();finToggleCleared('${_jsAttr(String(t.id))}')">${t.cleared?'●':'○'}</span></td>
     <td style="white-space:nowrap">${esc(String(t.date||''))}</td>
     <td>${esc(t.payee||'')}${t.splitOf?' <span class="fin-chip" title="Part of a split">✂</span>':''}${t.recurringBillId?' <span class="fin-chip" title="Recurring — tracked in the Bills tab">↻</span>':''}${t.notes?` <span title="${esc(String(t.notes).slice(0,160))}" style="cursor:help;font-size:11px">📝</span>`:''}</td>
     <td>${ro||t.splitOf?`<span class="fin-chip">${c.icon} ${esc(c.name)}</span>`:`<select class="inp fin-cat-inline" data-tx="${esc(String(t.id))}" aria-label="Category" title="Change the category" onclick="event.stopPropagation()" onchange="finTxSetCatEl(this)">${_finCatOptions(t.catId)}</select>`}</td>
-    <td style="font-size:11px;color:var(--t3)">${a?esc(a.name):''}</td>
+    <td class="fin-c-acct" style="font-size:11px;color:var(--t3)">${a?esc(a.name):''}</td>
     <td style="text-align:right" class="${t.amount>0?'fin-amount-pos':'fin-amount-neg'}">${_finFmt(t.amount)}</td>
     <td>${ro?'':`<span style="cursor:pointer;color:var(--t3)" title="Delete" onclick="event.stopPropagation();finDeleteTx('${_jsAttr(String(t.id))}')">✕</span>`}</td></tr>`;}).join('')+(rows.length>500?`<tr><td colspan="8" style="text-align:center;color:var(--t3);padding:10px;font-size:11px">Showing the newest 500 of ${rows.length} — narrow the range or filters to see the rest.</td></tr>`:''):`<tr><td colspan="8" style="text-align:center;color:var(--t3);padding:22px">No transactions in ${rangeLabel}.${ro?'':' Click <b>+ Transaction</b> to add one.'}</td></tr>`}
   </tbody></table></div>`;
@@ -16724,9 +16945,28 @@ function finDeleteTx(id){
   if(i<0)return;
   // Remember deleted bank transactions so the next sync (which re-pulls a
   // 7-day overlap) doesn't import them again.
-  const bid=f.transactions[i].bankTxId||f.transactions[i].sophtronId;
-  if(bid){ f.settings=f.settings||{}; const g=Array.isArray(f.settings.deletedBankTxIds)?f.settings.deletedBankTxIds:[]; if(!g.includes(bid))g.push(bid); f.settings.deletedBankTxIds=g.slice(-3000); }
+  const tx=f.transactions[i];
+  _finForgetBankTx(f,tx);
   f.transactions.splice(i,1); _finSave(); renderMoney();
+  // -275: Undo for 8 seconds (deletes were instant and final).
+  _finUndoToast('Transaction deleted',tx.payee||'',()=>{
+    if(f.transactions.some(x=>String(x.id)===String(tx.id)))return false;
+    f.transactions.splice(Math.min(i,f.transactions.length),0,tx);_finUnforgetBankTx(f,tx);return true;
+  });
+}
+function _finForgetBankTx(f,tx){
+  const bid=tx&&(tx.bankTxId||tx.sophtronId);
+  if(bid){ f.settings=f.settings||{}; const g=Array.isArray(f.settings.deletedBankTxIds)?f.settings.deletedBankTxIds:[]; if(!g.includes(bid))g.push(bid); f.settings.deletedBankTxIds=g.slice(-3000); }
+}
+function _finUnforgetBankTx(f,tx){
+  const bid=tx&&(tx.bankTxId||tx.sophtronId);
+  if(bid&&f.settings&&Array.isArray(f.settings.deletedBankTxIds))f.settings.deletedBankTxIds=f.settings.deletedBankTxIds.filter(x=>x!==bid);
+}
+function _finUndoToast(title,name,undo){
+  if(typeof toast!=='function')return;
+  toast({type:'info',title,msg:name?'“'+String(name).slice(0,60)+'”':'',duration:8000,actions:[{label:'Undo',primary:true,onClick:()=>{
+    try{if(undo()){_finSave();renderMoney();toast('↩ Restored');}}catch(e){console.warn('[money] undo failed',e);}
+  }}]});
 }
 // ── recurring mark + reminder tasks (build -177) ───────────────────────
 /* "↻ Recurring" links a transaction to a Bill (the app's recurring-expense
@@ -16877,7 +17117,7 @@ function finReviewCat(i,catId){
       const rules=_finRules();
       const ex=rules.find(r=>String(r.match||'').toLowerCase()===rule);
       if(ex)ex.catId=cat;else rules.push({id:String(Date.now()),match:rule,catId:cat});
-      _finData().transactions.forEach(t=>{if(_finIsUncat(t)&&!x.txs.includes(t)&&_finRuleTest({match:rule},String(t.payee||'').toLowerCase())){t.catId=cat;more++;}});
+      _finData().transactions.forEach(t=>{if(_finIsUncat(t)&&!x.txs.includes(t)&&_finRuleTestTx({match:rule},t)){t.catId=cat;more++;}});
     }
   }
   _finReviewRefresh();
@@ -17342,7 +17582,23 @@ function finSaveAcct(id){
 function finDeleteAcct(id){
   if(_finGuard())return;
   const f=_finData(); const i=f.accounts.findIndex(x=>String(x.id)===String(id));
-  if(i<0)return; f.accounts.splice(i,1); _finSave(); _finCloseModal(); renderMoney();
+  if(i<0)return;
+  const acct=f.accounts[i];
+  // -275: its transactions go with it (they kept counting in every total
+  // after the account was gone), after a confirmation, with Undo.
+  const txs=(f.transactions||[]).filter(t=>String(t.accountId||'')===String(acct.id));
+  if(!confirm('Delete the account “'+(acct.name||'account')+'”'+(txs.length?' and its '+txs.length+' transaction'+(txs.length===1?'':'s'):'')+'?\n\nYou can undo this for a few seconds.'))return;
+  f.accounts.splice(i,1);
+  const kept=[];const removed=[];
+  (f.transactions||[]).forEach((t,j)=>{if(String(t.accountId||'')===String(acct.id)){removed.push({t,j});_finForgetBankTx(f,t);}else kept.push(t);});
+  f.transactions=kept;
+  _finSave(); _finCloseModal(); renderMoney();
+  _finUndoToast('Account deleted',acct.name||'',()=>{
+    if(f.accounts.some(x=>String(x.id)===String(acct.id)))return false;
+    f.accounts.splice(Math.min(i,f.accounts.length),0,acct);
+    removed.forEach(({t,j})=>{if(!f.transactions.some(x=>String(x.id)===String(t.id))){f.transactions.splice(Math.min(j,f.transactions.length),0,t);_finUnforgetBankTx(f,t);}});
+    return true;
+  });
 }
 function finSetAcctBalance(id,val){
   if(_finGuard())return;
@@ -17422,13 +17678,32 @@ function finGoalAddFundsSave(id){
   toast({type:'success',title:'＋ '+_finFmt(amt,0)+' saved',msg:gl.name+' — '+_finFmt(gl.saved,0)+' of '+_finFmt(gl.target,0),duration:1800});
 }
 // ── Share / import / export ────────────────────────────────────────────
+// -275: Money is never shared with "everyone" (the server ignores shareAll for
+// Money now). A budget that had it is converted, once, into the list of the
+// accounts it reached at that moment, and the owner is told who they are.
+function _finMigrateShareAll(){
+  const f=ensureFin(); const sh=f.share;
+  if(!sh||!sh.shareAll)return false;
+  const me=D.creds&&D.creds.userId!=null?Number(D.creds.userId):null;
+  const roster=(typeof _workspaceMembers!=='undefined'&&Array.isArray(_workspaceMembers))?_workspaceMembers:[];
+  if(!roster.length)return false; // roster not loaded yet: try again later
+  const ids=(sh.assignees||[]).map(Number).filter(n=>!isNaN(n));
+  const names=(sh.assigneeNames||[]).slice();
+  roster.forEach(u=>{const id=Number(u&&u.id);if(!id||id===me||ids.includes(id))return;ids.push(id);names.push(u.name||u.email||('user '+id));});
+  sh.assignees=ids;sh.assigneeNames=names;sh.primaryAssigneeId=sh.primaryAssigneeId||ids[0]||null;sh.shareAll=false;
+  _finSave();
+  toast({type:'info',title:'Money sharing now lists people by name',msg:(names.length?names.slice(0,6).join(', ')+(names.length>6?' …':''):'Nobody')+' — open 👥 Share to remove anyone.',duration:9000});
+  return true;
+}
 function finOpenShare(){
+  try{_finMigrateShareAll();}catch(_){}
   const f=ensureFin(); const sh=f.share;
   _finModal(`<div style="padding:16px;max-width:460px">
     <h2 style="font-size:15px;font-weight:600;margin-bottom:4px">👥 Share your budget</h2>
     <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Shares your WHOLE Money workspace (accounts, transactions, budgets, bills, goals). Recipients see it as a separate budget in their Money page — your own budget stays theirs. Unlike other items, budgets are never visible to admins unless you share them.</div>
     <div class="field"><label>Share with</label>${(typeof buildMultiAssignee==='function')?buildMultiAssignee('fin-ma',sh):'<div style="font-size:11px;color:var(--t3)">Roster unavailable</div>'}</div>
-    ${(typeof _shareControlsHtml==='function')?_shareControlsHtml('fin-share',sh,'view'):''}
+    ${(typeof _shareControlsHtml==='function')?_shareControlsHtml('fin-share',sh,'view',{noAll:true}):''}
+    <div style="font-size:11px;color:var(--t3);margin-top:6px">Money is shared with the people you pick only. "Everyone in the workspace" isn't offered here: it would also reach every account created later.</div>
     <div class="dr-actions" style="margin-top:12px">
       <button class="btn btn-p" onclick="finSaveShare()">Save sharing</button>
       <button class="btn btn-s" onclick="_finCloseModal()">Cancel</button>
@@ -17439,7 +17714,7 @@ function finSaveShare(){
   let g=null; try{ if(typeof _maGet==='function')g=_maGet('fin-ma'); }catch(_){}
   if(g){ f.share.assignees=g.assignees||[]; f.share.assigneeNames=g.assigneeNames||[]; f.share.primaryAssigneeId=g.primaryAssigneeId||null; }
   const sc=(typeof _shareControlsGet==='function')?_shareControlsGet('fin-share'):null;
-  if(sc){ f.share.shareAll=sc.shareAll; f.share.shareMode=sc.shareMode; }
+  if(sc){ f.share.shareAll=false; f.share.shareMode=sc.shareMode; }
   _finSave(); _finCloseModal();
   const n=(f.share.assignees||[]).length;
   toast({type:'success',title:'👥 Sharing saved',msg:f.share.shareAll?('Everyone · '+(f.share.shareMode==='edit'?'can edit':'view only')):(n?(n+' member'+(n===1?'':'s')+' · '+(f.share.shareMode==='edit'?'can edit':'view only')):'Not shared'),duration:2200});
@@ -17540,7 +17815,7 @@ function _finIncomeHtml(){
       <button class="btn btn-s" style="height:24px;font-size:11px;padding:0 7px" onclick="finOpenStream('${_jsAttr(String(st.id))}')">✏</button>`}
     </div></div>`;}).join(''):'<div class="fin-card" style="color:var(--t3);font-size:12px">No income streams yet — add each client / salary / side income, then log payments as they land.</div>'}
   <div class="fin-card" style="margin-top:12px"><h3>📈 Income — expected vs received, last 6 months</h3>
-    <svg viewBox="0 0 300 110" style="width:100%;max-width:420px">
+    <svg viewBox="0 0 300 110" style="width:100%;max-width:420px" role="img" aria-label="${esc('Income: '+months.map(m2=>_finMonShort(m2)+' expected '+_finFmt(streams.reduce((s2,st)=>s2+_finStreamExpected(st,m2),0),0)+', received '+_finFmt(_finIncome(m2),0)).join('; '))}">
       ${months.map((m2,i)=>{const bx=10+i*48;const e2=streams.reduce((s,st)=>s+_finStreamExpected(st,m2),0);const r2=_finIncome(m2);const eh=Math.round(e2/maxBar*80);const rh=Math.round(r2/maxBar*80);return `
         <rect x="${bx}" y="${90-eh}" width="16" height="${Math.max(1,eh)}" rx="2" fill="var(--t3)" opacity=".45"><title>Expected ${_finFmt(e2,0)}</title></rect>
         <rect x="${bx+18}" y="${90-rh}" width="16" height="${Math.max(1,rh)}" rx="2" fill="var(--ok)" opacity=".85"><title>Received ${_finFmt(r2,0)}</title></rect>
@@ -17601,15 +17876,50 @@ function finStreamLog(id){
       <button class="btn btn-s" onclick="_finCloseModal()">Cancel</button>
     </div></div>`);
 }
+// -275: a logged payment and the same deposit synced from the bank counted
+// as income twice. A bank deposit of the same amount (within 1%) dated within
+// 5 days of a manual "Income payment" takes over: it gets the stream (and the
+// category, if it had none) and the manual row is removed. Logging first
+// links straight away when the deposit is already there.
+function _finIncomeDeposit(f,amt,date,streamId){
+  const d0=Date.parse(date);if(!d0||!(amt>0))return null;
+  return (f.transactions||[]).find(t=>(t.bankTxId||t.sophtronId)&&t.amount>0&&(!t.streamId||String(t.streamId)===String(streamId))
+    &&Math.abs(t.amount-amt)<=Math.max(1,amt*0.01)&&Math.abs(Date.parse(String(t.date))-d0)<=5*86400000)||null;
+}
+function _finAdoptDeposit(dep,st,catId){
+  dep.streamId=st.id;
+  if(_finIsUncat(dep)||/^inc-other$/.test(String(dep.catId||'')))dep.catId=catId||st.catId||'inc-salary';
+}
+function _finReconcileIncome(f){
+  if(!f||!Array.isArray(f.transactions))return 0;
+  const streams=f.incomeStreams||[];let n=0;
+  for(let i=f.transactions.length-1;i>=0;i--){
+    const t=f.transactions[i];
+    if(!t||t.streamId==null||t.accountId!=null||t.bankTxId||t.notes!=='Income payment')continue;
+    const st=streams.find(x=>String(x.id)===String(t.streamId));if(!st)continue;
+    const dep=_finIncomeDeposit(f,Number(t.amount)||0,t.date,st.id);if(!dep)continue;
+    _finAdoptDeposit(dep,st,t.catId);f.transactions.splice(i,1);n++;
+  }
+  return n;
+}
 function finStreamLogSave(id){
   if(_finGuard())return;
   const f=_finData(); const st=f.incomeStreams.find(x=>String(x.id)===String(id)); if(!st)return;
   const amt=parseFloat(document.getElementById('fsl-amt').value)||0;
   if(amt<=0){toast('Enter an amount.');return;}
-  f.transactions.push({ id:String(Date.now())+Math.floor(Math.random()*1000), date:document.getElementById('fsl-date').value||_ymd(new Date()),
+  const date=document.getElementById('fsl-date').value||_ymd(new Date());
+  const dep=_finIncomeDeposit(f,amt,date,st.id);
+  if(dep){
+    _finAdoptDeposit(dep,st,st.catId);
+    _finSave(); _finCloseModal(); renderMoney();
+    toast({type:'success',title:'🔗 Linked to the bank deposit',msg:st.name+' · '+_finFmt(dep.amount,0)+' on '+dep.date,duration:2600});
+    return;
+  }
+  f.transactions.push({ id:String(Date.now())+Math.floor(Math.random()*1000), date,
     payee:st.name, catId:st.catId||'inc-salary', accountId:null, notes:'Income payment', amount:amt, streamId:st.id });
   _finSave(); _finCloseModal(); renderMoney();
-  toast({type:'success',title:'＋ '+_finFmt(amt,0)+' received',msg:st.name,duration:1800});
+  const banked=(f.accounts||[]).some(a=>a.bankId);
+  toast({type:'success',title:'＋ '+_finFmt(amt,0)+' received',msg:st.name+(banked?' · it links to the bank deposit when that syncs':''),duration:2200});
 }
 
 // ── Money: Forecast + Reports + AI analyst ─────────────────────────────
@@ -17644,10 +17954,23 @@ function _finForecastRows(nMonths){
    the account object itself, every FUTURE credit/loan (manual, CSV or
    bank-synced) gets the ✎ Plan editor automatically. finSaveAcct merges
    via Object.assign so ✏ edits never drop the plan. */
+// -275: an account can name its bill (a.billId, set in the payment plan).
+// Otherwise the name match must be one-to-one: matching on the first two words
+// gave every "Capital One …" card the same bill, so its payment was counted
+// once per card. A bill another account named, or one that name-matches
+// several debt accounts, is not used automatically.
 function _finDebtBill(f,a){
+  const bills=f.bills||[];
+  if(a.billId!=null){const b=bills.find(x=>String(x.id)===String(a.billId));if(b)return b;}
   const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
-  const an=norm(a.name);
-  return f.bills.find(b=>{const bn=norm(b.name);return bn&&(an.includes(bn)||bn.includes(an.split(' ').slice(0,2).join(' ')));})||null;
+  const nameHit=(acct,b)=>{const an=norm(acct.name),bn=norm(b.name);return !!bn&&!!an&&(an.includes(bn)||bn.includes(an)||bn.includes(an.split(' ').slice(0,2).join(' ')));};
+  const claimed=new Set((f.accounts||[]).filter(x=>x!==a&&x.billId!=null).map(x=>String(x.billId)));
+  const debtAccts=(f.accounts||[]).filter(x=>['credit','loan'].includes(x.type));
+  const cands=bills.filter(b=>!claimed.has(String(b.id))&&nameHit(a,b));
+  if(cands.length!==1)return null;
+  const b=cands[0];
+  if(debtAccts.some(x=>x!==a&&x.billId==null&&nameHit(x,b)))return null;
+  return b;
 }
 function _finTargetPay(B,apr,n){
   if(!(n>0))return 0; const r=(apr||0)/100/12;
@@ -17728,7 +18051,10 @@ function finOpenPayPlan(accId){
       </select></div>
     <div id="fpp-sec-auto" style="${sec('auto')};font-size:12px;color:var(--t2);margin:8px 0">
       ${bill?`Matched bill: <b>${esc(bill.name)}</b> — ${_finFmt(bill.amount||0,0)}/mo. Change the bill's amount in the Bills tab, or pick another mode here.`
-            :`<span style="color:var(--warn)">⚠ No bill name-matches this account.</span> Add a bill whose name contains "${esc(a.name)}", or pick another mode.`}</div>
+            :`<span style="color:var(--warn)">⚠ No bill matches this account on its own</span> (none, or one shared by several cards). Pick its bill below, or another mode.`}
+      <div class="field" style="margin-top:8px"><label>Bill that pays this account</label><select class="inp" id="fpp-bill" style="height:28px;font-size:12px">
+        <option value="">Match by name</option>${(f.bills||[]).map(b=>`<option value="${esc(String(b.id))}" ${a.billId!=null&&String(a.billId)===String(b.id)?'selected':''}>${esc(b.name)} · ${_finFmt(b.amount||0,0)}</option>`).join('')}
+      </select></div></div>
     <div id="fpp-sec-fixed" style="${sec('fixed')};margin:8px 0">
       <div class="field"><label>Monthly payment</label><input class="inp" id="fpp-fixed" type="number" min="0" step="0.01" value="${p.fixed!=null?p.fixed:''}" oninput="finPayPlanPreview('${_jsAttr(aid)}')"></div></div>
     <div id="fpp-sec-target" style="${sec('target')};margin:8px 0">
@@ -17820,6 +18146,8 @@ function finSavePayPlan(accId){
   const r=_finPayPlanFromForm();
   a.apr=r.apr;
   if(r.mode==='auto')delete a.payPlan; else a.payPlan=r.plan;
+  const bsel=document.getElementById('fpp-bill');
+  if(bsel){if(bsel.value)a.billId=bsel.value;else delete a.billId;}
   _finSave(); _finCloseModal(); renderMoney();
   toast({type:'success',title:'Payment plan saved',msg:a.name,duration:1800});
 }
@@ -17830,14 +18158,17 @@ function _finForecastHtml(){
   const minRun=Math.min(...rows.map(r=>r.running)),maxRun=Math.max(...rows.map(r=>r.running));
   const runY=v=>90-Math.round((v-minRun)/Math.max(1,maxRun-minRun)*70);
   const lastPayoff=debts.filter(d=>d.months!=null).slice(-1)[0];
-  const debtFree=lastPayoff?lastPayoff.payoff:null;
+  // -275: a debt with no payment mapped (or one too small to beat interest)
+  // never clears — no "debt-free" date while one exists.
+  const neverPaid=debts.filter(d=>d.months==null);
+  const debtFree=lastPayoff&&!neverPaid.length?lastPayoff.payoff:null;
   return `<div class="fin-card" style="margin-bottom:12px"><div class="fin-row" style="font-size:13px">
-      <span class="nm"><b>12-month projection</b> from ${_finMonthLabel(_finMonth)} — planned budgets + expected income${debtFree?` · <b style="color:var(--ok)">debt-free ~${debtFree}</b> at current payments`:''}</span>
+      <span class="nm"><b>12-month projection</b> from ${_finMonthLabel(_finMonth)} — planned budgets + expected income${debtFree?` · <b style="color:var(--ok)">debt-free ~${debtFree}</b> at current payments`:''}${neverPaid.length?` · <b style="color:var(--warn)">${neverPaid.length} debt${neverPaid.length===1?'':'s'} never paid off at current payments</b> (${esc(neverPaid.slice(0,3).map(d=>d.name).join(', '))})`:''}</span>
       <button class="btn btn-s" style="height:26px;font-size:11px;color:var(--purp)" onclick="finForecastAI()">✨ AI: explain my forecast</button>
     </div><div id="fin-forecast-ai"></div></div>
   <div class="fin-grid">
     <div class="fin-card"><h3>📈 Net by month &amp; running cash</h3>
-      <svg viewBox="0 0 560 120" style="width:100%">
+      <svg viewBox="0 0 560 120" style="width:100%" role="img" aria-label="${esc('Forecast: '+rows.map(r=>r.m+' net '+_finFmt(r.net,0)+', cash '+_finFmt(r.running,0)).join('; '))}">
         ${rows.map((r,i)=>{const bx=8+i*46;const h=Math.round(Math.abs(r.net)/maxAbs*38);return `
           <rect x="${bx}" y="${r.net>=0?52-h:54}" width="20" height="${Math.max(1,h)}" rx="2" fill="${r.net>=0?'var(--ok)':'var(--red)'}" opacity=".8"><title>${r.m}: net ${_finFmt(r.net,0)}</title></rect>
           <text x="${bx+10}" y="114" font-size="9" fill="var(--t3)" text-anchor="middle">${r.m.slice(5)}</text>`;}).join('')}
@@ -18001,10 +18332,17 @@ function _finRuleTest(r,d){
   }
   return d.includes(m.toLowerCase());
 }
-function _finApplyRules(desc){
-  const d=String(desc||'').toLowerCase(); if(!d)return null;
-  const hit=_finRules().find(r=>_finRuleTest(r,d));
+// -275: a rule matches if it matches the payee OR the bank's raw
+// description (rawDesc, kept on synced rows). Sync used to test the
+// description and every in-app re-run the payee, so the same rule filed the
+// same charge differently.
+function _finApplyRules(desc,desc2){
+  const ds=[desc,desc2].map(x=>String(x||'').toLowerCase()).filter(Boolean); if(!ds.length)return null;
+  const hit=_finRules().find(r=>ds.some(d=>_finRuleTest(r,d)));
   return hit?hit.catId:null;
+}
+function _finRuleTestTx(r,t){
+  return [t&&t.payee,t&&t.rawDesc].some(x=>{const d=String(x||'').toLowerCase();return !!d&&_finRuleTest(r,d);});
 }
 /* Build -188: seed one anchored pattern rule for paper checks → Transfer
    (the user asked for it after -187). Gated on settings._chkSeeded and on
@@ -18014,7 +18352,7 @@ function _finSeedCheckRule(){
   const xfer=f.categories.find(c=>c&&c.kind==='transfer'); if(!xfer)return;
   if(!Array.isArray(f.rules))f.rules=[];
   const rule={id:String(Date.now()),match:'/^check\\s*#?\\s*\\d+/',catId:xfer.id};
-  const hits=(f.transactions||[]).filter(t=>_finIsUncat(t)&&_finRuleTest(rule,String(t.payee||'').toLowerCase()));
+  const hits=(f.transactions||[]).filter(t=>_finIsUncat(t)&&_finRuleTestTx(rule,t));
   s._chkSeeded=true;
   if(!hits.length||f.rules.some(r=>r.match===rule.match)){_finSave();return;}
   f.rules.push(rule); hits.forEach(t=>t.catId=xfer.id); _finSave();
@@ -18046,11 +18384,11 @@ function _finSeedTransferRules(){
   cands.forEach(([m,catId])=>{
     if(have.has(m))return;
     if(catId!==xfer.id&&!f.categories.some(c=>c.id===catId))return;
-    if(!uncat.some(t=>_finRuleTest({match:m},String(t.payee||'').toLowerCase())))return;
+    if(!uncat.some(t=>_finRuleTestTx({match:m},t)))return;
     f.rules.push({id:String(Date.now()+added),match:m,catId}); have.add(m); added++;
   });
   let recat=0;
-  if(added)uncat.forEach(t=>{ const c=_finApplyRules(t.payee); if(c&&c!==t.catId){t.catId=c;recat++;} });
+  if(added)uncat.forEach(t=>{ const c=_finApplyRules(t.payee,t.rawDesc); if(c&&c!==t.catId){t.catId=c;recat++;} });
   s._xferSeeded=true; _finSave();
   if(added)setTimeout(()=>toast('🔁 Transfer category added · '+added+' rule'+(added===1?'':'s')+' · '+recat+' transaction'+(recat===1?'':'s')+' moved out of spending'),600);
 }
@@ -18060,8 +18398,8 @@ function _finSeedTransferRules(){
 function _finRuleHits(){
   const rules=_finRules(),hits=rules.map(()=>0);
   (_finData().transactions||[]).forEach(t=>{
-    const d=String(t.payee||'').toLowerCase();if(!d)return;
-    const i=rules.findIndex(r=>_finRuleTest(r,d));
+    if(!t||!(t.payee||t.rawDesc))return;
+    const i=rules.findIndex(r=>_finRuleTestTx(r,t));
     if(i>=0)hits[i]++;
   });
   return hits;
@@ -18215,7 +18553,7 @@ function finAICatApply(){
   const seen=new Set(f.rules.map(r=>String(r.match||'').toLowerCase())); let added=0;
   document.querySelectorAll('.fac-chk').forEach(chk=>{ if(!chk.checked)return; const i=chk.dataset.i; const match=matches[i]||props[i].match; const catId=catsSel[i]||props[i].catId; const key=match.toLowerCase(); if(!match||seen.has(key))return; seen.add(key); f.rules.push({id:String(Date.now())+Math.floor(Math.random()*100000),match,catId}); added++; });
   let recat=0;
-  (f.transactions||[]).forEach(t=>{ if(!_finIsUncat(t))return; const c=_finApplyRules(t.payee); if(c&&c!==t.catId){t.catId=c;recat++;} });
+  (f.transactions||[]).forEach(t=>{ if(!_finIsUncat(t))return; const c=_finApplyRules(t.payee,t.rawDesc); if(c&&c!==t.catId){t.catId=c;recat++;} });
   _finAICatProposals=null; _finSave(); _finCloseModal(); renderMoney();
   toast({type:'success',title:'✨ '+added+' rule'+(added===1?'':'s')+' added',msg:recat+' transaction'+(recat===1?'':'s')+' recategorized · rules apply to every future sync (edit them under ⚙ Rules).',duration:4200});
 }
@@ -18375,9 +18713,9 @@ async function sfSync(sfId){
     const seen=_finTxKeySet(); let added=0,auto=0;
     res.transactions.forEach(t=>{
       const key='s:'+t.id; if(seen.has(key))return; seen.add(key);
-      const catId=_finApplyRules(t.description)|| (t.amount>0?'inc-other':'misc-other');
+      const catId=_finApplyRules(t.description,t.payee)|| (t.amount>0?'inc-other':'misc-other');
       if(catId!=='misc-other'&&catId!=='inc-other')auto++;
-      f.transactions.push({id:'sf-'+t.id,bankTxId:t.id,date:t.date,payee:(t.payee||t.description).slice(0,120),catId,accountId:acct.id,notes:(t.memo&&t.memo!==t.description)?t.memo.slice(0,200):'',amount:t.amount,cleared:true});
+      f.transactions.push({id:'sf-'+t.id,bankTxId:t.id,date:t.date,payee:(t.payee||t.description).slice(0,120),rawDesc:String(t.description||'').slice(0,200),catId,accountId:acct.id,notes:(t.memo&&t.memo!==t.description)?t.memo.slice(0,200):'',amount:t.amount,cleared:true});
       added++;
     });
     // Cards/loans store the amount owed; checking/savings keep their sign (an overdraft is not cash).
@@ -18436,8 +18774,9 @@ function finCsvParse(){
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:11px;margin-top:8px">
       <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="fcsv-flip"> Amounts are positive for spending (flip signs)</label>
-      Account <select class="inp" id="fcsv-acct" style="height:26px;font-size:11px;width:auto">${_finAcctOptions('')}</select>
+      Account <select class="inp" id="fcsv-acct" aria-label="Account" style="height:26px;font-size:11px;width:auto" onchange="(function(v){const a=(_finData().accounts||[]).find(x=>String(x.id)===String(v));const w=document.getElementById('fcsv-bankwarn');if(w)w.style.display=a&&a.bankId?'':'none';})(this.value)">${_finAcctOptions('')}</select>
     </div>
+    <div id="fcsv-bankwarn" style="display:none;font-size:11px;color:var(--warn);margin-top:6px">⚠ This account syncs from your bank. Rows the bank already sent (same amount within 2 days) are skipped, but anything else in the file is added on top of the synced history.</div>
   </div>`;
   document.getElementById('fcsv-go').style.display='';
 }
@@ -18449,7 +18788,20 @@ function finCsvImport(){
   if(di<0||de<0||(am<0&&db<0&&cr<0)){toast('Map at least Date, Description and an amount column.');return;}
   const flip=(document.getElementById('fcsv-flip')||{}).checked;
   const acctId=(document.getElementById('fcsv-acct')||{}).value||null;
-  const f=_finData(); const seen=_finTxKeySet();
+  const f=_finData();
+  // -275: duplicates are counted, not just seen: two genuine identical charges
+  // in one file both import unless the budget already holds two such rows.
+  const have={};f.transactions.forEach(t=>{const k=_finTxKey(t);have[k]=(have[k]||0)+1;});
+  ((f.settings&&f.settings.deletedBankTxIds)||[]).forEach(b=>{have['s:'+b]=(have['s:'+b]||0)+1;});
+  // An account that syncs from the bank: its synced rows carry bank ids, so
+  // they never share a key with a CSV row. Match them by amount within two
+  // days instead, each synced row used once.
+  const acctObj=acctId?f.accounts.find(a=>String(a.id)===String(acctId)):null;
+  const synced=acctObj&&acctObj.bankId?f.transactions.filter(t=>String(t.accountId)===String(acctId)&&(t.bankTxId||t.sophtronId)):[];
+  const usedSynced=new Set();let bankDup=0;
+  const syncedMatch=(date,amount)=>{const d0=Date.parse(date);const c=Math.round(amount*100);
+    const hit=synced.find(t=>!usedSynced.has(t)&&Math.round((t.amount||0)*100)===c&&Math.abs(Date.parse(String(t.date))-d0)<=2*86400000);
+    if(hit)usedSynced.add(hit);return !!hit;};
   const parseDate=s=>{s=String(s||'').trim();
     let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/); if(m)return m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0');
     m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/); if(m){const y=m[3].length===2?'20'+m[3]:m[3];return y+'-'+m[1].padStart(2,'0')+'-'+m[2].padStart(2,'0');}
@@ -18466,14 +18818,14 @@ function finCsvImport(){
     if(flip)amount=-amount;
     const t={id:'csv-'+Date.now()+'-'+added,date,payee:desc.slice(0,120),amount,accountId:acctId,notes:'',cleared:true};
     const key=_finTxKey(t);
-    if(seen.has(key)){skipped++;return;}
-    seen.add(key);
+    if(have[key]>0){have[key]--;skipped++;return;}
+    if(synced.length&&syncedMatch(date,amount)){skipped++;bankDup++;return;}
     t.catId=_finApplyRules(desc)||(amount>0?'inc-other':'misc-other');
     if(t.catId!=='misc-other'&&t.catId!=='inc-other')auto++;
     f.transactions.push(t); added++;
   });
   _finSave(); _finCloseModal(); _finTab='transactions'; renderMoney();
-  toast({type:'success',title:'⬆ CSV imported',msg:added+' added · '+skipped+' duplicates skipped'+(auto?' · '+auto+' auto-categorized':''),duration:3500});
+  toast({type:'success',title:'⬆ CSV imported',msg:added+' added · '+skipped+' duplicates skipped'+(bankDup?' ('+bankDup+' already synced from the bank)':'')+(auto?' · '+auto+' auto-categorized':''),duration:3500});
 }
 // ── splits ─────────────────────────────────────────────────────────────
 function finOpenSplit(id){
@@ -18631,7 +18983,7 @@ function _finNetworthChartHtml(){
   const y=v=>92-Math.round((v-min)/Math.max(1,max-min)*74);
   const step=hist.length>1?480/(hist.length-1):0;
   return `<div class="fin-card" style="margin-top:12px"><h3>📈 Net worth over time</h3>
-    <svg viewBox="0 0 520 110" style="width:100%">
+    <svg viewBox="0 0 520 110" style="width:100%" role="img" aria-label="${esc('Net worth: '+hist.map(h=>h.ym+' '+_finFmt(h.assets-h.debts,0)).join('; '))}">
       ${min<0&&max>0?`<line x1="14" x2="${14+step*(hist.length-1)}" y1="${y(0)}" y2="${y(0)}" stroke="var(--bd2)" stroke-dasharray="3 3"/>`:''}
       <polyline fill="none" stroke="var(--ac)" stroke-width="2" points="${hist.map((h,i)=>(14+i*step)+','+y(h.assets-h.debts)).join(' ')}"/>
       ${hist.map((h,i)=>`<circle cx="${14+i*step}" cy="${y(h.assets-h.debts)}" r="3" fill="var(--ac)"><title>${h.ym}: ${_finFmt(h.assets-h.debts,0)} (assets ${_finFmt(h.assets,0)} − debt ${_finFmt(h.debts,0)})</title></circle>`).join('')}
@@ -18641,8 +18993,10 @@ function _finNetworthChartHtml(){
 // ── debt what-if simulator ─────────────────────────────────────────────
 let _finWhatIfExtra=0; let _finWhatIfStrategy='snowball';
 function _finSimulatePayoff(extra,strategy){
-  const src=_finDebtPayoff().filter(d=>d.pay>0);
-  if(!src.length)return null;
+  // Debts with no mapped payment stay in: they only get what is left over
+  // (or nothing), so the result says "never" instead of dropping them (-275).
+  const src=_finDebtPayoff();
+  if(!src.length||!src.some(d=>d.pay>0)&&!(extra>0))return null;
   const debts=src.map(d=>({name:d.name,bal:d.balance,pay:d.pay,apr:d.apr||0}));
   const order=()=>debts.filter(d=>d.bal>0.005).sort((a,b)=>strategy==='avalanche'?(b.apr-a.apr)||(a.bal-b.bal):(a.bal-b.bal));
   const budget=debts.reduce((s,d)=>s+d.pay,0)+(extra||0);
@@ -18661,7 +19015,8 @@ function _finSimulatePayoff(extra,strategy){
     }
     debts.forEach(d=>{ if(d.bal<=0.005&&!payoffs.some(p=>p.name===d.name))payoffs.push({name:d.name,month:months}); });
   }
-  return {months,interest:Math.round(interest),payoffs,budget};
+  const left=debts.filter(d=>d.bal>0.005).map(d=>d.name);
+  return {months,interest:Math.round(interest),payoffs,budget,never:left.length>0,left};
 }
 function _finWhatIfHtml(){
   const base=_finSimulatePayoff(0,_finWhatIfStrategy);
@@ -18692,7 +19047,7 @@ function _finWhatIfResults(base){
   const dateAt=m=>_finYM(new Date(new Date().getFullYear(),new Date().getMonth()+m,1));
   return `
     <div class="fin-kpis" style="margin-bottom:8px">
-      <div class="fin-kpi"><div class="n">${sim.months} mo</div><div class="l">Debt-free ${dateAt(sim.months)}${_finWhatIfExtra?` (was ${base.months} mo)`:''}</div></div>
+      <div class="fin-kpi"><div class="n" style="${sim.never?'color:var(--warn)':''}">${sim.never?'Never':sim.months+' mo'}</div><div class="l">${sim.never?esc(sim.left.length+' debt'+(sim.left.length===1?'':'s')+' never clear at this budget: '+sim.left.slice(0,3).join(', ')):'Debt-free '+dateAt(sim.months)}${_finWhatIfExtra&&!sim.never?` (was ${base.never?'never':base.months+' mo'})`:''}</div></div>
       <div class="fin-kpi"><div class="n" style="color:${_finWhatIfExtra&&base.interest-sim.interest>0?'var(--ok)':'var(--t1)'}">${_finFmt(sim.interest,0)}</div><div class="l">Interest paid${_finWhatIfExtra?` · saves ${_finFmt(Math.max(0,base.interest-sim.interest),0)}`:''}</div></div>
       <div class="fin-kpi"><div class="n">${_finFmt(sim.budget,0)}</div><div class="l">Monthly toward debt</div></div>
     </div>
@@ -18721,7 +19076,7 @@ if(typeof FIN_REPORTS!=='undefined'){
       const vals=ms.map(m=>({m,v:(_finSpentByCat(m)[sel]||0),b:_finBudgetFor(sel,m)}));
       const max=Math.max(1,...vals.map(x=>Math.max(x.v,x.b)));
       return `<div style="margin-bottom:10px"><select class="inp" style="height:28px;font-size:12px;width:auto" onchange="window._finTrendCat=this.value;document.getElementById('fin-report-body').innerHTML=FIN_REPORTS.find(r=>r.id==='category-trend').run()">${_finCatOptions(sel)}</select></div>
-      <svg viewBox="0 0 560 110" style="width:100%;max-width:560px">
+      <svg viewBox="0 0 560 110" style="width:100%;max-width:560px" role="img" aria-label="${esc('Spending by month: '+vals.map(x=>x.m+' '+_finFmt(x.v,0)+(x.b?' of '+_finFmt(x.b,0)+' budget':'')).join('; '))}">
         ${vals.map((x,i)=>{const bx=8+i*46;const h=Math.round(x.v/max*78);const bh=Math.round(x.b/max*78);return `
           ${x.b?`<rect x="${bx}" y="${88-bh}" width="34" height="${Math.max(1,bh)}" fill="var(--s3)" rx="2"><title>budget ${_finFmt(x.b,0)}</title></rect>`:''}
           <rect x="${bx+5}" y="${88-h}" width="24" height="${Math.max(1,h)}" rx="2" fill="${x.b&&x.v>x.b?'var(--red)':'var(--ac)'}" opacity=".9"><title>${x.m}: ${_finFmt(x.v,0)}</title></rect>
@@ -18762,10 +19117,13 @@ function _finAgentCommit(fresh){
   f.settings.agentLastRun=new Date().toISOString();
   _finSave();
 }
+// -275: the bill agent uses the Bills tab's matcher (_finBillTxMatch: linked
+// charges, the bill's "payee contains" text, name + amount), so its findings
+// never compare against another bill's charges. A charge linked to a
+// different bill doesn't count here.
 function _finTxForBill(b,days){
   const cut=_ymd(new Date(Date.now()-(days||95)*86400000));
-  const key=String(b.name||'').toLowerCase().slice(0,14);
-  return _finData().transactions.filter(t=>t.amount<0&&!_finCatXfer(t)&&String(t.date)>=cut&&(String(t.payee||'').toLowerCase().includes(key)||(t.catId===b.catId&&Math.abs(Math.abs(t.amount)-b.amount)<Math.max(5,b.amount*0.3)))).sort((a,b2)=>String(a.date).localeCompare(String(b2.date)));
+  return (_finData().transactions||[]).filter(t=>String(t.date)>=cut&&!(t.recurringBillId&&String(t.recurringBillId)!==String(b.id))&&_finBillTxMatch(b,t));
 }
 // ── analyzers ──────────────────────────────────────────────────────────
 function _finAgentBillsRun(out){
@@ -19043,7 +19401,10 @@ function finSaveInvestSettings(){
 function _finAgentNotifs(){
   try{
     if(!D.finance||typeof D.finance!=='object')return [];
-    return _finFindings().filter(x=>!x.dismissed&&x.severity==='warn').slice(-8).map(x=>({
+    // The bell is about YOUR money: findings from your own budget, even while
+    // a shared budget is open on the Money page (-275).
+    const own=Array.isArray(D.finance.agentFindings)?D.finance.agentFindings:[];
+    return own.filter(x=>x&&!x.dismissed&&x.severity==='warn').slice(-8).map(x=>({
       id:'finag-'+x.fingerprint, type:'warning', icon:(_finAgents().find(a=>a.id===x.agent)||{}).icon||'🤖',
       title:x.title, body:x.body.slice(0,120), time:x.at||'', read:false,
       action:()=>{toggleNotifPanel();nav('money');setTimeout(()=>{_finTab='agents';renderMoney();},250);}

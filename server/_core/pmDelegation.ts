@@ -24,7 +24,7 @@
  * tasks the client saves wholesale.
  */
 import { createHash, createHmac } from "crypto";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, gte, isNull, like } from "drizzle-orm";
 import { getDb } from "../db";
 import { coachMessages, pmPeople, pmRecords, userAppData, users } from "../../drizzle/schema";
 import { sendEmail } from "./sendEmail";
@@ -32,9 +32,20 @@ import { callWorkspaceAI } from "./workspaceAI";
 import { ENV } from "./env";
 import { trySpendQuota } from "./quota";
 import { job } from "./lifecycle";
+import { claimSend, releaseSend } from "./sendLedger";
+import { dayIn, userTz } from "./userTime";
 
 const HOST = "levelupnow.tools";
 const DAY = 86400000;
+/** Replies answered per delegation per hour (audit F28). */
+export const DELEGATE_REPLY_HOURLY_CAP = 10;
+/** The Mon–Fri work day before a YYYY-MM-DD date. */
+export function prevWorkDay(ymd: string): string {
+  const d = new Date(`${ymd}T12:00:00Z`);
+  if (isNaN(d.getTime())) return ymd;
+  do d.setUTCDate(d.getUTCDate() - 1); while (d.getUTCDay() === 0 || d.getUTCDay() === 6);
+  return d.toISOString().slice(0, 10);
+}
 export type DelegationStatus = "open" | "on_track" | "at_risk" | "blocked" | "done" | "cancelled";
 export interface DelegationData {
   personKey?: string; personName?: string;
@@ -130,6 +141,35 @@ ${o.canReply ? `<p style="margin:0 0 6px">${o.intro ? "Reply to this email any t
 <div style="font-size:11px;color:#94a3b8;margin-top:10px">Sent for ${esc(o.ownerName)} by LevelUp.</div></div></body></html>`;
 }
 
+/**
+ * Change a delegation's data on the server (audit F63): read the CURRENT row
+ * inside a transaction with SELECT … FOR UPDATE, let `fn` append to it, bump
+ * `data._rev` and write it back. The browser sends the `_rev` it last saw with
+ * every save (pm.recordUpsert baseRev), so a client edit made before this
+ * change is refused instead of overwriting it. `fn` may return a new status,
+ * or false to write nothing.
+ */
+export async function mutateDelegation(
+  db: any, recordId: number,
+  fn: (rec: any, d: DelegationData & { _rev?: number }) => { status?: string } | false | void,
+): Promise<{ rec: any; d: DelegationData & { _rev?: number }; status: string | null } | null> {
+  let out: { rec: any; d: DelegationData & { _rev?: number }; status: string | null } | null = null;
+  const run = async (tx: any) => {
+    const q = tx.select().from(pmRecords).where(eq(pmRecords.id, recordId)).limit(1);
+    const [rec] = typeof q.for === "function" ? await q.for("update") : await q;
+    if (!rec) return;
+    const d = parseJSON<DelegationData & { _rev?: number }>(rec.data, {});
+    const r = fn(rec, d);
+    if (r === false) { out = { rec, d, status: rec.status ?? null }; return; }
+    d._rev = (Number(d._rev) || 0) + 1;
+    const status = r && r.status ? r.status : rec.status ?? null;
+    await tx.update(pmRecords).set({ data: JSON.stringify(d), ...(r && r.status ? { status: r.status } : {}), updatedAt: new Date() }).where(eq(pmRecords.id, recordId));
+    out = { rec, d, status };
+  };
+  if (typeof db.transaction === "function") await db.transaction(run); else await run(db);
+  return out;
+}
+
 /** Email the delegate. Returns {ok, error}. Records the attempt on the row. */
 export async function sendDelegateNudge(ownerId: number, recordId: number, opts?: { note?: string; auto?: boolean; intro?: boolean }): Promise<{ ok: boolean; error?: string; to?: string }> {
   const db = await getDb();
@@ -154,23 +194,29 @@ export async function sendDelegateNudge(ownerId: number, recordId: number, opts?
   const now = new Date().toISOString();
   // The address itself is NOT stored on the caller's record (audit F11) —
   // only which person was nudged; the browser reads these records back.
-  d.nudges = [...(d.nudges || []), { at: now, ok, auto: !!opts?.auto, toKey: String(d.personKey || "") }].slice(-30);
-  d.updates = [...(d.updates || []), { at: now, by: "system" as const, text: ok ? `${opts?.intro ? "Details" : opts?.auto ? "Auto follow-up" : "Follow-up"} emailed to ${person.name}${note ? ` — "${clip(note, 120)}"` : ""}` : `Follow-up to ${person.name} failed to send` }].slice(-60);
-  if (ok && !opts?.intro && d.cadenceDays && d.cadenceDays > 0) d.followUp = new Date(Date.now() + d.cadenceDays * DAY).toISOString().slice(0, 10);
-  // "Only once" (cadence 0): an automatic follow-up must not repeat every
-  // workday, so clear the date once it has been sent.
-  else if (ok && opts?.auto && !(d.cadenceDays && d.cadenceDays > 0)) d.followUp = null;
-  await db.update(pmRecords).set({ data: JSON.stringify(d), updatedAt: new Date() }).where(eq(pmRecords.id, recordId));
+  // Audit F63: re-read the row under a lock and APPEND — an edit the owner
+  // saved while the email was going out is kept.
+  await mutateDelegation(db, recordId, (_r, cur) => {
+    cur.nudges = [...(cur.nudges || []), { at: now, ok, auto: !!opts?.auto, toKey: String(d.personKey || "") }].slice(-30);
+    cur.updates = [...(cur.updates || []), { at: now, by: "system" as const, text: ok ? `${opts?.intro ? "Details" : opts?.auto ? "Auto follow-up" : "Follow-up"} emailed to ${person.name}${note ? ` — "${clip(note, 120)}"` : ""}` : `Follow-up to ${person.name} failed to send` }].slice(-60);
+    if (ok && !opts?.intro && cur.cadenceDays && cur.cadenceDays > 0) cur.followUp = new Date(Date.now() + cur.cadenceDays * DAY).toISOString().slice(0, 10);
+    // "Only once" (cadence 0): an automatic follow-up must not repeat every
+    // workday, so clear the date once it has been sent.
+    else if (ok && opts?.auto && !(cur.cadenceDays && cur.cadenceDays > 0)) cur.followUp = null;
+  });
   // The address is not returned to the browser.
   return ok ? { ok } : { ok, error: "The email could not be sent — see Settings → Notifications → Email Delivery Log" };
 }
 
 // ─── replies ───────────────────────────────────────────────────────────────
 export function classifyReplyFallback(text: string): { status: DelegationStatus | "question" | "unknown"; eta: string | null; summary: string } {
-  const t = text.toLowerCase();
-  const status = /\b(done|finished|complete[d]?|shipped|sent it|delivered|wrapped up)\b/.test(t) && !/\bnot (yet )?(done|finished|complete)/.test(t) ? "done"
-    : /\b(blocked|stuck|waiting on|can'?t|cannot|need(s)? (help|input|access))\b/.test(t) ? "blocked"
-    : /\b(late|delay(ed)?|behind|slip(ped)?|push(ed)? (back|out))\b/.test(t) ? "at_risk"
+  const t = text.toLowerCase().replace(/[’‘]/g, "'");
+  // Audit F218: "can't get it done by Friday", "won't be done", "not done" are
+  // NOT done — a negation shortly before the done-word cancels it.
+  const negDone = /\b(can'?t|cannot|won'?t|will not|unable to|couldn'?t|didn'?t|haven'?t|hasn'?t|isn'?t|not|never|no way)\b[^.!?\n]{0,30}\b(done|finish(ed)?|complete[d]?|shipped|deliver(ed)?|wrap(ped)? up|make it)\b/.test(t);
+  const status = !negDone && /\b(done|finished|complete[d]?|shipped|sent it|delivered|wrapped up)\b/.test(t) ? "done"
+    : /\b(blocked|stuck|waiting on|can'?t|cannot|unable to|couldn'?t|need(s)? (help|input|access))\b/.test(t) ? "blocked"
+    : /\b(late|delay(ed)?|behind|slip(ped)?|push(ed)? (back|out)|won'?t be|will not be|not going to make)\b/.test(t) ? "at_risk"
     : /\b(on track|in progress|working on|will (have|send|finish)|by (mon|tue|wed|thu|fri|sat|sun|tomorrow|end of))/.test(t) ? "on_track"
     : /\?\s*$/.test(t.trim()) ? "question" : "unknown";
   return { status, eta: null, summary: clip(text, 160) };
@@ -205,25 +251,45 @@ export async function processDelegateReply(o: { ref: { id: number; token: string
   const dedupe = `dlg:${createHash("sha1").update(o.messageId || `${o.from}|${o.text}`).digest("hex").slice(0, 40)}`;
   const [dup] = await db.select({ id: coachMessages.id }).from(coachMessages).where(and(eq(coachMessages.userId, rec.userId), eq(coachMessages.runKey, dedupe))).limit(1);
   if (dup) return { ok: true, skip: "already processed", messageId: dup.id };
-  const today = new Date().toISOString().slice(0, 10);
+  // Audit F28: at most DELEGATE_REPLY_HOURLY_CAP replies per delegation per hour
+  // (each one is an AI call, a push and possibly an email to the owner).
+  const recent = await db.select({ id: coachMessages.id }).from(coachMessages)
+    .where(and(eq(coachMessages.userId, rec.userId), eq(coachMessages.kind, "delegate"), gte(coachMessages.createdAt, new Date(Date.now() - 3600e3)), like(coachMessages.meta, `{"delegationId":${rec.id},%`)))
+    .limit(DELEGATE_REPLY_HOURLY_CAP);
+  if (recent.length >= DELEGATE_REPLY_HOURLY_CAP) return { ok: false, skip: `delegation #${rec.id}: hourly reply cap reached` };
+  // Audit F218: "Friday" means the owner's Friday — today in their time zone.
+  const [ownerRow] = await db.select({ prefs: userAppData.prefs }).from(userAppData).where(eq(userAppData.userId, rec.userId)).limit(1);
+  const today = dayIn(userTz(parseJSON<any>(ownerRow?.prefs, {})), new Date());
   const title = d.taskTitle || rec.title || "the task";
   const c = await classifyReply(o.text, { taskTitle: title, today });
   const now = new Date().toISOString();
-  d.updates = [...(d.updates || []), { at: now, by: "delegate" as const, text: o.text.slice(0, 2000), status: c.status, eta: c.eta }].slice(-60);
-  d.lastUpdateAt = now;
-  if (c.eta) d.expectedBy = c.eta;
-  let status = rec.status || "open";
-  if (c.status === "done") status = "done";
-  else if (c.status === "on_track" || c.status === "at_risk" || c.status === "blocked") { status = c.status; d.confidence = c.status; }
-  await db.update(pmRecords).set({ data: JSON.stringify(d), status, updatedAt: new Date() }).where(eq(pmRecords.id, rec.id));
+  // Audit F63: append to the CURRENT row under a lock (an owner edit saved
+  // meanwhile is kept); a cancelled delegation logs the reply but keeps its
+  // status (F218).
+  let cancelled = rec.status === "cancelled";
+  const m = await mutateDelegation(db, rec.id, (cur, cd) => {
+    cancelled = cur.status === "cancelled";
+    cd.updates = [...(cd.updates || []), { at: now, by: "delegate" as const, text: o.text.slice(0, 2000), status: c.status, eta: c.eta }].slice(-60);
+    cd.lastUpdateAt = now;
+    if (cancelled) return;
+    if (c.eta) {
+      cd.expectedBy = c.eta;
+      // follow up the work day before the new date, if that is still ahead
+      const fu = prevWorkDay(c.eta);
+      if (fu > today) cd.followUp = fu;
+    }
+    if (c.status === "done") return { status: "done" };
+    if (c.status === "on_track" || c.status === "at_risk" || c.status === "blocked") { cd.confidence = c.status; return { status: c.status }; }
+  });
+  if (!m) return { ok: false, skip: `no delegation #${o.ref.id}` };
   // Tell the owner. A "done" on a native task proposes completing it — the
   // owner's client applies it (claimApply) per their autonomy setting.
-  const actions = c.status === "done" && rec.refType === "task" && rec.refId ? [{ tool: "complete_task", args: { id: String(rec.refId) }, why: `${person.name.split(" ")[0]} says it's done` }] : [];
+  const actions = !cancelled && c.status === "done" && rec.refType === "task" && rec.refId ? [{ tool: "complete_task", args: { id: String(rec.refId) }, why: `${person.name.split(" ")[0]} says it's done` }] : [];
   // Everything that came from the outside person (their name, their reply,
   // the AI-read date) is rendered in the owner's
   // assistant panel, so angle brackets are swapped for look-alikes: the text
   // can never be read as HTML, and markdown rendering escapes the rest.
-  const body = `**${noTags(person.name)}** ${STATUS_WORD[c.status] || "replied"} on **${noTags(title)}**${c.eta ? ` — new date ${noTags(c.eta)}` : ""}.\n\n> ${noTags(clip(o.text, 600)).replace(/\n/g, "\n> ")}\n\n${c.status === "done" ? (actions.length ? "I'll mark the task done." : "Mark it done when you've checked it.") : c.status === "blocked" ? "They need something to move forward — worth a quick reply." : c.status === "question" ? "They asked a question — reply to them directly." : "Logged on the delegation."}`;
+  const body = `**${noTags(person.name)}** ${STATUS_WORD[c.status] || "replied"} on **${noTags(title)}**${c.eta ? ` — new date ${noTags(c.eta)}` : ""}.\n\n> ${noTags(clip(o.text, 600)).replace(/\n/g, "\n> ")}\n\n${cancelled ? "You cancelled this hand-off, so its status was left as it is — logged on the delegation." : c.status === "done" ? (actions.length ? "I'll mark the task done." : "Mark it done when you've checked it.") : c.status === "blocked" ? "They need something to move forward — worth a quick reply." : c.status === "question" ? "They asked a question — reply to them directly." : "Logged on the delegation."}`;
   const res: any = await db.insert(coachMessages).values({
     userId: rec.userId, kind: "delegate", runKey: dedupe, title: clip(`${person.name.split(" ")[0]}: ${title}`, 120), body, pushText: clip(`${person.name} ${STATUS_WORD[c.status] || "replied"}: ${title}`, 150),
     actions: actions.length ? JSON.stringify(actions) : null, applyState: actions.length ? "pending" : "none", channels: "inapp",
@@ -231,6 +297,9 @@ export async function processDelegateReply(o: { ref: { id: number; token: string
   });
   const id = Number(res?.[0]?.insertId ?? res?.insertId);
   try { const m = await import("./coachCron"); await m.pushCoachMessage(rec.userId, { id, title: clip(`${person.name.split(" ")[0]}: ${title}`, 120), body: clip(`${person.name} ${STATUS_WORD[c.status] || "replied"}`, 150) }); } catch { /* push optional */ }
+  // Audit F217: and by email when the owner's coach email channel is on (to
+  // their own address only; one email from the daily quota).
+  try { const m = await import("./coachCron"); await m.emailDelegateUpdate(rec.userId, { id, title: clip(`${person.name.split(" ")[0]}: ${title}`, 120), body, push: clip(`${person.name} ${STATUS_WORD[c.status] || "replied"}: ${title}`, 150) }); } catch (e) { console.error("[pm] delegate update email failed:", (e as Error)?.message); }
   return { ok: true, messageId: id };
 }
 
@@ -273,8 +342,15 @@ export async function processDelegationNudges(onlyUserId?: number): Promise<{ se
       if (L.weekend || L.hour < 9 || L.hour >= 17) continue; // their working hours only
       const d = parseJSON<DelegationData>(r.data, {});
       if (!nudgeDue(d, r.status, !!projAuto.get(`${r.userId}|${r.projectKey}`) || !!projAuto.get(`${r.userId}|`), L.ymd)) continue;
-      if (!(await trySpendQuota(r.userId, "email"))) continue; // daily email cap reached
-      const res = await sendDelegateNudge(r.userId, r.id, { auto: true });
+      // Audit F62: claim this follow-up in the send ledger first, so the cron,
+      // "Run now" and a second instance (deploy overlap) can't all send it.
+      const period = `${d.followUp}|${L.ymd}`;
+      const kind = `pmnudge:${r.id}`;
+      if (!(await claimSend(db, r.userId, kind, period))) continue;
+      if (!(await trySpendQuota(r.userId, "email"))) { await releaseSend(db, r.userId, kind, period).catch(() => {}); continue; } // daily email cap reached
+      let res: { ok: boolean } = { ok: false };
+      try { res = await sendDelegateNudge(r.userId, r.id, { auto: true }); }
+      finally { if (!res.ok) await releaseSend(db, r.userId, kind, period).catch(() => {}); }
       if (res.ok) sent++; else errors++;
     } catch (e) { errors++; console.error("[pm] nudge failed:", (e as Error)?.message); }
   }
@@ -303,7 +379,8 @@ export function startPmCron(): void {
   if (_started) return;
   _started = true;
   setTimeout(() => {
-    processDelegationNudges().catch(() => {});
+    // Through job() like every tick (audit F62): never alongside another pass.
+    job("pm-nudges", () => processDelegationNudges()).catch((e) => console.error("[pm] nudge pass crashed:", e));
     setInterval(() => { job("pm-nudges", () => processDelegationNudges()).catch((e) => console.error("[pm] nudge pass crashed:", e)); }, 30 * 60 * 1000);
   }, 240_000);
   console.log("[pm] delegation follow-up cron registered — every 30 min");

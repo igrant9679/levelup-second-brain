@@ -1,7 +1,7 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, router } from "./_core/trpc";
+import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { ENV } from "./_core/env";
 import { eq, asc } from "drizzle-orm";
 import { users } from "../drizzle/schema";
@@ -9,7 +9,7 @@ import { getDb } from "./db";
 import { oauthSyncRouter } from "./routers/oauth-sync";
 import { helpRouter } from "./routers/help";
 import { onenoteRouter } from "./routers/onenote";
-import { emailAuthRouter } from "./routers/emailAuth";
+import { emailAuthRouter, reissueSessionCookie } from "./routers/emailAuth";
 import { teamRouter } from "./routers/team";
 import { userProfileRouter } from "./routers/userProfile";
 import { aiRouter } from "./routers/ai";
@@ -83,6 +83,18 @@ export const appRouter = router({
       return {
         success: true,
       } as const;
+    }),
+    /**
+     * Sign out every other device (audit F20): bumps users.tokenVersion, so
+     * every session cookie issued before now is refused, then gives THIS
+     * device a fresh cookie with the new version (it stays signed in).
+     */
+    signOutEverywhere: protectedProcedure.mutation(async ({ ctx }) => {
+      const { bumpTokenVersion } = await import("./db");
+      const tv = await bumpTokenVersion(ctx.user.id);
+      if (tv == null) return { success: false as const, error: "Database unavailable" };
+      await reissueSessionCookie(ctx, ctx.user, tv);
+      return { success: true as const };
     }),
   }),
 

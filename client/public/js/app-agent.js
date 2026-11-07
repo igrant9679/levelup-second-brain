@@ -130,6 +130,11 @@ function _agentTaskStatus(s){
   var syn={'done':'Done','complete':'Done','completed':'Done','finished':'Done','closed':'Done','to do':'Not Started','todo':'Not Started','open':'Not Started','new':'Not Started','not started':'Not Started','doing':'In Progress','started':'In Progress','wip':'In Progress','active':'In Progress','in progress':'In Progress','waiting':'Pending','blocked':'Pending','on hold':'Pending','pending':'Pending','later':'Someday','backlog':'Someday','someday':'Someday','scheduled':'Scheduled'};
   return syn[lo]||null;
 }
+/** An error result when v is given but is not a date we can read, else null. */
+function _agentBadDate(v){
+  if(v==null||v==='')return null;
+  return _agentDate(v)?null:{ok:false,error:'Could not read the date "'+_agentStr(v,40)+'" — use YYYY-MM-DD, "tomorrow", "next friday" or "Oct 30".'};
+}
 function _agentTime(s){
   if(!s)return '';s=String(s).trim().toLowerCase();
   var m=s.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
@@ -161,6 +166,32 @@ function _agentFind(list,ref,key){
     if(loose.length>1)return {ambiguous:loose.slice(0,6).map(function(x){return {id:x.id,name:x[key]||x.name||x.title};})};
   }
   return {missing:true};
+}
+// Audit F30: in full autonomy a delete runs without a card only when its target
+// is unambiguous — the exact id of an item (from a list/get result or given as
+// the id) or a title that matches exactly (case-insensitive) and uniquely.
+// A substring / all-words match (what _agentFind falls back to) always asks.
+function _agentExactTarget(a){
+  if(!a||a.tool!=='delete')return true;
+  var args=a.args||{},ent=String(args.entity||'').toLowerCase(),ref=args.id;
+  if(ref==null||ref==='')return false;
+  var s=String(ref).trim(),lo=s.toLowerCase();
+  var spec=_agentEntList(ent);if(!spec||!Array.isArray(spec[0]))return false;
+  var list=spec[0],key=spec[1];
+  if(ent==='event'&&s.indexOf('~')>0)s=s.slice(0,s.indexOf('~'));
+  if(list.some(function(x){return x&&String(x.id)===s;}))return true;
+  var exact=list.filter(function(x){return x&&String(x[key]||x.name||x.title||'').trim().toLowerCase()===lo;});
+  return exact.length===1;
+}
+/** [list, title field, save key] for an entity, read from the CURRENT data. */
+function _agentEntList(ent){
+  var f=null;if(ent==='bill'||ent==='transaction'){try{f=_agentFin();}catch(_){}}
+  var m={task:[D.tasks,'title','tasks'],note:[D.notes,'title','notes'],project:[D.projects,'name','projects'],program:[D.programs,'name','programs'],cluster:[D.clusters,'name','clusters'],goal:[D.goals,'title','goals'],habit:[D.habits,'title','habits'],idea:[D.ideas,'title','ideas'],journal:[D.journal,'title','journal'],contact:[D.contacts,'name','contacts'],opportunity:[D.opportunities,'name','opportunities'],mindmap:[D.mindmaps,'title','mindmaps'],
+    event:[(typeof _calEvents!=='undefined'&&Array.isArray(_calEvents))?_calEvents:null,'title','cal'],bill:[f&&f.bills,'name','fin'],transaction:[f&&f.transactions,'payee','fin']};
+  return m[ent]||null;
+}
+function _agentImperativeFact(a){
+  try{var x=a&&a.args||{};return typeof _coachLooksImperative==='function'&&_coachLooksImperative(x.fact||x.text||'');}catch(_){return false;}
 }
 function _agentNeed(res,what){
   if(res.item)return null;
@@ -197,6 +228,29 @@ function _agentRemoveById(arr,id){
   return null;
 }
 function _agentSnapshot(o){try{return JSON.parse(JSON.stringify(o));}catch(_){return Object.assign({},o);}}
+// Audit F226: undo works on the item as it is NOW (looked up by id in the
+// current list — a background pull replaces item objects) and puts back only
+// the fields this change wrote, and only where they still hold what it wrote;
+// anything edited since is left alone and the user is told.
+var _AGENT_UNDO_LISTS={tasks:function(){return D.tasks;},projects:function(){return D.projects;},programs:function(){return D.programs;},notes:function(){return D.notes;},ideas:function(){return D.ideas;},goals:function(){return D.goals;},habits:function(){return D.habits;},opportunities:function(){return D.opportunities;}};
+var _AGENT_UNDO_QUIET={updatedAt:1,updated:1,lastTouchedAt:1};
+function _agentFieldUndoFn(key,item,before){
+  var id=item&&item.id,ch={},keys={};before=before||{};
+  Object.keys(before).forEach(function(k){keys[k]=1;});Object.keys(item||{}).forEach(function(k){keys[k]=1;});
+  Object.keys(keys).forEach(function(k){var a=JSON.stringify(before[k]),b=JSON.stringify(item[k]);if(a!==b)ch[k]={had:a,now:b};});
+  return function(){
+    var list=((_AGENT_UNDO_LISTS[key]||function(){return null;})())||[];
+    var cur=list.find(function(x){return x&&String(x.id)===String(id);});
+    if(!cur){if(typeof toast==='function')toast('That item is no longer there — nothing to undo.');return;}
+    var skipped=[];
+    Object.keys(ch).forEach(function(k){
+      if(JSON.stringify(cur[k])!==ch[k].now){if(!_AGENT_UNDO_QUIET[k])skipped.push(k);return;}
+      if(ch[k].had===undefined)delete cur[k];else cur[k]=JSON.parse(ch[k].had);
+    });
+    save(key);
+    if(skipped.length&&typeof toast==='function')toast({type:'warn',title:'Partly undone',msg:'Changed since, so left as it is: '+skipped.join(', ')});
+  };
+}
 function _agentRestore(target,snap){Object.keys(target).forEach(function(k){delete target[k];});Object.assign(target,snap);}
 
 // Opens the created / referenced item in the app's own viewer.
@@ -229,6 +283,10 @@ function _agentOpen(ref){
 // ─── finance helpers ───────────────────────────────────────────────────────
 function _agentFin(){
   if(typeof _finData!=='function')return null;
+  // Audit F195: a shared budget picked on the Money page stays selected after
+  // leaving it, so "log $40 groceries" from Home landed in someone else's
+  // budget. Away from Money the assistant works on YOUR budget.
+  try{if(typeof _finShared!=='undefined'&&_finShared!=null&&!(typeof curScreen!=='undefined'&&curScreen==='money'))_finShared=null;}catch(_){}
   try{return _finData();}catch(_){return null;}
 }
 function _agentFinCat(ref,kind){
@@ -393,15 +451,15 @@ var LU_AGENT_TOOLS=[
       if(a.cluster!==undefined){if(a.cluster===''||a.cluster===null){delete t.clusterId;}else{var cr=_agentFind(D.clusters||[],a.cluster,'name');var cn=_agentNeed(cr,'clusters');if(cn)return cn;t.clusterId=cr.item.id;}}
       if(a.tags!=null)t.tags=_agentArr(a.tags);if(a.startTime!=null)t.startTime=_agentTime(a.startTime);if(a.endTime!=null)t.endTime=_agentTime(a.endTime);
       if(a.estimatedMins!=null)t.estimatedMins=parseInt(a.estimatedMins,10)||0;
-      save('tasks');var undo=_agentPushUndo('edit task "'+t.title+'"',function(){_agentRestore(t,snap);save('tasks');});
+      save('tasks');var undo=_agentPushUndo('edit task "'+t.title+'"',_agentFieldUndoFn('tasks',t,snap));
       return {ok:true,summary:'Updated task #'+t.id+' "'+t.title+'"',ref:{type:'task',id:t.id},undo:undo};}},
   {name:'complete_task',kind:'write',sig:'complete_task{id,done?=true}',desc:'Mark a task done (or reopen with done:false).',
     describe:function(a){return (a.done===false?'Reopen':'Complete')+' task '+a.id;},
-    run:function(a){var r=_agentFind(D.tasks||[],a.id,'title');var need=_agentNeed(r,'tasks');if(need)return need;var t=r.item;var was=t.status,wasAt=t.completedAt;
+    run:function(a){var r=_agentFind(D.tasks||[],a.id,'title');var need=_agentNeed(r,'tasks');if(need)return need;var t=r.item;var snap=_agentSnapshot(t);
       // setTaskStatus (app-2-home-tasks) does completedAt, repeat, goals and the log.
       if(typeof setTaskStatus==='function')setTaskStatus(t,a.done===false?'Not Started':'Done');
       else{t.status=a.done===false?'Not Started':'Done';_syncTaskCompletedAt(t);save('tasks');}
-      var undo=_agentPushUndo((t.status==='Done'?'complete':'reopen')+' "'+t.title+'"',function(){t.status=was;t.completedAt=wasAt;save('tasks');});
+      var undo=_agentPushUndo((t.status==='Done'?'complete':'reopen')+' "'+t.title+'"',_agentFieldUndoFn('tasks',t,snap));
       return {ok:true,summary:(t.status==='Done'?'Completed':'Reopened')+' "'+t.title+'"',ref:{type:'task',id:t.id},undo:undo};}},
   {name:'add_subtasks',kind:'write',sig:'add_subtasks{id,titles[]}',desc:'Append subtasks to a task.',
     describe:function(a){return 'Add '+_agentArr(a.titles).length+' subtask(s) to task '+a.id;},
@@ -415,9 +473,9 @@ var LU_AGENT_TOOLS=[
     run:function(a){var r=_agentFind(D.tasks||[],a.id,'title');var need=_agentNeed(r,'tasks');if(need)return need;var t=r.item;var st=_agentTime(a.start);if(!st)return {ok:false,error:'start must be HH:MM'};
       var sm=parseInt(st.slice(0,2),10)*60+parseInt(st.slice(3),10);var mins=parseInt(a.mins,10)||60;var ds=_agentDate(a.date)||_agentToday();
       _calEvents=Array.isArray(_calEvents)?_calEvents:[];var ev={id:Date.now()+Math.floor(Math.random()*1000),title:'▶ '+t.title,hour:Math.floor(sm/60),endHour:Math.ceil((sm+mins)/60),start:st,end:_agentMinsToTime(sm+mins),color:'var(--ac)',dateStr:ds,linkedTaskId:String(t.id),_planned:true};
-      _calEvents.push(ev);_agentSaveCal();var snap={startTime:t.startTime,endTime:t.endTime,myDay:t.myDay,startDate:t.startDate};
+      _calEvents.push(ev);_agentSaveCal();var snap=_agentSnapshot(t);
       t.startTime=st;t.endTime=ev.end;if(ds===_agentToday())t.myDay=true;t.startDate=t.startDate||ds;save('tasks');
-      var undo=_agentPushUndo('time block for "'+t.title+'"',function(){_agentRemoveById(_calEvents,ev.id);_agentSaveCal();Object.assign(t,snap);save('tasks');});
+      var undo=_agentPushUndo('time block for "'+t.title+'"',(function(f){return function(){_agentRemoveById(_calEvents,ev.id);_agentSaveCal();f();};})(_agentFieldUndoFn('tasks',t,snap)));
       return {ok:true,summary:'Blocked '+mins+' min at '+st+' on '+ds+' for "'+t.title+'"',ref:{type:'event',id:ev.id},undo:undo};}},
 
   // ── clusters (task groups on the Tasks page) ────────────────────────────
@@ -443,7 +501,7 @@ var LU_AGENT_TOOLS=[
   // ── projects & programs ─────────────────────────────────────────────────
   {name:'create_project',kind:'write',sig:'create_project{name,desc?,due?,status?,color?,program?,tasks?[]}',desc:'Create a project, optionally with its first tasks and inside a program.',
     describe:function(a){return 'Create project "'+_agentStr(a.name,60)+'"'+(a.due?' due '+a.due:'')+(a.program?' · in program '+a.program:'')+(a.tasks&&_agentArr(a.tasks).length?' · with '+_agentArr(a.tasks).length+' tasks':'');},
-    run:function(a){if(!a.name)return {ok:false,error:'A project needs a name.'};var progItem=null;
+    run:function(a){if(!a.name)return {ok:false,error:'A project needs a name.'};var bd=_agentBadDate(a.due)||_agentBadDate(a.startDate);if(bd)return bd;var progItem=null;
       if(a.program){var pg=_agentFind(D.programs||[],a.program,'name');var pn=_agentNeed(pg,'programs');if(pn)return pn;progItem=pg.item;}
       var p={id:nextId(D.projects),name:_agentStr(a.name,200),desc:_agentStr(a.desc||a.description||'',4000),status:a.status||'Active',area:'',owner:_agentUser(),color:a.color||'#3B82F6',startDate:_agentDate(a.startDate)||'',due:_agentDate(a.due)||'TBD',quarter:'',year:new Date().getFullYear(),kanbanAxis:'Status',pct:0,tags:_agentArr(a.tags),scope:{personal:false,business:false},milestones:[],linkedGoalIds:[],createdBy:_agentUser(),createdAt:new Date().toISOString()};
       D.projects.push(p);save('projects');var madeTasks=[];
@@ -454,9 +512,9 @@ var LU_AGENT_TOOLS=[
       return {ok:true,summary:'Created project #'+p.id+' "'+p.name+'"'+(madeTasks.length?' with '+madeTasks.length+' task(s)':''),ref:{type:'project',id:p.id},undo:undo,data:{taskIds:madeTasks.map(function(t){return t.id;})}};}},
   {name:'update_project',kind:'write',sig:'update_project{id,name?,desc?,status?(Active|On Hold|Completed|Archived),due?,color?}',desc:'Edit a project.',
     describe:function(a){return 'Update project '+a.id;},
-    run:function(a){var r=_agentFind(D.projects||[],a.id,'name');var need=_agentNeed(r,'projects');if(need)return need;var p=r.item;var snap=_agentSnapshot(p);
+    run:function(a){var r=_agentFind(D.projects||[],a.id,'name');var need=_agentNeed(r,'projects');if(need)return need;var p=r.item;var bd=_agentBadDate(a.due);if(bd)return bd;var snap=_agentSnapshot(p);
       if(a.name!=null)p.name=_agentStr(a.name,200);if(a.desc!=null)p.desc=_agentStr(a.desc,4000);if(a.status)p.status=a.status;if(a.due!==undefined)p.due=_agentDate(a.due)||'TBD';if(a.color)p.color=a.color;
-      save('projects');var undo=_agentPushUndo('edit project "'+p.name+'"',function(){_agentRestore(p,snap);save('projects');});
+      save('projects');var undo=_agentPushUndo('edit project "'+p.name+'"',_agentFieldUndoFn('projects',p,snap));
       return {ok:true,summary:'Updated project "'+p.name+'"',ref:{type:'project',id:p.id},undo:undo};}},
   {name:'create_program',kind:'write',sig:'create_program{name,description?,projects?[]}',desc:'Create a program (a portfolio of projects).',
     describe:function(a){return 'Create program "'+_agentStr(a.name,60)+'"'+(a.projects&&_agentArr(a.projects).length?' linking '+_agentArr(a.projects).length+' project(s)':'');},
@@ -471,7 +529,7 @@ var LU_AGENT_TOOLS=[
       if(a.name!=null)pg.name=_agentStr(a.name,200);if(a.description!=null)pg.description=_agentStr(a.description,4000);if(a.status)pg.status=a.status;
       var addL=_agentArr(a.addProjects);for(var i=0;i<addL.length;i++){var pr=_agentFind(D.projects||[],addL[i],'name');var pn=_agentNeed(pr,'projects');if(pn)return pn;if(pg.projectIds.indexOf(pr.item.id)<0)pg.projectIds.push(pr.item.id);}
       var remL=_agentArr(a.removeProjects);for(var j=0;j<remL.length;j++){var rr=_agentFind(D.projects||[],remL[j],'name');if(rr.item)pg.projectIds=pg.projectIds.filter(function(x){return x!==rr.item.id;});}
-      save('programs');var undo=_agentPushUndo('edit program "'+pg.name+'"',function(){_agentRestore(pg,snap);save('programs');});
+      save('programs');var undo=_agentPushUndo('edit program "'+pg.name+'"',_agentFieldUndoFn('programs',pg,snap));
       return {ok:true,summary:'Updated program "'+pg.name+'" ('+pg.projectIds.length+' projects)',ref:{type:'program',id:pg.id},undo:undo};}},
 
   // ── notes ───────────────────────────────────────────────────────────────
@@ -499,7 +557,7 @@ var LU_AGENT_TOOLS=[
     run:function(a){var r=_agentFind(D.notes||[],a.id,'title');var need=_agentNeed(r,'notes');if(need)return need;var n=r.item;var snap=_agentSnapshot(n);
       if(a.title!=null)n.title=_agentStr(a.title,300);if(a.body!=null){if(typeof _noteSetMd==='function')_noteSetMd(n,String(a.body));else{n.body=String(a.body);try{n.bodyHtml=typeof renderMd==='function'?renderMd(n.body):'';}catch(_){}}}
       if(a.tags!=null)n.tags=_agentArr(a.tags);if(a.starred!=null)n.starred=!!a.starred;if(a.pinned!=null)n.pinned=!!a.pinned;n.updated=n.updatedAt=new Date().toISOString();
-      save('notes');var undo=_agentPushUndo('edit note "'+n.title+'"',function(){_agentRestore(n,snap);save('notes');});
+      save('notes');var undo=_agentPushUndo('edit note "'+n.title+'"',_agentFieldUndoFn('notes',n,snap));
       return {ok:true,summary:'Updated note "'+n.title+'"',ref:{type:'note',id:n.id},undo:undo};}},
 
   // ── mind maps ───────────────────────────────────────────────────────────
@@ -531,7 +589,7 @@ var LU_AGENT_TOOLS=[
       if(a.title!=null)it.title=_agentStr(a.title,300);if(a.description!=null)it.description=_agentStr(a.description,4000);
       if(a.stage){it.stage=a.stage;var k=a.stage+'_at';if(!it[k])it[k]=new Date().toISOString();}
       ['ice_impact','ice_confidence','ice_ease'].forEach(function(k){if(a[k]!=null)it[k]=Math.max(1,Math.min(10,parseInt(a[k],10)||5));});it.updatedAt=new Date().toISOString();
-      save('ideas');var undo=_agentPushUndo('edit idea "'+it.title+'"',function(){_agentRestore(it,snap);save('ideas');});
+      save('ideas');var undo=_agentPushUndo('edit idea "'+it.title+'"',_agentFieldUndoFn('ideas',it,snap));
       return {ok:true,summary:'Updated idea "'+it.title+'"',ref:{type:'idea',id:it.id},undo:undo};}},
 
   // ── goals ───────────────────────────────────────────────────────────────
@@ -549,13 +607,13 @@ var LU_AGENT_TOOLS=[
       g.pct=pct;g.lastTouchedAt=new Date().toISOString();g.pctHistory=Array.isArray(g.pctHistory)?g.pctHistory:[];g.pctHistory.push({ts:Date.now(),pct:pct});if(g.pctHistory.length>30)g.pctHistory=g.pctHistory.slice(-30);
       var j={id:Date.now(),type:'goal-checkin',title:'Goal Check-in: '+g.title,date:_agentToday(),body:'## Progress\n'+a.progress+(a.blockers?'\n\n## Blockers\n'+a.blockers:'')+(a.next?'\n\n## Next\n'+a.next:''),tags:['goal','check-in'],mood:'',energy:'',createdAt:new Date().toISOString(),createdBy:_agentUser()};
       D.journal.push(j);save('goals');save('journal');
-      var undo=_agentPushUndo('check-in on "'+g.title+'"',function(){_agentRestore(g,snap);_agentRemoveById(D.journal,j.id);save('goals');save('journal');});
+      var undo=_agentPushUndo('check-in on "'+g.title+'"',(function(f){return function(){f();_agentRemoveById(D.journal,j.id);save('journal');};})(_agentFieldUndoFn('goals',g,snap)));
       return {ok:true,summary:'Checked in on "'+g.title+'" → '+pct+'% (journal entry added)',ref:{type:'goal',id:g.id},undo:undo};}},
   {name:'update_goal',kind:'write',sig:'update_goal{id,title?,status?(Active|Paused|Completed|Dropped),dueDate?,pct?,currentValue?}',desc:'Edit a goal.',
     describe:function(a){return 'Update goal '+a.id;},
-    run:function(a){var r=_agentFind(D.goals||[],a.id,'title');var need=_agentNeed(r,'goals');if(need)return need;var g=r.item;var snap=_agentSnapshot(g);
+    run:function(a){var r=_agentFind(D.goals||[],a.id,'title');var need=_agentNeed(r,'goals');if(need)return need;var g=r.item;var bd=_agentBadDate(a.dueDate);if(bd)return bd;var snap=_agentSnapshot(g);
       if(a.title!=null)g.title=_agentStr(a.title,300);if(a.status)g.status=a.status;if(a.dueDate!==undefined)g.dueDate=_agentDate(a.dueDate);if(a.pct!=null)g.pct=Math.max(0,Math.min(100,parseInt(a.pct,10)||0));if(a.currentValue!=null)g.currentValue=_agentNum(a.currentValue,g.currentValue);g.lastTouchedAt=new Date().toISOString();
-      save('goals');var undo=_agentPushUndo('edit goal "'+g.title+'"',function(){_agentRestore(g,snap);save('goals');});
+      save('goals');var undo=_agentPushUndo('edit goal "'+g.title+'"',_agentFieldUndoFn('goals',g,snap));
       return {ok:true,summary:'Updated goal "'+g.title+'"',ref:{type:'goal',id:g.id},undo:undo};}},
 
   // ── habits ──────────────────────────────────────────────────────────────
@@ -570,7 +628,7 @@ var LU_AGENT_TOOLS=[
     run:function(a){var r=_agentFind(D.habits||[],a.id,'title');var need=_agentNeed(r,'habits');if(need)return need;var h=r.item;var want=a.done!==false;if(!!h.doneToday===want)return {ok:true,summary:'"'+h.title+'" already '+(want?'done':'not done')+' today',ref:{type:'habit',id:h.id}};
       var snap=_agentSnapshot(h);var todayStr=_ymd(new Date());h.completedDates=h.completedDates||[];h.skippedDates=h.skippedDates||[];
       h.doneToday=want;h.skippedToday=false;if(want){if(h.completedDates.indexOf(todayStr)<0)h.completedDates.push(todayStr);h.skippedDates=h.skippedDates.filter(function(d){return d!==todayStr;});}else{h.completedDates=h.completedDates.filter(function(d){return d!==todayStr;});}
-      try{h.streak=calcHabitStreak(h);}catch(_){}save('habits');var undo=_agentPushUndo((want?'tick':'untick')+' "'+h.title+'"',function(){_agentRestore(h,snap);save('habits');});
+      try{h.streak=calcHabitStreak(h);}catch(_){}save('habits');var undo=_agentPushUndo((want?'tick':'untick')+' "'+h.title+'"',_agentFieldUndoFn('habits',h,snap));
       return {ok:true,summary:(want?'Ticked':'Unticked')+' "'+h.title+'"'+(want?' — streak '+(h.streak||0):''),ref:{type:'habit',id:h.id},undo:undo};}},
 
   // ── journal ─────────────────────────────────────────────────────────────
@@ -648,10 +706,10 @@ var LU_AGENT_TOOLS=[
       return {ok:true,summary:'Added opportunity "'+o.name+'" ('+o.stage+')',ref:{type:'opportunity',id:o.id},undo:undo};}},
   {name:'update_opportunity',kind:'write',sig:'update_opportunity{id,stage?,value?,closeDate?,notes?,probability?}',desc:'Move a deal along or edit it.',
     describe:function(a){return 'Update opportunity '+a.id+(a.stage?' → '+a.stage:'');},
-    run:function(a){var r=_agentFind(D.opportunities||[],a.id,'name');var need=_agentNeed(r,'opportunities');if(need)return need;var o=r.item;var snap=_agentSnapshot(o);
+    run:function(a){var r=_agentFind(D.opportunities||[],a.id,'name');var need=_agentNeed(r,'opportunities');if(need)return need;var o=r.item;var bd=_agentBadDate(a.closeDate);if(bd)return bd;var snap=_agentSnapshot(o);
       if(a.stage){var sd=typeof _stageDef==='function'?_stageDef(a.stage):null;if(!sd)return {ok:false,error:'Unknown stage "'+a.stage+'"'};o.stage=sd.key;o.status=sd.outcome||'open';if(sd.outcome==='won'&&!o.wonAt)o.wonAt=new Date().toISOString();if(sd.outcome==='lost'&&!o.lostAt)o.lostAt=new Date().toISOString();}
       if(a.value!=null)o.value=_agentNum(a.value,o.value);if(a.closeDate!==undefined)o.closeDate=_agentDate(a.closeDate);if(a.notes!=null)o.notes=_agentStr(a.notes,2000);if(a.probability!=null)o.probability=Math.max(0,Math.min(100,parseInt(a.probability,10)));o.updatedAt=new Date().toISOString();
-      save('opportunities');var undo=_agentPushUndo('edit opportunity "'+o.name+'"',function(){_agentRestore(o,snap);save('opportunities');});
+      save('opportunities');var undo=_agentPushUndo('edit opportunity "'+o.name+'"',_agentFieldUndoFn('opportunities',o,snap));
       return {ok:true,summary:'Updated "'+o.name+'" ('+o.stage+')',ref:{type:'opportunity',id:o.id},undo:undo};}},
 
   // ── reports ─────────────────────────────────────────────────────────────
@@ -783,10 +841,12 @@ function _agentDelete(a){
   var ent=String(a.entity||'').toLowerCase();
   var map={task:[D.tasks,'title','tasks'],note:[D.notes,'title','notes'],project:[D.projects,'name','projects'],program:[D.programs,'name','programs'],cluster:[D.clusters,'name','clusters'],goal:[D.goals,'title','goals'],habit:[D.habits,'title','habits'],idea:[D.ideas,'title','ideas'],journal:[D.journal,'title','journal'],contact:[D.contacts,'name','contacts'],opportunity:[D.opportunities,'name','opportunities'],mindmap:[D.mindmaps,'title','mindmaps']};
   if(ent==='event'){var evs=Array.isArray(_calEvents)?_calEvents:[];var oh=(typeof _calResolve==='function'&&String(a.id||'').indexOf('~')>0)?_calResolve(a.id):null;if(oh&&oh.occ){var orow=oh.row,osnap=JSON.stringify(orow);_calApplyDelete(orow,oh.occ,'one');_agentSaveCal();var u0=_agentPushUndo('delete one occurrence of "'+orow.title+'"',function(){Object.keys(orow).forEach(function(k){delete orow[k];});Object.assign(orow,JSON.parse(osnap));_agentSaveCal();});return {ok:true,summary:'Deleted the '+oh.occ+' occurrence of "'+orow.title+'" (the rest of the series stays)',undo:u0};}var re=_agentFind(evs,a.id,'title');var ne=_agentNeed(re,'events');if(ne)return ne;var idx=evs.indexOf(re.item);evs.splice(idx,1);_agentSaveCal();var u1=_agentPushUndo('delete event "'+re.item.title+'"',function(){evs.splice(Math.min(idx,evs.length),0,re.item);_agentSaveCal();});return {ok:true,summary:'Deleted event "'+re.item.title+'"',undo:u1};}
-  if(ent==='bill'||ent==='transaction'){var f=_agentFin();if(!f)return {ok:false,error:'Money not available.'};if(_finRO())return {ok:false,error:'View-only budget.'};var arr=ent==='bill'?f.bills:f.transactions;var rr=_agentFind(arr,a.id,ent==='bill'?'name':'payee');var nn=_agentNeed(rr,ent+'s');if(nn)return nn;var ix=arr.indexOf(rr.item);arr.splice(ix,1);_agentFinSaveAll();var u2=_agentPushUndo('delete '+ent,function(){arr.splice(Math.min(ix,arr.length),0,rr.item);_agentFinSaveAll();});return {ok:true,summary:'Deleted '+ent+' "'+(rr.item.name||rr.item.payee)+'"',undo:u2};}
+  if(ent==='bill'||ent==='transaction'){var f=_agentFin();if(!f)return {ok:false,error:'Money not available.'};if(_finRO())return {ok:false,error:'View-only budget.'};var arr=ent==='bill'?f.bills:f.transactions;var rr=_agentFind(arr,a.id,ent==='bill'?'name':'payee');var nn=_agentNeed(rr,ent+'s');if(nn)return nn;var ix=arr.indexOf(rr.item);var gone2=_agentSnapshot(rr.item);arr.splice(ix,1);_agentFinSaveAll();var u2=_agentPushUndo('delete '+ent,function(){var spec=_agentEntList(ent),cl=(spec&&spec[0])||arr;if(cl.some(function(x){return x&&gone2.id!=null&&String(x.id)===String(gone2.id);}))return;cl.splice(Math.min(ix,cl.length),0,gone2);_agentFinSaveAll();});return {ok:true,summary:'Deleted '+ent+' "'+(rr.item.name||rr.item.payee)+'"',undo:u2};}
   var m=map[ent];if(!m)return {ok:false,error:'Cannot delete "'+ent+'"'};var list=m[0]||[];var r=_agentFind(list,a.id,m[1]);var need=_agentNeed(r,ent+'s');if(need)return need;
-  var i=list.indexOf(r.item);list.splice(i,1);if(ent==='mindmap')saveMindmaps();else save(m[2]);
-  var undo=_agentPushUndo('delete '+ent+' "'+(r.item.title||r.item.name)+'"',function(){list.splice(Math.min(i,list.length),0,r.item);if(ent==='mindmap')saveMindmaps();else save(m[2]);});
+  var i=list.indexOf(r.item);var gone=_agentSnapshot(r.item);list.splice(i,1);if(ent==='mindmap')saveMindmaps();else save(m[2]);
+  var undo=_agentPushUndo('delete '+ent+' "'+(r.item.title||r.item.name)+'"',function(){var spec=_agentEntList(ent),cl=(spec&&spec[0])||list;
+    if(cl.some(function(x){return x&&String(x.id)===String(gone.id);})){if(typeof toast==='function')toast('It is already back.');return;}
+    cl.splice(Math.min(i,cl.length),0,gone);if(ent==='mindmap')saveMindmaps();else save(m[2]);});
   return {ok:true,summary:'Deleted '+ent+' "'+(r.item.title||r.item.name)+'"',undo:undo};
 }
 
@@ -878,19 +938,21 @@ function _agentResultsForModel(results){
 
 // ─── transcript ────────────────────────────────────────────────────────────
 function _agentPush(msg){
-  D.prefs.aiChat=D.prefs.aiChat||{messages:[]};
-  if(!Array.isArray(D.prefs.aiChat.messages))D.prefs.aiChat.messages=[];
+  // Audit F65: the transcript is its own synced list, D.aiChat (per message),
+  // not prefs — two devices no longer overwrite each other's conversation.
+  var list=_aiChatHistory();
   msg.ts=msg.ts||Date.now();
   // Messages are addressed by a stable id, not their position: trimming the
   // transcript to 50 shifted every index, so an open approval card (or a
   // coach message arriving during one) could resolve the wrong message and
   // leave the assistant stuck busy.
   msg.id=msg.id||_agentNewId();
-  D.prefs.aiChat.messages.push(msg);
-  if(D.prefs.aiChat.messages.length>50)D.prefs.aiChat.messages=D.prefs.aiChat.messages.slice(-50);
-  save('prefs');
+  list.push(msg);
+  if(list.length>50)list.splice(0,list.length-50);
+  _agentSaveChat();
   return msg.id;
 }
+function _agentSaveChat(){try{save('aiChat');}catch(_){}}
 function _agentNewId(){return 'am'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 // A message by id (or, for callers that still hold one, by index).
 function _agentMsg(id){
@@ -899,11 +961,12 @@ function _agentMsg(id){
   for(var i=msgs.length-1;i>=0;i--)if(msgs[i]&&msgs[i].id===id)return msgs[i];
   var m=/^idx(\d+)$/.exec(String(id||''));return m?msgs[+m[1]]||null:null;
 }
-// Approving claims the card once across devices (the transcript syncs
-// through prefs, so the same card can be open on two devices). Offline or an
-// older server → allow, as before.
+// Approving claims the card once across devices (the transcript syncs, so
+// the same card can be open on two devices). Audit F65: FAILS CLOSED — when
+// the claim can't be confirmed (offline, server error) nothing runs.
+// → 'ok' | 'taken' | 'error'
 async function _agentClaim(id){
-  try{var r=await _trpc('claims.once',{scope:'agent',key:String(id)},'mutation');return !r||r.claimed!==false;}catch(_){return true;}
+  try{var r=await _trpc('claims.once',{scope:'agent',key:String(id)},'mutation');return r&&r.claimed===false?'taken':(r&&r.claimed===true?'ok':'error');}catch(_){return 'error';}
 }
 // Audit F14: what in the conversation is NOT the user typing to the assistant.
 // Coach check-ins and delegate messages are written from workspace data (a
@@ -988,9 +1051,15 @@ async function _agentConfirm(mi,run){
   // the waiter holds the message id; callers may pass the id or an index
   var isMine=function(w){return !!w&&(w.mi===mi||(!!m&&!!m.id&&w.mi===m.id));};
   if(!m||!m.pending){if(isMine(_agentWaiter)){var w=_agentWaiter;_agentWaiter=null;w.resolve(null);}return;}
-  if(run&&!(await _agentClaim(m.id||mi))){
+  var claim=run?await _agentClaim(m.id||mi):'ok';
+  if(claim==='error'){
+    // Could not confirm the approval with the server: run nothing, keep the card.
+    if(typeof toast==='function')toast({type:'warn',title:'Not run',msg:'Could not confirm this approval with the server (offline?). Nothing was changed — try again.'});
+    return;
+  }
+  if(claim==='taken'){
     // Approved on another device already: drop it here instead of running twice.
-    m.pending=null;save('prefs');
+    m.pending=null;_agentSaveChat();
     if(isMine(_agentWaiter)){var w0=_agentWaiter;_agentWaiter=null;w0.resolve(null);}
     if(typeof toast==='function')toast('These actions were already approved on another device.');
     _renderAIChatHistory();return;
@@ -1017,7 +1086,7 @@ function _agentRunPending(mi,selected){
     var r=_agentExec(a);var rec={tool:a.tool,args:a.args,ok:!!r.ok,summary:r.ok?r.summary:(r.error||'failed'),ref:r.ref||null,undo:r.undo||null,candidates:r.candidates||null};
     results.push(Object.assign({tool:a.tool},r));return rec;
   });
-  save('prefs');
+  _agentSaveChat();
   return results;
 }
 async function _agentSend(text){
@@ -1059,9 +1128,11 @@ async function _agentSend(text){
       var instant=[],needOk=[];
       parsed.actions.forEach(function(a){var t=_agentTool(a.tool);if(!t){needOk.push(a);return;}
         if(t.memory&&tainted)needOk.push(a);
+        // Audit F27: a "fact" that reads like an order to the assistant always asks.
+        else if(a.tool==='remember'&&_agentImperativeFact(a))needOk.push(a);
         else if(t.kind==='read'||t.kind==='nav')instant.push(a);
         else if(t.kind==='write'&&prefs.autoWrite&&!tainted)instant.push(a);
-        else if(t.kind==='destructive'&&prefs.autoDelete&&prefs.autoWrite&&!tainted)instant.push(a); // coach "fully autonomous" (app-coach.js)
+        else if(t.kind==='destructive'&&prefs.autoDelete&&prefs.autoWrite&&!tainted&&_agentExactTarget(a))instant.push(a); // coach "fully autonomous" (app-coach.js); F30: exact targets only
         else needOk.push(a);});
       if(instant.some(function(a){var t=_agentTool(a.tool);return t&&t.kind==='read'&&!t.memory&&a.tool!=='help';}))tainted=true;
       var results=[];
@@ -1069,7 +1140,7 @@ async function _agentSend(text){
       m.actions=[];
       instant.forEach(function(a){var r=_agentExec(a);m.actions.push({tool:a.tool,args:a.args,ok:!!r.ok,summary:r.ok?r.summary:(r.error||'failed'),ref:r.ref||null,undo:r.undo||null,candidates:r.candidates||null});results.push(Object.assign({tool:a.tool},r));});
       if(needOk.length){
-        m.pending=needOk;save('prefs');_renderAIChatHistory();_agentTyping(false);_agentSetStatus('Waiting for your go-ahead…');
+        m.pending=needOk;_agentSaveChat();_renderAIChatHistory();_agentTyping(false);_agentSetStatus('Waiting for your go-ahead…');
         var selected=await _agentWaitForConfirm(mi);
         _agentTyping(true);_agentSetStatus('Working…');
         var more=_agentRunPending(mi,selected);
@@ -1082,7 +1153,7 @@ async function _agentSend(text){
           _renderAIChatHistory();break;
         }
       }
-      save('prefs');_renderAIChatHistory();
+      _agentSaveChat();_renderAIChatHistory();
       if(!results.length){break;}
       // relay results; continue only if the model asked to or a tool needs clarification
       var needsMore=parsed.next==='continue'||results.some(function(r){return r.candidates||(!r.ok&&/which|Several/i.test(r.error||''));})||results.some(function(r){return r.data!==undefined;});
@@ -1108,7 +1179,7 @@ function _agentRenderActions(m,mi){
   if(m.pending&&m.pending.length){
     var live=_agentWaiter&&_agentWaiter.mi===mi;
     html+='<div class="agent-card" data-agent-mi="'+mi+'"><div class="agent-card-h">✋ Approve these actions? <small>'+m.pending.length+' proposed</small></div>';
-    m.pending.forEach(function(a,i){var k=kindOf(a.tool);html+='<div class="agent-act"><input type="checkbox" data-idx="'+i+'" checked><span class="k '+k+'">'+(k==='destructive'?'delete':k)+'</span><div class="d">'+esc(_agentDescribe(a))+(a.why?'<small>'+esc(a.why)+'</small>':'')+'</div></div>';});
+    m.pending.forEach(function(a,i){var k=kindOf(a.tool);var warn=a.tool==='remember'&&_agentImperativeFact(a)?'<small style="color:var(--warn)">⚠ This reads like an instruction to the assistant, not a fact about you. Remembered facts go into every conversation — approve only if you wrote it.</small>':'';html+='<div class="agent-act"><input type="checkbox" data-idx="'+i+'"'+(warn?'':' checked')+'><span class="k '+k+'">'+(k==='destructive'?'delete':k)+'</span><div class="d">'+esc(_agentDescribe(a))+(a.why?'<small>'+esc(a.why)+'</small>':'')+warn+'</div></div>';});
     html+='<div class="agent-card-f"><button class="btn btn-p" onclick="_agentConfirm(\''+mi+'\',true)">✓ Run selected</button><button class="btn btn-s" onclick="_agentConfirm(\''+mi+'\',false)">Skip</button>';
     if(!m.pending.some(function(a){return kindOf(a.tool)==='destructive';}))html+='<label><input type="checkbox" onchange="_agentSetPref(\'autoWrite\',this.checked)" '+(_agentPrefs().autoWrite?'checked':'')+'> don\'t ask again for creates/edits</label>';
     html+='</div></div>';
