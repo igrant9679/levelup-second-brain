@@ -15,7 +15,8 @@ import { resolve } from "path";
 import vm from "vm";
 
 const ROOT = resolve(__dirname, "..");
-const COACH = readFileSync(resolve(ROOT, "client/public/js/app-coach.js"), "utf8");
+// LF-normalised: CI checks files out with LF, Windows with CRLF.
+const COACH = readFileSync(resolve(ROOT, "client/public/js/app-coach.js"), "utf8").replace(/\r\n/g, "\n");
 const AGENT = readFileSync(resolve(ROOT, "client/public/js/app-agent.js"), "utf8");
 const fn = (src: string, name: string) => { const a = src.indexOf("function " + name + "("); if (a < 0) throw new Error("missing " + name); const b = src.indexOf("\n}", a); return src.slice(a, b + 2); };
 
@@ -37,7 +38,7 @@ describe("app-agent.js in check-ai-agent", () => {
 describe("app-coach.js", () => {
   it("F73: the trash lives in D.coachTrash with ids and caps, never in prefs", () => {
     expect(COACH).not.toMatch(/\.trash\.(unshift|push|splice)|c\.trash\s*=/);
-    const a = COACH.indexOf("(function(){\r\n  if(typeof _agentDelete!=='function')return;");
+    const a = COACH.indexOf("(function(){\n  if(typeof _agentDelete!=='function')return;");
     const b = COACH.indexOf("})();", a);
     const wrap = COACH.slice(a, b + 5);
     const saves: string[] = [];

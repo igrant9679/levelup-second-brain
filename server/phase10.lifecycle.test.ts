@@ -15,6 +15,10 @@ vi.mock("./_core/sendEmail", () => ({ sendEmail: vi.fn(async (m: any) => { sent.
 vi.mock("./db", () => ({ getDb: vi.fn(async () => null), getSystemSetting: vi.fn(async () => null), setSystemSetting: vi.fn(async () => {}), adminListAllUsers: vi.fn(async () => []) }));
 
 import { job, drain, isShuttingDown, _resetLifecycle } from "./_core/lifecycle";
+import { _setLockProviderForTests } from "./_core/dbLock";
+// These cases test the in-process guard. With DATABASE_URL set (CI), job() would
+// first open a real GET_LOCK connection, so the job would start a few ms later.
+_setLockProviderForTests(async () => null);
 import { claimSend, settleClaims, releaseOpenClaims, releaseSend, _openClaimCount } from "./_core/sendLedger";
 import { redeliverPending } from "./_core/coachCron";
 
