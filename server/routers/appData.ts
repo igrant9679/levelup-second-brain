@@ -651,6 +651,40 @@ export async function _allParsedBlobs(db: any, col: string, fallback: any): Prom
   return out;
 }
 
+/**
+ * -276: how much a Money budget holds - accounts, transactions, bills, income
+ * streams, rules and goals. Categories and budget lines don't count: an empty
+ * default budget has those too.
+ */
+export function financeSize(f: any): number {
+  if (!f || typeof f !== 'object' || Array.isArray(f)) return 0;
+  let n = 0;
+  for (const k of ['accounts', 'transactions', 'bills', 'incomeStreams', 'rules', 'goals']) {
+    if (Array.isArray(f[k])) n += f[k].length;
+  }
+  return n;
+}
+
+/**
+ * -276: should this Money save be refused because it would wipe a budget?
+ * (2026-11-07: a device that had never loaded the server's budget saved an
+ * empty default one over 19 accounts and ~1,500 transactions. It sent no
+ * revision, and a save without one was accepted unchecked.)
+ * - 'unsynced': the copy never came from the server (no revision) and the
+ *   server holds a budget with something in it.
+ * - 'empty': the copy has no accounts and no transactions while the stored
+ *   budget has 5 or more of them, unless the user explicitly asked for it
+ *   (a confirmed Replace import sends allowEmpty).
+ */
+export function financeWipeVerdict(stored: any, next: any, baseRev: number | null | undefined, allowEmpty?: boolean): 'unsynced' | 'empty' | null {
+  if (financeSize(stored) === 0) return null;
+  if (baseRev == null) return 'unsynced';
+  if (allowEmpty) return null;
+  const core = (f: any) => (Array.isArray(f?.accounts) ? f.accounts.length : 0) + (Array.isArray(f?.transactions) ? f.transactions.length : 0);
+  if (core(stored) >= 5 && core(next) === 0) return 'empty';
+  return null;
+}
+
 /** Set finance._rev to (stored revision + 1) on an incoming Money blob. */
 async function _bumpFinanceRev(db: any, userId: number, json: string): Promise<string> {
   try {
@@ -805,6 +839,8 @@ export const appDataRouter = router({
         coachTrash: z.string().max(SAVE_MAX).optional(),
         /** -266: the Money revision this device last saw (sent with finance). */
         financeBaseRev: z.number().int().nullable().optional(),
+        /** -276: a confirmed Replace import may empty the budget. */
+        financeAllowEmpty: z.boolean().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -833,16 +869,28 @@ export const appDataRouter = router({
       // job's new transactions or another of the owner's devices are no
       // longer overwritten by a stale tab. Refused → the current budget comes
       // back (financeConflict) and nothing is written. Clients that don't send
-      // financeBaseRev (pre-266) save as before.
-      let financeConflict: { rev: number; finance: unknown } | null = null;
+      // financeBaseRev may only replace an EMPTY stored budget (-276).
+      // -276: a save that would wipe a budget with data is refused the same
+      // way (financeWipeVerdict, reason set) and the client takes the
+      // server's budget.
+      let financeConflict: { rev: number; finance: unknown; reason?: string } | null = null;
       let financeRev: number | null = null;
-      if (updates.finance !== undefined && input.financeBaseRev != null) {
+      if (updates.finance !== undefined) {
         const [cur] = await db.select({ finance: userAppData.finance }).from(userAppData).where(eq(userAppData.userId, ctx.user.id)).limit(1);
         let stored: any = null;
         try { stored = JSON.parse((cur as any)?.finance || 'null'); } catch { stored = null; }
+        let next: any = null;
+        try { next = JSON.parse(updates.finance); } catch { next = null; }
         const storedRev = Number(stored?._rev) || 0;
-        if (stored && storedRev > input.financeBaseRev) {
+        const wipe = financeWipeVerdict(stored, next, input.financeBaseRev, input.financeAllowEmpty === true);
+        if (stored && input.financeBaseRev != null && storedRev > input.financeBaseRev) {
           financeConflict = { rev: storedRev, finance: stored };
+          delete updates.finance;
+        } else if (wipe) {
+          // console.error lands in the owner's error log (Settings > Health):
+          // a save that would have lost data is worth seeing.
+          console.error(`[money] refused a save that would wipe the budget (${wipe}) user=${ctx.user.id} stored=${financeSize(stored)} incoming=${financeSize(next)} baseRev=${input.financeBaseRev ?? 'none'}`);
+          financeConflict = { rev: storedRev, finance: stored, reason: wipe };
           delete updates.finance;
         }
       }
@@ -1642,6 +1690,12 @@ export const appDataRouter = router({
           const curRev = Number(cur._rev) || 0;
           if (input.baseRev != null && Number(input.baseRev) !== curRev) {
             return { result: { ok: false as const, conflict: true as const, error: 'This budget changed since you opened it.', finance: cur } };
+          }
+          // -276: a co-editor can't empty the budget (a shared copy has no
+          // Replace import, so no allowEmpty here).
+          if (financeWipeVerdict(cur, next, curRev) === 'empty') {
+            console.error(`[money] refused a shared save that would empty the budget owner=${input.ownerUserId} by=${meId}`);
+            return { result: { ok: false as const, conflict: true as const, error: 'That would empty the budget, so it was not saved.', finance: cur } };
           }
           next._rev = curRev + 1;
           return { write: JSON.stringify(next), result: { ok: true as const, rev: next._rev as number } };

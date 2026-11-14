@@ -40,7 +40,8 @@ describe("shared budget writes", () => {
   });
   it("the owner's own saves bump the revision too", async () => {
     const own = appDataRouter.createCaller({ user: OWNER } as any);
-    await own.save({ finance: JSON.stringify(budget(0)) }); // owner's tab had an old _rev
+    // -276: a save must say which revision it is based on to replace a budget with data
+    await own.save({ finance: JSON.stringify(budget(3)), financeBaseRev: 3 });
     expect(JSON.parse(row.finance)._rev).toBe(4);
   });
 });

@@ -46,9 +46,9 @@ describe("the owner's Money save", () => {
     expect(JSON.parse(row.goals)).toEqual([{ id: 1, name: "Run" }]);
     expect(stored()._rev).toBe(7);
   });
-  it("a client that sends no revision (pre-266) saves as before", async () => {
+  it("a client that sends no revision can't replace a budget with data (-276)", async () => {
     const r: any = await own().save({ finance: JSON.stringify(budget(0)) });
-    expect(r.financeConflict).toBeNull();
-    expect(stored()._rev).toBe(8);
+    expect(r.financeConflict.reason).toBe("unsynced");
+    expect(stored()._rev).toBe(7);
   });
 });

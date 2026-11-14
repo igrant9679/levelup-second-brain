@@ -11877,11 +11877,21 @@ async function _pushKeyToServer(k){
       // One save at a time — each must carry the revision the last one got.
       const once=async()=>{
         const base=Number(D.finance&&D.finance._rev);
-        const res=await _trpc('appData.save',{finance:JSON.stringify(D.finance),financeBaseRev:Number.isFinite(base)?base:null},'mutation');
+        // -276: only a confirmed Replace import may empty the budget.
+        const allowEmpty=window._finAllowEmptyOnce===true; window._finAllowEmptyOnce=false;
+        const res=await _trpc('appData.save',{finance:JSON.stringify(D.finance),financeBaseRev:Number.isFinite(base)?base:null,financeAllowEmpty:allowEmpty||undefined},'mutation');
         if(res&&res.financeConflict&&res.financeConflict.finance){
+          const why=res.financeConflict.reason;
           D.finance=res.financeConflict.finance;
+          window._luFinLoaded=true;
           try{_safeOrigSave('finance');}catch(_){}
-          if(typeof toast==='function')toast({type:'warning',title:'Money changed elsewhere',msg:'The budget was updated on another device, by someone you share it with, or by the bank sync. That newer version is shown now — please make your last change again.',duration:10000});
+          // -276: 'unsynced' = this device's copy never came from the server
+          // (it would have replaced the real budget) - just show the real one.
+          if(typeof toast==='function'){
+            if(why==='unsynced')toast({type:'info',title:'Money loaded from the server',msg:'This device had no copy of your budget yet, so the saved budget is shown.',duration:6000});
+            else if(why==='empty')toast({type:'warning',title:'Money not saved',msg:'That change would have emptied a budget that has accounts and transactions, so it was not saved. To start over on purpose, use Money → Import with “Replace” ticked.',duration:12000});
+            else toast({type:'warning',title:'Money changed elsewhere',msg:'The budget was updated on another device, by someone you share it with, or by the bank sync. That newer version is shown now — please make your last change again.',duration:10000});
+          }
           try{if(typeof curScreen!=='undefined'&&curScreen==='money'&&typeof renderMoney==='function')renderMoney();}catch(_){}
         }else if(res&&res.financeRev!=null&&D.finance){D.finance._rev=res.financeRev;try{_safeOrigSave('finance');}catch(_){}}
       };
@@ -12513,7 +12523,19 @@ async function loadServerData(){
     // Money page data — a single OBJECT blob (accounts / transactions /
     // budgets / bills / goals + share settings), so it replaces wholesale
     // like atlas/prefs rather than going through the array merge above.
-    if(sd.finance&&typeof sd.finance==='object'&&Object.keys(sd.finance).length>0&&_dirtyKeys.has('finance')){
+    // -276: Money saves and the daily Money agents wait for this (a device
+    // that had not loaded the budget yet saved an empty one over it).
+    window._luFinLoaded=true;
+    // Local edits are kept only when this copy came from the server (it has
+    // a revision); a copy that never did (an empty default, an old cache)
+    // never replaces the server's budget.
+    if(sd.finance&&typeof sd.finance==='object'&&Object.keys(sd.finance).length>0&&_dirtyKeys.has('finance')&&!Number.isFinite(Number(D.finance&&D.finance._rev))){
+      try{clearTimeout(_syncTimers['finance']);}catch(_){}
+      _dirtyKeys.delete('finance');
+      D.finance=sd.finance;
+      try{localStorage.setItem('lu_finance',JSON.stringify(D.finance));}catch(_){}
+      changed=true;
+    }else if(sd.finance&&typeof sd.finance==='object'&&Object.keys(sd.finance).length>0&&_dirtyKeys.has('finance')){
       // Unsaved Money edits on this device: keep them and push, instead of
       // replacing them with the server copy (that silently undid edits made
       // just before a reload or "Sync all").
@@ -17761,6 +17783,10 @@ function finImport(){
     D.finance.categories=_finDefaultCats();
     importedCats.forEach(c=>{ if(c&&c.id&&!D.finance.categories.some(y=>y.id===c.id))D.finance.categories.push(c); });
     if(!obj.share)D.finance.share=keepShare; // don't lose an existing share setup
+    // -276: the save is based on the budget being replaced (a file's own
+    // _rev is from whenever it was exported), and the user confirmed it.
+    if(cur._rev!=null)D.finance._rev=cur._rev; else delete D.finance._rev;
+    window._finAllowEmptyOnce=true;
   }else{
     const f=cur;
     const addById=(dst,src)=>{ (Array.isArray(src)?src:[]).forEach(x=>{ if(x&&x.id!=null&&!dst.some(y=>String(y.id)===String(x.id)))dst.push(x); }); };
@@ -19283,8 +19309,11 @@ function _finAgentsRunAll(){
   _finAgentCommit(out);
   return out;
 }
-function _finAgentsAutoRun(){
+function _finAgentsAutoRun(tries){
   try{
+    // -276: never on a budget that hasn't come from the server yet - on a
+    // slow load the agents ran on an empty default budget and saved it.
+    if(!window._luFinLoaded){ tries=(tries|0)+1; if(tries<=20)setTimeout(()=>_finAgentsAutoRun(tries),3000); return; }
     if(!D.finance||typeof D.finance!=='object')return;
     if(_finShared!=null)return;
     const f=ensureFin();
