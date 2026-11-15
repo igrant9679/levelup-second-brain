@@ -5,8 +5,9 @@
  * owner. Since -214 the raw keys never leave the server: `get` returns only
  * whether each provider is configured plus a masked hint ('sk-…abcd'), and
  * every AI endpoint resolves the key itself (_core/workspaceAI.ts
- * resolveRequestAI). Writes are owner-only (isOwnerCtxUser — teammates are
- * all admins, so role==='admin' is not a gate).
+ * resolveRequestAI). Writes: the owner and admins (-277, canManageAIKeys).
+ * Since -253 invited teammates are members unless the owner grants admin, so
+ * the admin role IS a gate again. Every change lands in the audit log.
  *
  * system_settings keys used:
  *   aiKey_openai, aiKey_claude, aiKey_gemini   — provider API keys (encrypted at rest since audit F25; get/setSystemSetting handle it)
@@ -18,6 +19,14 @@ import { protectedProcedure, router } from "../_core/trpc";
 import * as db from "../db";
 import { invalidateWorkspaceAI, maskKey } from "../_core/workspaceAI";
 import { isOwnerCtxUser } from "./appData";
+import { isAdminUser } from "../_core/access";
+
+/** Owner or an admin the owner granted (-277). Members can only use the keys. */
+export async function canManageAIKeys(user: any): Promise<boolean> {
+  if (!user) return false;
+  if (isAdminUser(user)) return true;
+  return await isOwnerCtxUser(user);
+}
 
 const PROVIDERS = ["openai", "claude", "gemini"] as const;
 type Provider = typeof PROVIDERS[number];
@@ -39,12 +48,12 @@ export const aiSettingsRouter = router({
     return {
       provider: (provider as Provider) || "openai",
       keys: { openai: status(openai), claude: status(claude), gemini: status(gemini) },
-      canEdit: await isOwnerCtxUser(ctx.user as any),
+      canEdit: await canManageAIKeys(ctx.user as any),
     };
   }),
 
   /**
-   * Update one or more shared AI settings. Workspace owner only. Empty
+   * Update one or more shared AI settings. Owner and admins. Empty
    * string clears.
    */
   set: protectedProcedure
@@ -55,8 +64,8 @@ export const aiSettingsRouter = router({
       gemini: z.string().max(512).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      if (!(await isOwnerCtxUser(ctx.user as any))) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Only the workspace owner can change the AI keys" });
+      if (!(await canManageAIKeys(ctx.user as any))) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only the workspace owner or an admin can change the AI keys" });
       }
       if (input.provider !== undefined) await db.setSystemSetting("aiProvider", input.provider);
       if (input.openai !== undefined) await db.setSystemSetting("aiKey_openai", input.openai.trim());

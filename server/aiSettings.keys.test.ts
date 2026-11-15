@@ -1,7 +1,7 @@
 /**
  * -214: the workspace AI keys never reach the browser.
  *  - aiSettings.get returns {configured, hint} per provider, never the key;
- *  - only the workspace owner can change keys (teammates are all admins);
+ *  - the owner and admins can change keys; members can't (-277 — was owner-only);
  *  - ai.assist / ai.agent / help.askAI with no apiKey use the workspace
  *    provider + key resolved on the server; an explicit key still wins
  *    (deploy skew, the Settings "Test" button).
@@ -28,7 +28,8 @@ import { helpRouter } from "./routers/help";
 import { invalidateWorkspaceAI, maskKey, resolveRequestAI } from "./_core/workspaceAI";
 
 const OWNER = { user: { id: 1, role: "admin" } } as any;
-const TEAMMATE = { user: { id: 7, role: "admin" } } as any;
+const ADMIN = { user: { id: 7, role: "admin" } } as any;
+const TEAMMATE = { user: { id: 8, role: "user" } } as any; // an ordinary member
 const CLAUDE_KEY = "sk-ant-api03-SECRETSECRETSECRET-wxyz";
 
 const claudeOk = (text: string) => ({ ok: true, json: async () => ({ content: [{ type: "text", text }] }) });
@@ -53,7 +54,7 @@ describe("maskKey", () => {
 
 describe("aiSettings.get", () => {
   it("never returns a raw key, to anyone", async () => {
-    for (const ctx of [OWNER, TEAMMATE]) {
+    for (const ctx of [OWNER, ADMIN, TEAMMATE]) {
       const res = await aiSettingsRouter.createCaller(ctx).get();
       expect(JSON.stringify(res)).not.toContain("SECRET");
       expect(res.keys.claude).toEqual({ configured: true, hint: "sk-ant-…wxyz" });
@@ -61,16 +62,27 @@ describe("aiSettings.get", () => {
       expect(res.provider).toBe("claude");
     }
   });
-  it("tells only the owner they can edit", async () => {
+  it("tells the owner and admins they can edit, not members (-277)", async () => {
     expect((await aiSettingsRouter.createCaller(OWNER).get()).canEdit).toBe(true);
+    expect((await aiSettingsRouter.createCaller(ADMIN).get()).canEdit).toBe(true);
     expect((await aiSettingsRouter.createCaller(TEAMMATE).get()).canEdit).toBe(false);
   });
 });
 
 describe("aiSettings.set", () => {
-  it("refuses a non-owner admin", async () => {
-    await expect(aiSettingsRouter.createCaller(TEAMMATE).set({ claude: "sk-ant-evil" })).rejects.toThrow(/owner/i);
+  it("refuses a member", async () => {
+    await expect(aiSettingsRouter.createCaller(TEAMMATE).set({ claude: "sk-ant-evil" })).rejects.toThrow(/owner or an admin/i);
+    await expect(aiSettingsRouter.createCaller(TEAMMATE).set({ provider: "openai" })).rejects.toThrow(/owner or an admin/i);
     expect(settings.aiKey_claude).toBe(CLAUDE_KEY);
+    expect(settings.aiProvider).toBe("claude");
+  });
+  it("lets an admin replace a key and switch provider (-277), applied at once", async () => {
+    await resolveRequestAI({}); // warm the 5-minute cache
+    await aiSettingsRouter.createCaller(ADMIN).set({ provider: "gemini", gemini: "AIzaSyADMINADMINADMIN4321" });
+    expect(settings.aiProvider).toBe("gemini");
+    expect(await resolveRequestAI({})).toEqual({ provider: "gemini", apiKey: "AIzaSyADMINADMINADMIN4321" });
+    await aiSettingsRouter.createCaller(ADMIN).set({ gemini: "" }); // Clear
+    expect(settings.aiKey_gemini).toBe("");
   });
   it("lets the owner replace a key, and the new key applies at once", async () => {
     await resolveRequestAI({}); // warm the 5-minute cache

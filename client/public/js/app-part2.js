@@ -724,7 +724,7 @@ function renderSettingsHTML(){
   <!-- AI Provider Keys (-214: the browser only ever sees a masked hint) -->
   <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
     <h4 style="font-size:12px;font-weight:600;margin-bottom:4px">🔑 AI Provider API Keys</h4>
-    <p style="font-size:11px;color:var(--t3);margin-bottom:10px">${_sharedAI.canEdit?'Workspace AI keys — kept on the server and used for the whole team. A saved key is never shown again, only its last 4 characters; paste a new one to replace it.':"🔒 AI keys are managed by the workspace owner and shared across the team. You don't need to enter your own."}</p>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:10px">${_sharedAI.canEdit?'Workspace AI keys — kept on the server and used for the whole team. The owner and admins can change them; every change is in the audit log. A saved key is never shown again, only its last 4 characters; paste a new one to replace it.':"🔒 AI keys are managed by the workspace owner and admins, and shared across the team. You don't need to enter your own."}</p>
     <!-- Active Provider Selector -->
     <div style="margin-bottom:12px">
       <label style="font-size:11px;font-weight:600;color:var(--t2);display:block;margin-bottom:4px">Active Provider</label>
