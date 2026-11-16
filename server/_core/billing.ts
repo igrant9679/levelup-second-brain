@@ -219,6 +219,10 @@ export async function startTrial(wsId: number, now = Date.now()): Promise<Billin
   return billingRow(wsId, true);
 }
 /** The operator's override. `none` removes billing from the workspace altogether. */
+/** "Already over": MySQL rounds a timestamp to the nearest second, so "now" can be stored up to half
+ *  a second in the FUTURE and read as a trial still running. One second back is over on any clock. */
+const alreadyOver = () => new Date(Date.now() - 1000);
+
 export async function operatorSet(wsId: number, o: { mode: "none" | "comped" | "trial"; plan?: string; trialDays?: number }): Promise<Entitlement> {
   const db: any = await getDb();
   if (!db) throw new Error("Database unavailable");
@@ -236,7 +240,7 @@ export async function operatorSet(wsId: number, o: { mode: "none" | "comped" | "
     const cfg = await billingConfig();
     const plan = o.plan && (await planByKey(o.plan)) ? o.plan : cfg.trialPlan;
     const days = Math.min(365, Math.max(0, Math.round(Number(o.trialDays ?? cfg.trialDays))));
-    await writeRow(wsId, { plan, status: "trialing", trialEndsAt: new Date(Date.now() + days * DAY), pastDueSince: null, cancelAtPeriodEnd: 0, stripeSubscriptionId: null, stripeItemId: null, notified: {} });
+    await writeRow(wsId, { plan, status: "trialing", trialEndsAt: days > 0 ? new Date(Date.now() + days * DAY) : alreadyOver(), pastDueSince: null, cancelAtPeriodEnd: 0, stripeSubscriptionId: null, stripeItemId: null, notified: {} });
   }
   return entitlement(wsId);
 }
@@ -295,7 +299,7 @@ async function ensureCustomer(wsId: number): Promise<string> {
   }, { idempotencyKey: `lu-customer-${wsId}` });
   if (!c?.id) throw new Error("Stripe did not create a customer");
   if (row) await writeRow(wsId, { stripeCustomerId: c.id });
-  else await writeRow(wsId, { plan: (await billingConfig()).trialPlan, status: "trialing", trialEndsAt: new Date(), stripeCustomerId: c.id, notified: {} });
+  else await writeRow(wsId, { plan: (await billingConfig()).trialPlan, status: "trialing", trialEndsAt: alreadyOver(), stripeCustomerId: c.id, notified: {} });
   return c.id;
 }
 
