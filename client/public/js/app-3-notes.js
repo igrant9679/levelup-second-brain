@@ -3151,6 +3151,499 @@ function _notePopPick(i){
   if(p.id==='nie-body')_noteEdited();
   try{if(p.id.slice(0,3)==='fa-'&&typeof _faHasChanges!=='undefined')_faHasChanges=true;}catch(_){}
 }
+// ════════════════════════════════════════════════════════════════════════════
+// RICH PASTE (build -280)
+// Pasting into a note keeps the STRUCTURE of what was copied — headings,
+// bold / italic / underline, lists, tables, links, alignment, indents and
+// pictures — from Word, Excel, Outlook, Google Docs or a web page. The source's
+// LOOK (fonts, sizes, colours) is dropped so the text follows the note's theme
+// in light and dark. Everything is rebuilt from an allow-list into fresh
+// elements (nothing from the clipboard is inserted as-is), then sanitized again
+// on save like any note body. Ctrl+Shift+V still pastes plain text, and other
+// editors (tasks, journal) keep pasting plain text.
+// ════════════════════════════════════════════════════════════════════════════
+const _PASTE_SKIP=new Set(['style','script','head','title','meta','link','xml','template','noscript','svg','math','iframe','frame','object','embed','form','input','button','textarea','select','option','audio','video','canvas','colgroup','col','base','o:p']);
+const _PASTE_BLOCK=new Set(['p','div','table','ul','ol','li','h1','h2','h3','h4','h5','h6','blockquote','pre','hr','section','article','header','footer','main','aside','nav','figure','figcaption','dl','dt','dd','address','center','tr','td','th','thead','tbody','tfoot','caption']);
+let _pasteSeq=0;
+function _pasteCss(el){
+  const o={};const s=el&&el.getAttribute&&el.getAttribute('style');
+  if(!s)return o;
+  s.split(';').forEach(d=>{const i=d.indexOf(':');if(i>0)o[d.slice(0,i).trim().toLowerCase()]=d.slice(i+1).trim();});
+  return o;
+}
+function _pasteLen(v){
+  const m=/^(-?[\d.]+)\s*(px|pt|in|cm|mm|em|rem|pc)?$/i.exec(String(v==null?'':v).trim());
+  if(!m)return 0;
+  const n=parseFloat(m[1]);if(!isFinite(n))return 0;
+  const k={px:1,pt:96/72,'in':96,cm:96/2.54,mm:96/25.4,em:16,rem:16,pc:16}[(m[2]||'px').toLowerCase()];
+  return n*k;
+}
+function _pasteTag(el){return String(el&&(el.localName||el.tagName)||'').toLowerCase();}
+function _pasteShaded(el,css){
+  const v=String(css['background']||css['background-color']||el.getAttribute('bgcolor')||'').toLowerCase().trim();
+  if(!v)return false;
+  return !/^(none|transparent|white|window|inherit|initial|unset|#fff\b|#ffffff\b|rgba?\(\s*255\s*,\s*255\s*,\s*255|rgba\(\s*0\s*,\s*0\s*,\s*0\s*,\s*0\s*\))/.test(v);
+}
+function _pasteHasBorder(css){
+  return ['border','border-top','border-left','border-bottom','border-right'].some(k=>/\b(solid|double|dashed|dotted|groove|ridge|inset|outset)\b/i.test(css[k]||''));
+}
+// Does this output element end with something that already starts a new line?
+function _pasteEndsBroken(out){
+  const last=out.lastChild;
+  if(!last)return true;
+  if(last.nodeType!==1)return false;
+  const t=_pasteTag(last);
+  return t==='br'||_PASTE_BLOCK.has(t);
+}
+function _pasteTrimBreaks(el){
+  while(el.lastChild&&((el.lastChild.nodeType===1&&_pasteTag(el.lastChild)==='br')||(el.lastChild.nodeType===3&&!el.lastChild.nodeValue.trim())))el.removeChild(el.lastChild);
+}
+// Word writes a list as ordinary paragraphs carrying "mso-list:l0 level1 lfo1"
+// and a typed-out marker ("·", "o", "1.") — which is why only the bullet
+// characters survived a plain-text paste. Rebuild real nested lists.
+function _pasteWordLists(root){
+  const doc=root.ownerDocument;
+  const RE=/mso-list:\s*(l\d+)\s+level(\d+)/i;
+  const isItem=el=>!!el&&el.nodeType===1&&_pasteTag(el)==='p'&&RE.test(el.getAttribute('style')||'');
+  const done=new Set();
+  Array.from(root.querySelectorAll('p')).filter(isItem).forEach(first=>{
+    if(done.has(first)||!first.parentNode)return;
+    const run=[];
+    for(let n=first;n;n=n.nextSibling){
+      if(n.nodeType===1){if(isItem(n))run.push(n);else break;}
+      else if(n.nodeType===3&&n.nodeValue.trim())break;
+    }
+    const frag=doc.createDocumentFragment();
+    const stack=[];
+    run.forEach(p=>{
+      done.add(p);
+      const m=RE.exec(p.getAttribute('style')||'');
+      const level=Math.max(1,Math.min(9,parseInt(m[2],10)||1));
+      let marker=null;
+      Array.from(p.querySelectorAll('span')).forEach(s=>{
+        if(!s.parentNode||!/mso-list:\s*Ignore/i.test(s.getAttribute('style')||''))return;
+        if(marker==null)marker=s.textContent||'';
+        s.parentNode.removeChild(s);
+      });
+      marker=String(marker||'').replace(/[\s\u00a0]+/g,'');
+      const num=/^\(?(\d+)(?:\.\d+)*[.)]?$/.exec(marker);
+      const let_=num?null:/^\(?([A-Za-z]{1,4})[.)]$/.exec(marker);
+      const ordered=!!(num||let_);
+      while(stack.length&&stack[stack.length-1].level>level)stack.pop();
+      let top=stack[stack.length-1];
+      if(top&&top.level===level&&(top.ordered!==ordered||(level===1&&top.key!==m[1]))){stack.pop();top=stack[stack.length-1];}
+      if(!top||top.level<level){
+        const list=doc.createElement(ordered?'ol':'ul');
+        if(num){const n1=parseInt(marker.replace(/[^\d.]/g,'').split('.').filter(Boolean).pop(),10);if(n1>1&&n1<10000)list.setAttribute('start',String(n1));}
+        else if(let_){
+          const c=let_[1];const up=c===c.toUpperCase();
+          if(/^[ivx]+$/i.test(c)&&c.toLowerCase()!=='v'&&c.toLowerCase()!=='x')list.setAttribute('type',up?'I':'i');
+          else{list.setAttribute('type',up?'A':'a');const i1=c.toLowerCase().charCodeAt(0)-96;if(c.length===1&&i1>1&&i1<=26)list.setAttribute('start',String(i1));}
+        }
+        if(top&&top.lastLi)top.lastLi.appendChild(list);else frag.appendChild(list);
+        top={level,list,lastLi:null,ordered,key:m[1]};stack.push(top);
+      }
+      const li=doc.createElement('li');
+      while(p.firstChild)li.appendChild(p.firstChild);
+      top.list.appendChild(li);top.lastLi=li;
+    });
+    first.parentNode.insertBefore(frag,first);
+    run.forEach(p=>{if(p.parentNode)p.parentNode.removeChild(p);});
+  });
+}
+function _pasteBlockStyle(el,css){
+  const parts=[];
+  const al=String(css['text-align']||el.getAttribute('align')||'').toLowerCase();
+  if(al==='center'||al==='right')parts.push('text-align:'+al);
+  const ml=_pasteLen(css['margin-left']);
+  if(ml>=20)parts.push('margin-left:'+(Math.min(8,Math.max(1,Math.round(ml/48)))*2)+'em');
+  return parts.join(';');
+}
+// Is every bit of text in this cell bold (a header row, usually)?
+function _pasteAllBold(cell){
+  let any=false,all=true;
+  const walk=(n,bold)=>{
+    for(const c of Array.from(n.childNodes)){
+      if(c.nodeType===3){if(c.nodeValue.replace(/[\s\u00a0]+/g,'')){any=true;if(!bold)all=false;}}
+      else if(c.nodeType===1){
+        const t=_pasteTag(c);if(_PASTE_SKIP.has(t))continue;
+        const fw=String(_pasteCss(c)['font-weight']||'').toLowerCase();
+        let b=bold;
+        if(t==='b'||t==='strong'||t==='th'||/^h[1-6]$/.test(t))b=true;
+        if(/^(bold|bolder|[6-9]00)$/.test(fw))b=true;else if(/^(normal|[1-4]00)$/.test(fw))b=false;
+        walk(c,b);
+      }
+    }
+  };
+  walk(cell,_pasteTag(cell)==='th');
+  return any&&all;
+}
+function _pasteImg(ch,out,st){
+  const doc=out.ownerDocument;
+  const src=String(ch.getAttribute('src')||'').trim();
+  const w=parseInt(ch.getAttribute('width')||'',10),h=parseInt(ch.getAttribute('height')||'',10);
+  if((w&&w<=2)||(h&&h<=2))return;                       // tracking pixels
+  const img=doc.createElement('img');
+  img.setAttribute('alt',String(ch.getAttribute('alt')||'Image').slice(0,200));
+  img.setAttribute('style','max-width:100%;height:auto;border-radius:6px'+(w>2&&w<2000?';width:'+w+'px':''));
+  if(/^https?:\/\//i.test(src))img.setAttribute('src',src);
+  else if(/^data:image\/(png|jpe?g|gif|webp);base64,/i.test(src)&&st.images.length<40){
+    const k=(st.seq)+'-'+st.images.length;st.images.push({k,dataUrl:src});
+    img.setAttribute('src',src);img.setAttribute('data-paste-img',k);
+  }
+  else if(/^file:/i.test(src)&&st.images.length<40){
+    // Word names a file on the computer the page cannot read; the picture
+    // itself travels in the clipboard's RTF copy (matched up after the walk).
+    const k=(st.seq)+'-'+st.images.length;st.images.push({k,local:true});
+    img.setAttribute('data-paste-img',k);
+  }
+  else return;
+  out.appendChild(img);
+}
+function _pasteTable(ch,out,st){
+  const doc=out.ownerDocument;
+  let rows=[];try{rows=Array.from(ch.rows||[]);}catch(_){}
+  if(!rows.length)rows=Array.from(ch.querySelectorAll(':scope>tr,:scope>thead>tr,:scope>tbody>tr,:scope>tfoot>tr'));
+  if(!rows.length)return;
+  const cellsOf=r=>Array.from(r.children).filter(c=>{const t=_pasteTag(c);return t==='td'||t==='th';});
+  let bordered=parseInt(ch.getAttribute('border')||'0',10)>0||_pasteHasBorder(_pasteCss(ch));
+  // header row: the source said so, or every filled cell is shaded or all bold
+  const firstCells=cellsOf(rows[0]);
+  const filled=firstCells.filter(c=>(c.textContent||'').replace(/[\s\u00a0]+/g,''));
+  const header=rows.length>1&&filled.length>0&&filled.every(c=>_pasteTag(c)==='th'||_pasteShaded(c,_pasteCss(c))||_pasteAllBold(c));
+  // column widths as shares of the whole, when the first row is a plain one
+  let widths=null;
+  if(firstCells.length>1&&firstCells.every(c=>!(parseInt(c.getAttribute('colspan')||'1',10)>1))){
+    const ws=firstCells.map(c=>{const a=c.getAttribute('width');const css=_pasteCss(c);return /^\d+(\.\d+)?$/.test(a||'')?parseFloat(a):_pasteLen(css['width']);});
+    const sum=ws.reduce((a,b)=>a+b,0);
+    if(ws.every(x=>x>0)&&sum>0)widths=ws.map(x=>Math.round(x/sum*1000)/10);
+  }
+  const table=doc.createElement('table');const tb=doc.createElement('tbody');table.appendChild(tb);
+  rows.forEach((r,ri)=>{
+    const tr=doc.createElement('tr');
+    cellsOf(r).forEach((c,ci)=>{
+      const css=_pasteCss(c);
+      if(_pasteHasBorder(css))bordered=true;
+      const isTh=(header&&ri===0)||(_pasteTag(c)==='th'&&ri>0);
+      const td=doc.createElement(isTh?'th':'td');
+      const cs=parseInt(c.getAttribute('colspan')||'1',10),rs=parseInt(c.getAttribute('rowspan')||'1',10);
+      if(cs>1&&cs<=60)td.setAttribute('colspan',String(cs));
+      if(rs>1&&rs<=200)td.setAttribute('rowspan',String(rs));
+      const parts=[];
+      const al=String(css['text-align']||c.getAttribute('align')||'').toLowerCase();
+      if(al==='center'||al==='right')parts.push('text-align:'+al);
+      const va=String(css['vertical-align']||c.getAttribute('valign')||'').toLowerCase();
+      if(va==='middle'||va==='bottom')parts.push('vertical-align:'+va);
+      if(widths&&ri===0)parts.push('width:'+widths[ci]+'%');
+      if(parts.length)td.setAttribute('style',parts.join(';'));
+      _pasteConv(c,td,Object.assign({},st,{tight:true,cell:td,pre:false,bold:isTh}));
+      _pasteTrimBreaks(td);
+      if(isTh&&!/text-align/.test(td.getAttribute('style')||''))td.setAttribute('style',((td.getAttribute('style')||'')+';text-align:left').replace(/^;/,''));
+      if(!td.childNodes.length)td.appendChild(doc.createElement('br'));
+      tr.appendChild(td);
+    });
+    if(tr.childNodes.length)tb.appendChild(tr);
+  });
+  if(!tb.childNodes.length)return;
+  // A Word table with no borders is a layout grid: keep it unruled.
+  table.setAttribute('class','lu-table'+(st.word&&!st.excel&&!bordered?' lu-plain':''));
+  out.appendChild(table);
+}
+function _pasteList(ch,tag,out,st){
+  const doc=out.ownerDocument;
+  const list=doc.createElement(tag);
+  const check=tag==='ul'&&/\blu-check\b/.test(ch.getAttribute('class')||'');
+  if(check)list.setAttribute('class','lu-check');
+  if(tag==='ol'){
+    const s=parseInt(ch.getAttribute('start')||'',10);if(s>1&&s<100000)list.setAttribute('start',String(s));
+    const ty=ch.getAttribute('type');if(/^[aAiI]$/.test(ty||''))list.setAttribute('type',ty);
+  }
+  let lastLi=null;
+  const st2=Object.assign({},st,{tight:true,cell:null,pre:false});
+  Array.from(ch.childNodes).forEach(c=>{
+    if(c.nodeType!==1){
+      if(c.nodeType===3&&c.nodeValue.trim()){lastLi=doc.createElement('li');lastLi.appendChild(doc.createTextNode(c.nodeValue.replace(/[ \t\r\n\f]+/g,' ').trim()));list.appendChild(lastLi);}
+      return;
+    }
+    const t=_pasteTag(c);
+    if(t==='ul'||t==='ol'){                              // Chrome's own indent nests a list straight inside a list
+      if(!lastLi){lastLi=doc.createElement('li');list.appendChild(lastLi);}
+      _pasteList(c,t,lastLi,st);return;
+    }
+    if(_PASTE_SKIP.has(t))return;
+    const li=doc.createElement('li');
+    if(check)li.setAttribute('data-checked',c.getAttribute('data-checked')==='true'?'true':'false');
+    if(t==='li')_pasteConv(c,li,st2);
+    else{const hold=doc.createElement('div');hold.appendChild(c.cloneNode(true));_pasteConv(hold,li,st2);}
+    _pasteTrimBreaks(li);
+    if(li.childNodes.length){list.appendChild(li);lastLi=li;}
+  });
+  if(list.childNodes.length)out.appendChild(list);
+}
+function _pasteInline(ch,tag,css,out,st){
+  const doc=out.ownerDocument;
+  if(ch.querySelector&&ch.querySelector('p,div,table,ul,ol,li,h1,h2,h3,h4,h5,h6,blockquote,pre,hr')){_pasteConv(ch,out,st);return;}
+  const want=[];
+  const fw=String(css['font-weight']||'').toLowerCase();
+  const boldTag=tag==='b'||tag==='strong';
+  if(!st.bold&&((boldTag&&!/^(normal|[1-4]00)$/.test(fw))||(!boldTag&&/^(bold|bolder|[6-9]00)$/.test(fw))))want.push(['bold','b']);
+  const fs=String(css['font-style']||'').toLowerCase();
+  const itTag=tag==='i'||tag==='em';
+  if(!st.italic&&((itTag&&fs!=='normal')||(!itTag&&/^(italic|oblique)/.test(fs))))want.push(['italic','i']);
+  const td=String((css['text-decoration']||'')+' '+(css['text-decoration-line']||'')).toLowerCase();
+  if(!st.under&&!st.link&&tag!=='a'&&(tag==='u'||tag==='ins'||/\bunderline\b/.test(td)))want.push(['under','u']);
+  if(!st.strike&&(tag==='s'||tag==='strike'||tag==='del'||/\bline-through\b/.test(td)))want.push(['strike','s']);
+  const va=String(css['vertical-align']||'').toLowerCase();
+  if(!st.sup&&!st.sub){
+    if(tag==='sup'||va==='super')want.push(['sup','sup']);
+    else if(tag==='sub'||va==='sub')want.push(['sub','sub']);
+  }
+  if(!st.code&&(tag==='code'||tag==='tt'||tag==='kbd'||tag==='samp'))want.push(['code','code']);
+  if(!st.mark&&(tag==='mark'||(css['mso-highlight']&&!/^(none|white|windowtext|auto)$/i.test(css['mso-highlight']))||(st.docs&&tag==='span'&&_pasteShaded(ch,css))))want.push(['mark','mark']);
+  let href='';
+  if(tag==='a'&&!st.link){const h=String(ch.getAttribute('href')||'').trim();if(/^(https?:\/\/|mailto:)/i.test(h)&&h.length<2000)href=h;}
+  if(!want.length&&!href){_pasteConv(ch,out,st);return;}
+  const st2=Object.assign({},st);let top=null,cur=null;
+  const add=e=>{if(cur)cur.appendChild(e);else top=e;cur=e;};
+  if(href){const a=doc.createElement('a');a.setAttribute('href',href);st2.link=true;add(a);}
+  want.forEach(w=>{st2[w[0]]=true;add(doc.createElement(w[1]));});
+  _pasteConv(ch,cur,st2);
+  if(!cur.childNodes.length)return;
+  if(!cur.textContent.replace(/[\s\u00a0]+/g,'')&&!cur.querySelector('img,br')){
+    if(cur.textContent&&!_pasteEndsBroken(out))out.appendChild(doc.createTextNode(' '));
+    return;
+  }
+  out.appendChild(top);
+}
+function _pasteConv(node,out,st){
+  const doc=out.ownerDocument;
+  for(const ch of Array.from(node.childNodes)){
+    if(ch.nodeType===3){
+      let t=ch.nodeValue||'';
+      if(!st.pre)t=t.replace(/[ \t\r\n\f]+/g,' ');
+      if(!t)continue;
+      if(t===' '&&!st.pre){
+        const last=out.lastChild;
+        if(!last){if(out===st.root||_PASTE_BLOCK.has(_pasteTag(out)))continue;}
+        else if(_pasteEndsBroken(out)||(last.nodeType===3&&/ $/.test(last.nodeValue)))continue;
+      }
+      out.appendChild(doc.createTextNode(t));
+      continue;
+    }
+    if(ch.nodeType!==1)continue;
+    const tag=_pasteTag(ch);
+    if(_PASTE_SKIP.has(tag)||tag.slice(0,2)==='v:')continue;
+    const css=_pasteCss(ch);
+    if(/^none$/i.test(css['display']||'')||/^all$/i.test(css['mso-hide']||''))continue;
+    if(/\bMsoCommentReference\b|\bMsoCommentText\b/.test(ch.getAttribute('class')||''))continue;
+    if(tag==='br'){
+      if(css['page-break-before']||/^(all|left|right)$/i.test(ch.getAttribute('clear')||''))continue;   // page / section breaks
+      if(st.pre)out.appendChild(doc.createTextNode('\n'));else out.appendChild(doc.createElement('br'));
+      continue;
+    }
+    if(tag==='hr'){out.appendChild(doc.createElement('hr'));continue;}
+    if(tag==='img'){_pasteImg(ch,out,st);continue;}
+    if(tag==='table'){_pasteTable(ch,out,st);continue;}
+    if(tag==='ul'||tag==='ol'){_pasteList(ch,tag,out,st);continue;}
+    if(tag==='pre'){
+      const pre=doc.createElement('pre');pre.textContent=(ch.textContent||'').replace(/\r\n?/g,'\n');
+      if(pre.textContent.trim())out.appendChild(pre);
+      continue;
+    }
+    if(tag==='span'&&/\blu-wiki\b/.test(ch.getAttribute('class')||'')){     // a note link copied from another note
+      const sp=doc.createElement('span');sp.setAttribute('class','lu-wiki');
+      const nid=ch.getAttribute('data-nid');if(nid&&/^[\w-]{1,40}$/.test(nid))sp.setAttribute('data-nid',nid);
+      sp.setAttribute('contenteditable','false');sp.textContent=(ch.textContent||'').trim();
+      if(sp.textContent)out.appendChild(sp);
+      continue;
+    }
+    // Word pads tabs and list numbers with runs of non-breaking spaces.
+    if(css['mso-tab-count']){out.appendChild(doc.createTextNode('\u00a0\u00a0\u00a0\u00a0'));continue;}
+    if(/mso-list:\s*Ignore/i.test(ch.getAttribute('style')||'')){
+      const t=(ch.textContent||'').replace(/[\s\u00a0]+/g,' ').trim();
+      if(t)out.appendChild(doc.createTextNode(t+' '));
+      continue;
+    }
+    if(/^h[1-6]$/.test(tag)){
+      const h=doc.createElement(tag>'h3'?'h3':tag);
+      const bs=_pasteBlockStyle(ch,css);if(bs)h.setAttribute('style',bs);
+      _pasteConv(ch,h,Object.assign({},st,{tight:false,cell:null,bold:true,pre:false}));
+      _pasteTrimBreaks(h);
+      if(h.textContent.trim()||h.querySelector('img'))out.appendChild(h);
+      continue;
+    }
+    if(tag==='blockquote'){
+      const b=doc.createElement('blockquote');
+      _pasteConv(ch,b,Object.assign({},st,{tight:false,cell:null,pre:false}));
+      if(b.childNodes.length)out.appendChild(b);
+      continue;
+    }
+    if(_PASTE_BLOCK.has(tag)){
+      // a container of other blocks is only a wrapper; one holding text is a paragraph
+      const holdsBlocks=Array.from(ch.children).some(c=>_PASTE_BLOCK.has(_pasteTag(c)));
+      if(holdsBlocks&&tag!=='p'){_pasteConv(ch,out,st);continue;}
+      if(st.tight){
+        // inside a table cell or a list item: lines, not spaced paragraphs
+        if(!_pasteEndsBroken(out))out.appendChild(doc.createElement('br'));
+        const before=out.childNodes.length;
+        const al=String(css['text-align']||ch.getAttribute('align')||'').toLowerCase();
+        if(st.cell&&st.cell===out&&!before&&(al==='center'||al==='right')&&!/text-align/.test(out.getAttribute('style')||''))
+          out.setAttribute('style',((out.getAttribute('style')||'')+';text-align:'+al).replace(/^;/,''));
+        _pasteConv(ch,out,st);
+        if(out.childNodes.length===before&&before)out.appendChild(doc.createElement('br'));       // an empty line
+        continue;
+      }
+      const cls=ch.getAttribute('class')||'';
+      const el=doc.createElement(/\bMsoTitle\b/.test(cls)?'h1':/\bMsoSubtitle\b/.test(cls)?'h2':'p');
+      const bs=_pasteBlockStyle(ch,css);if(bs)el.setAttribute('style',bs);
+      _pasteConv(ch,el,Object.assign({},st,{bold:_pasteTag(el)!=='p'?true:st.bold}));
+      _pasteTrimBreaks(el);
+      if(!el.childNodes.length){if(_pasteTag(el)!=='p')continue;el.appendChild(doc.createElement('br'));}
+      out.appendChild(el);
+      continue;
+    }
+    _pasteInline(ch,tag,css,out,st);
+  }
+}
+// The pictures in a Word selection, read from the clipboard's RTF copy.
+function _pasteRtfImages(rtf){
+  const out=[];
+  if(!rtf||rtf.length>60000000)return out;
+  const head=/\{\\pict[\s\S]+?\\bliptag-?\d+(\\blipupi-?\d+)?(\{\\\*\\blipuid\s?[\da-fA-F]+)?[\s}]*?/;
+  const re=new RegExp('(?:('+head.source+'))([\\da-fA-F\\s]+)\\}','g');
+  const found=rtf.match(re);
+  if(!found)return out;
+  found.forEach(pic=>{
+    const type=pic.indexOf('\\pngblip')>=0?'image/png':pic.indexOf('\\jpegblip')>=0?'image/jpeg':'';
+    if(type)out.push({type,hex:pic.replace(head,'').replace(/[^\da-fA-F]/g,'')});
+  });
+  return out;
+}
+function _pasteBytesToDataUrl(bytes,type){
+  let s='';const CH=0x8000;
+  for(let i=0;i<bytes.length;i+=CH)s+=String.fromCharCode.apply(null,bytes.subarray(i,i+CH));
+  return 'data:'+type+';base64,'+btoa(s);
+}
+function _pasteDataUrlToFile(dataUrl,name){
+  const m=/^data:(image\/[a-z0-9.+-]+);base64,(.*)$/i.exec(String(dataUrl||'').replace(/\s+/g,''));
+  if(!m)return null;
+  const bin=atob(m[2]);const bytes=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+  const type=m[1].toLowerCase();
+  return new File([bytes],name+'.'+type.split('/')[1].replace('jpeg','jpg'),{type});
+}
+/** Clipboard HTML → {html, rich, onlyImage, images, dropped}. Pure: it reads
+ *  nothing but its arguments (rtf is optional) and touches no page element. */
+function _pasteCleanHtml(html,rtf){
+  const src=String(html||'');
+  const body=luParseInert(src);
+  const doc=body.ownerDocument;
+  const out=doc.createElement('div');
+  const st={root:out,images:[],seq:++_pasteSeq,
+    word:/urn:schemas-microsoft-com:office:word|ProgId[^>]{0,40}Word|class="?Mso|mso-list:/i.test(src),
+    excel:/urn:schemas-microsoft-com:office:excel|ProgId[^>]{0,40}Excel/i.test(src),
+    docs:/docs-internal-guid|urn:schemas-microsoft-com:office:word|class="?Mso/i.test(src),
+    tight:false,cell:null,pre:false,bold:false,italic:false,under:false,strike:false,sup:false,sub:false,code:false,mark:false,link:false};
+  _pasteWordLists(body);
+  _pasteConv(body,out,st);
+  // Word's pictures: one RTF picture per placeholder, in order — or none at all.
+  let dropped=0;
+  const local=st.images.filter(i=>i.local);
+  if(local.length){
+    let pics=[];try{pics=_pasteRtfImages(rtf);}catch(_){pics=[];}
+    const ok=pics.length===local.length;
+    local.forEach((im,i)=>{
+      const node=out.querySelector('img[data-paste-img="'+im.k+'"]');
+      let url='';
+      if(ok&&node){
+        try{
+          const hex=pics[i].hex;const bytes=new Uint8Array(hex.length>>1);
+          for(let j=0;j<bytes.length;j++)bytes[j]=parseInt(hex.substr(j*2,2),16);
+          if(bytes.length>0&&bytes.length<=10*1024*1024)url=_pasteBytesToDataUrl(bytes,pics[i].type);
+        }catch(_){url='';}
+      }
+      if(url&&node){node.setAttribute('src',url);im.dataUrl=url;}
+      else{dropped++;im.dataUrl='';if(node&&node.parentNode)node.parentNode.removeChild(node);}
+    });
+  }
+  const images=st.images.filter(i=>i.dataUrl);
+  // Blank paragraphs: one between blocks is a gap, none at the ends.
+  const blank=n=>n&&n.nodeType===1&&_pasteTag(n)==='p'&&!n.textContent.replace(/[\s\u00a0]+/g,'')&&!n.querySelector('img');
+  Array.from(out.childNodes).forEach(n=>{
+    if(n.nodeType===3&&!n.nodeValue.trim()&&(!n.previousSibling||!n.nextSibling))out.removeChild(n);
+  });
+  Array.from(out.children).forEach(n=>{if(blank(n)&&(blank(n.previousElementSibling)||!n.previousElementSibling))out.removeChild(n);});
+  while(out.lastElementChild&&blank(out.lastElementChild)&&out.lastChild===out.lastElementChild)out.removeChild(out.lastElementChild);
+  const rich=!!out.querySelector('table,ul,ol,h1,h2,h3,b,i,u,s,a,img,mark,blockquote,pre,sub,sup,code,[style]')||out.querySelectorAll('p').length>1;
+  const onlyImage=out.querySelectorAll('img').length===1&&!out.textContent.replace(/[\s\u00a0]+/g,'');
+  // One plain paragraph joins the line it is pasted into instead of splitting it.
+  const els=Array.from(out.childNodes).filter(n=>n.nodeType===1||(n.nodeType===3&&n.nodeValue.trim()));
+  if(els.length===1&&els[0].nodeType===1&&_pasteTag(els[0])==='p'&&!els[0].getAttribute('style')){
+    const p=els[0];while(p.firstChild)out.insertBefore(p.firstChild,p);out.removeChild(p);
+  }
+  // Leave a line below a table so the caret has somewhere to go.
+  if(out.lastElementChild&&_pasteTag(out.lastElementChild)==='table'&&out.lastChild===out.lastElementChild){
+    const p=doc.createElement('p');p.appendChild(doc.createElement('br'));out.appendChild(p);
+  }
+  return {html:out.innerHTML,rich,onlyImage,images,dropped};
+}
+// Pictures that arrived inside the pasted HTML are uploaded like any other
+// editor image; until then (and if the upload fails) they stay in the note.
+function _pasteUploadImages(id,images){
+  if(!images||!images.length)return;
+  (async()=>{
+    for(const im of images){
+      const sel='img[data-paste-img="'+im.k+'"]';
+      let el=document.getElementById(id);
+      if(!el||!el.querySelector(sel))continue;
+      let src=null;
+      try{const f=_pasteDataUrlToFile(im.dataUrl,'pasted-image');if(f)src=await _luUploadEditorImage(f);}catch(_){src=null;}
+      el=document.getElementById(id);const node=el&&el.querySelector(sel);
+      if(!node)continue;
+      node.removeAttribute('data-paste-img');
+      if(src)node.setAttribute('src',src);
+    }
+    const el=document.getElementById(id);
+    if(el){try{el.dispatchEvent(new Event('input',{bubbles:true}));}catch(_){}}
+  })();
+}
+/** Called first by luRTE_onPaste (app-1-core). True = handled here. */
+function _notePasteRich(e,id){
+  if(!_NOTE_RTE_IDS.has(id))return false;
+  const cd=e.clipboardData||window.clipboardData;
+  if(!cd||typeof cd.getData!=='function')return false;
+  let types=[];try{types=Array.from(cd.types||[]);}catch(_){}
+  if(types.indexOf('vscode-editor-data')>=0)return false;          // code keeps its spacing as plain text
+  let html='';try{html=cd.getData('text/html')||'';}catch(_){}
+  if(!html||html.length>8000000)return false;
+  let rtf='';
+  if(/src\s*=\s*["']?file:/i.test(html)){try{rtf=cd.getData('text/rtf')||'';}catch(_){rtf='';}}
+  let res=null;
+  try{res=_pasteCleanHtml(html,rtf);}catch(err){console.warn('[paste] formatting not kept:',err&&err.message);return false;}
+  if(!res||!res.rich||!res.html)return false;
+  // A lone picture copied from a page or a screenshot tool: the file itself is uploaded.
+  let hasFile=false;try{hasFile=!!cd.items&&Array.from(cd.items).some(it=>it.kind==='file'&&/^image\//.test(it.type));}catch(_){}
+  if(hasFile&&res.onlyImage)return false;
+  const el=document.getElementById(id);
+  // what the note already holds is never touched by the tidy-up below
+  const had=new Set(el?Array.from(el.querySelectorAll('span[style],font')):[]);
+  document.execCommand('insertHTML',false,res.html);
+  if(el){
+    // Chrome re-adds the look it computed for inserted text; the note's own styles apply instead.
+    el.querySelectorAll('span[style],font').forEach(s=>{
+      if(had.has(s)||(s.classList&&s.classList.contains('lu-wiki')))return;
+      if(_pasteTag(s)==='font'||/font-|color|background/i.test(s.getAttribute('style')||'')){
+        const pr=s.parentNode;if(!pr)return;
+        while(s.firstChild)pr.insertBefore(s.firstChild,s);pr.removeChild(s);
+      }
+    });
+    el.querySelectorAll('.lu-wiki').forEach(w=>w.setAttribute('contenteditable','false'));
+    try{el.dispatchEvent(new Event('input',{bubbles:true}));}catch(_){}
+  }
+  _pasteUploadImages(id,res.images);
+  if(res.dropped&&typeof toast==='function')toast({type:'info',title:res.dropped===1?'1 picture was not pasted':res.dropped+' pictures were not pasted',msg:'Add them with the image button, or copy each picture on its own.',duration:7000});
+  return true;
+}
 function _noteInsertChecklist(id){
   luRTE_cmd('insertUnorderedList',id);
   const s=window.getSelection();const a=s&&s.anchorNode;
@@ -3200,7 +3693,11 @@ function insertWikiLink(title){if(_notePop&&_notePop.mode==='note'){const i=_not
     'ul.lu-check>li[data-checked="true"]::after{content:"✓";position:absolute;left:4.5px;top:.05em;font-size:12px;font-weight:700;color:#fff;pointer-events:none}'+
     'ul.lu-check>li[data-checked="true"]{opacity:.6;text-decoration:line-through}'+
     'table.lu-table{border-collapse:collapse;margin:8px 0 14px;width:100%;font-size:.95em}'+
-    'table.lu-table td,table.lu-table th{border:1px solid var(--bd2);padding:6px 8px;min-width:60px;vertical-align:top}';
+    'table.lu-table td,table.lu-table th{border:1px solid var(--bd2);padding:6px 8px;min-width:60px;vertical-align:top}'+
+    // -280: header cells, and a pasted layout grid (a Word table with no borders)
+    'table.lu-table th{background:color-mix(in srgb,var(--t1) 7%,transparent);font-weight:600}'+
+    'table.lu-table.lu-plain td,table.lu-table.lu-plain th{border-color:transparent}'+
+    '[contenteditable="true"] table.lu-table.lu-plain td,[contenteditable="true"] table.lu-table.lu-plain th{border:1px dashed var(--bd2)}';
   document.head.appendChild(s);
 })();
 // Display path for a note body, shared by the editor pane AND the

@@ -497,6 +497,8 @@ function luRTE_onPaste(e,id){
   }
   // Strip HTML on paste, keep plain text (default for notes/journal)
   e.preventDefault();
+  // Note editors keep the structure of what was copied (build -280, app-3-notes).
+  if(typeof _notePasteRich==='function'&&_notePasteRich(e,id))return;
   const cd=e.clipboardData||window.clipboardData;
   // A pasted image (screenshot) is uploaded and inserted where the caret is.
   const imgItem=cd&&cd.items?Array.from(cd.items).find(it=>it.kind==='file'&&/^image\//.test(it.type)):null;
