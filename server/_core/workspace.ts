@@ -242,7 +242,14 @@ export async function activeWorkspaceIds(): Promise<number[] | null> {
     // tenancy: background — which workspaces are active (ids only)
     const wsRows: any[] = await db.select({ id: workspaces.id, status: workspaces.status, deletedAt: workspaces.deletedAt }).from(workspaces);
     if (!(wsRows || []).some(w => w && w.id != null)) return LEGACY_OK ? null : [];
-    return wsRows.filter(w => w && w.id != null && String(w.status || "active") === "active" && !w.deletedAt).map(w => Number(w.id));
+    let ids = wsRows.filter(w => w && w.id != null && String(w.status || "active") === "active" && !w.deletedAt).map(w => Number(w.id));
+    // …and those locked for non-payment (build -279): no digests, check-ins or AI spend until it is sorted out
+    try {
+      const { billingSummaries } = await import("./billing");
+      const sums = await billingSummaries();
+      if (sums.size) ids = ids.filter(id => !sums.get(id)?.locked);
+    } catch { /* billing tables unreadable: nobody is locked */ }
+    return ids;
   } catch (e) {
     if (LEGACY_OK) return null;
     console.error("[workspace] could not list active workspaces:", e);

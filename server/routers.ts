@@ -39,6 +39,7 @@ import { coachRouter } from "./routers/coach";
 import { pmRouter } from "./routers/pm";
 import { demoAdminRouter } from "./routers/demoAdmin";
 import { workspaceRouter } from "./routers/workspace";
+import { billingRouter } from "./routers/billing";
 
 export const appRouter = router({
   // if you need to use socket.io, read and register route in server/_core/index.ts,
@@ -81,8 +82,16 @@ export const appRouter = router({
         const { getWorkspace } = await import("./_core/workspace");
         const { myWorkspaces } = await import("./routers/workspace");
         const ws = await getWorkspace(u.workspaceId);
+        // Billing (-279): null for a workspace that is not billed. The app shows
+        // the trial banner / the "locked" screen from this.
+        let billing: any = null;
+        try {
+          const ent = await (await import("./_core/billing")).entitlement(u.workspaceId);
+          if (ent.status !== "none") billing = { status: ent.status, billed: ent.billed, planName: ent.planName, locked: ent.locked, lockReason: ent.lockReason, trialDaysLeft: ent.trialDaysLeft, graceEndsAt: ent.graceEndsAt, cancelAtPeriodEnd: ent.cancelAtPeriodEnd, currentPeriodEnd: ent.currentPeriodEnd };
+        } catch { billing = null; }
         return {
           ...u,
+          billing,
           isOwner,
           isOperator: u.platformRole === "operator",
           workspace: ws ? { id: ws.id, name: ws.name, features: ws.features, branding: ws.branding, role: isOwner ? "owner" : u.role === "admin" ? "admin" : "member" } : null,
@@ -148,6 +157,7 @@ export const appRouter = router({
   atlas: atlasRouter,
   simplefin: simplefinRouter,
   workspace: workspaceRouter,
+  billing: billingRouter,
 });
 
 export type AppRouter = typeof appRouter;

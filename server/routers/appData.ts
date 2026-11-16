@@ -1,5 +1,6 @@
 import { eq, and, ne, isNull, asc, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { getDb } from "../db";
 import { userAppData, tasksTable, notesTable, ideasTable, externalTasks, users, systemSettings } from "../../drizzle/schema";
 import { protectedProcedure, adminProcedure, router } from "../_core/trpc";
@@ -824,7 +825,9 @@ export const appDataRouter = router({
    */
   load: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
-    if (!db) return null;
+    // null means "this account has nothing stored yet" (a new account starts
+    // clean on it) — an unreachable database must never be mistaken for that.
+    if (!db) { if (process.env.VITEST) return null; throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" }); }
     const rows = await db
       .select()
       .from(userAppData)

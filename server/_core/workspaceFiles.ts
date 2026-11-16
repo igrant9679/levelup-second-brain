@@ -241,6 +241,8 @@ export async function putForMember(who: { wsId: number; userId: number }, relKey
     // public originals: the Drive link an outside viewer can open, else the open proxy link
     return { key: hk, url: pub ? (put.publicUrl || fileUrl(publicId, name, true)) : fileUrl(publicId, name) };
   }
+  // LevelUp's own storage counts against the plan (-279); a workspace's own store does not.
+  await (await import("./billing")).assertStorageRoom(who.wsId, body.length);
   const { storagePutPlatform, storageBackend } = await import("../storage");
   const driveFolderId = storageBackend() === "drive" ? await platformDriveFolder(who.wsId) : undefined;
   const put: PutResult = await storagePutPlatform(key, body, contentType, { public: pub, driveFolderId });

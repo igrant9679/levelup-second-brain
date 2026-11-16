@@ -37,11 +37,29 @@ const base = t.procedure.use(auditMw);
 
 export const publicProcedure = base;
 
+/**
+ * Billing lock (build -279). A workspace whose trial ended without a plan,
+ * whose payment stayed unpaid past the grace period, or whose subscription
+ * was canceled is LOCKED: its people can still sign in, see why, pay, switch
+ * workspace, export and close it — and nothing else. Workspaces with no
+ * billing record (all that existed before self-serve sign-up) are never
+ * locked; see server/_core/billing.ts.
+ */
+export const BILLING_LOCKED_MSG = "This workspace is locked until its plan is sorted out (BILLING_LOCKED)";
+const BILLING_OPEN_PATHS = /^(auth\.|billing\.|emailAuth\.|workspace\.(list|switch|current|export|requestDelete)$|ops\.reportClientError$)/;
+export function billingOpenPath(path: string): boolean { return BILLING_OPEN_PATHS.test(String(path || "")); }
+
 const requireUser = t.middleware(async opts => {
   const { ctx, next } = opts;
 
   if (!ctx.user) {
     throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
+  }
+
+  const wsOfUser = Number((ctx.user as any).workspaceId);
+  if (Number.isInteger(wsOfUser) && wsOfUser > 0 && !billingOpenPath(opts.path)) {
+    const { isBillingLocked } = await import("./billing");
+    if (await isBillingLocked(wsOfUser)) throw new TRPCError({ code: "FORBIDDEN", message: BILLING_LOCKED_MSG });
   }
 
   // Helper code deep below (which AI key, whose daily limits) reads the member

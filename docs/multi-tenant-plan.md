@@ -1,6 +1,6 @@
 # LevelUp multi-workspace — plan and what was built
 
-Status: **built 2026-11-15 as build -278 (phases A–H). Phase I (self-serve sign-up and billing) is not started.**
+Status: **phases A–H built 2026-11-15 as build -278 (live). Phase I (self-serve sign-up and billing) built 2026-11-16 as build -279 — off until the operator switches it on.**
 Last single-workspace build: -277.
 
 LevelUp is sold to many companies and individuals. Each customer is a **workspace** with its
@@ -155,9 +155,37 @@ client; cross-workspace reads exist only in `operatorProcedure` tools and never 
   the operator can reopen it until then. The nightly encrypted backup stays the platform's
   disaster recovery; the operator's "Download a copy" is now their own workspace only.
 
-### I — self-serve sign-up and billing (not started)
-Public sign-up that creates a workspace, Stripe subscriptions and plans, a trial, plan-based
-limits, abuse limits.
+### I — self-serve sign-up and billing (build -279, migration 0065)
+Everything here is OFF until the operator turns it on (Platform console → Billing & sign-up).
+- **The rule:** a workspace with no billing record is not billed — never trialled, limited by a
+  plan or locked. Every workspace that existed before, and every one the operator creates by
+  hand, stays that way unless the operator changes it on the workspace's Manage page.
+- **Plans** (Solo, Team, Business by default; the operator edits names, limits and prices):
+  people, AI requests a day, emails a day, file storage; flat or per person. Prices are Stripe
+  price ids — the amounts customers see are read from Stripe.
+- **Sign-up:** "Create one" on the sign-in page → name, workspace name, email, password → a
+  confirmation link by email → the link creates the workspace and its owner and starts the free
+  trial (14 days by default, no card). Nothing exists before the link is opened. Throttled per
+  address and per IP; refused when the confirmation mail cannot be sent.
+- **A further workspace** for someone who already has a login: menu on their name → Create a
+  workspace (one free trial at a time).
+- **Paying:** the owner chooses a plan in Workspace settings → Plan & billing and pays on
+  Stripe's Checkout page; days left in the trial are kept. Card, invoices, plan changes and
+  cancelling are in Stripe's customer portal ("Manage billing"). Per-person plans follow the
+  member list.
+- **When it goes wrong:** a failed payment → email + notice to the owner, 7 days' grace, then
+  the workspace is LOCKED. A trial that ends without a plan, or a cancelled subscription, locks
+  too. Locked = nobody can open its items, background jobs stop, nothing is deleted; the owner
+  can pay (unlocks at once), download everything or close the workspace. Reminder emails: 3
+  days before a trial ends, when it has ended, on a failed payment, on the lock.
+- **Operator:** plans / prices / trial length / grace / sign-up switch / Terms and Privacy
+  links; per workspace: not billed, free on a plan's limits, or a (new / extended) trial. The
+  console shows each workspace's billing state — never Stripe ids or content.
+- **Abuse limits:** email confirmation, sign-up throttles, one trial at a time per login, trial
+  workspaces on the trial plan's AI / mail / storage allowances, the platform-wide ceilings
+  from phase B.
+- **Not built:** an invoices list inside LevelUp (Stripe's portal has it), coupons beyond
+  Stripe's own promotion codes (Checkout accepts them), usage-based pricing.
 
 ## Owner actions
 
@@ -171,13 +199,26 @@ limits, abuse limits.
 - **Before other companies connect Microsoft:** make the Azure app registration multi-tenant
   and unset or adjust `MS_TENANT_ID`.
 - **Still open:** set `BACKUP_KEY` and `SECRETS_KEY` on Railway.
-- **Before Phase I:** a Stripe account.
+- **To switch on sign-up and billing (Phase I):**
+  1. A working mail service (above) — sign-up will not accept anyone while the confirmation
+     mail cannot be sent.
+  2. A Stripe account. Start in **test mode**. Create a Product per plan with a recurring Price
+     (monthly, and yearly if wanted); paste each `price_…` id into Platform console → Billing &
+     sign-up.
+  3. On Railway: `STRIPE_SECRET_KEY` (Stripe → Developers → API keys) and
+     `STRIPE_WEBHOOK_SECRET` (Stripe → Developers → Webhooks → add endpoint
+     `https://levelupnow.tools/api/stripe/webhook` with the six events listed on that screen).
+  4. In Stripe → Settings → Billing → Customer portal: switch it on, and decide what customers
+     may do there (update card, cancel, switch plan).
+  5. Decide prices, trial length, and write Terms and a Privacy Policy (links go on the sign-up
+     form). Tax: Stripe Tax can be ticked on once it is set up in Stripe.
+  6. Tick "Anyone can create a workspace". Try the whole path with a Stripe test card before
+     putting in live keys.
 
 ## Known gaps (follow-ups)
 
 - Report widget presets, Help articles and a few Settings descriptions still say "CF / LSI"
   for every workspace (static text).
-- A customer's push notifications and integrations are per workspace (see above) — not yet
-  explained in the app's Help.
-- Plain-text links in emails still use `levelupnow.tools` directly in a few templates.
+- Billing has only ever run against the FAKE Stripe in the tests and the local playground —
+  the first real run should be in Stripe's test mode.
 - Moving files runs in the web process; a very large workspace would want a queue.

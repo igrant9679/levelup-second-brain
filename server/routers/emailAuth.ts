@@ -253,6 +253,7 @@ export const emailAuthRouter = router({
         await conn0.update(workspaces).set({ ownerUserId: user.id, createdBy: user.id }).where(and(eq(workspaces.id, workspaceId), isNull(workspaces.ownerUserId)));
         ws.invalidateWorkspace(workspaceId);
         if (firstEver) await ws.ensureWorkspaceBootstrap();
+        else { try { await (await import('../_core/billing')).startTrial(workspaceId); } catch (e) { console.error('[register] could not start the trial:', e); } }
       }
       const sessionToken = await sdk.createSessionToken(openId, {
         name: input.name,

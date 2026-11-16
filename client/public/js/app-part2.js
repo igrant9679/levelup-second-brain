@@ -12373,6 +12373,18 @@ async function loadBookmarksCache(){
     D.bookmarks=Array.isArray(items)?items.map(b=>({id:b.id,title:b.title||b.url,url:b.url})):[];
   }catch(e){console.warn('[bookmarks] cache load failed',e.message);D.bookmarks=D.bookmarks||[];}
 }
+// The server's "nothing" (null) reaches callers as {json:null}: _trpcResult
+// falls back to the envelope when the value itself is null. Everything that
+// tests "did the server have anything?" must use this (-279: a new account's
+// first load looked like data, so the bundled SAMPLE tasks, notes and projects
+// were kept and saved as that person's own).
+function _luNullAnswer(v){
+  if(v&&typeof v==='object'&&!Array.isArray(v)){
+    const k=Object.keys(v);
+    if(k.length===1&&k[0]==='json'&&v.json==null)return null;
+  }
+  return v;
+}
 let _loadInFlight=false;
 async function loadServerData(){
   if(_loadInFlight)return;
@@ -12384,7 +12396,7 @@ async function loadServerData(){
   loadBookmarksCache();
   let sd=null;
   try{
-    sd=await _trpc('appData.load',undefined,'query');
+    sd=_luNullAnswer(await _trpc('appData.load',undefined,'query'));
   }catch(e){
     // The load network call itself failed — server state unknown, so stay
     // gated (don't risk clobbering server with seed/empty). Retry soon so a
@@ -12393,6 +12405,16 @@ async function loadServerData(){
     _loadInFlight=false;
     setTimeout(()=>{ if(!_serverSyncReady) loadServerData(); },8000);
     return;
+  }
+  if(!sd){
+    let hadSync=false;
+    try{hadSync=['tasks','notes','projects','goals'].some(k=>{const b=localStorage.getItem('lu_syncbase_'+k);return !!b&&b.length>4;});}catch(_){}
+    if(hadSync){
+      console.warn('[appData] the server reports no data for an account this device has synced before — nothing cleared, sync paused, retrying');
+      _loadInFlight=false;
+      setTimeout(()=>{ if(!_serverSyncReady) loadServerData(); },15000);
+      return;
+    }
   }
   // We now have a definitive answer from the server. Open the sync gate
   // IMMEDIATELY — before the merge/render below — so that an exception in

@@ -115,6 +115,66 @@ export const workspaceSettings = mysqlTable("workspace_settings", {
 }));
 
 /**
+ * Billing (migration 0065, build -279). ONE ROW PER BILLED WORKSPACE — a
+ * workspace with no row here is not billed at all (never trialled, limited by
+ * a plan or locked): every workspace that existed before self-serve sign-up
+ * and every one the operator creates by hand. See server/_core/billing.ts.
+ */
+export const workspaceBilling = mysqlTable("workspace_billing", {
+  workspaceId: int("workspaceId").primaryKey(),
+  /** A plan key from the platform's billing settings, or "comped". */
+  plan: varchar("plan", { length: 32 }).notNull().default("comped"),
+  /** comped | trialing | active | past_due | canceled */
+  status: varchar("status", { length: 16 }).notNull().default("comped"),
+  trialEndsAt: timestamp("trialEndsAt"),
+  stripeCustomerId: varchar("stripeCustomerId", { length: 64 }),
+  stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 64 }),
+  stripeItemId: varchar("stripeItemId", { length: 64 }),
+  /** month | year */
+  interval: varchar("interval", { length: 8 }),
+  seats: int("seats").notNull().default(0),
+  currentPeriodEnd: timestamp("currentPeriodEnd"),
+  cancelAtPeriodEnd: tinyint("cancelAtPeriodEnd").notNull().default(0),
+  pastDueSince: timestamp("pastDueSince"),
+  /** JSON: which reminder mails went out ({trial3, trialEnded, pastDue, locked}). */
+  notified: text("notified"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  idxCustomer: index("idx_wsbilling_customer").on(t.stripeCustomerId),
+}));
+
+/** Stripe webhook events already handled (each event id once). Platform table. */
+export const billingEvents = mysqlTable("billing_events", {
+  eventId: varchar("eventId", { length: 96 }).primaryKey(),
+  type: varchar("type", { length: 64 }).notNull(),
+  workspaceId: int("workspaceId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (t) => ({
+  idxCreated: index("idx_billing_events_created").on(t.createdAt),
+}));
+
+/**
+ * Self-serve sign-up requests waiting for their confirmation link (platform
+ * table; nothing is created until the link is opened). The token is stored as
+ * a SHA-256 hash and the password as a bcrypt hash. See server/_core/signup.ts.
+ */
+export const signups = mysqlTable("signups", {
+  id: int("id").autoincrement().primaryKey(),
+  tokenHash: varchar("tokenHash", { length: 64 }).notNull().unique(),
+  email: varchar("email", { length: 320 }).notNull(),
+  name: varchar("name", { length: 128 }).notNull(),
+  workspaceName: varchar("workspaceName", { length: 120 }).notNull(),
+  passwordHash: varchar("passwordHash", { length: 255 }).notNull(),
+  ip: varchar("ip", { length: 64 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  usedAt: timestamp("usedAt"),
+}, (t) => ({
+  idxEmail: index("idx_signups_email").on(t.email),
+}));
+
+/**
  * Uploaded files (migration 0064): one row per upload — which workspace owns
  * it, who uploaded it, and where the bytes are. The app hands out
  * /api/files/x/<publicId>/<name>; server/_core/fileProxy.ts serves it only to

@@ -29,6 +29,7 @@ import { claimSend, settleClaims, releaseSend } from "./sendLedger";
 import { prefsRows, fullRow } from "./prefsScan";
 import { job, isShuttingDown } from "./lifecycle";
 import { CF_LABELS, labelsFor, type SourceLabels } from "./labels";
+import { appOrigin } from "./appOrigin";
 
 interface DigestPref {
   enabled?: boolean;
@@ -229,7 +230,7 @@ function renderDigestHtml(name: string, rows: DigestRow[], moneyHtml = '', tz?: 
   ${rowTableHtml(lsiRows, L.niftyTable, '#9333ea')}
   ${moneyHtml}
   <p style="font-size:11px;color:#9ca3af;margin-top:24px;border-top:1px solid #e5e7eb;padding-top:12px">
-    Open LevelUp: <a href="https://levelupnow.tools/" style="color:#1f6feb">levelupnow.tools</a> · Disable this digest in Settings → Notifications
+    Open LevelUp: <a href="${appOrigin()}/" style="color:#1f6feb">${appOrigin().replace(/^https?:\/\//, "")}</a> · Disable this digest in Settings → Notifications
   </p>
 </div></body></html>`;
 }

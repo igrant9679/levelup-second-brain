@@ -132,6 +132,12 @@ export const teamInvitesRouter = router({
         const here = (await membershipsOf(existingUser as any)).some(m => m.workspaceId === wsId);
         if (here) throw new TRPCError({ code: 'CONFLICT', message: 'That person is already a member of this workspace.' });
       }
+      // The plan's head count (-279): members plus invitations still open.
+      if (wsId) {
+        const { seatCheck, seatMessage } = await import('../_core/billing');
+        const seats = await seatCheck(wsId, { countInvites: true });
+        if (!seats.ok) throw new TRPCError({ code: 'FORBIDDEN', message: seatMessage(seats) });
+      }
       const token = randomBytes(32).toString('hex');
       const expiresAt = new Date(Date.now() + input.expiryDays * 24 * 60 * 60 * 1000);
       const invite = await db.createTeamInvite({
@@ -281,6 +287,13 @@ export const teamInvitesRouter = router({
         if (!ws || ws.status !== 'active') throw new TRPCError({ code: 'BAD_REQUEST', message: 'This workspace is not available. Ask whoever invited you.' });
       }
       const asOwner = !!(invite as any).asOwner;
+      // The plan may have changed since the invitation went out (-279).
+      if (!legacy) {
+        const { seatCheck, isBillingLocked } = await import('../_core/billing');
+        if (await isBillingLocked(workspaceId)) throw new TRPCError({ code: 'FORBIDDEN', message: 'This workspace is not open at the moment. Ask whoever invited you.' });
+        const seats = await seatCheck(workspaceId);
+        if (!seats.ok) throw new TRPCError({ code: 'FORBIDDEN', message: 'This workspace is full on its current plan. Ask whoever invited you to make room, then try the link again.' });
+      }
 
       const { getDb } = await import('../db');
       const dbConn = await getDb();
@@ -364,6 +377,9 @@ export const teamInvitesRouter = router({
         catch (e) { console.error('[teamInvites.accept] could not set the workspace owner:', e); }
       }
       if (!legacy) invalidateWorkspace(workspaceId);
+      // a per-seat subscription follows the head count (-279; never throws)
+      if (!legacy && !joinedExisting) void (await import('../_core/billing')).syncSeats(workspaceId);
+      else if (!legacy) void (await import('../_core/billing')).syncSeats(workspaceId);
 
       await db.acceptTeamInvite(input.token, userId);
       // Log account creation activity (best-effort)

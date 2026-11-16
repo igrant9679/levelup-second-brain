@@ -49,6 +49,12 @@ export async function workspaceCap(wsId: number, bucket: QuotaBucket): Promise<n
     const n = Number(q);
     if (q != null && q !== "" && Number.isFinite(n) && n >= 0) return n;
   } catch { /* default */ }
+  // a billed workspace: what its plan allows (build -279)
+  try {
+    const { planDailyLimit } = await import("./billing");
+    const p = await planDailyLimit(wsId, bucket);
+    if (p != null) return p;
+  } catch { /* default */ }
   return cap(bucket, "global");
 }
 

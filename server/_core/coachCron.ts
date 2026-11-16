@@ -47,6 +47,7 @@ import { allowedRecipient } from "./recipient";
 import { calOccurrencesBetween } from "./calRecur";
 import { prefsRows, fullRow } from "./prefsScan";
 import { job, isShuttingDown } from "./lifecycle";
+import { appOrigin } from "./appOrigin";
 
 interface SlotDef { label: string; time: string; goal: string; day?: number; words?: number }
 export type CoachSlot = "morning" | "midmorning" | "midday" | "afternoon" | "evening" | "weekly" | "money";
@@ -394,7 +395,7 @@ export function mdToEmailHtml(md: string): string {
   return out.join("");
 }
 function renderEmail(msg: CoachMsg, kind: string, id: number, autonomy: string, canReply: boolean, userText?: string): string {
-  const url = `https://levelupnow.tools/?coach=${id}`;
+  const url = `${appOrigin()}/?coach=${id}`;
   const acts = msg.actions.length
     ? `<div style="margin-top:14px;padding:12px 14px;background:#f1f5f9;border-radius:8px;font-size:13px;color:#334155"><b>${autonomy === "ask" ? "Suggested changes" : "Lined up for you"}</b> — ${autonomy === "ask" ? "review them in LevelUp:" : "applied when you next open LevelUp (undo anything):"}<ul style="margin:6px 0 0;padding-left:18px">${msg.actions.map((a) => `<li>${esc(describeAction(a))}${a.why ? ` <span style="color:#64748b">— ${esc(a.why)}</span>` : ""}</li>`).join("")}</ul></div>`
     : "";
@@ -505,7 +506,7 @@ async function deliver(db: any, o: {
     const replyTo = await replyAddress(o.userId);
     const ok = await sendEmail({
       to: o.to, subject: o.thread ? o.thread.subject : `🧭 ${o.msg.title}`, html: renderEmail(o.msg, o.kind, o.id, o.autonomy, !!replyTo, o.userText),
-      text: `${o.msg.title}\n\n${o.msg.body}\n\nOpen in LevelUp: https://levelupnow.tools/?coach=${o.id}${replyTo ? "\n\nOr reply to this email and I'll act on it." : ""}`,
+      text: `${o.msg.title}\n\n${o.msg.body}\n\nOpen in LevelUp: ${appOrigin()}/?coach=${o.id}${replyTo ? "\n\nOr reply to this email and I'll act on it." : ""}`,
       senderUserId: null, recipientUserId: o.userId,
       messageId: coachMessageId(o.userId, o.id), replyTo: replyTo || undefined,
       inReplyTo: o.thread?.inReplyTo, references: o.thread?.references,

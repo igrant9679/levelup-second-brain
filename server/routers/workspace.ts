@@ -53,7 +53,7 @@ function cleanS3(i: z.infer<typeof s3Input>) {
   };
 }
 
-async function issueCookieFor(ctx: { req: any; res: any }, member: { openId: string; name?: string | null }): Promise<void> {
+export async function issueCookieFor(ctx: { req: any; res: any }, member: { openId: string; name?: string | null }): Promise<void> {
   // keep the remaining lifetime of the current cookie (1 day / 30 days / 1 year)
   const cur = await sdk.sessionOf(ctx.req).catch(() => null);
   const left = cur?.exp ? cur.exp * 1000 - Date.now() : 0;
@@ -143,6 +143,8 @@ export const workspaceRouter = router({
       if (!conn) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       await conn.update(workspaces).set({ status: "deleted", deletedAt: new Date() }).where(eq(workspaces.id, ws.id));
       invalidateWorkspace(ws.id);
+      // a closed workspace is not charged again (-279)
+      await (await import("../_core/billing")).cancelSubscriptionNow(ws.id);
       void audit(ctx, "workspace.delete_requested", { detail: { graceDays: GRACE_DAYS } });
       return { ok: true as const, purgeAfterDays: GRACE_DAYS };
     }),
@@ -246,6 +248,7 @@ export const workspaceRouter = router({
     if (!conn) return { workspaces: [] };
     const rows: any[] = await conn.select().from(workspaces);
     const counts = await memberCounts();
+    const bills = await (await import("../_core/billing")).billingSummaries().catch(() => new Map());
     const out = [];
     for (const r of rows) {
       let owner: { name: string | null; email: string | null } | null = null;
@@ -262,6 +265,7 @@ export const workspaceRouter = router({
         features: parse(r.features), quotas: parse(r.quotas),
         storageMode: (() => { try { return String(JSON.parse(String(r.storage || "{}")).mode || "platform"); } catch { return "platform"; } })(),
         usage: await workspaceUsage(Number(r.id)),
+        billing: bills.get(Number(r.id)) || null,
         createdAt: r.createdAt, deletedAt: r.deletedAt || null,
       });
     }
@@ -376,6 +380,7 @@ export const workspaceRouter = router({
       if (!conn) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       await conn.update(workspaces).set({ status: "deleted", deletedAt: new Date() }).where(eq(workspaces.id, ws.id));
       invalidateWorkspace(ws.id);
+      await (await import("../_core/billing")).cancelSubscriptionNow(ws.id);
       void audit(ctx, "workspace.operator_delete", { targetType: "workspace", targetId: ws.id, detail: { graceDays: GRACE_DAYS } });
       return { ok: true as const, purgeAfterDays: GRACE_DAYS };
     }),

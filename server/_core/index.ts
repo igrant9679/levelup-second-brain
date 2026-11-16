@@ -82,6 +82,9 @@ async function startServer() {
   // Body parsers (audit F22): 1 MB unless the request carries a valid session
   // cookie; signed-in requests keep ~200 MB (a 100 MB import is ~133 MB of
   // base64, appData.save sends lists up to ~16M chars). See bodyLimits.ts.
+  // Stripe signs the raw bytes of its webhooks: this route reads them itself and
+  // must come BEFORE the JSON parsers (-279). 404 until Stripe is configured.
+  (await import("./stripeWebhook")).registerStripeWebhook(app);
   installBodyParsers(app, (req) => sdk.hasValidSessionCookie(req));
   registerStorageProxy(app);
   // Private uploads, signed-in only (audit F35).
@@ -393,6 +396,17 @@ async function startServer() {
       setTimeout(purge, 10 * 60 * 1000);
       setInterval(purge, 24 * 60 * 60 * 1000);
     } catch (e) { console.error('[startup] workspace purge job failed:', e); }
+    // Daily (-279): trial / failed-payment reminders to owners, seat counts of per-seat plans, stale sign-up requests.
+    try {
+      const billingTick = () => { void import('./lifecycle').then(({ job }) => job('billing-daily', async () => {
+        const b = await import('./billing');
+        await b.billingReminders();
+        await b.syncAllSeats();
+        await (await import('./signup')).pruneSignups();
+      })).catch(e => console.error('[billing] daily tick failed:', e)); };
+      setTimeout(billingTick, 6 * 60 * 1000);
+      setInterval(billingTick, 12 * 60 * 60 * 1000);
+    } catch (e) { console.error('[startup] billing job failed:', e); }
     // One-time (-253): invited teammates become ordinary members; the owner grants admin.
     import('./roleMigration').then(m => m.demoteInvitedAdminsOnce()).catch(e => console.error('[startup] role change failed:', e));
     // One-time (audit F25): encrypt secrets still stored in plaintext. Never throws.

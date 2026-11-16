@@ -105,7 +105,11 @@ export const teamRouter = router({
         // Ends the membership in THIS workspace; a login that is also in
         // other workspaces keeps those (db.removeWorkspaceMember).
         if ((targetUser as any).workspaceId === undefined) await db.deleteTeamMember(input.userId); // no workspace model (older tests)
-        else await db.removeWorkspaceMember(input.userId);
+        else {
+          await db.removeWorkspaceMember(input.userId);
+          // a per-seat subscription follows the head count (-279; never throws)
+          void (await import('../_core/billing')).syncSeats(Number((targetUser as any).workspaceId));
+        }
       }
       // If user doesn't exist in DB (e.g. local-only team member), still return success
       // so the frontend can remove them from the local team data

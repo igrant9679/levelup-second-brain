@@ -22,6 +22,7 @@ import { userTz, userNow, toMinutes, dayIn, shiftDays, fmtDay, type UserNow } fr
 import { claimSend, settleClaims, releaseSend } from "./sendLedger";
 import { prefsRows, fullRow } from "./prefsScan";
 import { job, isShuttingDown } from "./lifecycle";
+import { appOrigin } from "./appOrigin";
 
 type Task = { status?: string; priority?: string; due?: string; completedAt?: string; createdAt?: string; title?: string; project?: string; tags?: string[] };
 type Goal = { title?: string; pct?: number; category?: string; dueDate?: string };
@@ -271,7 +272,7 @@ export async function processScheduledReports(): Promise<{ usersChecked: number;
   }
 
   const now = new Date();
-  const appUrl = (process.env.VITE_OAUTH_PORTAL_URL || 'https://levelupnow.tools').replace(/\/+$/, '');
+  const appUrl = (process.env.VITE_OAUTH_PORTAL_URL || appOrigin()).replace(/\/+$/, '');
 
   for (const lite of rows) {
     (await import("./memberContext")).setMember(lite.userId); // this person's turn: their workspace's AI key and limits

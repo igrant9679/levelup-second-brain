@@ -38,6 +38,19 @@ function provider(): "postmark" | "resend" | null {
   return null;
 }
 
+/**
+ * Resend's API, or — for the local playground only — a mail sink on this
+ * machine (MAIL_API_BASE=http://127.0.0.1:port). Any other host is ignored,
+ * so a stray setting can never send customers' mail somewhere else.
+ */
+function resendBase(): string {
+  const o = String(process.env.MAIL_API_BASE || "").trim();
+  if (o) {
+    try { const u = new URL(o); if (u.hostname === "127.0.0.1" || u.hostname === "localhost") return o.replace(/\/+$/, ""); } catch { /* ignore */ }
+  }
+  return "https://api.resend.com";
+}
+
 export function platformMailConfigured(): boolean {
   return provider() !== null;
 }
@@ -105,7 +118,7 @@ export async function sendViaPlatform(mail: PlatformMail): Promise<{ ok: boolean
     const headers: Record<string, string> = {};
     if (mail.inReplyTo) headers["In-Reply-To"] = mail.inReplyTo;
     if (mail.references) headers["References"] = mail.references;
-    const res = await fetch("https://api.resend.com/emails", {
+    const res = await fetch(resendBase() + "/emails", {
       method: "POST",
       signal: ctl.signal,
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
