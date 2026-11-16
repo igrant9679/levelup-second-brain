@@ -152,6 +152,10 @@ try {
   const wNoRtf = await probe(WORD, '');
   ok(wNoRtf.images === 0 && wNoRtf.dropped === 1 && wNoRtf.imgs.length === 0 && wNoRtf.tables === 2, 'Word: without the RTF copy the picture is left out and counted, the rest is kept', J([wNoRtf.images, wNoRtf.dropped, wNoRtf.imgs]));
 
+  const hi = await probe(`<p class=MsoNormal>a <span style='background:lime;mso-highlight:lime'>green</span> b <span style='color:white;background:navy;mso-highlight:navy'>navy</span> c <span style='background:yellow;mso-highlight:yellow'>yellow</span> d <span style='background:#FFE599;mso-shading:white'>shaded</span><o:p></o:p></p>`);
+  ok(hi.mark === 4 && /<mark style="background-color:#00ff00;color:#000">green<\/mark>/.test(hi.html) && /<mark style="background-color:#000080;color:#fff">navy<\/mark>/.test(hi.html) && /<mark>yellow<\/mark>/.test(hi.html) && /<mark style="background-color:#ffe599;color:#000">shaded<\/mark>/.test(hi.html),
+    'Word: highlighter colours are kept, each with text that stays readable on it', hi.html);
+
   // 2 ── Excel
   const x = await probe(EXCEL);
   ok(x.rich && x.tables === 1 && x.ruled === 1 && x.tdCount === 6 && /Rent/.test(x.text), 'Excel: cells arrive as a ruled table', J([x.tables, x.ruled, x.tdCount, x.html.slice(0, 200)]));
@@ -205,6 +209,24 @@ try {
 
   const e2 = await pasteInto(`<div style="font-family: Consolas; white-space: pre;"><div><span style="color:#00f">const</span> x = <b>1</b>;</div></div>`, `dt.setData('vscode-editor-data','{"mode":"javascript"}');`);
   ok(/PLAIN TEXT FALLBACK/.test(e2.live), 'Editor: code copied from an editor still pastes as plain text');
+
+  // the New Note box is a note editor too
+  const fa = await evaluate(`(async()=>{
+    openFA('note'); await new Promise(r=>setTimeout(r,500));
+    const el=document.getElementById('fa-note-rte'); if(!el) return JSON.stringify({live:'no editor'});
+    el.focus(); const r=document.createRange(); r.selectNodeContents(el); r.collapse(false);
+    const s=window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    const dt=new DataTransfer(); dt.setData('text/html',${J(WORD)}); dt.setData('text/plain','PLAIN TEXT FALLBACK');
+    el.dispatchEvent(new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true}));
+    await new Promise(r=>setTimeout(r,500));
+    const li=el.querySelector('ul>li'), p=el.querySelector('p'), ul=el.querySelector('ul');
+    const out={live:el.innerHTML, liLeft:li?li.getBoundingClientRect().left:0, pLeft:p?p.getBoundingClientRect().left:0,
+      marker:li?getComputedStyle(li).listStyleType:'', display:li?getComputedStyle(li).display:'', ulPad:ul?getComputedStyle(ul).paddingLeft:''};
+    try{closeModal();}catch(_){}
+    return JSON.stringify(out);
+  })()`).then(JSON.parse);
+  ok(/<table class="lu-table">/.test(fa.live) && /<ul>/.test(fa.live) && /<ol>/.test(fa.live) && /<mark>highlight<\/mark>/.test(fa.live) && !/PLAIN TEXT FALLBACK/.test(fa.live), 'New Note box: a Word paste keeps its table, lists and highlight', fa.live.slice(0, 300));
+  ok(fa.display === 'list-item' && fa.marker === 'disc' && fa.liLeft > fa.pLeft + 8, 'New Note box: bullets are drawn as real, indented bullets', J([fa.display, fa.marker, fa.liLeft, fa.pLeft, fa.ulPad]));
 
   const other = await evaluate(`(()=>{const dt=new DataTransfer();dt.setData('text/html',${J(EXCEL)});return _notePasteRich({clipboardData:dt},'some-task-editor');})()`);
   ok(other === false, 'Other editors (tasks, journal) keep pasting plain text');

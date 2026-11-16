@@ -3184,6 +3184,20 @@ function _pasteShaded(el,css){
   if(!v)return false;
   return !/^(none|transparent|white|window|inherit|initial|unset|#fff\b|#ffffff\b|rgba?\(\s*255\s*,\s*255\s*,\s*255|rgba\(\s*0\s*,\s*0\s*,\s*0\s*,\s*0\s*\))/.test(v);
 }
+// Word's highlighter colours (and shaded text): the colour is kept, with black
+// or white text chosen to stay readable on it in either theme. Yellow is the
+// plain <mark>.
+const _PASTE_HI={yellow:'#ffff00',lime:'#00ff00',aqua:'#00ffff',cyan:'#00ffff',fuchsia:'#ff00ff',magenta:'#ff00ff',blue:'#0000ff',red:'#ff0000',navy:'#000080',teal:'#008080',green:'#008000',purple:'#800080',maroon:'#800000',olive:'#808000',gray:'#808080',grey:'#808080',silver:'#c0c0c0',black:'#000000',orange:'#ffa500',pink:'#ffc0cb'};
+function _pasteHiStyle(v){
+  v=String(v||'').toLowerCase().trim().split(/\s+(?![^(]*\))/)[0];
+  let hex=_PASTE_HI[v]||'',m;
+  if(!hex&&(m=/^#([0-9a-f]{3})$/.exec(v)))hex='#'+m[1].split('').map(c=>c+c).join('');
+  if(!hex&&/^#[0-9a-f]{6}$/.test(v))hex=v;
+  if(!hex&&(m=/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/.exec(v)))hex='#'+[m[1],m[2],m[3]].map(n=>Math.min(255,+n).toString(16).padStart(2,'0')).join('');
+  if(!hex||hex==='#ffff00')return '';
+  const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
+  return 'background-color:'+hex+';color:'+((0.2126*r+0.7152*g+0.0722*b)/255>0.5?'#000':'#fff');
+}
 function _pasteHasBorder(css){
   return ['border','border-top','border-left','border-bottom','border-right'].some(k=>/\b(solid|double|dashed|dotted|groove|ridge|inset|outset)\b/i.test(css[k]||''));
 }
@@ -3399,14 +3413,17 @@ function _pasteInline(ch,tag,css,out,st){
     else if(tag==='sub'||va==='sub')want.push(['sub','sub']);
   }
   if(!st.code&&(tag==='code'||tag==='tt'||tag==='kbd'||tag==='samp'))want.push(['code','code']);
-  if(!st.mark&&(tag==='mark'||(css['mso-highlight']&&!/^(none|white|windowtext|auto)$/i.test(css['mso-highlight']))||(st.docs&&tag==='span'&&_pasteShaded(ch,css))))want.push(['mark','mark']);
+  if(!st.mark){
+    const hi=css['mso-highlight']&&!/^(none|white|windowtext|auto)$/i.test(css['mso-highlight'])?css['mso-highlight']:'';
+    if(tag==='mark'||hi||(st.docs&&tag==='span'&&_pasteShaded(ch,css)))want.push(['mark','mark',_pasteHiStyle(hi||css['background-color']||css['background']||'')]);
+  }
   let href='';
   if(tag==='a'&&!st.link){const h=String(ch.getAttribute('href')||'').trim();if(/^(https?:\/\/|mailto:)/i.test(h)&&h.length<2000)href=h;}
   if(!want.length&&!href){_pasteConv(ch,out,st);return;}
   const st2=Object.assign({},st);let top=null,cur=null;
   const add=e=>{if(cur)cur.appendChild(e);else top=e;cur=e;};
   if(href){const a=doc.createElement('a');a.setAttribute('href',href);st2.link=true;add(a);}
-  want.forEach(w=>{st2[w[0]]=true;add(doc.createElement(w[1]));});
+  want.forEach(w=>{st2[w[0]]=true;const e=doc.createElement(w[1]);if(w[2])e.setAttribute('style',w[2]);add(e);});
   _pasteConv(ch,cur,st2);
   if(!cur.childNodes.length)return;
   if(!cur.textContent.replace(/[\s\u00a0]+/g,'')&&!cur.querySelector('img,br')){
