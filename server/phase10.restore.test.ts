@@ -67,4 +67,58 @@ describe.skipIf(!URL_)("restore drill (MySQL)", () => {
   it("refuses a database that already holds rows", async () => {
     await expect(restoreDump(drillConn, { version: 1, createdAt: "", tables: {} })).rejects.toThrow(/not empty/);
   });
+
+  // A fresh migrated database is not literally empty since build -278:
+  // migration 0063 inserts workspace 1. The restore accepts exactly that row
+  // (the drill above depends on it) and nothing more.
+  const freshDb = async (name: string) => {
+    await admin.query("DROP DATABASE IF EXISTS `" + name + "`");
+    await admin.query("CREATE DATABASE `" + name + "`");
+    const u = new URL(URL_!); u.pathname = "/" + name;
+    const m = await mysql.createConnection({ uri: u.toString(), multipleStatements: true });
+    await migrate(drizzle(m), { migrationsFolder: path.join(__dirname, "../drizzle") });
+    await m.end();
+    return mysql.createConnection({ uri: u.toString(), timezone: "Z" });
+  };
+
+  it("a backup from before workspaces lands in workspace 1, as the upgrade did", async () => {
+    const c = await freshDb(DRILL + "_old");
+    try {
+      const old = { version: 1, createdAt: "2026-11-15T08:00:00.000Z", tables: {
+        users: { count: 2, rows: [
+          { id: 1, openId: "email:owner@old.test", name: "Owner", email: "owner@old.test", loginMethod: "email", role: "admin", passwordHash: "[redacted]" },
+          { id: 2, openId: "inv:abc", name: "Mate", email: "mate@old.test", loginMethod: "invite", role: "user", passwordHash: "[redacted]" } ] },
+        team_invites: { count: 1, rows: [{ id: 1, invitedBy: 1, email: "p@old.test", role: "user", token: "[redacted]", expiresAt: "2026-12-01T00:00:00.000Z" }] },
+        audit_log: { count: 1, rows: [{ id: 1, actorUserId: 1, actorName: "Owner", action: "member.role" }] },
+        email_delivery_log: { count: 1, rows: [{ id: 1, userId: 1, to: "mate@old.test", subject: "Old", status: "sent" }] },
+        system_settings: { count: 4, rows: [
+          { key: "aiProvider", value: "claude" }, { key: "aiKey_claude", value: "[redacted]" },
+          { key: "notificationSender", value: "smtp:1" }, { key: "lastBackup", value: "{}" } ] },
+      } };
+      const r = await restoreDump(c, old);
+      expect(r).toMatchObject({ preWorkspaces: true, skipped: [] });
+      const q = async (s: string) => (await c.query(s))[0] as any[];
+      expect(await q("SELECT id, ownerUserId FROM workspaces")).toEqual([{ id: 1, ownerUserId: null }]);   // the seed stays
+      expect((await q("SELECT workspaceId FROM users ORDER BY id")).map((x) => x.workspaceId)).toEqual([1, 1]);
+      expect((await q("SELECT workspaceId FROM team_invites"))[0].workspaceId).toBe(1);
+      expect((await q("SELECT workspaceId FROM audit_log"))[0].workspaceId).toBe(1);
+      expect((await q("SELECT workspaceId FROM email_delivery_log"))[0].workspaceId).toBe(1);
+      // settings copied; a redacted key is NOT copied (it would read as a real, wrong key)
+      expect((await q("SELECT `key` FROM workspace_settings WHERE workspaceId = 1 ORDER BY `key`")).map((x) => x.key)).toEqual(["aiProvider", "notificationSender"]);
+    } finally {
+      await c.end();
+      await admin.query("DROP DATABASE IF EXISTS `" + DRILL + "_old`");
+    }
+  }, 120_000);
+
+  it("the seeded workspace is the only row a 'fresh' database may hold", async () => {
+    const c = await freshDb(DRILL + "_seed");
+    try {
+      await c.query("UPDATE workspaces SET ownerUserId = 7 WHERE id = 1");   // a workspace somebody owns is real data
+      await expect(restoreDump(c, { version: 1, createdAt: "", tables: {} })).rejects.toThrow(/not empty \(workspaces/);
+    } finally {
+      await c.end();
+      await admin.query("DROP DATABASE IF EXISTS `" + DRILL + "_seed`");
+    }
+  }, 120_000);
 });

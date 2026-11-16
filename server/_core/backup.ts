@@ -89,7 +89,10 @@ export function redactRow(table: string, row: Record<string, any>): Record<strin
     if (v != null && v !== "" && SECRET_COL.test(k)) out[k] = "[redacted]";
     else out[k] = plain(v);
   }
-  if (table === "system_settings" && typeof row.key === "string" && SECRET_SETTING.test(row.key)) out.value = "[redacted]";
+  if ((table === "system_settings" || table === "workspace_settings") && typeof row.key === "string" && SECRET_SETTING.test(row.key)) out.value = "[redacted]";
+  // a workspace's own S3 keys / Google Drive token (workspaces.storage); a
+  // restored workspace starts on LevelUp storage until its owner reconnects
+  if (table === "workspaces" && row.storage != null && row.storage !== "") out.storage = "[redacted]";
   return out;
 }
 

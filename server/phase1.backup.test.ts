@@ -47,6 +47,14 @@ describe("database backup", () => {
     expect(dump.tables.users.rows[0].email).toBe("owner@test.com");
     expect(dump.tables.users.rows[0].createdAt).toBe("2026-10-01T00:00:00.000Z");
   });
+  it("redacts a workspace's own AI key and storage credentials too (build -278)", async () => {
+    const { redactRow } = await import("./_core/backup");
+    expect(redactRow("workspace_settings", { workspaceId: 2, key: "aiKey_claude", value: "enc:v1:WS-KEY" }).value).toBe("[redacted]");
+    expect(redactRow("workspace_settings", { workspaceId: 2, key: "aiProvider", value: "claude" }).value).toBe("claude");
+    const ws = redactRow("workspaces", { id: 2, name: "Beta", slug: "beta", storage: '{"current":"s3","stores":{"s3":{"secretAccessKey":"WS-S3-SECRET"}}}', quotas: null });
+    expect(ws).toMatchObject({ id: 2, name: "Beta", slug: "beta", storage: "[redacted]", quotas: null });
+    expect(redactRow("workspaces", { id: 1, name: "LevelUp", storage: null }).storage).toBeNull();
+  });
   it("encrypts, and the restore test reads every table back exactly", () => {
     const buf = encryptBackup(dump);
     expect(buf.subarray(0, 5).toString()).toBe("LUBK1");
