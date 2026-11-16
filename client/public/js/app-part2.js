@@ -1650,7 +1650,7 @@ async function _hydrateTombstoneArchive(){
     }
     body.innerHTML=dead.map(et=>{
       const ovr=et.override||{};
-      const srcLabel=et.source==='smartsheet'?'CF':'LSI';
+      const srcLabel=et.source==='smartsheet'?_luCF():_luLSI();
       const srcColor=et.source==='smartsheet'?'#1f6feb':'#9333ea';
       const annot=[];
       if(ovr.localTags)annot.push('🏷 '+esc(ovr.localTags));
@@ -10083,14 +10083,24 @@ async function loadNotificationSenderOptions(){
   try{
     const data=await _trpc('oauthSync.getNotificationSenderOptions',undefined,'query');
     if(!data)return;
-    // Show section for admins (+ the Migration Health panel, same gating)
+    // Show the sender section for the workspace's owner. The platform-wide
+    // tools — Migration Health, Backups, the error log — are the platform
+    // operator's only (-278); a workspace owner keeps their own audit log.
     section.style.display='';
+    let isOp=false;
+    try{isOp=window._luMe?!!window._luMe.isOperator:!!((await _trpc('ops.amOperator',undefined,'query'))||{}).operator;}catch(_){isOp=false;}
     const mh=document.getElementById('migration-health-section');
-    if(mh)mh.style.display='';
+    if(mh)mh.style.display=isOp?'':'none';
     const bk=document.getElementById('backup-section');
-    if(bk){bk.style.display='';_loadBackupStatus();}
+    if(bk){bk.style.display=isOp?'':'none';if(isOp)_loadBackupStatus();}
     const ops=document.getElementById('ops-section');
-    if(ops){ops.style.display='';_opsShow(_opsView);}
+    if(ops){
+      ops.style.display='';
+      const eb=document.getElementById('btn-ops-errors');
+      if(eb)eb.style.display=isOp?'':'none';
+      if(!isOp)_opsView='audit';
+      _opsShow(_opsView);
+    }
     // Rebuild options
     sel.innerHTML='<option value="">— Use built-in notification service —</option>';
     const labels={microsoft:'Microsoft 365',google:'Google',smtp:'Secondary email (SMTP)'};
@@ -11429,9 +11439,28 @@ async function initInviteScreen(token){
     formInner.style.display='';
     // Pre-fill name if provided
     if(inv.name){const n=document.getElementById('invite-name');if(n)n.value=inv.name;}
+    // Multi-workspace (-278): which workspace, and whether this address already
+    // has a LevelUp login. An existing login is not given a new password — the
+    // person confirms with the one they have and the workspace is added to it.
+    window._inviteHasAccount=!!inv.hasAccount;
+    window._inviteWsName=inv.workspaceName||'';
+    try{
+      const h2=formInner.querySelector('h2'),lead=formInner.querySelector('p');
+      const wsn=inv.workspaceName?esc(inv.workspaceName):'LevelUp';
+      if(h2)h2.textContent=inv.asOwner?'Set up your workspace':'You\'ve been invited!';
+      if(lead)lead.innerHTML=inv.hasAccount
+        ?`You already have a LevelUp account with this email. Enter <b>that account's password</b> to add <b>${wsn}</b> to it. Nothing else about your account changes.`
+        :(inv.asOwner?`Create your LevelUp account to set up <b>${wsn}</b>. You will be its owner.`:`Set up your LevelUp account to join <b>${wsn}</b>.`);
+      const pw=document.getElementById('invite-password'),cf=document.getElementById('invite-confirm'),btn=document.getElementById('invite-submit-btn');
+      if(inv.hasAccount){
+        if(pw){pw.placeholder='Your LevelUp password';pw.setAttribute('autocomplete','current-password');const l=pw.parentNode&&pw.parentNode.querySelector('label');if(l)l.textContent='Your LevelUp password';pw.onkeydown=function(ev){if(ev.key==='Enter')acceptInviteSubmit();};}
+        if(cf&&cf.parentNode)cf.parentNode.style.display='none';
+        if(btn)btn.textContent='Join workspace';
+      }
+    }catch(_){}
     // Show invite details
     const expiry=_pd(inv.expiresAt).toLocaleDateString(undefined,{dateStyle:'medium'});
-    details.innerHTML=`<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Email</span><strong>${esc(inv.email)}</strong></div><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Role</span><strong style="text-transform:capitalize">${esc(inv.role)}</strong></div><div style="display:flex;justify-content:space-between"><span>Expires</span><span style="color:var(--t3)">${expiry}</span></div>`;
+    details.innerHTML=`${inv.workspaceName?`<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Workspace</span><strong>${esc(inv.workspaceName)}</strong></div>`:''}<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Email</span><strong>${esc(inv.email)}</strong></div><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Role</span><strong style="text-transform:capitalize">${esc(inv.role)}</strong></div><div style="display:flex;justify-content:space-between"><span>Expires</span><span style="color:var(--t3)">${expiry}</span></div>`;
     window._inviteToken=token;
     setTimeout(()=>{const n=document.getElementById('invite-name');if(n&&!n.value)n.focus();else{const p=document.getElementById('invite-password');if(p)p.focus();}},100);
   }catch(e){
@@ -11449,19 +11478,29 @@ async function acceptInviteSubmit(){
   const token=window._inviteToken;
   errEl.style.display='none';
   if(!name.trim()){errEl.textContent='Please enter your name.';errEl.style.display='';return;}
-  if(password.length<8){errEl.textContent='Password must be at least 8 characters.';errEl.style.display='';return;}
-  if(password!==confirm){errEl.textContent='Passwords do not match.';errEl.style.display='';return;}
+  const _has=!!window._inviteHasAccount;
+  if(!_has&&password.length<8){errEl.textContent='Password must be at least 8 characters.';errEl.style.display='';return;}
+  if(_has&&!password){errEl.textContent='Enter your LevelUp password.';errEl.style.display='';return;}
+  if(!_has&&password!==confirm){errEl.textContent='Passwords do not match.';errEl.style.display='';return;}
   btn.disabled=true;
   btn.innerHTML='<svg style="display:inline;animation:spin 1s linear infinite;vertical-align:middle;margin-right:6px" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>Creating account…';
   try{
-    await _trpc('teamInvites.accept',{token,name:name.trim(),password},'mutation');
+    const _acc=await _trpc('teamInvites.accept',{token,name:name.trim(),password},'mutation');
     document.getElementById('invite-form-inner').style.display='none';
-    document.getElementById('invite-success').style.display='';
+    const _ok=document.getElementById('invite-success');
+    _ok.style.display='';
+    if(_acc&&_acc.joinedExisting){
+      try{
+        const h=_ok.querySelector('h2'),p=_ok.querySelector('p');
+        if(h)h.textContent='You\'re in!';
+        if(p)p.textContent=(window._inviteWsName?window._inviteWsName:'The workspace')+' was added to your LevelUp account. Sign in as usual, then pick it from the workspace switcher at the top.';
+      }catch(_){}
+    }
   }catch(e){
     errEl.textContent=e.message||'Failed to create account. Please try again.';
     errEl.style.display='';
     btn.disabled=false;
-    btn.textContent='Create Account';
+    btn.textContent=window._inviteHasAccount?'Join workspace':'Create Account';
   }
 }
 

@@ -63,7 +63,7 @@ function renderCommandCenter(){
 
   const atRiskRow=(t,kind)=>{
     const pcolor=t.priority==='High'?'#ef4444':t.priority==='Medium'?'#f59e0b':'#64748b';
-    const srcBadge=(t.source==='smartsheet'||t.source==='atlas')?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#1f6feb;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">CF</span>':t.source==='nifty'?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#9333ea;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">LSI</span>':'';
+    const srcBadge=(t.source==='smartsheet'||t.source==='atlas')?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#1f6feb;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">'+_luCF()+'</span>':t.source==='nifty'?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#9333ea;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">'+_luLSI()+'</span>':'';
     // Badge is clickable — drills into Tasks filtered to that kind + current hat.
     const kindMeta=kind==='overdue'?{e:'⚠',l:'overdue',c:'var(--red)'}:kind==='today'?{e:'📅',l:'today',c:'var(--warn)'}:{e:'💤',l:'stalled',c:'var(--t3)'};
     const kindBadge=`<span style="color:${_luAccentText(kindMeta.c)};font-size:11px;font-weight:${kind==='stalled'?'400':'600'};cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px" onclick="event.stopPropagation();_ccDrillIntoKind('${_jsAttr(kind)}')" title="Click to see all ${kindMeta.l} tasks in the current hat">${kindMeta.e} ${kindMeta.l}</span>`;
@@ -107,7 +107,7 @@ function renderCommandCenter(){
 
   // Recently shipped (last 7d).
   const shippedBody=shipped.length?shipped.slice(0,10).map(t=>{
-    const srcBadge=(t.source==='smartsheet'||t.source==='atlas')?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#1f6feb;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">CF</span>':t.source==='nifty'?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#9333ea;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">LSI</span>':'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#0c875e;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">YOU</span>';
+    const srcBadge=(t.source==='smartsheet'||t.source==='atlas')?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#1f6feb;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">'+_luCF()+'</span>':t.source==='nifty'?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#9333ea;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">'+_luLSI()+'</span>':'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#0c875e;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">YOU</span>';
     const when=t.completedAt?_relTime(t.completedAt):'';
     return `<div class="lr" style="padding:7px 10px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:8px">
       <span style="font-size:13px;color:var(--ok);flex-shrink:0">✓</span>
@@ -119,7 +119,7 @@ function renderCommandCenter(){
 
   const pendingPushBody=pendingRows.length?pendingRows.slice(0,12).map(et=>{
     const ov=et.override||{};
-    const badge=et.source==='smartsheet'?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#1f6feb;color:#fff;font-size:9px;font-weight:600">CF</span>':'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#9333ea;color:#fff;font-size:9px;font-weight:600">LSI</span>';
+    const badge=et.source==='smartsheet'?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#1f6feb;color:#fff;font-size:9px;font-weight:600">'+_luCF()+'</span>':'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#9333ea;color:#fff;font-size:9px;font-weight:600">'+_luLSI()+'</span>';
     return `<div class="lr" style="padding:7px 10px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:8px">
       ${badge}
       <span style="flex:1;font-size:12px;color:var(--t1);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(et.title)}</span>
@@ -284,7 +284,7 @@ function renderStandup(){
 
   const renderColumn=(title,emoji,rows,empty,color)=>{
     const body=rows.length?rows.map(t=>{
-      const srcBadge=(t.source==='smartsheet'||t.source==='atlas')?'<span style="display:inline-block;padding:1px 4px;border-radius:3px;background:#1f6feb;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">CF</span>':t.source==='nifty'?'<span style="display:inline-block;padding:1px 4px;border-radius:3px;background:#9333ea;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">LSI</span>':'';
+      const srcBadge=(t.source==='smartsheet'||t.source==='atlas')?'<span style="display:inline-block;padding:1px 4px;border-radius:3px;background:#1f6feb;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">'+_luCF()+'</span>':t.source==='nifty'?'<span style="display:inline-block;padding:1px 4px;border-radius:3px;background:#9333ea;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">'+_luLSI()+'</span>':'';
       return `<div class="lr" style="padding:8px 10px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:8px">
         ${srcBadge}
         <span style="flex:1;font-size:12px;color:var(--t1);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</span>
@@ -316,12 +316,12 @@ function renderStandup(){
   m.innerHTML=`<div class="ph-r" style="margin-bottom:14px;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap">
     <div>
       <h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('list',22,'var(--page-accent)')}Daily Standup</h1>
-      <p style="font-size:12px;color:var(--t2)">What you closed yesterday, what's on today, and what's blocked across CF + LSI + Personal.${hat!=='all'?` <strong style="color:var(--pa-t)">Filtered to ${hat.toUpperCase()}</strong>`:''}</p>
+      <p style="font-size:12px;color:var(--t2)">What you closed yesterday, what's on today, and what's blocked across ${_luCF()} + ${_luLSI()} + Personal.${hat!=='all'?` <strong style="color:var(--pa-t)">Filtered to ${hat.toUpperCase()}</strong>`:''}</p>
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
       ${chip('all','All','#14b8a6')}
-      ${chip('cf','CF','#1f6feb')}
-      ${chip('lsi','LSI','#9333ea')}
+      ${chip('cf',_luCF(),'#1f6feb')}
+      ${chip('lsi',_luLSI(),'#9333ea')}
       ${chip('personal','Personal','#10b981')}
       <button class="btn btn-s" onclick="_standupWindow24h=!_standupWindow24h;renderStandup()" title="${_standupWindow24h?'Currently showing the last 24 hours of completions. Click to switch back to yesterday\'s date only.':'Currently showing yesterday\'s date only. Click to widen the window to the last 24 hours (catches late-night completions).'}" style="${_standupWindow24h?'background:color-mix(in srgb,var(--ac) 22%,transparent);color:var(--ach);border-color:var(--ac)':''}">⏳ ${_standupWindow24h?'24h':'Yesterday'}</button>
       <button class="btn btn-s" onclick="_copyStandup()" title="Copy markdown to clipboard">📋 Copy</button>
@@ -1277,7 +1277,7 @@ function openPushQueueDrawer(){
   for(const k of Array.from(_pushQueueSel))if(!validKeys.has(k))_pushQueueSel.delete(k);
   const body=rows.length?rows.map(et=>{
     const ovr=et.override||{};
-    const srcLabel=et.source==='smartsheet'?'CF':'LSI';
+    const srcLabel=et.source==='smartsheet'?_luCF():_luLSI();
     const srcColor=et.source==='smartsheet'?'#1f6feb':'#9333ea';
     const key=_pushQueueKey(et);
     const checked=_pushQueueSel.has(key);
@@ -1484,10 +1484,10 @@ async function aiPortfolioBriefing(){
       stalledOpen:summarise(stalled.slice(0,20)),
       hottestOpen:summarise(open.filter(t=>t.priority==='High'||t.priority==='Critical')),
     };
-    const sys=`You are the chief of staff to a COO/CEO running two companies (CommunityForce = CF, LSI Media = LSI). Read the portfolio snapshot and produce a one-page executive briefing for the week. Be specific — reference real task titles. Be decisive — pick the actual 3 things to focus on next. Output STRICTLY valid JSON, no markdown:
+    const sys=`You are the chief of staff to ${_luWho()}${_luSrcLegend(true)}. Read the portfolio snapshot and produce a one-page executive briefing for the week. Be specific — reference real task titles. Be decisive — pick the actual 3 things to focus on next. Output STRICTLY valid JSON, no markdown:
 {
   "headline": "<one sentence summary of the week, 15-25 words>",
-  "wins": [ {"title":"<task title>", "source":"<CF/LSI/Personal>", "why":"<one short sentence, ~12 words, why this matters>"} ],
+  "wins": [ {"title":"<task title>", "source":"<${_luCF()}/${_luLSI()}/Personal>", "why":"<one short sentence, ~12 words, why this matters>"} ],
   "risks": [ {"title":"<task title or theme>", "why":"<why it's a risk, ~15 words>", "action":"<concrete next step, ~10 words>"} ],
   "blockers": [ {"title":"<task title>", "why":"<what's blocking, ~12 words>"} ],
   "next_three": [ "<concrete action 1, ~10 words>", "<action 2>", "<action 3>" ]
@@ -1526,7 +1526,7 @@ function _renderBriefingCard(){
   const latest=list[0];
   const b=latest.briefing||{};
   const ago=_relTime(latest.dateISO);
-  const hatBadge=latest.hat==='all'?'All hats':latest.hat==='cf'?'CF':latest.hat==='lsi'?'LSI':'Personal';
+  const hatBadge=latest.hat==='all'?'All hats':latest.hat==='cf'?_luCF():latest.hat==='lsi'?_luLSI():'Personal';
   const sec=(emoji,title,items,opts)=>{
     if(!items||!items.length)return '';
     return `<div style="margin-top:10px"><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${emoji} ${title}</div><ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px">${items.slice(0,5).map(it=>{
@@ -2213,7 +2213,7 @@ function openProjectDetail(pid){
   <div style="display:flex;gap:8px;margin-top:16px;position:sticky;bottom:0;background:var(--s1);padding:10px 0;flex-wrap:wrap">
     <button class="btn btn-p" onclick="closeDrawer();openDrawer('project',D.projects.find(x=>x.id===${pid}))">✏ Edit Project</button>
     <button class="btn btn-s" onclick="closeDrawer();openFA('task')">+ Add task</button>
-    <button class="btn btn-s" onclick="_openExternalTaskPicker(${pid})" title="Pick CF/LSI tasks to include in this project">🔗 Link external task</button>
+    <button class="btn btn-s" onclick="_openExternalTaskPicker(${pid})" title="Pick external tasks to include in this project">🔗 Link external task</button>
     ${p.autoCreatedBy&&p.autoCreatedBy!=='smartsheet-sync'?`<button class="btn btn-s" style="color:var(--ach);border-color:#1f6feb" onclick="_resyncProjectSource(${pid})" title="Pull fresh data from the originating Smartsheet/Nifty source">↻ Resync source</button>`:''}
     <button class="btn btn-s" style="color:var(--purp)" onclick="_aiProjectCoach(${pid})" title="AI health summary + blockers + suggested next milestone for this project">🩺 AI Coach</button>
     <button class="btn btn-s" style="color:var(--purp)" onclick="_aiProjectStatusUpdate(${pid})" title="AI-generated stakeholder summary you can paste into an email">✨ Status update</button>
@@ -2262,7 +2262,7 @@ async function _aiProjectCoach(pid){
     priority:(et.override&&et.override.localPriority)||et.priority||null,
     due:(et.override&&et.override.localDue)||et.due||null,
     assignee:et.assignee||null,
-    source:et.source==='smartsheet'?'CF':'LSI',
+    source:et.source==='smartsheet'?_luCF():_luLSI(),
   })));
   // Cap snapshot — 50 rows is enough signal without bloating the prompt.
   const snapshot={
@@ -2372,20 +2372,20 @@ async function _aiProjectStatusUpdate(pid){
     const isExtDone=t=>{const s=(t.status||'').toLowerCase();return _isExtDone(s);};
     const shipped=[
       ...nativePts.filter(t=>t.status==='Done'&&_dayOf(t.completedAt)>=wkStartStr).map(t=>({src:'P',t:t.title,when:_dayOf(t.completedAt)})),
-      ...extLinked.filter(t=>isExtDone(t)&&t.completedAt&&(_ymd(_pd(t.completedAt)))>=wkStartStr).map(t=>({src:t.source==='smartsheet'?'CF':'LSI',t:t.title,when:_ymd(_pd(t.completedAt))})),
+      ...extLinked.filter(t=>isExtDone(t)&&t.completedAt&&(_ymd(_pd(t.completedAt)))>=wkStartStr).map(t=>({src:t.source==='smartsheet'?_luCF():_luLSI(),t:t.title,when:_ymd(_pd(t.completedAt))})),
     ];
     const inProg=[
       ...nativePts.filter(t=>t.status==='In Progress').map(t=>({src:'P',t:t.title,due:t.due||null,priority:t.priority||null})),
-      ...extLinked.filter(t=>!isExtDone(t)&&/(in.?progress|doing|active|working)/i.test(t.status||'')).map(t=>({src:t.source==='smartsheet'?'CF':'LSI',t:t.title,due:(t.override&&t.override.localDue)||t.due||null,priority:(t.override&&t.override.localPriority)||t.priority||null})),
+      ...extLinked.filter(t=>!isExtDone(t)&&/(in.?progress|doing|active|working)/i.test(t.status||'')).map(t=>({src:t.source==='smartsheet'?_luCF():_luLSI(),t:t.title,due:(t.override&&t.override.localDue)||t.due||null,priority:(t.override&&t.override.localPriority)||t.priority||null})),
     ];
     const blocked=nativePts.filter(t=>t.status!=='Done'&&(t.blockedBy||t.status==='On Hold'||/blocked|on.?hold|delayed/i.test(t.notes||''))).map(t=>({src:'P',t:t.title,why:t.blockedBy?'predecessor incomplete':t.status||'flagged'}));
     const overdue=[
       ...nativePts.filter(t=>t.status!=='Done'&&t.due&&t.due<today).map(t=>({src:'P',t:t.title,due:t.due})),
-      ...extLinked.filter(t=>!isExtDone(t)&&((t.override&&t.override.localDue)||t.due)&&(((t.override&&t.override.localDue)||t.due)<today)).map(t=>({src:t.source==='smartsheet'?'CF':'LSI',t:t.title,due:(t.override&&t.override.localDue)||t.due})),
+      ...extLinked.filter(t=>!isExtDone(t)&&((t.override&&t.override.localDue)||t.due)&&(((t.override&&t.override.localDue)||t.due)<today)).map(t=>({src:t.source==='smartsheet'?_luCF():_luLSI(),t:t.title,due:(t.override&&t.override.localDue)||t.due})),
     ];
     const upcoming=[
       ...nativePts.filter(t=>t.status!=='Done'&&t.due&&t.due>=today&&t.due<=horizonStr).map(t=>({src:'P',t:t.title,due:t.due})),
-      ...extLinked.filter(t=>!isExtDone(t)&&((t.override&&t.override.localDue)||t.due)&&(((t.override&&t.override.localDue)||t.due)>=today)&&(((t.override&&t.override.localDue)||t.due)<=horizonStr)).map(t=>({src:t.source==='smartsheet'?'CF':'LSI',t:t.title,due:(t.override&&t.override.localDue)||t.due})),
+      ...extLinked.filter(t=>!isExtDone(t)&&((t.override&&t.override.localDue)||t.due)&&(((t.override&&t.override.localDue)||t.due)>=today)&&(((t.override&&t.override.localDue)||t.due)<=horizonStr)).map(t=>({src:t.source==='smartsheet'?_luCF():_luLSI(),t:t.title,due:(t.override&&t.override.localDue)||t.due})),
     ];
     const totalDone=nativePts.filter(t=>t.status==='Done').length+extLinked.filter(isExtDone).length;
     const totalAll=nativePts.length+extLinked.length;

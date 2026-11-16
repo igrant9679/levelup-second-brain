@@ -3545,10 +3545,10 @@ function _ccTasks(){
         completedAt:done?(et.completedAt||et.fetchedAt||null):null,
         updatedAt:et.updatedAt||et.fetchedAt||'',
         projectId:ov.localProjectId||null,
-        project:et.projectLabel||(et.source==='smartsheet'?'CF':'LSI'),
+        project:et.projectLabel||(et.source==='smartsheet'?_luCF():_luLSI()),
         assignee:et.assignee||'',
         source:et.source,
-        sourceLabel:et.source==='smartsheet'?'CF':'LSI',
+        sourceLabel:et.source==='smartsheet'?_luCF():_luLSI(),
         hasPendingPush:!!ov.pendingStatus,
         externalUrl:et.externalUrl||'',
         _ext:et,
@@ -3572,7 +3572,7 @@ function _ccTasks(){
         updatedAt:x.updatedAt||'',projectId:null,
         project:projName[String(x.projectId)]||'CF',
         assignee:x.ownerText||((x.owners||[]).length?(typeof _pmAtlasMemberName==='function'?(x.owners||[]).map(_pmAtlasMemberName).filter(Boolean).join(', '):''):''),
-        source:'atlas',sourceLabel:'CF',hasPendingPush:false,_atlas:x,
+        source:'atlas',sourceLabel:_luCF(),hasPendingPush:false,_atlas:x,
       });
     });
   }

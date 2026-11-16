@@ -442,6 +442,20 @@
       "when": 1792001200000,
       "tag": "0062_secrets_sessions_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "5",
+      "when": 1792001300000,
+      "tag": "0063_workspaces",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "5",
+      "when": 1792001400000,
+      "tag": "0064_files",
+      "breakpoints": true
     }
   ]
 }

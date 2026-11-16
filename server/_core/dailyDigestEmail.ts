@@ -28,6 +28,7 @@ import { userTz, userNow, toMinutes, fmtDay, type UserNow } from "./userTime";
 import { claimSend, settleClaims, releaseSend } from "./sendLedger";
 import { prefsRows, fullRow } from "./prefsScan";
 import { job, isShuttingDown } from "./lifecycle";
+import { CF_LABELS, labelsFor, type SourceLabels } from "./labels";
 
 interface DigestPref {
   enabled?: boolean;
@@ -197,7 +198,7 @@ function escHtml(s: string): string {
  * literally nothing to surface (so we skip sending and don't spam an empty
  * digest).
  */
-function renderDigestHtml(name: string, rows: DigestRow[], moneyHtml = '', tz?: string): string | null {
+function renderDigestHtml(name: string, rows: DigestRow[], moneyHtml = '', tz?: string, L: SourceLabels = CF_LABELS): string | null {
   if (!rows.length && !moneyHtml) return null;
   const overdueN = rows.filter(r => r.overdue).length;
   const cfRows = rows.filter(r => r.source === 'CF');
@@ -219,13 +220,13 @@ function renderDigestHtml(name: string, rows: DigestRow[], moneyHtml = '', tz?: 
   <div style="display:flex;gap:8px;font-size:11px;color:#6b7280;margin-bottom:8px">
     <span><strong style="color:#374151">${personalRows.length}</strong> Personal</span>
     <span>·</span>
-    <span><strong style="color:#374151">${cfRows.length}</strong> CommunityForce</span>
+    <span><strong style="color:#374151">${cfRows.length}</strong> ${L.smartsheetLong}</span>
     <span>·</span>
-    <span><strong style="color:#374151">${lsiRows.length}</strong> LSI Media</span>
+    <span><strong style="color:#374151">${lsiRows.length}</strong> ${L.niftyLong}</span>
   </div>
   ${rowTableHtml(personalRows, '🟢 Personal', '#10b981')}
-  ${rowTableHtml(cfRows, '🔵 CommunityForce (Smartsheet)', '#1f6feb')}
-  ${rowTableHtml(lsiRows, '🟣 LSI Media (NiftyPM)', '#9333ea')}
+  ${rowTableHtml(cfRows, L.smartsheetTable, '#1f6feb')}
+  ${rowTableHtml(lsiRows, L.niftyTable, '#9333ea')}
   ${moneyHtml}
   <p style="font-size:11px;color:#9ca3af;margin-top:24px;border-top:1px solid #e5e7eb;padding-top:12px">
     Open LevelUp: <a href="https://levelupnow.tools/" style="color:#1f6feb">levelupnow.tools</a> · Disable this digest in Settings → Notifications
@@ -256,6 +257,7 @@ export async function processDailyDigest(opts?: { userId?: number; force?: boole
 
   let sent = 0, skipped = 0, errors = 0;
   for (const lite of rows) {
+    (await import("./memberContext")).setMember(lite.userId); // this person's turn: their workspace's AI key and limits
     settleClaims('digest');
     if (isShuttingDown()) break;
     let row: any = lite;
@@ -285,7 +287,8 @@ export async function processDailyDigest(opts?: { userId?: number; force?: boole
       const money = (digestPref as DigestPref & { money?: boolean }).money === false
         ? { html: '', billsDueCount: 0, nudgeCount: 0 }
         : await buildMoneySectionHtml((row as { finance?: string | null }).finance, 'daily');
-      const html = renderDigestHtml(name, digestRows, money.html, tz);
+      // company wording only for the workspace that has it (-278)
+      const html = renderDigestHtml(name, digestRows, money.html, tz, await labelsFor(row.userId));
       if (!html) {
         // Nothing on the plate today — no email, and the claim stays so the
         // rest of the day's ticks don't reconsider.

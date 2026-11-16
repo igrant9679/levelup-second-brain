@@ -122,12 +122,12 @@ async function writeOne(db: any, userId: number, r: RecordInput) {
   if (r.id) {
     const res: any = await db.update(pmRecords).set(values).where(and(eq(pmRecords.id, r.id), eq(pmRecords.userId, userId)));
     if (!Number(res?.[0]?.affectedRows ?? res?.affectedRows ?? 0)) throw new TRPCError({ code: "NOT_FOUND", message: "That item no longer exists" });
-    const [row] = await db.select().from(pmRecords).where(eq(pmRecords.id, r.id)).limit(1);
+    const [row] = await db.select().from(pmRecords).where(and(eq(pmRecords.id, r.id), eq(pmRecords.userId, userId))).limit(1);
     return shapeRecord(row);
   }
   const res: any = await db.insert(pmRecords).values({ userId, ...values });
   const id = Number(res?.[0]?.insertId ?? res?.insertId);
-  const [row] = await db.select().from(pmRecords).where(eq(pmRecords.id, id)).limit(1);
+  const [row] = await db.select().from(pmRecords).where(and(eq(pmRecords.id, id), eq(pmRecords.userId, userId))).limit(1);
   return shapeRecord(row);
 }
 

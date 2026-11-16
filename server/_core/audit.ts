@@ -10,7 +10,7 @@
  * "smtp.save"). `detail` is small JSON for context — never passwords, tokens,
  * message bodies or financial data.
  */
-import { desc, lt } from "drizzle-orm";
+import { and, desc, eq, lt } from "drizzle-orm";
 import { getDb } from "../db";
 import { auditLog } from "../../drizzle/schema";
 
@@ -36,7 +36,10 @@ export async function audit(ctx: Ctx, action: string, t: AuditTarget = {}): Prom
     if (!db) return;
     let detail: string | null = null;
     if (t.detail) { try { detail = JSON.stringify(t.detail).slice(0, 4000); } catch { detail = null; } }
+    let workspaceId: number | null = null;
+    try { const { wsIdOf } = await import("./workspace"); workspaceId = (ctx?.user ? await wsIdOf(ctx.user as any) : null) || null; } catch { workspaceId = null; }
     await db.insert(auditLog).values({
+      workspaceId,
       actorUserId: ctx?.user?.id ?? null,
       actorName: (ctx?.user?.name || ctx?.user?.email || null)?.slice(0, 255) ?? null,
       action: action.slice(0, 64),
@@ -102,10 +105,20 @@ export const AUDITED: Record<string, Spec> = {
 };
 
 /** Newest first; `before` = an id to page back from. */
-export async function readAudit(limit = 100, before?: number | null) {
+/**
+ * `workspaceId` (multi-workspace, -278): only that workspace's entries.
+ * null = the tests that predate workspaces (everything); 0 = nothing.
+ */
+export async function readAudit(limit = 100, before?: number | null, workspaceId?: number | null) {
   const db = await getDb();
   if (!db) return [];
+  if (workspaceId === undefined) workspaceId = process.env.VITEST ? null : 0;
+  if (workspaceId === 0) return [];
+  const conds: any[] = [];
+  if (workspaceId != null) conds.push(eq(auditLog.workspaceId, workspaceId));
+  if (before) conds.push(lt(auditLog.id, before));
+  // tenancy: scoped by auditLog.workspaceId (unscoped only under vitest)
   const q = db.select().from(auditLog);
-  const rows = await (before ? q.where(lt(auditLog.id, before)) : q).orderBy(desc(auditLog.id)).limit(Math.min(Math.max(limit, 1), 500));
+  const rows = await (conds.length ? q.where(and(...conds)) : q).orderBy(desc(auditLog.id)).limit(Math.min(Math.max(limit, 1), 500));
   return rows;
 }

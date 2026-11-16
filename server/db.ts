@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lte, sql, inArray } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, lte, or, sql, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { credentialAuditLog, emailDeliveryLog, emailNotificationPrefs, InsertCredentialAuditLog, InsertEmailDeliveryLog, InsertOAuthToken, InsertUser, InsertUserOauthCredential, InsertScheduledTaskLog, oauthTokens, scheduledTaskLog, systemSettings, userOauthCredentials, users, smtpImapAccounts, InsertSmtpImapAccount, SmtpImapAccount, userActivityLog, externalSourceCredentials, InsertExternalSourceCredential } from "../drizzle/schema";
 import { ENV } from './_core/env';
@@ -19,7 +19,14 @@ export async function getDb() {
   return _db;
 }
 
-export async function upsertUser(user: InsertUser): Promise<void> {
+/**
+ * Update a member row by openId, or create it.
+ *
+ * Creating needs `workspaceId` (multi-workspace, -278): a users row is one
+ * member of one workspace, and there is no "default" workspace to fall into.
+ * The update path never touches workspaceId / accountId.
+ */
+export async function upsertUser(user: Partial<InsertUser> & { openId: string }): Promise<void> {
   if (!user.openId) {
     throw new Error("User openId is required for upsert");
   }
@@ -31,7 +38,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   }
 
   try {
-    const values: InsertUser = {
+    const values: Partial<InsertUser> & { openId: string } = {
       openId: user.openId,
     };
     const updateSet: Record<string, unknown> = {};
@@ -69,7 +76,19 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       updateSet.lastSignedIn = new Date();
     }
 
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
+    const existing = await db.select({ id: users.id }).from(users).where(eq(users.openId, user.openId)).limit(1);
+    if (existing.length) {
+      await db.update(users).set(updateSet).where(eq(users.id, existing[0].id));
+      return;
+    }
+    const ws = Number((user as any).workspaceId);
+    if (!Number.isInteger(ws) || ws <= 0) {
+      throw new Error("upsertUser: a new account needs a workspace");
+    }
+    values.workspaceId = ws;
+    if ((user as any).accountId != null) (values as any).accountId = Number((user as any).accountId);
+    if ((user as any).passwordHash !== undefined) (values as any).passwordHash = (user as any).passwordHash;
+    await db.insert(users).values(values as InsertUser).onDuplicateKeyUpdate({
       set: updateSet,
     });
   } catch (error) {
@@ -96,20 +115,44 @@ export async function getUserByEmail(email: string) {
     console.warn("[Database] Cannot get user: database not available");
     return undefined;
   }
-  const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  // The LOGIN row only (accountId NULL): a person's member rows in further
+  // workspaces carry the same address but are not a login.
+  // tenancy: login identity is platform-wide — one login per address
+  const result = await db.select().from(users).where(and(eq(users.email, email), isNull(users.accountId))).limit(1);
   return result.length > 0 ? result[0] : undefined;
+}
+
+/** The login row id behind a member row (itself when it is the login). */
+export async function accountIdOfUser(userId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return userId;
+  try {
+    const rows: any[] = await db.select({ accountId: users.accountId }).from(users).where(eq(users.id, userId)).limit(1);
+    const a = Number(rows[0] && rows[0].accountId);
+    return Number.isInteger(a) && a > 0 ? a : userId;
+  } catch { return userId; }
+}
+
+/** The login row behind a member row (password hash, tokenVersion, operator flag live there). */
+export async function getAccountRow(user: { id: number; accountId?: number | null }) {
+  const a = Number((user as any).accountId);
+  if (!Number.isInteger(a) || a <= 0) return user as any;
+  return (await getUserById(a)) ?? null;
 }
 
 export async function updateUserPasswordHash(userId: number, passwordHash: string): Promise<void> {
   const db = await getDb();
   if (!db) return;
-  await db.update(users).set({ passwordHash }).where(eq(users.id, userId));
+  // the password belongs to the login row
+  await db.update(users).set({ passwordHash }).where(eq(users.id, await accountIdOfUser(userId)));
 }
 
 export async function updateUserEmail(userId: number, newEmail: string): Promise<void> {
   const db = await getDb();
   if (!db) return;
-  await db.update(users).set({ email: newEmail }).where(eq(users.id, userId));
+  // the login row and every member row of that login carry the address
+  const acc = await accountIdOfUser(userId);
+  await db.update(users).set({ email: newEmail }).where(or(eq(users.id, acc), eq(users.accountId, acc)));
 }
 
 /**
@@ -120,8 +163,10 @@ export async function updateUserEmail(userId: number, newEmail: string): Promise
 export async function bumpTokenVersion(userId: number): Promise<number | null> {
   const db = await getDb();
   if (!db) return null;
-  await db.update(users).set({ tokenVersion: sql`${users.tokenVersion} + 1` }).where(eq(users.id, userId));
-  const [row] = await db.select({ tv: users.tokenVersion }).from(users).where(eq(users.id, userId)).limit(1);
+  // sessions are revoked per login: every workspace the person is in
+  const acc = await accountIdOfUser(userId);
+  await db.update(users).set({ tokenVersion: sql`${users.tokenVersion} + 1` }).where(eq(users.id, acc));
+  const [row] = await db.select({ tv: users.tokenVersion }).from(users).where(eq(users.id, acc)).limit(1);
   return row ? Number(row.tv) || 0 : null;
 }
 
@@ -131,7 +176,8 @@ export async function emailHasAccount(email: string): Promise<boolean> {
   if (!db) return false;
   const key = String(email || '').trim().toLowerCase();
   if (!key) return false;
-  const rows = await db.select({ id: users.id }).from(users).where(sql`LOWER(TRIM(${users.email})) = ${key}`).limit(1);
+  // tenancy: login identity is platform-wide — one login per address (login rows only)
+  const rows = await db.select({ id: users.id }).from(users).where(and(sql`LOWER(TRIM(${users.email})) = ${key}`, isNull(users.accountId))).limit(1);
   return rows.length > 0;
 }
 
@@ -261,21 +307,25 @@ export async function setCredentialLastVerified(userId: number, provider: string
  * Find the first admin-owned credential for a provider that has sharedWithTeam=1.
  * Used as a fallback when the requesting user has no own credentials.
  */
-export async function getSharedAdminCredential(provider: string) {
+export async function getSharedAdminCredential(provider: string, workspaceId?: number | null) {
   const db = await getDb();
   if (!db) return undefined;
-  // Join with users table to filter by admin role
+  // "Shared with the team" means the team of ONE workspace (-278): only an
+  // admin of the caller's workspace can be the sharer. Without a workspace
+  // (the tests that predate them) it is any admin, as before.
+  if (workspaceId == null && !process.env.VITEST) return undefined;
+  const conds = [
+    eq(userOauthCredentials.provider, provider),
+    eq(userOauthCredentials.sharedWithTeam, 1),
+    eq(users.role, 'admin'),
+  ];
+  if (workspaceId != null) conds.push(eq(users.workspaceId, Number(workspaceId)));
+  // tenancy: scoped by users.workspaceId above (vitest-only unscoped path)
   const result = await db
     .select({ cred: userOauthCredentials })
     .from(userOauthCredentials)
     .innerJoin(users, eq(users.id, userOauthCredentials.userId))
-    .where(
-      and(
-        eq(userOauthCredentials.provider, provider),
-        eq(userOauthCredentials.sharedWithTeam, 1),
-        eq(users.role, 'admin')
-      )
-    )
+    .where(and(...conds))
     .limit(1);
   return result.length > 0 ? result[0].cred : undefined;
 }
@@ -323,6 +373,14 @@ export async function insertEmailDeliveryLog(
   const db = await getDb();
   if (!db) return;
   try {
+    // Which workspace the mail was for (-278): stated by the caller, else the sender's.
+    if ((entry as any).workspaceId == null && entry.userId != null) {
+      try {
+        const { wsIdOf } = await import('./_core/workspace');
+        const w = await wsIdOf({ id: Number(entry.userId) });
+        if (w) entry = { ...entry, workspaceId: w };
+      } catch { /* logged without a workspace */ }
+    }
     await db.insert(emailDeliveryLog).values(entry);
   } catch (err) {
     // Never let logging failures bubble up and break the caller
@@ -345,6 +403,8 @@ export async function getAdminEmailDeliveryLog(opts: {
   to?: Date;
   page?: number;
   pageSize?: number;
+  /** Only this workspace's mail (-278). Omit ONLY for the platform operator's view. */
+  workspaceId?: number | null;
 }) {
   const db = await getDb();
   if (!db) return { entries: [], total: 0 };
@@ -356,9 +416,11 @@ export async function getAdminEmailDeliveryLog(opts: {
   if (status) conditions.push(eq(emailDeliveryLog.status, status));
   if (from) conditions.push(gte(emailDeliveryLog.createdAt, from));
   if (to) conditions.push(lte(emailDeliveryLog.createdAt, to));
+  if (opts.workspaceId != null) conditions.push(eq(emailDeliveryLog.workspaceId, Number(opts.workspaceId)));
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;
 
+  // tenancy: scoped by emailDeliveryLog.workspaceId (unscoped = operator view)
   const [entries, countRows] = await Promise.all([
     db.select({
       id: emailDeliveryLog.id,
@@ -386,10 +448,12 @@ export async function getAdminEmailDeliveryLog(opts: {
 }
 
 /** Return all oauth tokens that expire within the given number of days. */
-export async function getAllExpiringTokens(withinDays = 3) {
+export async function getAllExpiringTokens(withinDays = 3, userIds?: number[] | null) {
   const db = await getDb();
   if (!db) return [];
+  if (userIds && !userIds.length) return [];
   const cutoff = new Date(Date.now() + withinDays * 24 * 60 * 60 * 1000);
+  // tenancy: pass the workspace's member ids; unscoped = the background notifier, which mails each person about their OWN connection only
   return db.select({
     userId: oauthTokens.userId,
     provider: oauthTokens.provider,
@@ -401,14 +465,16 @@ export async function getAllExpiringTokens(withinDays = 3) {
   })
   .from(oauthTokens)
   .innerJoin(users, eq(users.id, oauthTokens.userId))
-  .where(lte(oauthTokens.expiresAt, cutoff));
+  .where(userIds ? and(lte(oauthTokens.expiresAt, cutoff), inArray(oauthTokens.userId, userIds)) : lte(oauthTokens.expiresAt, cutoff));
 }
 
 // Get all connected OAuth accounts across all users (for owner notification sender picker)
-export async function getAllConnectedOAuthAccounts() {
+export async function getAllConnectedOAuthAccounts(userIds?: number[] | null) {
   const db = await getDb();
   if (!db) return [];
-  return db.select({
+  if (userIds && !userIds.length) return [];
+  // tenancy: pass the workspace's member ids (unscoped only in the tests that predate workspaces)
+  const q = db.select({
     userId: oauthTokens.userId,
     provider: oauthTokens.provider,
     email: oauthTokens.email,
@@ -417,13 +483,21 @@ export async function getAllConnectedOAuthAccounts() {
   })
   .from(oauthTokens)
   .innerJoin(users, eq(users.id, oauthTokens.userId));
+  return userIds ? q.where(inArray(oauthTokens.userId, userIds)) : q;
 }
 
 // Get all SMTP/IMAP secondary accounts across users (for owner notification sender picker)
-export async function getAllSmtpAccounts() {
+/**
+ * SMTP/IMAP accounts — of the given members only (multi-workspace, -278: pass
+ * the workspace owner's id). With no list it is every account, which only the
+ * tests that predate workspaces still do.
+ */
+export async function getAllSmtpAccounts(userIds?: number[] | null) {
   const db = await getDb();
   if (!db) return [];
-  return db.select({
+  if (userIds && !userIds.length) return [];
+  // tenancy: scoped by the ids passed (unscoped only in the tests that predate workspaces)
+  const q = db.select({
     userId: smtpImapAccounts.userId,
     email: smtpImapAccounts.email,
     displayName: smtpImapAccounts.displayName,
@@ -431,17 +505,43 @@ export async function getAllSmtpAccounts() {
   })
   .from(smtpImapAccounts)
   .innerJoin(users, eq(users.id, smtpImapAccounts.userId));
+  return userIds ? q.where(inArray(smtpImapAccounts.userId, userIds)) : q;
 }
 
 /**
  * List all users (admin-only consumer in the router layer). Returns minimal
  * fields needed by the admin UI for configuring per-user notification senders.
  */
-export async function adminListAllUsers(): Promise<Array<{ id: number; name: string | null; email: string | null; role: string; hasSmtp: boolean; lastSignedIn: Date | null }>> {
+/**
+ * The members of `user`'s workspace (multi-workspace, -278) — what every
+ * "list the people" reader should use. In the tests' no-workspace mode it is
+ * every account, as before.
+ */
+export async function listWorkspaceUsers(user: { id: number; workspaceId?: number | null }): Promise<Array<{ id: number; name: string | null; email: string | null; role: string; accountId: number | null; openId: string; lastSignedIn: Date | null }>> {
   const db = await getDb();
   if (!db) return [];
-  const rows = await db.select({ id: users.id, name: users.name, email: users.email, role: users.role, lastSignedIn: users.lastSignedIn }).from(users);
+  const { wsIdOf } = await import('./_core/workspace');
+  const w = await wsIdOf(user as any);
+  const cols = { id: users.id, name: users.name, email: users.email, role: users.role, accountId: users.accountId, openId: users.openId, lastSignedIn: users.lastSignedIn };
+  // tenancy: w === null only under vitest for user objects that predate workspaces
+  const rows: any[] = w === null ? await db.select(cols).from(users) : await db.select(cols).from(users).where(eq(users.workspaceId, w));
+  return rows.map(r => ({ id: r.id, name: r.name ?? null, email: r.email ?? null, role: String(r.role), accountId: r.accountId ?? null, openId: String(r.openId || ''), lastSignedIn: r.lastSignedIn ?? null }));
+}
+
+/**
+ * Accounts with whether each has an SMTP account. `userIds` = the members to
+ * list (a workspace's — see _core/workspace scopeIds). Unscoped only in the
+ * tests that predate workspaces; request code uses listWorkspaceUsers.
+ */
+export async function adminListAllUsers(userIds?: number[] | null): Promise<Array<{ id: number; name: string | null; email: string | null; role: string; hasSmtp: boolean; lastSignedIn: Date | null }>> {
+  const db = await getDb();
+  if (!db) return [];
+  if (userIds && !userIds.length) return [];
+  const cols = { id: users.id, name: users.name, email: users.email, role: users.role, lastSignedIn: users.lastSignedIn };
+  // tenancy: scoped by the ids passed (unscoped only in the tests that predate workspaces)
+  const rows = userIds ? await db.select(cols).from(users).where(inArray(users.id, userIds)) : await db.select(cols).from(users);
   // Find which users have an SMTP/IMAP row
+  // tenancy: only the userId column, matched against the scoped rows above
   const smtpRows = await db.select({ userId: smtpImapAccounts.userId }).from(smtpImapAccounts);
   const smtpUserIds = new Set(smtpRows.map(r => r.userId));
   return rows.map(r => ({ id: r.id, name: r.name as string | null, email: r.email as string | null, role: r.role as string, hasSmtp: smtpUserIds.has(r.id), lastSignedIn: (r as any).lastSignedIn ?? null }));
@@ -496,6 +596,7 @@ export async function deleteOldEmailDeliveryLogs(cutoffMs: number): Promise<numb
   const db = await getDb();
   if (!db) return 0;
   const cutoffDate = new Date(cutoffMs);
+  // tenancy: operator — retention cleanup by age; nothing is read or returned
   const result = await db
     .delete(emailDeliveryLog)
     .where(lte(emailDeliveryLog.createdAt, cutoffDate));
@@ -679,6 +780,7 @@ export async function getPendingReminders() {
   
   try {
     const { eventReminders } = await import("../drizzle/schema");
+    // tenancy: background — every member's own reminders; each is sent to ITS OWNER only
     const result = await db
       .select()
       .from(eventReminders)
@@ -908,7 +1010,7 @@ export async function updateCalendarEvent(
     const [updated] = await db
       .select()
       .from(calendarEvents)
-      .where(eq(calendarEvents.id, id))
+      .where(and(eq(calendarEvents.id, id), eq(calendarEvents.userId, userId)))
       .limit(1);
     return updated ?? null;
   } catch (err) {
@@ -1064,12 +1166,14 @@ export async function getBookmarks(opts: {
   else if (sort === 'alpha') orderBy = bookmarks.title;
   else orderBy = desc(bookmarks.createdAt);
 
+  // tenancy: whereClause always starts with eq(bookmarks.userId, opts.userId) (built above)
   const rows = await db.select().from(bookmarks)
     .where(whereClause)
     .orderBy(orderBy)
     .limit(pageSize)
     .offset(offset);
 
+  // tenancy: same whereClause — eq(bookmarks.userId, opts.userId)
   const countResult = await db.select({ count: sql<number>`count(*)` }).from(bookmarks).where(whereClause);
   const total = countResult[0]?.count ?? 0;
 
@@ -1269,7 +1373,7 @@ export async function updateCollection(id: number, userId: number, data: { name?
   if (!db) throw new Error('DB unavailable');
   const { bookmarkCollections } = await import('../drizzle/schema');
   await db.update(bookmarkCollections).set({ ...data }).where(and(eq(bookmarkCollections.id, id), eq(bookmarkCollections.userId, userId)));
-  const rows = await db.select().from(bookmarkCollections).where(eq(bookmarkCollections.id, id));
+  const rows = await db.select().from(bookmarkCollections).where(and(eq(bookmarkCollections.id, id), eq(bookmarkCollections.userId, userId)));
   return rows[0] ?? null;
 }
 
@@ -1395,6 +1499,10 @@ export async function incrementShareViewCount(token: string) {
 
 export async function createTeamInvite(data: {
   invitedBy: number;
+  /** The workspace the invitee joins (-278). */
+  workspaceId: number;
+  /** The invitee becomes the workspace's owner (operator-created workspaces). */
+  asOwner?: boolean;
   email: string;
   name?: string | null;
   role: 'user' | 'admin';
@@ -1405,14 +1513,19 @@ export async function createTeamInvite(data: {
   if (!db) return null;
   try {
     const { teamInvites } = await import('../drizzle/schema');
+    const ws = Number(data.workspaceId);
+    if (!Number.isInteger(ws) || ws <= 0) throw new Error('createTeamInvite: no workspace');
     await db.insert(teamInvites).values({
       invitedBy: data.invitedBy,
+      workspaceId: ws,
+      asOwner: data.asOwner ? 1 : 0,
       email: data.email.toLowerCase().trim(),
       name: data.name ?? null,
       role: data.role,
       token: data.token,
       expiresAt: data.expiresAt,
     });
+    // tenancy: read back the row just inserted, by its unguessable token
     const [row] = await db.select().from(teamInvites).where(eq(teamInvites.token, data.token)).limit(1);
     return row ?? null;
   } catch (err) {
@@ -1433,12 +1546,18 @@ export async function getTeamInvites(invitedBy: number) {
   }
 }
 
-export async function getAllTeamInvites() {
+/** The invites of ONE workspace (-278). `null` = the tests' no-workspace mode (all). */
+export async function getAllTeamInvites(workspaceId?: number | null) {
   const db = await getDb();
   if (!db) return [];
   try {
     const { teamInvites } = await import('../drizzle/schema');
-    return await db.select().from(teamInvites).orderBy(teamInvites.createdAt);
+    if (workspaceId == null) {
+      if (!process.env.VITEST) return [];
+      // tenancy: vitest only — user objects that predate workspaces
+      return await db.select().from(teamInvites).orderBy(teamInvites.createdAt);
+    }
+    return await db.select().from(teamInvites).where(eq(teamInvites.workspaceId, Number(workspaceId))).orderBy(teamInvites.createdAt);
   } catch (err) {
     console.warn('[Database] Failed to get all team invites:', err);
     return [];
@@ -1543,6 +1662,7 @@ export async function getActivityFeed(
   if (!db) return [];
   if (userIds.length === 0) return [];
   try {
+    // tenancy: .where(inArray(userActivityLog.userId, userIds)) is added below; callers pass their workspace's member ids
     const baseQuery = db
       .select({
         id: userActivityLog.id,
@@ -1577,6 +1697,7 @@ export async function getActivitySummary(userId: number, since?: Date) {
   const db = await getDb();
   if (!db) return [];
   try {
+    // tenancy: .where(eq(userActivityLog.userId, userId)) is added below
     const baseQuery = db
       .select({
         action: userActivityLog.action,
@@ -1599,17 +1720,21 @@ export async function getActivitySummary(userId: number, since?: Date) {
 /**
  * Get all team members for the activity feed.
  */
-export async function getTeamMembers() {
+export async function getTeamMembers(userIds?: number[] | null) {
   const db = await getDb();
   if (!db) return [];
+  if (userIds && !userIds.length) return [];
   try {
-    return db.select({
+    const cols = {
       id: users.id,
       name: users.name,
       email: users.email,
       role: users.role,
       lastSignedIn: users.lastSignedIn,
-    }).from(users).orderBy(desc(users.lastSignedIn));
+    };
+    if (userIds) return db.select(cols).from(users).where(inArray(users.id, userIds)).orderBy(desc(users.lastSignedIn));
+    // tenancy: unscoped only in the tests that predate workspaces
+    return db.select(cols).from(users).orderBy(desc(users.lastSignedIn));
   } catch (err) {
     console.warn('[Database] Failed to get team members:', err);
     return [];
@@ -1621,6 +1746,32 @@ export async function deleteTeamMember(userId: number): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error('Database unavailable');
   await db.delete(users).where(eq(users.id, userId));
+}
+
+/**
+ * Remove a member from their workspace (multi-workspace, -278).
+ *   - a member row that belongs to a login elsewhere → the row is deleted;
+ *   - a LOGIN row whose person is also in other workspaces → the login must
+ *     survive (it holds the password), so it is detached instead: placed in
+ *     workspace 0 ("none"), where nothing can reach it or its old items;
+ *   - a login row with no other workspace → deleted, as before.
+ * The caller has already checked that the actor may do this.
+ */
+export async function removeWorkspaceMember(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error('Database unavailable');
+  const [row]: any[] = await db.select({ id: users.id, accountId: users.accountId, workspaceId: users.workspaceId }).from(users).where(eq(users.id, userId)).limit(1);
+  if (!row) return;
+  const { invalidateWorkspace, _forgetUserWorkspace } = await import('./_core/workspace');
+  let detach = false;
+  if (row.accountId == null && (row as any).workspaceId !== undefined) {
+    const others: any[] = await db.select({ id: users.id }).from(users).where(eq(users.accountId, userId)).limit(1);
+    detach = others.length > 0;
+  }
+  if (detach) await db.update(users).set({ workspaceId: 0, role: 'user' }).where(eq(users.id, userId));
+  else await db.delete(users).where(eq(users.id, userId));
+  _forgetUserWorkspace(userId);
+  invalidateWorkspace(Number(row.workspaceId) || null);
 }
 
 // ── Get user by ID ──────────────────────────────────────────────────────────

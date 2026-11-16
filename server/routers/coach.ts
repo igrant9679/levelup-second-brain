@@ -98,10 +98,11 @@ export const coachRouter = router({
       return { ok: r.created > 0, id: r.lastId ?? null, error: r.lastError ?? null };
     }),
 
-  // Polls the shared system mailbox for every user: owner only.
+  // Reads THIS workspace's reply mailbox (its owner's account): owner only.
   checkReplies: protectedProcedure.mutation(async ({ ctx }) => {
     await assertOwner(ctx.user);
-    const r = await pollCoachReplies({ force: true });
+    const w = await (await import("../_core/workspace")).wsIdOf(ctx.user as any);
+    const r = await pollCoachReplies(w === null ? { force: true } : { force: true, wsId: w });
     return { ok: r.ok, scanned: r.scanned, matched: r.matched, handled: r.handled, error: r.error ?? null };
   }),
 
@@ -123,7 +124,7 @@ export const coachRouter = router({
       schedule: COACH_SLOT_IDS.map((id) => ({ id, label: COACH_SLOTS[id].label, time: slotTime(c, id), on: c.slots?.[id]?.on !== false, ...(COACH_SLOTS[id].day != null ? { day: slotDay(c, id) } : {}) })),
       moneyAlerts: c.slots?.moneyalert?.on !== false,
       recent: today.filter((r) => localNow(local.tz, new Date(r.createdAt)).ymd === local.ymd).map((r) => ({ id: r.id, kind: r.kind, at: r.createdAt, emailed: !!r.emailedAt, pushed: !!r.pushedAt, error: r.error })),
-      replies: await (async () => { const st = coachReplyStatus(); return { address: await getReplyInboxAddress().catch(() => null), lastPollAt: st.lastPollAt, lastOkAt: st.lastOkAt, lastError: st.lastError, handled: st.handled }; })(),
+      replies: await (async () => { const w = await (await import("../_core/workspace")).wsIdOf(ctx.user as any); const st = coachReplyStatus(w); return { address: await getReplyInboxAddress(w).catch(() => null), lastPollAt: st.lastPollAt, lastOkAt: st.lastOkAt, lastError: st.lastError, handled: st.handled }; })(),
       pushDevices: await countPushSubscriptions(ctx.user.id).catch(() => 0),
     };
   }),

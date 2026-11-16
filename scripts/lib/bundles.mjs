@@ -20,6 +20,7 @@ export const BUNDLES = [
   'app-agent.js',
   'app-coach.js',
   'app-pm.js',
+  'app-workspace.js',
 ];
 /** Loaded before the bundles. */
 export const VENDOR = ['vendor/purify.min.js'];

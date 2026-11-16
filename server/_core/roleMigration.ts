@@ -27,9 +27,11 @@ export async function demoteInvitedAdminsOnce(): Promise<{ done: boolean; demote
     return { done: false, reason: "owner not found" };
   }
   const ownerId = owner[0].id;
-  const admins = await db.select({ id: users.id }).from(users).where(and(eq(users.role, "admin"), ne(users.id, ownerId)));
+  // Workspace 1 only (-278): this one-time change is about the ORIGINAL
+  // workspace's invited teammates; other workspaces' admins are their owners' business.
+  const admins = await db.select({ id: users.id }).from(users).where(and(eq(users.role, "admin"), ne(users.id, ownerId), eq(users.workspaceId, 1)));
   const ids = admins.map(a => a.id);
-  if (ids.length) await db.update(users).set({ role: "user" }).where(and(eq(users.role, "admin"), ne(users.id, ownerId)));
+  if (ids.length) await db.update(users).set({ role: "user" }).where(and(eq(users.role, "admin"), ne(users.id, ownerId), eq(users.workspaceId, 1)));
   await setSystemSetting("rolesDemoted253", JSON.stringify({ at: new Date().toISOString(), demoted: ids }));
   console.log(`[roles] teammates are members now — demoted ${ids.length} admin account(s): ${ids.join(", ") || "none"}`);
   return { done: true, demoted: ids };

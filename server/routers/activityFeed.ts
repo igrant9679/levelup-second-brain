@@ -9,6 +9,7 @@
 import { z } from 'zod';
 import * as db from '../db';
 import { protectedProcedure, ownerProcedure, router } from '../_core/trpc';
+import { assertSameWorkspace, scopeIds } from '../_core/workspace';
 
 
 export const activityFeedRouter = router({
@@ -45,8 +46,9 @@ export const activityFeedRouter = router({
         since: z.union([z.date(), z.string()]).transform(v => (typeof v === 'string' ? new Date(v) : v)).optional(),
       })
     )
-    .query(async ({ input }) => {
-      const members = await db.getTeamMembers();
+    .query(async ({ ctx, input }) => {
+      // The members of the owner's own workspace (-278).
+      const members = await db.getTeamMembers(await scopeIds(ctx.user as any));
       const userIds = members.map(m => m.id);
       if (userIds.length === 0) return { feed: [], members: [] };
       const feed = await db.getActivityFeed(userIds, input.limit, input.since);
@@ -64,7 +66,8 @@ export const activityFeedRouter = router({
         since: z.union([z.date(), z.string()]).transform(v => (typeof v === 'string' ? new Date(v) : v)).optional(),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      await assertSameWorkspace(ctx.user as any, input.userId);
       const feed = await db.getActivityFeed([input.userId], input.limit, input.since);
       return { feed };
     }),
@@ -79,7 +82,8 @@ export const activityFeedRouter = router({
         since: z.union([z.date(), z.string()]).transform(v => (typeof v === 'string' ? new Date(v) : v)).optional(),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      await assertSameWorkspace(ctx.user as any, input.userId);
       const summary = await db.getActivitySummary(input.userId, input.since);
       return { summary };
     }),
@@ -87,8 +91,8 @@ export const activityFeedRouter = router({
   /**
    * List all team members with last sign-in (admin only).
    */
-  getTeamMembers: ownerProcedure.query(async () => {
-    const members = await db.getTeamMembers();
+  getTeamMembers: ownerProcedure.query(async ({ ctx }) => {
+    const members = await db.getTeamMembers(await scopeIds(ctx.user as any));
     return { members };
   }),
 });

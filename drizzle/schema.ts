@@ -40,7 +40,26 @@ export const users = mysqlTable("users", {
    *  issued at (claim tv, missing = 0) and is refused once this moves on.
    *  Bumped by password reset / password set / auth.signOutEverywhere. */
   tokenVersion: int("tokenVersion").default(0).notNull(),
+  /**
+   * Multi-workspace (migration 0063). A users row is ONE MEMBER of ONE
+   * workspace: every table keyed by userId is therefore inside that workspace
+   * by construction. No default on purpose — an insert that doesn't say which
+   * workspace must fail, never land in somebody else's.
+   */
+  workspaceId: int("workspaceId").notNull(),
+  /**
+   * The login this member row belongs to. NULL = this row IS the login (it
+   * holds the email, password hash and tokenVersion). A person in several
+   * workspaces has one login row plus one extra member row per further
+   * workspace, each pointing here. See server/_core/workspace.ts.
+   */
+  accountId: int("accountId"),
+  /** 'operator' = the platform operator (on the login row only). Manages
+   *  workspaces; never grants access to a workspace's data. */
+  platformRole: varchar("platformRole", { length: 16 }),
 }, (t) => ({
+  idxWorkspace: index("idx_users_workspace").on(t.workspaceId),
+  idxAccount: index("idx_users_account").on(t.accountId),
   // Not UNIQUE on purpose (a duplicate already in prod would fail the
   // migration and stop the app); account creation is serialised instead
   // (GET_LOCK lu_user_create + case-insensitive check, server/_core/dbLock.ts).
@@ -49,6 +68,82 @@ export const users = mysqlTable("users", {
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
+
+/**
+ * Workspaces (migration 0063): one per customer (a company or an individual).
+ * Members are users rows with this workspaceId; ownerUserId is the owner's
+ * member row. Read through server/_core/workspace.ts (cached).
+ */
+export const workspaces = mysqlTable("workspaces", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 120 }).notNull(),
+  slug: varchar("slug", { length: 64 }).notNull().unique(),
+  /** active | suspended | deleted */
+  status: varchar("status", { length: 16 }).notNull().default("active"),
+  /** The owner's member row (users.id). NULL until an invited owner joins. */
+  ownerUserId: int("ownerUserId"),
+  /** JSON object of feature flags, e.g. {"atlas":true,"cfLabels":true}. */
+  features: text("features"),
+  /** JSON: where this workspace's files go ({mode:"platform"|"s3"|"gdrive", …}); credentials inside, so encrypted. */
+  storage: secretText("storage"),
+  /** JSON: display name / logo used in mail and the app. */
+  branding: text("branding"),
+  /** JSON: quota overrides set by the operator, e.g. {"ai":8000,"email":500}. */
+  quotas: text("quotas"),
+  createdBy: int("createdBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  /** Set when the owner or operator deletes the workspace (30-day grace). */
+  deletedAt: timestamp("deletedAt"),
+});
+export type Workspace = typeof workspaces.$inferSelect;
+export type InsertWorkspace = typeof workspaces.$inferInsert;
+
+/**
+ * Per-workspace settings (migration 0063): the AI keys and provider, the
+ * notification sender, the starter layout — everything that used to be one
+ * global system_settings row and is a customer's own choice. system_settings
+ * keeps only platform-level values (backups, boot flags, push keys).
+ */
+export const workspaceSettings = mysqlTable("workspace_settings", {
+  workspaceId: int("workspaceId").notNull(),
+  key: varchar("key", { length: 128 }).notNull(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  pk: primaryKey({ name: "workspace_settings_pk", columns: [t.workspaceId, t.key] }),
+}));
+
+/**
+ * Uploaded files (migration 0064): one row per upload — which workspace owns
+ * it, who uploaded it, and where the bytes are. The app hands out
+ * /api/files/x/<publicId>/<name>; server/_core/fileProxy.ts serves it only to
+ * members of `workspaceId`. `store` is "platform" (LevelUp's storage) or the id
+ * of one of the workspace's own stores (workspaces.storage). Because the URL
+ * names the row and not the provider, a file can be moved between stores
+ * without touching the notes that link to it. Written by workspaceFiles.ts.
+ */
+export const files = mysqlTable("files", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Random, unguessable id used in URLs (32 hex). */
+  publicId: varchar("publicId", { length: 32 }).notNull().unique(),
+  workspaceId: int("workspaceId").notNull(),
+  ownerUserId: int("ownerUserId"),
+  store: varchar("store", { length: 40 }).notNull().default("platform"),
+  /** drive | s3 | forge */
+  backend: varchar("backend", { length: 8 }).notNull(),
+  /** Drive file id, or the object key. */
+  ref: varchar("ref", { length: 1024 }).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  size: int("size"),
+  mime: varchar("mime", { length: 128 }),
+  /** 1 = may be opened without signing in through /api/files/p/<publicId> (imported originals shown by outside viewers). */
+  isPublic: tinyint("isPublic").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (t) => ({
+  idxWorkspace: index("idx_files_workspace").on(t.workspaceId),
+}));
+export type FileRow = typeof files.$inferSelect;
 
 // OAuth tokens table for storing Microsoft Graph and Google Workspace tokens
 export const oauthTokens = mysqlTable("oauth_tokens", {
@@ -298,6 +393,7 @@ export type InsertCredentialAuditLog = typeof credentialAuditLog.$inferInsert;
 export const emailDeliveryLog = mysqlTable('email_delivery_log', {
   id: int('id').autoincrement().primaryKey(),
   userId: int('userId'),                          // sender's userId (null = system)
+  workspaceId: int('workspaceId'),                // whose workspace the mail was for (null = platform / pre-0063)
   to: varchar('to', { length: 320 }).notNull(),
   subject: varchar('subject', { length: 512 }).notNull(),
   status: mysqlEnum('status', ['sent', 'failed', 'skipped']).notNull(),
@@ -532,6 +628,10 @@ export const teamInvites = mysqlTable('team_invites', {
   id: int('id').autoincrement().primaryKey(),
   /** The admin who created the invite */
   invitedBy: int('invitedBy').notNull(),
+  /** The workspace the invitee joins (migration 0063; no default — see users.workspaceId). */
+  workspaceId: int('workspaceId').notNull(),
+  /** 1 = the invitee becomes the workspace's OWNER (operator-created workspaces). */
+  asOwner: tinyint('asOwner').default(0).notNull(),
   /** Email address the invite was sent to */
   email: varchar('email', { length: 320 }).notNull(),
   /** Display name hint for the invitee */
@@ -1154,6 +1254,8 @@ export const sendLedger = mysqlTable("send_ledger", {
 export const auditLog = mysqlTable("audit_log", {
   id: int("id").autoincrement().primaryKey(),
   actorUserId: int("actorUserId"),
+  /** The actor's workspace (migration 0063); null = platform-level action or a pre-0063 row. */
+  workspaceId: int("workspaceId"),
   actorName: varchar("actorName", { length: 255 }),
   action: varchar("action", { length: 64 }).notNull(),
   targetUserId: int("targetUserId"),

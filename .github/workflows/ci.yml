@@ -72,6 +72,7 @@ jobs:
 
       - name: Guards
         run: |
+          pnpm check:tenancy
           pnpm check:handlers
           pnpm check:mobile-nav
           pnpm check:ai-prompt

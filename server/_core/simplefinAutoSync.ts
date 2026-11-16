@@ -192,10 +192,12 @@ export async function runSimplefinAutoSync(opts?: { userId?: number; force?: boo
   const db = await getDb();
   if (!db) return out;
   const { getAccess, sfGet } = await import("../routers/simplefin");
+  const _active = opts?.userId ? null : await (await import("./workspace")).activeMemberIds();
 
   const rows = opts?.userId
     ? await db.select({ userId: userAppData.userId, finance: userAppData.finance }).from(userAppData).where(eq(userAppData.userId, opts.userId))
-    : await db.select({ userId: userAppData.userId, finance: userAppData.finance }).from(userAppData);
+    // tenancy: background — every member's own budget; each is synced with ITS OWNER's bank link into ITS OWNER's row (suspended workspaces skipped)
+    : (await db.select({ userId: userAppData.userId, finance: userAppData.finance }).from(userAppData)).filter((r: any) => !_active || _active.has(Number(r.userId)));
   out.scanned = rows.length;
 
   const TEN_HOURS = 10 * 3600 * 1000;

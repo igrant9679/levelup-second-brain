@@ -517,6 +517,7 @@ async function reapTombstones(db: NonNullable<Awaited<ReturnType<typeof getDb>>>
   // Match overrides to removed-tasks by (userId, source, externalId).
   const cutoff = new Date(Date.now() - TOMBSTONE_GRACE_HOURS * 60 * 60 * 1000);
 
+  // tenancy: background — matched row by row on (userId, source, externalId); only a flag on the member's own override changes
   const stale = await db.select({
     overrideId: externalTaskOverrides.id,
   })
@@ -726,12 +727,16 @@ export async function processExternalTaskPull(opts?: { userId?: number }): Promi
     ? and(eq(smartsheetWatchedSheets.enabled, 1), eq(smartsheetWatchedSheets.userId, opts.userId))
     : eq(smartsheetWatchedSheets.enabled, 1);
   // Smartsheet is retired (build -223): its watches stay in the table, unused.
-  const sheets = SMARTSHEET_RETIRED ? [] : await db.select().from(smartsheetWatchedSheets).where(sheetWhere);
+  // Suspended / deleted workspaces are not pulled (-278).
+  const active = opts?.userId ? null : await (await import("./workspace")).activeMemberIds();
+  // tenancy: background — every member's own watch; each is pulled with ITS OWNER's token into ITS OWNER's rows
+  const sheets = SMARTSHEET_RETIRED ? [] : (await db.select().from(smartsheetWatchedSheets).where(sheetWhere)).filter((s: any) => !active || active.has(Number(s.userId)));
 
   const projectWhere = opts?.userId
     ? and(eq(niftyWatchedProjects.enabled, 1), eq(niftyWatchedProjects.userId, opts.userId))
     : eq(niftyWatchedProjects.enabled, 1);
-  const projects = await db.select().from(niftyWatchedProjects).where(projectWhere);
+  // tenancy: background — every member's own watch; each is pulled with ITS OWNER's token into ITS OWNER's rows
+  const projects = (await db.select().from(niftyWatchedProjects).where(projectWhere)).filter((p: any) => !active || active.has(Number(p.userId)));
 
   let projectsCreated = 0;
   for (const s of sheets) {
@@ -799,19 +804,21 @@ async function processAtlasPull(): Promise<{ usersUpdated: number; reason: strin
   }
   const payload = JSON.stringify(snap);
   // Only push to users who already opted in (have a non-null atlas blob).
+  // tenancy: background — ids only; the write below goes to the OWNER of a workspace that has the atlas feature, everyone else's copy is cleared
   const users = await db.select({ userId: userAppData.userId })
     .from(userAppData)
     .where(sql`${userAppData.atlas} IS NOT NULL`);
   if (!users.length) return { usersUpdated: 0, reason: 'no opted-in users' };
   let ok = 0;
-  const { isOwnerCtxUser } = await import('../routers/appData');
+  const { _atlasAllowed } = await import('../routers/appData');
   const { getUserById } = await import('../db');
   for (const u of users) {
     try {
       // Only the workspace owner keeps a copy (-253): it carries HR and finance
       // data. A member's row that still holds one from before is cleared.
       const usr = await getUserById(u.userId);
-      if (!usr || !(await isOwnerCtxUser(usr as any))) {
+      // …and only in a workspace that HAS Atlas (-278): this feed is one company's.
+      if (!usr || !(await _atlasAllowed(usr as any))) {
         await db.update(userAppData).set({ atlas: null }).where(eq(userAppData.userId, u.userId));
         continue;
       }

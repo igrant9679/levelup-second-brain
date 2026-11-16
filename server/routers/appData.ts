@@ -28,6 +28,15 @@ function effShareMode(p: any, dflt: 'view' | 'edit'): 'view' | 'edit' {
 }
 
 export async function isOwnerCtxUser(user: { id: number; openId?: string | null }): Promise<boolean> {
+  // Multi-workspace (-278): the owner is whoever the member's WORKSPACE names
+  // (workspaces.ownerUserId). The rule below — the OWNER_OPEN_ID account, else
+  // the first account — only still decides for user objects that predate the
+  // workspace model (older unit tests); see _core/workspace.ts.
+  try {
+    const { workspaceOwnerVerdict } = await import("../_core/workspace");
+    const v = await workspaceOwnerVerdict(user as any);
+    if (v !== null) return v;
+  } catch { return false; }
   try {
     const { ENV } = await import("../_core/env");
     if (ENV.ownerOpenId && user.openId === ENV.ownerOpenId) return true;
@@ -38,6 +47,7 @@ export async function isOwnerCtxUser(user: { id: number; openId?: string | null 
     try {
       const db = await getDb();
       if (db) {
+        // tenancy: legacy rule — reached only for user objects that predate workspaces (vitest)
         const first = await db.select({ id: users.id }).from(users).orderBy(asc(users.id)).limit(1);
         id = first.length ? first[0].id : null;
       }
@@ -45,6 +55,30 @@ export async function isOwnerCtxUser(user: { id: number; openId?: string | null 
     _minUserIdCache = { id, at: now };
   }
   return _minUserIdCache.id != null && user.id === _minUserIdCache.id;
+}
+
+/**
+ * The people the caller may see or name: the members of their workspace. In
+ * the tests' no-workspace mode it is every account, through the same helper
+ * as before workspaces existed.
+ */
+async function _people(user: any): Promise<Array<{ id: number; name: string | null; email: string | null; role: string }>> {
+  const dbm: any = await import("../db");
+  const { wsIdOf } = await import("../_core/workspace");
+  const w = await wsIdOf(user);
+  return w === null ? dbm.adminListAllUsers() : dbm.listWorkspaceUsers(user);
+}
+/** The member ids of the caller's workspace (null = tests that predate workspaces). */
+async function _scope(user: any): Promise<number[] | null> {
+  return (await import("../_core/workspace")).scopeIds(user);
+}
+/**
+ * Atlas (CommunityForce HR + finance) belongs to the OWNER of a workspace that
+ * has the `atlas` feature (-253, -278) — today only the original workspace.
+ */
+export async function _atlasAllowed(user: any): Promise<boolean> {
+  if (!(await isOwnerCtxUser(user))) return false;
+  return (await import("../_core/workspace")).hasFeature(user, "atlas");
 }
 
 // system_settings row holding the owner-published starter layout for new
@@ -76,16 +110,24 @@ function _col(v: unknown, max: number): string | null {
 // (the `assigneeId` stamp in _taskRow, legacy reassignments by the owner).
 // No read or permission check may consult it: names and emails are
 // unverified and editable, so a match proves nothing about who someone is.
-let _uidMapCache: { map: Map<string, number>; at: number } | null = null;
-/** Drop the cached map (a name or email just changed). */
-export function _invalidateUserIdMap(): void { _uidMapCache = null; }
-export async function _resolveUserIdMap(): Promise<Map<string, number>> {
+// Multi-workspace (-278): ONE MAP PER WORKSPACE. A name or email only ever
+// resolves to a member of the saver's own workspace — the same name in
+// another company is somebody else and must never be stamped as an assignee.
+const _uidMapCache = new Map<string, { map: Map<string, number>; at: number }>();
+/** Drop the cached maps (a name or email just changed). */
+export function _invalidateUserIdMap(): void { _uidMapCache.clear(); }
+export async function _resolveUserIdMap(user?: { id: number; workspaceId?: number | null } | null): Promise<Map<string, number>> {
   const now = Date.now();
-  if (_uidMapCache && now - _uidMapCache.at < 60000) return _uidMapCache.map;
+  const { wsIdOf } = await import("../_core/workspace");
+  // no user: only the tests that predate workspaces call it that way
+  const w = user ? await wsIdOf(user as any) : (process.env.VITEST ? null : 0);
+  const cacheKey = String(w);
+  const hit = _uidMapCache.get(cacheKey);
+  if (hit && now - hit.at < 60000) return hit.map;
   const map = new Map<string, number>();
   try {
-    const { adminListAllUsers } = await import("../db");
-    const users = await adminListAllUsers();
+    const dbm: any = await import("../db");
+    const users: any[] = w === null ? await dbm.adminListAllUsers() : (w ? await dbm.listWorkspaceUsers({ id: user!.id, workspaceId: w }) : []);
     // Display names are NOT unique. Two accounts named "Idris Grant" (the
     // owner and the demo account) once made this last-writer-wins map stamp
     // the owner's tasks with the demo account as assignee, so 71 personal
@@ -102,8 +144,21 @@ export async function _resolveUserIdMap(): Promise<Map<string, number>> {
     }
     owners.forEach((ids, k) => { if (ids.size === 1) map.set(k, ids.values().next().value as number); });
   } catch { /* leave empty — ids stay null, no harm */ }
-  _uidMapCache = { map, at: now };
+  _uidMapCache.set(cacheKey, { map, at: now });
   return map;
+}
+
+/**
+ * "Everybody else in my workspace" as a WHERE condition on a per-user table
+ * (multi-workspace, -278). The shared-with-me readers and the owner's team
+ * tools used to say "userId != me", which is every account on the platform.
+ */
+export async function _othersCond(table: any, user: { id: number; workspaceId?: number | null }): Promise<any> {
+  const { scopeIds } = await import("../_core/workspace");
+  const scope = await scopeIds(user as any);
+  if (scope === null) return ne(table.userId, user.id); // tests that predate workspaces
+  const others = scope.filter((id) => id !== user.id);
+  return others.length ? inArray(table.userId, others) : sql`1 = 0`;
 }
 
 /**
@@ -273,7 +328,7 @@ function _ideaRow(i: any, userId: number) {
 }
 async function _rowBuilder(kind: EntityKind, userId: number): Promise<(x: any) => any> {
   if (kind === 'tasks') {
-    const idMap = await _resolveUserIdMap();
+    const idMap = await _resolveUserIdMap({ id: userId });
     const resolveId = (s: any): number | null => (s ? idMap.get(String(s).trim().toLowerCase()) ?? null : null);
     return (t) => _taskRow(t, userId, resolveId);
   }
@@ -615,10 +670,19 @@ export async function _lockedBlob<R extends { write?: string; result: unknown }>
 const _blobCache = new Map<string, { at: number; len: number; value: any }>();
 const BLOB_CACHE_MAX = 2000, BLOB_CACHE_ENTRY_MAX = 8_000_000;
 export function _clearBlobCache(): void { _blobCache.clear(); }
-export async function _allParsedBlobs(db: any, col: string, fallback: any): Promise<Array<{ userId: number; value: any }>> {
+/**
+ * `scope` (multi-workspace, -278) = the member ids to read: the caller's
+ * workspace (scopeIds(ctx.user)). An empty list reads nothing. `null` = no
+ * workspace model (the tests that predate workspaces): every row, as before.
+ */
+export async function _allParsedBlobs(db: any, col: string, fallback: any, scope?: number[] | null): Promise<Array<{ userId: number; value: any }>> {
   const C = (userAppData as any)[col];
   const stamp = (v: any) => { const t = v instanceof Date ? v.getTime() : v ? new Date(v).getTime() : NaN; return Number.isFinite(t) ? t : NaN; };
-  const meta: any[] = await db.select({ userId: userAppData.userId, updatedAt: userAppData.updatedAt, len: sql<number>`LENGTH(${C})` }).from(userAppData);
+  if (scope === undefined) scope = process.env.VITEST ? null : [];
+  if (scope && !scope.length) return [];
+  const metaCols = { userId: userAppData.userId, updatedAt: userAppData.updatedAt, len: sql<number>`LENGTH(${C})` };
+  // tenancy: scoped by the member ids passed in (unscoped only under vitest)
+  const meta: any[] = scope ? await db.select(metaCols).from(userAppData).where(inArray(userAppData.userId, scope)) : await db.select(metaCols).from(userAppData);
   const out: Array<{ userId: number; value: any }> = [];
   const miss = new Set<number>();
   for (const m of meta) {
@@ -629,7 +693,9 @@ export async function _allParsedBlobs(db: any, col: string, fallback: any): Prom
   }
   if (miss.size) {
     const cols = { userId: userAppData.userId, updatedAt: userAppData.updatedAt, v: C };
-    const rows: any[] = miss.size === meta.length
+    // (every id in `miss` came from the scoped query above)
+    // tenancy: the unfiltered branch is the no-workspace mode only (scope === null, vitest)
+    const rows: any[] = !scope && miss.size === meta.length
       ? await db.select(cols).from(userAppData)
       : await db.select(cols).from(userAppData).where(inArray(userAppData.userId, Array.from(miss)));
     const now = Date.now();
@@ -794,7 +860,7 @@ export const appDataRouter = router({
     }
     // Atlas is the owner's only (-253); a member's row still holding a copy
     // from before is cleared here.
-    if (!(await isOwnerCtxUser(ctx.user as any))) {
+    if (!(await _atlasAllowed(ctx.user))) {
       if (row.atlas != null) { try { await db.update(userAppData).set({ atlas: null }).where(eq(userAppData.userId, ctx.user.id)); } catch {} }
       result.atlas = null;
     }
@@ -861,7 +927,7 @@ export const appDataRouter = router({
       }
       // Atlas (CommunityForce HR + finance) is the owner's only (-253): a
       // member's stale browser copy must never be written back.
-      if (updates.atlas !== undefined && !(await isOwnerCtxUser(ctx.user as any))) delete updates.atlas;
+      if (updates.atlas !== undefined && !(await _atlasAllowed(ctx.user))) delete updates.atlas;
       // Money: every write bumps the budget's revision so people it is shared
       // with can't overwrite it from a stale copy (see updateSharedFinance).
       // -266: the owner's own save is checked the same way when the client
@@ -998,15 +1064,27 @@ export const appDataRouter = router({
    * admins) because it contains every member's raw data.
    */
   exportUserAppDataBackup: adminProcedure.query(async ({ ctx }) => {
-    const owner = await isOwnerCtxUser(ctx.user as any);
-    if (!owner) return { ok: false as const, error: 'Workspace owner only.' };
+    // "Download a copy" (-278): the platform operator's OWN workspace — the
+    // same content as workspace.export, in this endpoint's older shape. It
+    // used to return every table of the database, which is every customer's
+    // data in plain form; the operator manages workspaces but does not read
+    // them. (The encrypted nightly backup of everything is unchanged: it is
+    // disaster recovery, never a download.)
+    const ws = await import('../_core/workspace');
+    const owner = await ws.isOperator(ctx.user as any);
+    if (!owner) return { ok: false as const, error: 'Platform operator only.' };
     const db = await getDb();
     if (!db) return { ok: false as const, error: 'db unavailable' };
-    // Every table (tasks, notes and ideas have lived in their own tables since
-    // 0052 — the old export of user_app_data alone left them out). Secret
-    // columns are redacted; see server/_core/backup.ts.
-    const { dumpAllTables } = await import('../_core/backup');
-    const dump = await dumpAllTables(db);
+    const myWs = await ws.wsIdOf(ctx.user as any);
+    let dump: { createdAt: string; tables: Record<string, { count: number; rows: any[] }> };
+    if (myWs === null) {
+      // no workspace model (tests that predate workspaces): every table, as before
+      const { dumpAllTables } = await import('../_core/backup');
+      dump = await dumpAllTables(db);
+    } else {
+      const { dumpWorkspace } = await import('../_core/workspaceAdmin');
+      dump = await dumpWorkspace(myWs);
+    }
     const rowCount = Object.values(dump.tables).reduce((n, t) => n + t.count, 0);
     return {
       ok: true as const,
@@ -1020,14 +1098,14 @@ export const appDataRouter = router({
 
   /** Last automatic backup (owner only). */
   backupStatus: adminProcedure.query(async ({ ctx }) => {
-    if (!(await isOwnerCtxUser(ctx.user as any))) return { ok: false as const, error: 'Workspace owner only.' };
+    if (!(await (await import('../_core/workspace')).isOperator(ctx.user as any))) return { ok: false as const, error: 'Platform operator only.' };
     const { backupStatus } = await import('../_core/backup');
     return { ok: true as const, last: await backupStatus() };
   }),
 
   /** Run an encrypted, verified backup to private storage now (owner only). */
   runBackupNow: adminProcedure.mutation(async ({ ctx }) => {
-    if (!(await isOwnerCtxUser(ctx.user as any))) return { ok: false as const, error: 'Workspace owner only.' };
+    if (!(await (await import('../_core/workspace')).isOperator(ctx.user as any))) return { ok: false as const, error: 'Platform operator only.' };
     const { runBackup } = await import('../_core/backup');
     const r = await runBackup('manual');
     return { ok: r.ok, last: r, error: r.error };
@@ -1070,8 +1148,8 @@ export const appDataRouter = router({
       const isMineAssigned = (r: any): boolean => _taskAssignedTo(r, ctx.user.id);
       // Tasks owned by OTHERS: assigned to me (any assignee), or all if OWNER.
       const sharedRows = owner
-        ? await db.select().from(tasksTable).where(ne(tasksTable.userId, ctx.user.id))
-        : (await db.select().from(tasksTable).where(ne(tasksTable.userId, ctx.user.id))).filter(isMineAssigned);
+        ? await db.select().from(tasksTable).where(await _othersCond(tasksTable, ctx.user))
+        : (await db.select().from(tasksTable).where(await _othersCond(tasksTable, ctx.user))).filter(isMineAssigned);
       // MY OWN tasks delegated to someone else (assignee set and != me; SQL
       // `!=` already excludes the null/unassigned rows).
       const delegatedRows = await db.select().from(tasksTable).where(and(eq(tasksTable.userId, ctx.user.id), ne(tasksTable.assigneeId, ctx.user.id)));
@@ -1114,15 +1192,14 @@ export const appDataRouter = router({
     const db = await getDb();
     if (!db) return { ok: false as const, projects: [] as any[] };
     try {
-      const { adminListAllUsers } = await import("../db");
-      const users = await adminListAllUsers();
+      const users = await _people(ctx.user);
       const me = users.find(u => u.id === ctx.user.id);
       const myKeys = new Set(_myAssigneeKeys(users, me));
       const { canOverride } = await import("../_core/access");
       const admin = await isOwnerCtxUser(ctx.user as any); // -253: override UI is the owner's; canOverride() decides each write
       const owner = await isOwnerCtxUser(ctx.user as any);
       // Audit F71: rows unchanged since the last call are not re-read or re-parsed.
-      const rows = await _allParsedBlobs(db, 'projects', []);
+      const rows = await _allParsedBlobs(db, 'projects', [], await _scope(ctx.user));
       const out: any[] = [];
       const meId = ctx.user.id;
       const assignedToMe = (p: any) => _idAssigned(p, meId); // F12: numeric ids only
@@ -1167,15 +1244,14 @@ export const appDataRouter = router({
     const db = await getDb();
     if (!db) return { ok: false as const, programs: [] as any[] };
     try {
-      const { adminListAllUsers } = await import("../db");
-      const users = await adminListAllUsers();
+      const users = await _people(ctx.user);
       const me = users.find(u => u.id === ctx.user.id);
       const myKeys = new Set(_myAssigneeKeys(users, me));
       const { canOverride } = await import("../_core/access");
       const admin = await isOwnerCtxUser(ctx.user as any); // -253: override UI is the owner's; canOverride() decides each write
       const owner = await isOwnerCtxUser(ctx.user as any);
       // Audit F71: rows unchanged since the last call are not re-read or re-parsed.
-      const rows = await _allParsedBlobs(db, 'programs', []);
+      const rows = await _allParsedBlobs(db, 'programs', [], await _scope(ctx.user));
       const out: any[] = [];
       const meId = ctx.user.id;
       const assignedToMe = (p: any) => _idAssigned(p, meId); // F12: numeric ids only
@@ -1270,15 +1346,14 @@ export const appDataRouter = router({
     const db = await getDb();
     if (!db) return { ok: false as const, mindmaps: [] as any[] };
     try {
-      const { adminListAllUsers } = await import("../db");
-      const users = await adminListAllUsers();
+      const users = await _people(ctx.user);
       const me = users.find(u => u.id === ctx.user.id);
       const myKeys = new Set(_myAssigneeKeys(users, me));
       const { canOverride } = await import("../_core/access");
       const admin = await isOwnerCtxUser(ctx.user as any); // -253: override UI is the owner's; canOverride() decides each write
       const owner = await isOwnerCtxUser(ctx.user as any);
       // Audit F71: rows unchanged since the last call are not re-read or re-parsed.
-      const rows = await _allParsedBlobs(db, 'mindmaps', []);
+      const rows = await _allParsedBlobs(db, 'mindmaps', [], await _scope(ctx.user));
       const out: any[] = [];
       const meId = ctx.user.id;
       const assignedToMe = (p: any) => _idAssigned(p, meId); // F12: numeric ids only
@@ -1372,15 +1447,14 @@ export const appDataRouter = router({
     const db = await getDb();
     if (!db) return { ok: false as const, sheets: [] as any[] };
     try {
-      const { adminListAllUsers } = await import("../db");
-      const users = await adminListAllUsers();
+      const users = await _people(ctx.user);
       const me = users.find(u => u.id === ctx.user.id);
       const myKeys = new Set(_myAssigneeKeys(users, me));
       const { canOverride } = await import("../_core/access");
       const admin = await isOwnerCtxUser(ctx.user as any); // -253: override UI is the owner's; canOverride() decides each write
       const owner = await isOwnerCtxUser(ctx.user as any);
       // Audit F71: rows unchanged since the last call are not re-read or re-parsed.
-      const rows = await _allParsedBlobs(db, 'sheets', []);
+      const rows = await _allParsedBlobs(db, 'sheets', [], await _scope(ctx.user));
       const out: any[] = [];
       const meId = ctx.user.id;
       const assignedToMe = (p: any) => _idAssigned(p, meId); // F12: numeric ids only
@@ -1501,15 +1575,14 @@ export const appDataRouter = router({
     const db = await getDb();
     if (!db) return { ok: false as const, decks: [] as any[] };
     try {
-      const { adminListAllUsers } = await import("../db");
-      const users = await adminListAllUsers();
+      const users = await _people(ctx.user);
       const me = users.find(u => u.id === ctx.user.id);
       const myKeys = new Set(_myAssigneeKeys(users, me));
       const { canOverride } = await import("../_core/access");
       const admin = await isOwnerCtxUser(ctx.user as any); // -253: override UI is the owner's; canOverride() decides each write
       const owner = await isOwnerCtxUser(ctx.user as any);
       // Audit F71: rows unchanged since the last call are not re-read or re-parsed.
-      const rows = await _allParsedBlobs(db, 'decks', []);
+      const rows = await _allParsedBlobs(db, 'decks', [], await _scope(ctx.user));
       const out: any[] = [];
       const meId = ctx.user.id;
       const assignedToMe = (p: any) => _idAssigned(p, meId); // F12: numeric ids only
@@ -1627,10 +1700,9 @@ export const appDataRouter = router({
     const db = await getDb();
     if (!db) return { ok: false as const, budgets: [] as any[] };
     try {
-      const { adminListAllUsers } = await import("../db");
-      const users = await adminListAllUsers();
+      const users = await _people(ctx.user);
       // Audit F71: rows unchanged since the last call are not re-read or re-parsed.
-      const rows = await _allParsedBlobs(db, 'finance', null);
+      const rows = await _allParsedBlobs(db, 'finance', null, await _scope(ctx.user));
       const meId = ctx.user.id;
       const out: any[] = [];
       for (const r of rows) {
@@ -1713,15 +1785,14 @@ export const appDataRouter = router({
     const db = await getDb();
     if (!db) return { ok: false as const, reports: [] as any[] };
     try {
-      const { adminListAllUsers } = await import("../db");
-      const users = await adminListAllUsers();
+      const users = await _people(ctx.user);
       const me = users.find(u => u.id === ctx.user.id);
       const myKeys = new Set(_myAssigneeKeys(users, me));
       const { canOverride } = await import("../_core/access");
       const admin = await isOwnerCtxUser(ctx.user as any); // -253: override UI is the owner's; canOverride() decides each write
       const owner = await isOwnerCtxUser(ctx.user as any);
       // Audit F71: rows unchanged since the last call are not re-read or re-parsed.
-      const rows = await _allParsedBlobs(db, 'prefs', {});
+      const rows = await _allParsedBlobs(db, 'prefs', {}, await _scope(ctx.user));
       const out: any[] = [];
       const meId = ctx.user.id;
       const assignedToMe = (p: any) => _idAssigned(p, meId); // F12: numeric ids only
@@ -1891,8 +1962,8 @@ export const appDataRouter = router({
       };
       const owner = await isOwnerCtxUser(ctx.user as any);
       const sharedRows = owner
-        ? await db.select().from(notesTable).where(ne(notesTable.userId, ctx.user.id))
-        : (await db.select().from(notesTable).where(ne(notesTable.userId, ctx.user.id))).filter(isMineAssigned);
+        ? await db.select().from(notesTable).where(await _othersCond(notesTable, ctx.user))
+        : (await db.select().from(notesTable).where(await _othersCond(notesTable, ctx.user))).filter(isMineAssigned);
       const delegatedRows = await db.select().from(notesTable).where(and(eq(notesTable.userId, ctx.user.id), ne(notesTable.assigneeId, ctx.user.id)));
       const mapRow = (r: any, delegated: boolean) => {
         let t: any = null;
@@ -1978,7 +2049,7 @@ export const appDataRouter = router({
             // unique-name/email map (an ambiguous name resolves to nobody). An
             // assignee sending a bare string changes only the label.
             const key = p.assignedTo.trim().toLowerCase();
-            primaryId = key ? ((await _resolveUserIdMap()).get(key) ?? null) : null;
+            primaryId = key ? ((await _resolveUserIdMap(ctx.user as any)).get(key) ?? null) : null;
           }
           const applyTo = (t: any) => {
             if (p.title != null) t.title = p.title;
@@ -2118,7 +2189,7 @@ export const appDataRouter = router({
           let newAssigneeId: number | null | undefined = undefined;
           if (p.assignedTo != null && (isItemOwner || override)) {
             const key = p.assignedTo.trim().toLowerCase();
-            newAssigneeId = key ? ((await _resolveUserIdMap()).get(key) ?? null) : null;
+            newAssigneeId = key ? ((await _resolveUserIdMap(ctx.user as any)).get(key) ?? null) : null;
           }
           // Multi-assignee: derive the Primary Responsible's id + display name so
           // the legacy single-assignee columns (assigneeId / assignedTo) keep
@@ -2360,13 +2431,12 @@ export const appDataRouter = router({
       try {
         // Scope = everything in the admin shared view:
         //   tasks owned by someone else  +  my own tasks delegated out.
-        const others = await db.select().from(tasksTable).where(ne(tasksTable.userId, ctx.user.id));
+        const others = await db.select().from(tasksTable).where(await _othersCond(tasksTable, ctx.user));
         const mineDelegated = await db.select().from(tasksTable).where(and(eq(tasksTable.userId, ctx.user.id), ne(tasksTable.assigneeId, ctx.user.id)));
         const rows = others.concat(mineDelegated);
         const total = rows.length;
 
-        const { adminListAllUsers } = await import("../db");
-        const users = await adminListAllUsers();
+        const users = await _people(ctx.user);
         const nameById = new Map(users.map(u => [u.id, u.name || u.email || ('user ' + u.id)]));
         const byOwnerMap = new Map<number, number>();
         for (const r of rows) byOwnerMap.set(r.userId, (byOwnerMap.get(r.userId) || 0) + 1);
@@ -2410,20 +2480,22 @@ export const appDataRouter = router({
       try {
         const norm = (s: any) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
         // Live (non-removed) Nifty synced task titles — the records we KEEP.
-        const niftyRows = await db.select({ title: externalTasks.title })
+        const wsScope = await _scope(ctx.user);
+        const niftyRows = wsScope && !wsScope.length ? [] : await db.select({ title: externalTasks.title })
           .from(externalTasks)
-          .where(and(eq(externalTasks.source, 'nifty'), isNull(externalTasks.removedAt)));
+          .where(wsScope
+            ? and(eq(externalTasks.source, 'nifty'), isNull(externalTasks.removedAt), inArray(externalTasks.userId, wsScope))
+            : and(eq(externalTasks.source, 'nifty'), isNull(externalTasks.removedAt)));
         const niftyTitles = new Set(niftyRows.map((r: any) => norm(r.title)).filter(Boolean));
         if (!niftyTitles.size) return { ok: false as const, error: 'No live Nifty tasks found to match against — aborting so nothing is deleted by mistake.' };
         // The "shared pool" the admin sees: every native task owned by someone
         // else, plus the admin's own delegated tasks.
-        const others = await db.select().from(tasksTable).where(ne(tasksTable.userId, ctx.user.id));
+        const others = await db.select().from(tasksTable).where(await _othersCond(tasksTable, ctx.user));
         const mineDelegated = await db.select().from(tasksTable).where(and(eq(tasksTable.userId, ctx.user.id), ne(tasksTable.assigneeId, ctx.user.id)));
         const pool = others.concat(mineDelegated);
         const dupes = pool.filter((r: any) => niftyTitles.has(norm(r.title)));
         const matched = dupes.length;
-        const { adminListAllUsers } = await import("../db");
-        const usersAll = await adminListAllUsers();
+        const usersAll = await _people(ctx.user);
         const nameById = new Map(usersAll.map((u: any) => [u.id, u.name || u.email || ('user ' + u.id)]));
         const byOwnerMap = new Map<number, number>();
         for (const r of dupes) byOwnerMap.set(r.userId, (byOwnerMap.get(r.userId) || 0) + 1);
@@ -2455,19 +2527,22 @@ export const appDataRouter = router({
     const db = await getDb();
     if (!db) return { ok: false as const, error: 'db unavailable' };
     try {
-      const { adminListAllUsers } = await import("../db");
-      const usersList = await adminListAllUsers();
+      const usersList = await _people(ctx.user);
       // Same rule as _resolveUserIdMap (it IS that map): a name or email
       // claimed by two accounts resolves to nothing, or this backfill
       // re-creates the exact leak it is used to repair.
       _invalidateUserIdMap();
-      const idMap = await _resolveUserIdMap();
+      const idMap = await _resolveUserIdMap(ctx.user as any);
+      // This workspace's rows only (-278).
+      const wsScope = await _scope(ctx.user);
+      if (wsScope && !wsScope.length) return { ok: true as const, users: 0, tasksUpdated: 0, notesUpdated: 0 };
       const resolve = (s: string | null | undefined): number | null => {
         if (!s) return null;
         return idMap.get(String(s).trim().toLowerCase()) ?? null;
       };
 
-      const taskRows = await db.select().from(tasksTable);
+      // tenancy: scoped by wsScope (unscoped only under vitest)
+      const taskRows = wsScope ? await db.select().from(tasksTable).where(inArray(tasksTable.userId, wsScope)) : await db.select().from(tasksTable);
       let tasksUpdated = 0;
       for (const r of taskRows) {
         const createdById = resolve(r.createdBy) ?? r.userId;
@@ -2480,7 +2555,8 @@ export const appDataRouter = router({
         tasksUpdated++;
       }
 
-      const noteRows = await db.select({ id: notesTable.id, userId: notesTable.userId }).from(notesTable);
+      // tenancy: scoped by wsScope (unscoped only under vitest)
+      const noteRows = wsScope ? await db.select({ id: notesTable.id, userId: notesTable.userId }).from(notesTable).where(inArray(notesTable.userId, wsScope)) : await db.select({ id: notesTable.id, userId: notesTable.userId }).from(notesTable);
       let notesUpdated = 0;
       for (const r of noteRows) {
         await db.update(notesTable).set({ createdById: r.userId, assigneeId: null }).where(eq(notesTable.id, r.id));
@@ -2520,20 +2596,33 @@ export const appDataRouter = router({
           layout: input.layout ?? null,
           publishedAt: new Date().toISOString(),
         });
-        await db
-          .insert(systemSettings)
-          .values({ key: TEAM_PRESET_KEY, value })
-          .onDuplicateKeyUpdate({ set: { value } });
+        const { wsIdOf, setWorkspaceSetting } = await import('../_core/workspace');
+        const w = await wsIdOf(ctx.user as any);
+        if (w === null) {
+          // no workspace model (tests that predate workspaces): the old global row
+          await db
+            .insert(systemSettings)
+            .values({ key: TEAM_PRESET_KEY, value })
+            .onDuplicateKeyUpdate({ set: { value } });
+        } else {
+          await setWorkspaceSetting(w, TEAM_PRESET_KEY, value);
+        }
         return { ok: true as const };
       } catch (e: any) {
         return { ok: false as const, error: String(e?.message || e) };
       }
     }),
 
-  getTeamStarterPreset: protectedProcedure.query(async () => {
+  getTeamStarterPreset: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) return null;
     try {
+      const { wsIdOf, getWorkspaceSetting } = await import('../_core/workspace');
+      const w = await wsIdOf(ctx.user as any);
+      if (w !== null) {
+        const v = await getWorkspaceSetting(w, TEAM_PRESET_KEY);
+        return v ? JSON.parse(v) : null;
+      }
       const rows = await db
         .select({ value: systemSettings.value })
         .from(systemSettings)

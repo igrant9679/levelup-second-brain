@@ -48,6 +48,10 @@ export function canSeeItem(item: OwnedItem, user: AccessUser): boolean {
  */
 export async function canOverride(actor: AccessUser & { openId?: string | null } | null | undefined, targetUserId: number): Promise<boolean> {
   if (!actor) return false;
+  // Multi-workspace (-278): owner and admin are roles INSIDE one workspace.
+  // Nobody overrides anything on a person who is not in their workspace.
+  const { sameWorkspace } = await import("./workspace");
+  if (!(await sameWorkspace(actor as any, targetUserId))) return false;
   const { isOwnerCtxUser } = await import("../routers/appData");
   if (await isOwnerCtxUser(actor as any)) return true;
   if (!isAdminUser(actor)) return false;

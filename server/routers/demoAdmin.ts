@@ -52,7 +52,11 @@ export const demoAdminRouter = router({
       if (!(await isOwnerCtxUser(ctx.user))) throw new TRPCError({ code: "FORBIDDEN", message: "Only the workspace owner can do this." });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const [target] = await db.select().from(users).where(eq(users.email, input.email.toLowerCase().trim())).limit(1);
+      // A member of the owner's OWN workspace only (-278).
+      const { listWorkspaceUsers } = await import("../db");
+      const wanted = input.email.toLowerCase().trim();
+      const hit = (await listWorkspaceUsers(ctx.user as any)).find((u) => String(u.email || "").trim().toLowerCase() === wanted);
+      const [target] = hit ? await db.select().from(users).where(eq(users.id, hit.id)).limit(1) : [];
       if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "No account with that email." });
       if (target.id === ctx.user.id) throw new TRPCError({ code: "BAD_REQUEST", message: "That is your own account." });
       if (target.role === "admin") throw new TRPCError({ code: "BAD_REQUEST", message: "Refusing: that account is an admin, not a demo account." });

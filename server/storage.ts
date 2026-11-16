@@ -33,7 +33,7 @@ import {
   GetObjectCommand,
 } from "@aws-sdk/client-s3";
 import { ENV } from "./_core/env";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "./db";
 import { externalSourceCredentials } from "../drizzle/schema";
 
@@ -88,13 +88,19 @@ async function resolveDriveRefreshToken(): Promise<string> {
   else try {
     const db = await getDb();
     if (db) {
-      const [row] = await db
-        .select({ refreshToken: externalSourceCredentials.refreshToken })
-        .from(externalSourceCredentials)
-        .where(eq(externalSourceCredentials.source, DRIVE_STORAGE_SOURCE))
-        .orderBy(desc(externalSourceCredentials.updatedAt))
-        .limit(1);
-      if (row && row.refreshToken) token = String(row.refreshToken).trim();
+      // The platform's file store is the platform OPERATOR's connection only
+      // (-278): a "drive-storage" row saved under anybody else is ignored.
+      const { operatorMemberIds } = await import("./_core/workspace");
+      const ops = await operatorMemberIds();
+      if (ops.length) {
+        const [row] = await db
+          .select({ refreshToken: externalSourceCredentials.refreshToken })
+          .from(externalSourceCredentials)
+          .where(and(eq(externalSourceCredentials.source, DRIVE_STORAGE_SOURCE), inArray(externalSourceCredentials.userId, ops)))
+          .orderBy(desc(externalSourceCredentials.updatedAt))
+          .limit(1);
+        if (row && row.refreshToken) token = String(row.refreshToken).trim();
+      }
     }
   } catch (e) {
     console.warn("[storage:drive] refresh-token lookup failed — using env token:", e);
@@ -106,7 +112,7 @@ async function resolveDriveRefreshToken(): Promise<string> {
 
 // Cache the minted access token until ~5 min before expiry.
 let _driveTokenCache: { token: string; expiresAt: number } | null = null;
-async function getDriveAccessToken(): Promise<string> {
+export async function getDriveAccessToken(): Promise<string> {
   if (_driveTokenCache && _driveTokenCache.expiresAt > Date.now() + 5 * 60 * 1000) {
     return _driveTokenCache.token;
   }
@@ -139,9 +145,9 @@ async function getDriveAccessToken(): Promise<string> {
 }
 
 // Drive rejects multipart bodies above ~5 MB; stay comfortably under it.
-const DRIVE_MULTIPART_LIMIT = 4 * 1024 * 1024;
+export const DRIVE_MULTIPART_LIMIT = 4 * 1024 * 1024;
 
-async function driveMultipartUpload(
+export async function driveMultipartUpload(
   token: string,
   metadata: Record<string, unknown>,
   body: Buffer,
@@ -183,7 +189,7 @@ async function driveMultipartUpload(
 // Resumable upload: open a session with the metadata, then PUT the bytes
 // in one request (Drive accepts the whole body at once; chunking is only
 // needed to survive flaky links, and Railway → Google is not one).
-async function driveResumableUpload(
+export async function driveResumableUpload(
   token: string,
   metadata: Record<string, unknown>,
   body: Buffer,
@@ -230,12 +236,16 @@ function proxyUrl(kind: "d" | "s" | "f", id: string, name?: string): string {
   return kind === "d" ? `/api/files/d/${encodeURIComponent(id)}/${encodeURIComponent(name || "file")}` : `/api/files/${kind}/${enc(id)}`;
 }
 
+/** What a put returns: the app/provider URL plus where the bytes went (for the files record). */
+export type PutResult = { key: string; url: string; backend: "drive" | "s3" | "forge"; ref: string };
+
 async function storagePutDrive(
   relKey: string,
   data: Buffer | Uint8Array | string,
   contentType: string,
   isPublic = false,
-): Promise<{ key: string; url: string }> {
+  folderId?: string,
+): Promise<PutResult> {
   const key = appendHashSuffix(normalizeKey(relKey));
   const filename = key.split("/").pop() ?? key;
   const body =
@@ -247,7 +257,7 @@ async function storagePutDrive(
   const token = await getDriveAccessToken();
   const metadata = {
     name: filename,
-    parents: [ENV.googleDriveFolderId],
+    parents: [folderId || ENV.googleDriveFolderId],
     mimeType: contentType,
   };
 
@@ -263,7 +273,7 @@ async function storagePutDrive(
 
   // Private (default since audit F35): no public permission; served through
   // the signed-in proxy.
-  if (!isPublic) return { key, url: proxyUrl("d", fileId, filename) };
+  if (!isPublic) return { key, url: proxyUrl("d", fileId, filename), backend: "drive", ref: fileId };
 
   // Share "anyone with the link can view" so the public uc URL works.
   const permResp = await fetch(
@@ -294,7 +304,40 @@ async function storagePutDrive(
   const url = isImage
     ? `https://drive.google.com/thumbnail?id=${fileId}&sz=w1600`
     : `https://drive.google.com/uc?export=download&id=${fileId}`;
-  return { key, url };
+  return { key, url, backend: "drive", ref: fileId };
+}
+
+/** A folder inside the platform's Drive folder (one per workspace). Returns its id. */
+export async function platformDriveCreateFolder(name: string): Promise<string> {
+  const token = await getDriveAccessToken();
+  const resp = await fetch("https://www.googleapis.com/drive/v3/files?fields=id", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ name: name.slice(0, 120), mimeType: "application/vnd.google-apps.folder", parents: [ENV.googleDriveFolderId] }),
+  });
+  if (!resp.ok) throw new Error(`Drive folder create failed (${resp.status}): ${(await resp.text().catch(() => "")).slice(0, 200)}`);
+  const { id } = (await resp.json()) as { id?: string };
+  if (!id) throw new Error("Drive folder create returned no id");
+  return id;
+}
+
+/** Remove a stored object from the PLATFORM store (workspace purge). Best effort. */
+export async function storageDeletePlatform(backend: string, ref: string): Promise<boolean> {
+  try {
+    if (backend === "drive") {
+      if (!hasDriveConfig()) return false;
+      const token = await getDriveAccessToken();
+      const r = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(ref)}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+      return r.ok || r.status === 404;
+    }
+    if (backend === "s3") {
+      if (!hasS3Config()) return false;
+      const { DeleteObjectCommand } = await import("@aws-sdk/client-s3");
+      await getS3Client().send(new DeleteObjectCommand({ Bucket: ENV.s3Bucket, Key: normalizeKey(ref) }));
+      return true;
+    }
+  } catch (e) { console.warn("[storage] delete failed:", String((e as Error)?.message || e).slice(0, 200)); }
+  return false;
 }
 
 let _s3Client: S3Client | null = null;
@@ -332,7 +375,7 @@ async function storagePutS3(
   data: Buffer | Uint8Array | string,
   contentType: string,
   isPublic = false,
-): Promise<{ key: string; url: string }> {
+): Promise<PutResult> {
   const key = appendHashSuffix(normalizeKey(relKey));
   const body =
     typeof data === "string"
@@ -348,7 +391,7 @@ async function storagePutS3(
       ContentType: contentType,
     }),
   );
-  return { key, url: isPublic ? publicUrlForKey(key) : proxyUrl("s", key) };
+  return { key, url: isPublic ? publicUrlForKey(key) : proxyUrl("s", key), backend: "s3", ref: key };
 }
 
 async function storagePutForge(
@@ -356,7 +399,7 @@ async function storagePutForge(
   data: Buffer | Uint8Array | string,
   contentType: string,
   isPublic = false,
-): Promise<{ key: string; url: string }> {
+): Promise<PutResult> {
   const forgeUrl = ENV.forgeApiUrl.replace(/\/+$/, "");
   const forgeKey = ENV.forgeApiKey;
   const key = appendHashSuffix(normalizeKey(relKey));
@@ -393,18 +436,46 @@ async function storagePutForge(
     throw new Error(`Storage upload to S3 failed (${uploadResp.status})`);
   }
 
-  return { key, url: isPublic ? `/manus-storage/${key}` : proxyUrl("f", key) };
+  return { key, url: isPublic ? `/manus-storage/${key}` : proxyUrl("f", key), backend: "forge", ref: key };
 }
 
+/**
+ * Store a file.
+ *
+ * MULTI-WORKSPACE (-278): an upload made by a signed-in member goes to THAT
+ * WORKSPACE's storage — LevelUp's (a folder / prefix per workspace) or the
+ * workspace's own S3 bucket or Google Drive — is recorded in the `files`
+ * table, and comes back as /api/files/x/<id>/<name>, which only members of
+ * that workspace can open (server/_core/workspaceFiles.ts). Who the member is
+ * comes from memberContext.ts (every signed-in request sets it). With no
+ * member (backups, the storage self-test) it is the platform store, as before.
+ */
 export async function storagePut(
   relKey: string,
   data: Buffer | Uint8Array | string,
   contentType = "application/octet-stream",
   opts: { public?: boolean } = {},
 ): Promise<{ key: string; url: string }> {
+  const { currentMemberId, currentWorkspaceId } = await import("./_core/memberContext");
+  const userId = currentMemberId();
+  const wsId = userId ? await currentWorkspaceId() : undefined;
+  if (userId && wsId) {
+    const { putForMember } = await import("./_core/workspaceFiles");
+    return putForMember({ wsId, userId }, relKey, data, contentType, opts);
+  }
+  return storagePutPlatform(relKey, data, contentType, opts);
+}
+
+/** The PLATFORM store (LevelUp's own S3 / Drive / legacy Forge), chosen by env. */
+export async function storagePutPlatform(
+  relKey: string,
+  data: Buffer | Uint8Array | string,
+  contentType = "application/octet-stream",
+  opts: { public?: boolean; driveFolderId?: string } = {},
+): Promise<PutResult> {
   const pub = opts.public === true;
   if (hasS3Config()) return storagePutS3(relKey, data, contentType, pub);
-  if (hasDriveConfig()) return storagePutDrive(relKey, data, contentType, pub);
+  if (hasDriveConfig()) return storagePutDrive(relKey, data, contentType, pub, opts.driveFolderId);
   if (hasForgeConfig()) return storagePutForge(relKey, data, contentType, pub);
   throw new Error(
     "Storage not configured: set S3_BUCKET + S3_ACCESS_KEY_ID + S3_SECRET_ACCESS_KEY (S3-compatible), or GOOGLE_DRIVE_CLIENT_ID + GOOGLE_DRIVE_CLIENT_SECRET + GOOGLE_DRIVE_REFRESH_TOKEN + GOOGLE_DRIVE_FOLDER_ID (Drive), or BUILT_IN_FORGE_API_URL + BUILT_IN_FORGE_API_KEY (legacy).",

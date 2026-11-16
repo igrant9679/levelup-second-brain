@@ -3730,8 +3730,8 @@ function _renderSourceFilterChips(){
   return `<div style="display:flex;align-items:center;gap:6px;margin:6px 0;flex-wrap:wrap">
     <span style="font-size:11px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Sources</span>
     ${chip(true,f.personal,'var(--ac)','Personal',personalCount,'personal')}
-    ${cfCount?chip(true,f.smartsheet,'#1f6feb','CF',cfCount,'smartsheet'):''}
-    ${lsiCount?chip(true,f.nifty,'#9333ea','LSI',lsiCount,'nifty'):''}
+    ${cfCount?chip(true,f.smartsheet,'#1f6feb',_luCF(),cfCount,'smartsheet'):''}
+    ${lsiCount?chip(true,f.nifty,'#9333ea',_luLSI(),lsiCount,'nifty'):''}
     ${cfFoldChip}
   </div>`;
 }
@@ -3878,7 +3878,7 @@ function renderTaskList(){
           // Map completedAt timestamp into the same ISO shape native tasks use
           // so "Tasks Completed (by day)" reports work.
           completedAt:done?(et.completedAt||et.fetchedAt||''):null,
-          project:et.projectLabel||(et.source==='smartsheet'?'CommunityForce':'LSI Media'),
+          project:et.projectLabel||(et.source==='smartsheet'?_luCFLong():_luLSILong()),
           projectId:null,
           assignedTo:et.assignee||'',
           createdBy:'',
@@ -4416,7 +4416,7 @@ function renderTaskCards(){
           _rawStatus:et.status||'',
           priority:ov.localPriority||et.priority||'Medium',
           due:ov.localDue||et.due||'',
-          project:et.projectLabel||(et.source==='smartsheet'?'CommunityForce':'LSI Media'),
+          project:et.projectLabel||(et.source==='smartsheet'?_luCFLong():_luLSILong()),
           assignedTo:et.assignee||'',
           _ext:et,
           _source:et.source,
@@ -4499,7 +4499,7 @@ function renderTaskCards(){
     const et=c._ext;const done=c.status==='Done';
     const isOverdue=c.due&&c.due<today&&!done;
     const pri=c.priority||'Medium';const pc=priColors[pri]||priColors.Medium;
-    const status=c.status;const sourceLabel=et.source==='smartsheet'?'CF':(et.source==='nifty'?'LSI':et.source.toUpperCase());
+    const status=c.status;const sourceLabel=et.source==='smartsheet'?_luCF():(et.source==='nifty'?_luLSI():et.source.toUpperCase());
     const sourceColor=et.source==='smartsheet'?'#1f6feb':'#8b5cf6';
     return `<div class="lu-task-card" data-ext-id="${esc(et.externalId)}" data-source="${esc(et.source)}" onclick="_openExternalAnnotateModal('${_jsAttr(et.source)}','${_jsAttr(et.externalId)}')" style="background:var(--s2);border:1px dashed var(--bd2);border-left:3px solid ${pc};border-radius:10px;padding:12px 14px;cursor:pointer;display:flex;flex-direction:column;gap:8px;${done?'opacity:.62':''}" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 14px rgba(0,0,0,.18)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
       <div style="display:flex;align-items:flex-start;gap:8px">
@@ -5231,7 +5231,7 @@ function renderTaskCalendar(){
         if(t._source&&t._source!=='local'){
           const url=t._url||'#';
           const badgeColor=t._source==='smartsheet'?'#1f6feb':'#9333ea';
-          const badgeText=t._source==='smartsheet'?'CF':'LSI';
+          const badgeText=t._source==='smartsheet'?_luCF():_luLSI();
           return `<div style="font-size:11px;line-height:1.3;padding:2px 4px;margin-bottom:2px;background:var(--s1);border-left:2px dashed ${badgeColor};border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(t.title)} (open in source)"><a ${_extOpenAttrs(url)} onclick="event.stopPropagation()" style="color:var(--t1);text-decoration:none"><span style="display:inline-block;padding:0 3px;border-radius:2px;background:${_luFillSafe(badgeColor)};color:#fff;font-size:7px;font-weight:700;letter-spacing:.3px;margin-right:3px">${badgeText}</span>${esc(t.title)}</a></div>`;
         }
         return `<div style="font-size:11px;line-height:1.3;padding:2px 4px;margin-bottom:2px;background:var(--s1);border-left:2px solid ${priText[t.priority]||'var(--t3)'};border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${t.status==='Done'?'text-decoration:line-through;opacity:.55;':(t.titleColor?`color:${_luAccentText(t.titleColor)};font-weight:700;`:'')}" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))" title="${esc(t.title)}">${esc(t.title)}</div>`;
@@ -6193,14 +6193,14 @@ function _renderDailyCommandCenterCard(){
   return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:14px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
       <span style="font-size:12px;font-weight:600">${_icon('target',16,'currentColor')} Today across tools</span>
-      <button class="btn btn-s" style="font-size:10px;padding:0 6px;height:20px" onclick="refreshExternalTasksNow()" title="Refresh CF + LSI">↻</button>
+      <button class="btn btn-s" style="font-size:10px;padding:0 6px;height:20px" onclick="refreshExternalTasksNow()" title="Refresh external tasks">↻</button>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
       ${cell('PERSONAL','var(--ac)',local)}
-      ${cell('CF',(noExternal?'var(--t3)':'#1f6feb'),ss)}
-      ${cell('LSI',(noExternal?'var(--t3)':'#9333ea'),nf)}
+      ${cell(_luCF(),(noExternal?'var(--t3)':'#1f6feb'),ss)}
+      ${cell(_luLSI(),(noExternal?'var(--t3)':'#9333ea'),nf)}
     </div>
-    ${noExternal?`<div style="font-size:11px;color:var(--t3);margin-top:8px;text-align:center">Connect NiftyPM in Settings → Integrations to pull CF/LSI tasks.</div>`:''}
+    ${noExternal?`<div style="font-size:11px;color:var(--t3);margin-top:8px;text-align:center">Connect NiftyPM in Settings → Integrations to pull your external tasks.</div>`:''}
     ${_renderDailyFocusAISection()}
   </div>`;
 }

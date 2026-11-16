@@ -19,7 +19,6 @@ import { passwordResetTokens } from '../../drizzle/schema';
 import { publicProcedure, protectedProcedure, router } from '../_core/trpc';
 import { notifyOwner } from '../_core/notification';
 import { sendEmail } from '../_core/sendEmail';
-import { ENV } from '../_core/env';
 import { appOrigin } from '../_core/appOrigin';
 import { and, isNull, sql } from 'drizzle-orm';
 import { users } from '../../drizzle/schema';
@@ -39,12 +38,17 @@ function hashResetToken(token: string): string {
  * equals `value`, case-insensitively. Best effort: if the list can't be read,
  * returns [] (getUserByEmail still guards exact email matches).
  */
-async function otherAccountsUsing(selfId: number, value: string): Promise<Array<{ id: number }>> {
+async function otherAccountsUsing(self: { id: number; workspaceId?: number | null; accountId?: number | null }, value: string): Promise<Array<{ id: number }>> {
   const key = String(value || '').trim().toLowerCase();
   if (!key) return [];
   try {
-    const all = await db.adminListAllUsers();
-    return (all || []).filter((u: any) => u && u.id !== selfId && (
+    // Multi-workspace (-278): names only have to be unique among the people
+    // you can be confused with — the members of YOUR workspace. (A login's
+    // email is unique platform-wide; db.emailHasAccount / getUserByEmail
+    // check that.) Your own member rows in other workspaces are not "others".
+    const all: any[] = (self as any).workspaceId === undefined ? await db.adminListAllUsers() : await db.listWorkspaceUsers(self as any);
+    const myAccount = Number((self as any).accountId) || self.id;
+    return (all || []).filter((u: any) => u && u.id !== self.id && (Number(u.accountId) || u.id) !== myAccount && (
       (u.email && String(u.email).trim().toLowerCase() === key) ||
       (u.name && String(u.name).trim().toLowerCase() === key)));
   } catch { return []; }
@@ -72,6 +76,12 @@ async function bumpTv(userId: number): Promise<number | null> {
   catch (e) { console.error('[auth] could not revoke sessions for user ' + userId + ':', e); return null; }
 }
 
+/** The login row behind the signed-in member row (itself, unless it is a member row in a further workspace). */
+async function accountOf(user: any): Promise<any> {
+  if (!user || !user.accountId) return user;
+  return db.getAccountRow(user);
+}
+
 const escHtml = (s: string) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as any)[c]);
 
 /**
@@ -83,8 +93,30 @@ async function signupAllowed(): Promise<boolean> {
   if (String(process.env.ALLOW_SIGNUP || '').toLowerCase() === 'true') return true;
   const conn = await getDb();
   if (!conn) return false;
+  // tenancy: platform — "is this a brand-new install with no accounts at all?"
   const [row] = await conn.select({ n: sql<number>`count(*)` }).from(users);
   return Number(row?.n || 0) === 0;
+}
+
+/**
+ * Which member row a login enters after signing in: the workspace it used
+ * most recently (member rows record lastSignedIn), among the ones that are
+ * active. Falls back to the login row itself.
+ */
+async function entryMemberRow(login: any): Promise<any> {
+  try {
+    const { membershipsOf } = await import('../_core/workspace');
+    const ms = (await membershipsOf(login)).filter(m => m.status === 'active');
+    if (!ms.length) return login;
+    let best: any = null;
+    for (const m of ms) {
+      const row: any = m.userId === login.id ? login : await db.getUserById(m.userId);
+      if (!row) continue;
+      const at = row.lastSignedIn ? new Date(row.lastSignedIn).getTime() : 0;
+      if (!best || at > best.at) best = { row, at };
+    }
+    return best ? best.row : login;
+  } catch { return login; }
 }
 
 const SALT_ROUNDS = 10;
@@ -124,19 +156,20 @@ export const emailAuthRouter = router({
       const valid = await bcrypt.compare(input.password, user.passwordHash);
       if (!valid) return failed();
       await rlClear('login:e:' + em);
-      // Update lastSignedIn and ensure owner always has admin role in DB
-      const isOwner = ENV.ownerOpenId && user.openId === ENV.ownerOpenId;
-      await db.upsertUser({ openId: user.openId, lastSignedIn: new Date(), ...(isOwner ? { role: 'admin' as const } : {}) });
-      // Refresh user to get updated role if it changed
-      const freshUser = await db.getUserByEmail(input.email.toLowerCase().trim()) ?? user;
+      // The password belongs to the login; the session belongs to one of its
+      // member rows — the workspace this person used last (-278).
+      const member = await entryMemberRow(user);
+      await db.upsertUser({ openId: member.openId, lastSignedIn: new Date() });
+      const freshUser = (await db.getUserById(member.id)) ?? member;
       // Log login activity
-      await db.logActivity(user.id, 'login');
+      await db.logActivity(member.id, 'login');
       // Determine session duration based on rememberMe
       const sessionDurationMs = input.rememberMe ? THIRTY_DAYS_MS : ONE_DAY_MS;
       // Create JWT session cookie
-      const sessionToken = await sdk.createSessionToken(user.openId, {
-        name: user.name || '',
+      const sessionToken = await sdk.createSessionToken(member.openId, {
+        name: member.name || '',
         expiresInMs: sessionDurationMs,
+        tokenVersion: Number((user as any).tokenVersion) || 0,
       });
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: sessionDurationMs });
@@ -171,6 +204,25 @@ export const emailAuthRouter = router({
       const passwordHash = await bcrypt.hash(input.password, SALT_ROUNDS);
       // Use email as openId for email-registered users (prefixed to avoid collision with Manus OAuth openIds)
       const openId = `email:${input.email.toLowerCase().trim()}`;
+      // Which workspace? (-278) The very first account of a fresh install owns
+      // workspace 1. With ALLOW_SIGNUP=true every later sign-up gets a NEW
+      // workspace of its own — never a seat in somebody else's.
+      const ws = await import('../_core/workspace');
+      const conn0 = await getDb();
+      let workspaceId = 1;
+      let firstEver = true;
+      if (conn0) {
+        // tenancy: platform — is this the first account of the install?
+        const [cnt] = await conn0.select({ n: sql<number>`count(*)` }).from(users);
+        firstEver = Number(cnt?.n || 0) === 0;
+        if (!firstEver) {
+          const { workspaces } = await import('../../drizzle/schema');
+          const base = ws.slugify(input.name);
+          const ins: any = await conn0.insert(workspaces).values({ name: (input.name.trim() + "'s workspace").slice(0, 120), slug: `${base}-${crypto.randomBytes(3).toString('hex')}`, status: 'active' });
+          workspaceId = Number(ins?.[0]?.insertId ?? ins?.insertId);
+          if (!Number.isInteger(workspaceId) || workspaceId <= 0) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to create workspace' });
+        }
+      }
       // Audit F70: account creation is serialised (GET_LOCK lu_user_create) with
       // a case-insensitive check inside the lock, so two concurrent sign-ups
       // (or a sign-up racing an invite accept) can't create two accounts.
@@ -181,7 +233,9 @@ export const emailAuthRouter = router({
           email: input.email.toLowerCase().trim(),
           loginMethod: 'email',
           lastSignedIn: new Date(),
-        }));
+          workspaceId,
+          role: 'admin',
+        } as any));
       } catch (e: any) {
         if (e instanceof TRPCError) throw e;
         if (e?.message === 'busy') throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: 'Busy creating another account — please try again in a moment.' });
@@ -192,6 +246,14 @@ export const emailAuthRouter = router({
         throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to create account' });
       }
       await db.updateUserPasswordHash(user.id, passwordHash);
+      // The registrant owns the workspace that was just made for them (or
+      // workspace 1 on a fresh install, where they are also the operator).
+      if (conn0) {
+        const { workspaces } = await import('../../drizzle/schema');
+        await conn0.update(workspaces).set({ ownerUserId: user.id, createdBy: user.id }).where(and(eq(workspaces.id, workspaceId), isNull(workspaces.ownerUserId)));
+        ws.invalidateWorkspace(workspaceId);
+        if (firstEver) await ws.ensureWorkspaceBootstrap();
+      }
       const sessionToken = await sdk.createSessionToken(openId, {
         name: input.name,
         expiresInMs: ONE_YEAR_MS,
@@ -225,12 +287,16 @@ export const emailAuthRouter = router({
       if (input.confirmPassword !== undefined && input.confirmPassword !== input.newPassword) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'New password and confirmation do not match' });
       }
-      if (user.passwordHash && input.currentPassword) {
-        const valid = await bcrypt.compare(input.currentPassword, user.passwordHash);
+      // The password is the LOGIN's (a member row in a further workspace has
+      // none of its own — reading it there would skip this check).
+      const account: any = await accountOf(user);
+      if (!account) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Account not found' });
+      if (account.passwordHash && input.currentPassword) {
+        const valid = await bcrypt.compare(input.currentPassword, account.passwordHash);
         if (!valid) {
           throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Current password is incorrect' });
         }
-      } else if (user.passwordHash && !input.currentPassword) {
+      } else if (account.passwordHash && !input.currentPassword) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Current password is required' });
       }
       const passwordHash = await bcrypt.hash(input.newPassword, SALT_ROUNDS);
@@ -415,42 +481,46 @@ export const emailAuthRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       const user = ctx.user;
-      // Require password confirmation for security
-      if (!user.passwordHash) {
+      // Require password confirmation for security (the password is the login's)
+      const account: any = await accountOf(user);
+      if (!account || !account.passwordHash) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'No password set on this account. Please set a password first.' });
       }
-      const valid = await bcrypt.compare(input.currentPassword, user.passwordHash);
+      const valid = await bcrypt.compare(input.currentPassword, account.passwordHash);
       if (!valid) {
         throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Current password is incorrect' });
       }
       const newEmail = input.newEmail.toLowerCase().trim();
       // Check if new email is already taken by another user
       const existing = await db.getUserByEmail(newEmail);
-      if (existing && existing.id !== user.id) {
+      if (existing && existing.id !== account.id) {
         throw new TRPCError({ code: 'CONFLICT', message: 'This email address is already in use by another account' });
       }
       // F12: also case-insensitive (a stored mixed-case email, or a column
       // collation that compares case), and never another account's display name.
-      if ((await otherAccountsUsing(user.id, newEmail)).length) {
+      if ((await otherAccountsUsing(user as any, newEmail)).length || ((user as any).workspaceId !== undefined && (await db.emailHasAccount(newEmail)) && String(account.email || '').trim().toLowerCase() !== newEmail)) {
         throw new TRPCError({ code: 'CONFLICT', message: 'This email address is already in use by another account' });
       }
       // Update email in DB
       await db.updateUserEmail(user.id, newEmail);
       await invalidateIdentityCache();
       // For email-based accounts, also update the openId so login still works
-      if (user.openId.startsWith('email:')) {
+      if (String(account.openId || '').startsWith('email:')) {
         const dbConn = await getDb();
         if (dbConn) {
           const { users } = await import('../../drizzle/schema');
-          await dbConn.update(users).set({ openId: `email:${newEmail}` }).where(eq(users.id, user.id));
+          await dbConn.update(users).set({ openId: `email:${newEmail}` }).where(eq(users.id, account.id));
         }
-        // Re-issue session cookie with new openId
-        const sessionToken = await sdk.createSessionToken(`email:${newEmail}`, {
-          name: user.name || '',
-          expiresInMs: ONE_YEAR_MS,
-        });
-        const cookieOptions = getSessionCookieOptions(ctx.req);
-        ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+        // This session names the login row itself → its id just changed, so
+        // re-issue the cookie. (A member row in a further workspace keeps its own id.)
+        if (account.id === user.id) {
+          const sessionToken = await sdk.createSessionToken(`email:${newEmail}`, {
+            name: user.name || '',
+            expiresInMs: ONE_YEAR_MS,
+          });
+          const cookieOptions = getSessionCookieOptions(ctx.req);
+          ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+        }
       }
       return { success: true, newEmail };
     }),
@@ -469,7 +539,7 @@ export const emailAuthRouter = router({
       // email) is refused — two accounts sharing a name is how one user's
       // assignments once reached another account.
       const unchanged = String(ctx.user.name || '').trim().toLowerCase() === newName.toLowerCase();
-      if (!unchanged && (await otherAccountsUsing(ctx.user.id, newName)).length) {
+      if (!unchanged && (await otherAccountsUsing(ctx.user as any, newName)).length) {
         throw new TRPCError({ code: 'CONFLICT', message: 'Another account already uses this name. Please choose a different display name.' });
       }
       await db.updateUserName(ctx.user.id, newName);

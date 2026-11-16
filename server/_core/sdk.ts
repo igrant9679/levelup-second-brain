@@ -177,7 +177,12 @@ class SDKServer {
     // "sign out everywhere" / password change revokes it (audit F20).
     let tv = options.tokenVersion;
     if (tv === undefined) {
-      try { tv = Number((await db.getUserByOpenId(openId) as any)?.tokenVersion) || 0; } catch { tv = 0; }
+      // tokenVersion lives on the LOGIN row (a member row in a further workspace points at it)
+      try {
+        const row: any = await db.getUserByOpenId(openId);
+        const acc: any = row && row.accountId ? await db.getAccountRow(row) : row;
+        tv = Number(acc?.tokenVersion) || 0;
+      } catch { tv = 0; }
     }
     return this.signSession(
       {
@@ -288,7 +293,16 @@ class SDKServer {
     return cookie ? this.verifySession(cookie) : null;
   }
 
-  async authenticateRequest(req: Request): Promise<User> {
+  /**
+   * The signed-in MEMBER of a request. The cookie names a member row, which
+   * belongs to exactly one workspace (multi-workspace, -278).
+   *   - tokenVersion and the operator flag are read from the login row;
+   *   - a member of a suspended / deleted workspace is refused, unless the
+   *     caller passes allowInactiveWorkspace (tRPC context does, so the client
+   *     can still show "suspended" and switch to another workspace).
+   * The returned row carries platformRole (from the login row) and wsStatus.
+   */
+  async authenticateRequest(req: Request, opts: { allowInactiveWorkspace?: boolean } = {}): Promise<User> {
     // Regular authentication flow
     const cookies = this.parseCookies(req.headers.cookie);
     const sessionCookie = cookies.get(COOKIE_NAME);
@@ -302,33 +316,37 @@ class SDKServer {
     const signedInAt = new Date();
     let user = await db.getUserByOpenId(sessionUserId);
 
-    // If user not in DB, sync from OAuth server automatically
-    if (!user) {
-      try {
-        const userInfo = await this.getUserInfoWithJwt(sessionCookie ?? "");
-        await db.upsertUser({
-          openId: userInfo.openId,
-          name: userInfo.name || null,
-          email: userInfo.email ?? null,
-          loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
-          lastSignedIn: signedInAt,
-        });
-        user = await db.getUserByOpenId(userInfo.openId);
-      } catch (error) {
-        console.error("[Auth] Failed to sync user from OAuth:", error);
-        throw ForbiddenError("Failed to sync user info");
-      }
-    }
-
+    // Accounts are created by an invite (or the very first sign-up), never by
+    // a session for an unknown id: there is no workspace to put it in. (This
+    // used to copy the account from the OAuth server automatically.)
     if (!user) {
       throw ForbiddenError("User not found");
     }
 
     // Revoked session (audit F20): issued before the account's last password
     // change / "sign out everywhere". A token with no tv claim counts as 0.
-    const curTv = Number((user as any).tokenVersion) || 0;
+    const account: any = (user as any).accountId ? await db.getAccountRow(user as any) : user;
+    if (!account) {
+      throw ForbiddenError("User not found");
+    }
+    const curTv = Number(account.tokenVersion) || 0;
     if (curTv !== session.tv) {
       throw ForbiddenError("Session revoked");
+    }
+    // The operator flag is a property of the login, whichever workspace is open.
+    (user as any).platformRole = account.platformRole ?? null;
+
+    // Workspace must exist and be active. (Older unit tests build users with
+    // no workspaceId at all: that is the "no workspace model" mode.)
+    let wsStatus = "active";
+    if ((user as any).workspaceId !== undefined || !process.env.VITEST) {
+      const { getWorkspace } = await import("./workspace");
+      const ws = await getWorkspace((user as any).workspaceId);
+      wsStatus = !ws ? "missing" : (ws.deletedAt ? "deleted" : ws.status);
+    }
+    (user as any).wsStatus = wsStatus;
+    if (wsStatus !== "active" && !opts.allowInactiveWorkspace) {
+      throw ForbiddenError("Workspace " + wsStatus);
     }
 
     // Every request used to write lastSignedIn; once an hour is enough.

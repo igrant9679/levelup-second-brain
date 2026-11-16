@@ -164,9 +164,13 @@ export async function processAutomations(opts?: { userId?: number }): Promise<{
   const where = opts?.userId
     ? and(eq(automationRules.userId, opts.userId), eq(automationRules.enabled, 1))
     : eq(automationRules.enabled, 1);
+  // tenancy: background — every member's own rules; each runs on ITS OWNER's items only (runRuleForUser)
   const rules = await db.select().from(automationRules).where(where);
+  // Suspended / deleted workspaces: rules don't run (-278).
+  const active = opts?.userId ? null : await (await import("./workspace")).activeMemberIds();
   let matched = 0, modified = 0;
   for (const rule of rules) {
+    if (active && !active.has(Number(rule.userId))) continue;
     try {
       const stats = await runRuleForUser(db, rule);
       matched += stats.matched; modified += stats.modified;

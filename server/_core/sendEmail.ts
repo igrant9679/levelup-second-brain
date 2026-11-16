@@ -10,11 +10,12 @@
  */
 import nodemailer from "nodemailer";
 import { getDb } from "../db";
-import { insertEmailDeliveryLog } from "../db";
+import { insertEmailDeliveryLog as insertEmailDeliveryLogRaw } from "../db";
 import { systemSettings, oauthTokens } from "../../drizzle/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { emailTemplate } from "./emailTemplate";
-import { mailTlsOptions, ownerUserIds } from "./mailTrust";
+import { mailTlsOptions, operatorWorkspaceId, ownerUserIds } from "./mailTrust";
+import { platformMailConfigured, sendViaPlatform } from "./platformMail";
 
 export interface EmailPayload {
   to: string;
@@ -24,10 +25,21 @@ export interface EmailPayload {
   /** userId of the sender (for delivery log). Pass null for system-initiated emails. */
   senderUserId?: number | null;
   /**
-   * @deprecated Ignored as of the admin-shared sender model. All system mail
-   * is sent from the single configured secondary email (the system notification
-   * sender). Kept in the type so existing callers compile unchanged.
+   * Whose workspace this mail is for (multi-workspace, -278). Decides which
+   * sender carries it and whose name is on it. When omitted it is taken from
+   * senderUserId, then recipientUserId; with none of them it is platform mail.
    */
+  workspaceId?: number | null;
+  /**
+   * 'account' = about the login or the invitation itself (invite, password
+   * reset, address confirmation): contains nothing from a workspace, so when
+   * the workspace has no sender of its own it may go through the platform's.
+   * 'content' (default) = carries workspace content (digests, check-ins,
+   * reports, follow-ups): only ever through the platform mail service or the
+   * workspace's OWN sender — never through another workspace's mailbox.
+   */
+  kind?: "account" | "content";
+  /** The member this mail is for — only used to work out the workspace. */
   recipientUserId?: number | null;
   /** Threading (the AI coach, build -220): our own Message-ID so a reply can
    *  be matched to the message it answers, where replies should go, and the
@@ -50,18 +62,24 @@ export interface EmailPayload {
  *   - JSON: {"provider":"google","userId":3}
  *   - Colon-separated: "google:3"  (used by oauthSync.setNotificationSender)
  */
-async function resolveNotificationSender(): Promise<{
+async function resolveNotificationSender(wsId: number | null): Promise<{
   provider: "google" | "microsoft" | "smtp";
   userId: number;
 } | null> {
   const db = await getDb();
   if (!db) return null;
-  const rows = await db
-    .select()
-    .from(systemSettings)
-    .where(eq(systemSettings.key, "notificationSender"));
-
-  const raw = rows[0]?.value;
+  let raw: string | undefined;
+  if (wsId != null) {
+    const { getWorkspaceSetting } = await import("./workspace");
+    raw = await getWorkspaceSetting(wsId, "notificationSender");
+  } else {
+    // no workspace model (older unit tests): the one global setting
+    const rows = await db
+      .select()
+      .from(systemSettings)
+      .where(eq(systemSettings.key, "notificationSender"));
+    raw = rows[0]?.value;
+  }
   if (raw) {
     // Try JSON format first: {"provider":"google","userId":3}
     try {
@@ -95,8 +113,8 @@ async function resolveNotificationSender(): Promise<{
   // Only the OWNER's secondary account qualifies (audit F8) — never a member's.
   try {
     const { getAllSmtpAccounts } = await import("../db");
-    const owners = await ownerUserIds();
-    const accounts = (await getAllSmtpAccounts()).filter(a => owners.has(a.userId));
+    const owners = await ownerUserIds(wsId);
+    const accounts = (await getAllSmtpAccounts(Array.from(owners))).filter(a => owners.has(a.userId));
     if (accounts.length) {
       const acct = accounts.slice().sort((a, b) => a.userId - b.userId)[0];
       return { provider: "smtp", userId: acct.userId };
@@ -218,29 +236,30 @@ async function buildTransporter(
  * because only the single resolved sender was ever tried. Now each candidate
  * is tried in order until one sends.
  */
-async function resolveSenderCandidates(): Promise<Array<{
+async function resolveSenderCandidates(wsId: number | null): Promise<Array<{
   provider: "google" | "microsoft" | "smtp";
   userId: number;
 }>> {
   const out: Array<{ provider: "google" | "microsoft" | "smtp"; userId: number }> = [];
   const seen = new Set<string>();
-  const owners = await ownerUserIds();
+  const owners = await ownerUserIds(wsId);
+  if (!owners.size) return out;
   const push = (provider: "google" | "microsoft" | "smtp", userId: number) => {
     if (!owners.has(userId)) return;
     const k = provider + ":" + userId;
     if (!seen.has(k)) { seen.add(k); out.push({ provider, userId }); }
   };
-  const primary = await resolveNotificationSender();
+  const primary = await resolveNotificationSender(wsId);
   if (primary) push(primary.provider, primary.userId);
   try {
     const { getAllSmtpAccounts } = await import("../db");
-    const accounts = await getAllSmtpAccounts();
+    const accounts = await getAllSmtpAccounts(Array.from(owners));
     accounts.slice().sort((a, b) => a.userId - b.userId).forEach(a => push("smtp", a.userId));
   } catch { /* non-fatal */ }
   try {
     const db = await getDb();
     if (db) {
-      const tokens = await db.select().from(oauthTokens);
+      const tokens = await db.select().from(oauthTokens).where(inArray(oauthTokens.userId, Array.from(owners)));
       for (const t of tokens) {
         if ((t.provider === "google" || t.provider === "microsoft") && t.email && t.refreshToken) {
           push(t.provider, t.userId);
@@ -258,15 +277,69 @@ async function resolveSenderCandidates(): Promise<Array<{
  * is configured or all candidates fail. Every attempt-chain is recorded in
  * email_delivery_log (the errorMessage carries the per-candidate trail).
  */
+/** The workspace a mail belongs to: stated, else the sender's, else the recipient's. */
+async function workspaceOfMail(payload: EmailPayload): Promise<number | null> {
+  const stated = Number(payload.workspaceId);
+  if (Number.isInteger(stated) && stated > 0) return stated;
+  try {
+    const { wsIdOf } = await import("./workspace");
+    for (const uid of [payload.senderUserId, payload.recipientUserId]) {
+      if (uid == null) continue;
+      const w = await wsIdOf({ id: Number(uid) });
+      if (w) return w;
+    }
+  } catch { /* platform mail */ }
+  return null;
+}
+
 export async function sendEmail(payload: EmailPayload): Promise<boolean> {
   const logUserId = payload.senderUserId ?? null;
+  let wsId: number | null = null;
+  const insertEmailDeliveryLog = (row: any) => insertEmailDeliveryLogRaw({ ...row, workspaceId: wsId });
 
   try {
-    // Admin-shared model: ALL system mail (Team invites, reports, notifications)
-    // goes out from the configured secondary email — the system notification
-    // sender — with automatic fallback to any other configured sender so one
-    // dead credential can't silence all system mail.
-    const candidates = await resolveSenderCandidates();
+    wsId = await workspaceOfMail(payload);
+    let wsName: string | null = null;
+    if (wsId != null) {
+      try { const { getWorkspace } = await import("./workspace"); wsName = (await getWorkspace(wsId))?.name || null; } catch { /* unnamed */ }
+    }
+    // The display name on the From line: "‹Workspace› via LevelUp" unless the caller chose one.
+    const fromName = payload.fromName || (wsName ? `${wsName} via LevelUp` : undefined);
+
+    // Wrap the body in the shared branded template unless it already contains <!DOCTYPE
+    const rawHtml = payload.html;
+    const wrappedHtml = rawHtml.trimStart().toLowerCase().startsWith("<!doctype")
+      ? rawHtml
+      : emailTemplate({ subject: payload.subject, body: rawHtml });
+
+    // 1. The platform mail service (Postmark / Resend), when one is configured:
+    //    every workspace's mail goes through it, under the workspace's name.
+    if (platformMailConfigured()) {
+      const r = await sendViaPlatform({
+        to: payload.to, subject: payload.subject, html: wrappedHtml,
+        text: payload.text ?? rawHtml.replace(/<[^>]+>/g, ""),
+        fromName: fromName || "LevelUp",
+        messageId: payload.messageId, replyTo: payload.replyTo, inReplyTo: payload.inReplyTo, references: payload.references,
+      });
+      if (r.ok) {
+        await insertEmailDeliveryLog({ userId: logUserId, to: payload.to, subject: payload.subject, status: "sent", errorMessage: null });
+        return true;
+      }
+      console.warn("[sendEmail] platform mail service failed, trying the workspace's own sender:", r.error);
+    }
+
+    // 2. The workspace's own sender — accounts of ITS owner only (a member's
+    //    mailbox, or another workspace's, never carries its mail).
+    // Mail that belongs to no workspace (a password reset) is the platform's:
+    // it goes out through the operator workspace's sender.
+    const senderWs = wsId != null || process.env.VITEST ? wsId : await operatorWorkspaceId();
+    let candidates = await resolveSenderCandidates(senderWs);
+    // 3. Account mail (invites, password resets) of a workspace with no sender
+    //    of its own may use the platform operator's. Content mail may not.
+    if (!candidates.length && wsId != null && (payload.kind || "content") === "account") {
+      const opWs = await operatorWorkspaceId();
+      if (opWs != null && opWs !== wsId) candidates = await resolveSenderCandidates(opWs);
+    }
     if (!candidates.length) {
       console.warn(
         "[sendEmail] No system notification sender configured. Email not sent:",
@@ -282,12 +355,6 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
       return false;
     }
 
-    // Wrap the body in the shared branded template unless it already contains <!DOCTYPE
-    const rawHtml = payload.html;
-    const wrappedHtml = rawHtml.trimStart().toLowerCase().startsWith("<!doctype")
-      ? rawHtml
-      : emailTemplate({ subject: payload.subject, body: rawHtml });
-
     const errors: string[] = [];
     for (const cand of candidates) {
       const label = `${cand.provider}:${cand.userId}`;
@@ -299,7 +366,7 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
         }
         const fromAddr = (transport.from.match(/<([^>]+)>/) || [])[1];
         await transport.transporter.sendMail({
-          from: payload.fromName && fromAddr ? `"${payload.fromName.replace(/["\r\n]/g, "")}" <${fromAddr}>` : transport.from,
+          from: fromName && fromAddr ? `"${fromName.replace(/["\r\n]/g, "")}" <${fromAddr}>` : transport.from,
           to: payload.to,
           subject: payload.subject,
           html: wrappedHtml,

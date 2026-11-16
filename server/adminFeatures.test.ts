@@ -39,6 +39,13 @@ function createAdminContext(userId = 1) {
   };
 }
 
+/** The platform operator (-278): checkAndNotifyExpiry lists every workspace's expiring connections, so it is theirs alone. */
+function createOperatorContext(userId = 1) {
+  return {
+    user: { id: userId, name: "Admin", email: "admin@example.com", role: "admin" as const, platformRole: "operator" },
+  };
+}
+
 function createUserContext(userId = 2) {
   return {
     user: { id: userId, name: "User", email: "user@example.com", role: "user" as const },
@@ -116,7 +123,7 @@ describe("oauthSync.checkAndNotifyExpiry", () => {
     ]);
     vi.mocked(db.setSystemSetting).mockResolvedValue(undefined);
 
-    const caller = appRouter.createCaller(createAdminContext());
+    const caller = appRouter.createCaller(createOperatorContext());
     const result = await caller.oauthSync.checkAndNotifyExpiry();
 
     expect(result.notified).toBe(true);
@@ -132,7 +139,7 @@ describe("oauthSync.checkAndNotifyExpiry", () => {
     vi.mocked(db.getSystemSetting).mockResolvedValue(null);
     vi.mocked(db.getAllExpiringTokens).mockResolvedValue([]);
 
-    const caller = appRouter.createCaller(createAdminContext());
+    const caller = appRouter.createCaller(createOperatorContext());
     const result = await caller.oauthSync.checkAndNotifyExpiry();
 
     expect(result.notified).toBe(false);
@@ -143,7 +150,7 @@ describe("oauthSync.checkAndNotifyExpiry", () => {
     const { notifyOwner } = await import("./_core/notification");
     vi.mocked(db.getSystemSetting).mockResolvedValue("1"); // already sent today
 
-    const caller = appRouter.createCaller(createAdminContext());
+    const caller = appRouter.createCaller(createOperatorContext());
     const result = await caller.oauthSync.checkAndNotifyExpiry();
 
     expect(result.notified).toBe(false);
@@ -151,8 +158,8 @@ describe("oauthSync.checkAndNotifyExpiry", () => {
     expect(notifyOwner).not.toHaveBeenCalled();
   });
 
-  it("rejects non-admin users", async () => {
-    const caller = appRouter.createCaller(createUserContext());
-    await expect(caller.oauthSync.checkAndNotifyExpiry()).rejects.toThrow("Admin only");
+  it("rejects everyone but the platform operator (-278) — a workspace admin included", async () => {
+    await expect(appRouter.createCaller(createUserContext()).oauthSync.checkAndNotifyExpiry()).rejects.toThrow(/platform operator/);
+    await expect(appRouter.createCaller({ user: { id: 9, name: "A", email: "a@example.com", role: "admin" as const, platformRole: null, workspaceId: 2 } } as any).oauthSync.checkAndNotifyExpiry()).rejects.toThrow(/platform operator/);
   });
 });

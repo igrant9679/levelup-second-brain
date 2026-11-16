@@ -3,11 +3,11 @@ import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
 import { storagePut } from "../storage";
 import * as db from "../db";
-import { ENV } from "../_core/env";
 import { users } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { assertOwner, isOwner } from "../_core/ownerGuard";
 import { canOverride } from "../_core/access";
+import { assertSameWorkspace } from "../_core/workspace";
 
 export const teamRouter = router({
   /**
@@ -15,8 +15,9 @@ export const teamRouter = router({
    * teammates — including invited users like new hires that aren't in the local
    * D.teams blob. Available to all signed-in members; returns minimal fields.
    */
-  listMembers: protectedProcedure.query(async () => {
-    const list = await db.adminListAllUsers();
+  listMembers: protectedProcedure.query(async ({ ctx }) => {
+    // The members of THIS workspace only (-278) — it used to be every account.
+    const list: any[] = (ctx.user as any).workspaceId === undefined ? await db.adminListAllUsers() : await db.listWorkspaceUsers(ctx.user as any);
     const out = [];
     for (const u of list) {
       // owner flag (-253): the Team page's role control never offers to change the owner
@@ -36,6 +37,7 @@ export const teamRouter = router({
     .input(z.object({ userId: z.number().int(), role: z.enum(["user", "admin"]) }))
     .mutation(async ({ ctx, input }) => {
       await assertOwner(ctx.user);
+      await assertSameWorkspace(ctx.user as any, input.userId);
       const target = await db.getUserById(input.userId);
       if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "No such member." });
       if (await isOwner(target as any)) throw new TRPCError({ code: "BAD_REQUEST", message: "The workspace owner keeps full access." });
@@ -97,10 +99,13 @@ export const teamRouter = router({
       }
       const targetUser = await db.getUserById(input.userId);
       if (targetUser) {
-        if ((ENV.ownerOpenId && targetUser.openId === ENV.ownerOpenId) || (await isOwner(targetUser as any))) {
-          throw new TRPCError({ code: 'FORBIDDEN', message: 'The platform owner cannot be deleted.' });
+        if (await isOwner(targetUser as any)) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'The workspace owner cannot be removed.' });
         }
-        await db.deleteTeamMember(input.userId);
+        // Ends the membership in THIS workspace; a login that is also in
+        // other workspaces keeps those (db.removeWorkspaceMember).
+        if ((targetUser as any).workspaceId === undefined) await db.deleteTeamMember(input.userId); // no workspace model (older tests)
+        else await db.removeWorkspaceMember(input.userId);
       }
       // If user doesn't exist in DB (e.g. local-only team member), still return success
       // so the frontend can remove them from the local team data

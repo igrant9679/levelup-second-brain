@@ -91,7 +91,8 @@ describe("error grouping", () => {
 describe("ops router", () => {
   const ops = (id: number) => opsRouter.createCaller({ user: { id }, req: { headers: { "user-agent": "UA" } } } as any);
   it("only the owner reads the logs", async () => {
-    await expect(ops(2).errors()).rejects.toThrow(/owner/);
+    // -278: the error log is the platform's (operator only); the audit log is each workspace owner's
+    await expect(ops(2).errors()).rejects.toThrow(/operator/);
     await expect(ops(2).auditLog()).rejects.toThrow(/owner/);
     expect(await ops(1).auditLog()).toEqual([{ id: 1, action: "x" }]);
   });

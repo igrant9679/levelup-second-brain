@@ -71,6 +71,10 @@ export const atlasRouter = router({
    */
   // Owner only (-253): the snapshot carries CommunityForce HR and finance data.
   pull: ownerProcedure.mutation(async ({ ctx }) => {
+    // Only a workspace that has the Atlas feature (-278): the feed is one company's.
+    if (!(await (await import("../_core/workspace")).hasFeature(ctx.user as any, "atlas"))) {
+      throw new Error("Atlas is not part of this workspace.");
+    }
     const snapshot = await pullAtlasSnapshot();
     const db = await getDb();
     if (!db) throw new Error('Database unavailable');

@@ -16,6 +16,7 @@ import { protectedProcedure, router } from "../_core/trpc";
 import * as db from "../db";
 import { resolveRequestAI } from "../_core/workspaceAI";
 import { assertOwner } from "../_core/ownerGuard";
+import { assertOperator, assertSameWorkspace, getSettingFor, sameWorkspace, scopeIds, setSettingFor, wsIdOf } from "../_core/workspace";
 import { signOAuthState } from "../_core/oauthState";
 import { sendEmail } from "../_core/sendEmail";
 import { refreshOAuthTokenSilently, forceRefreshOAuthToken } from "../_core/refreshOAuthToken";
@@ -701,7 +702,7 @@ export const oauthSyncRouter = router({
         };
       }
       // Fallback: check if an admin has shared credentials for this provider
-      const shared = await db.getSharedAdminCredential(input.provider);
+      const shared = await db.getSharedAdminCredential(input.provider, await wsIdOf(ctx.user as any));
       if (shared) {
         return {
           clientId: shared.clientId,
@@ -842,14 +843,16 @@ export const oauthSyncRouter = router({
   /** List all connected OAuth accounts AND SMTP/IMAP accounts across all users (owner only) */
   getNotificationSenderOptions: protectedProcedure.query(async ({ ctx }) => {
     await assertOwner(ctx.user);
-    const oauthAccounts = await db.getAllConnectedOAuthAccounts();
-    const smtpAccounts = await db.getAllSmtpAccounts();
+    // Accounts connected by members of THIS workspace only (-278).
+    const scope = await scopeIds(ctx.user as any);
+    const oauthAccounts = await db.getAllConnectedOAuthAccounts(scope);
+    const smtpAccounts = await db.getAllSmtpAccounts(scope);
     // Tag each account with its provider type for the UI dropdown.
     const accounts = [
       ...oauthAccounts.map(a => ({ ...a, kind: "oauth" as const })),
       ...smtpAccounts.map(a => ({ ...a, kind: "smtp" as const, provider: "smtp" as const })),
     ];
-    const current = await db.getSystemSetting("notificationSender");
+    const current = await getSettingFor(ctx.user as any, "notificationSender");
     return { accounts, current: current ?? null };
   }),
 
@@ -863,7 +866,12 @@ export const oauthSyncRouter = router({
       // Owner only: whoever controls the sender receives every reset/invite
       // email the system sends (admins are every invited teammate).
       await assertOwner(ctx.user);
-      await db.setSystemSetting("notificationSender", input.senderKey);
+      // The chosen account must be one of this workspace's (-278): a sender
+      // key naming somebody in another workspace is refused.
+      const m = /^(google|microsoft|smtp):(\d+)$/.exec(String(input.senderKey || "").trim());
+      if (!m) throw new TRPCError({ code: "BAD_REQUEST", message: "Unknown sender." });
+      await assertSameWorkspace(ctx.user as any, Number(m[2]));
+      await setSettingFor(ctx.user as any, "notificationSender", m[1] + ":" + m[2]);
       return { success: true };
     }),
 
@@ -874,7 +882,7 @@ export const oauthSyncRouter = router({
    */
   adminListUsers: protectedProcedure.query(async ({ ctx }) => {
     await assertOwner(ctx.user);
-    return await db.adminListAllUsers();
+    return await db.adminListAllUsers(await scopeIds(ctx.user as any));
   }),
 
   /**
@@ -886,6 +894,7 @@ export const oauthSyncRouter = router({
     .input(z.object({ userId: z.number().int() }))
     .query(async ({ ctx, input }) => {
       await assertOwner(ctx.user);
+      await assertSameWorkspace(ctx.user as any, input.userId);
       const acct = await db.getSmtpImapAccountFull(input.userId);
       if (!acct) return null;
       const { imapPassword, smtpPassword, ...rest } = acct as any;
@@ -916,6 +925,7 @@ export const oauthSyncRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       await assertOwner(ctx.user);
+      await assertSameWorkspace(ctx.user as any, input.userId);
       const prev: any = await db.getSmtpImapAccountFull(input.userId);
       input = {
         ...input,
@@ -948,6 +958,7 @@ export const oauthSyncRouter = router({
     .input(z.object({ userId: z.number().int() }))
     .mutation(async ({ ctx, input }) => {
       await assertOwner(ctx.user);
+      await assertSameWorkspace(ctx.user as any, input.userId);
       await db.deleteSmtpImapAccount(input.userId);
       return { success: true };
     }),
@@ -968,7 +979,9 @@ export const oauthSyncRouter = router({
     }))
     .query(async ({ input, ctx }) => {
       if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Admin only" });
-      return db.getAdminEmailDeliveryLog(input);
+      // This workspace's mail only (-278). 0 = no workspace → nothing.
+      const w = await wsIdOf(ctx.user as any);
+      return db.getAdminEmailDeliveryLog({ ...input, workspaceId: w === null ? undefined : w });
     }),
 
   // ---- Admin: Check & Notify Expiring Tokens ----
@@ -979,12 +992,15 @@ export const oauthSyncRouter = router({
   notifyExpiringTokensPerUser: protectedProcedure.mutation(async ({ ctx }) => {
     if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Admin only" });
     const today = new Date().toISOString().slice(0, 10);
-    const dedupeKey = `expiry_email_sent_${today}`;
+    // Per workspace (-278): this warns the members of the admin's own workspace.
+    const scope = await scopeIds(ctx.user as any);
+    const wsTag = await wsIdOf(ctx.user as any);
+    const dedupeKey = `expiry_email_sent_${wsTag === null ? "" : "w" + wsTag + "_"}${today}`;
     const alreadySent = await db.getSystemSetting(dedupeKey);
     if (alreadySent) return { notified: false, reason: "Already sent today", count: 0 };
 
     // Use 7-day window so users get advance warning
-    const expiring = await db.getAllExpiringTokens(7);
+    const expiring = await db.getAllExpiringTokens(7, scope);
     if (!expiring.length) return { notified: false, reason: "No expiring tokens", count: 0 };
 
     let sent = 0;
@@ -1042,7 +1058,9 @@ export const oauthSyncRouter = router({
   }),
 
   checkAndNotifyExpiry: protectedProcedure.mutation(async ({ ctx }) => {
-    if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Admin only" });
+    // Platform operator only (-278): it lists every account with an expiring
+    // connection and reports to the platform owner's notification channel.
+    await assertOperator(ctx.user as any);
 
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
     const dedupeKey = `expiry_notif_sent_${today}`;
@@ -1079,7 +1097,8 @@ export const oauthSyncRouter = router({
   getScheduledTaskLog: protectedProcedure
     .input(z.object({ limit: z.number().int().min(1).max(100).default(20) }).optional())
     .query(async ({ ctx, input }) => {
-      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Admin only" });
+      // Platform operator only (-278): the scheduled-task log is the platform's.
+      await assertOperator(ctx.user as any);
       return db.getScheduledTaskLog(input?.limit ?? 20);
     }),
 
@@ -1269,9 +1288,8 @@ export const oauthSyncRouter = router({
    * Get the log retention period in days (default 90)
    */
   getLogRetentionDays: protectedProcedure.query(async ({ ctx }) => {
-    if (ctx.user.role !== "admin") {
-      throw new TRPCError({ code: "FORBIDDEN", message: "Admin only" });
-    }
+    // Platform operator only (-278): log retention is one platform setting.
+    await assertOperator(ctx.user as any);
     const { getSystemSetting } = await import("../db");
     const val = await getSystemSetting("logRetentionDays");
     return { days: val ? parseInt(val, 10) : 90 };
@@ -1283,9 +1301,7 @@ export const oauthSyncRouter = router({
   setLogRetentionDays: protectedProcedure
     .input(z.object({ days: z.number().int().min(7).max(3650) }))
     .mutation(async ({ ctx, input }) => {
-      if (ctx.user.role !== "admin") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Admin only" });
-      }
+      await assertOperator(ctx.user as any);
       const { setSystemSetting } = await import("../db");
       await setSystemSetting("logRetentionDays", String(input.days));
       return { success: true, days: input.days };

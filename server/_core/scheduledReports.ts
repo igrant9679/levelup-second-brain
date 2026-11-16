@@ -274,6 +274,7 @@ export async function processScheduledReports(): Promise<{ usersChecked: number;
   const appUrl = (process.env.VITE_OAUTH_PORTAL_URL || 'https://levelupnow.tools').replace(/\/+$/, '');
 
   for (const lite of rows) {
+    (await import("./memberContext")).setMember(lite.userId); // this person's turn: their workspace's AI key and limits
     settleClaims('reports');
     if (isShuttingDown()) break;
     let row: any = lite;

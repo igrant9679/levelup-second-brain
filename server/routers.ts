@@ -2,8 +2,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
-import { ENV } from "./_core/env";
-import { eq, asc } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { users } from "../drizzle/schema";
 import { getDb } from "./db";
 import { oauthSyncRouter } from "./routers/oauth-sync";
@@ -39,6 +38,7 @@ import { simplefinRouter } from "./routers/simplefin";
 import { coachRouter } from "./routers/coach";
 import { pmRouter } from "./routers/pm";
 import { demoAdminRouter } from "./routers/demoAdmin";
+import { workspaceRouter } from "./routers/workspace";
 
 export const appRouter = router({
   // if you need to use socket.io, read and register route in server/_core/index.ts,
@@ -48,34 +48,50 @@ export const appRouter = router({
     me: publicProcedure.query(async (opts) => {
       // Never send the password hash (or other secrets on the users row) to the browser.
       const raw = opts.ctx.user;
-      if (!raw) return raw;
-      const { passwordHash: _ph, ...u } = raw as any;
-      // Owner promotion: if this user is the configured owner (OWNER_OPEN_ID env)
-      // OR they are the first registered user (lowest id) and no admin exists yet,
-      // ensure they are role='admin'. Persisted to the DB so the role sticks.
+      if (!raw) {
+        // Signed in, but the workspace this session belongs to is suspended or
+        // closed (-278): say so, with the person's other workspaces, so the
+        // app can offer to switch instead of showing the sign-in page.
+        const inactive: any = (opts.ctx as any).inactiveUser;
+        if (inactive) {
+          const { myWorkspaces } = await import("./routers/workspace");
+          return { workspaceInactive: true as const, wsStatus: String(inactive.wsStatus || "suspended"), name: inactive.name ?? null, email: inactive.email ?? null, workspaces: await myWorkspaces(inactive) } as any;
+        }
+        return raw;
+      }
+      const { passwordHash: _ph, tokenVersion: _tv, wsStatus: _ws, ...u } = raw as any;
+      // Multi-workspace (-278): who you are HERE. The owner is the member the
+      // workspace names (workspaces.ownerUserId) — not "the first account" —
+      // and always has the admin role in it (persisted so the role sticks).
+      let isOwner = false;
       try {
-        if (u.role !== "admin") {
-          const isConfiguredOwner = !!ENV.ownerOpenId && u.openId === ENV.ownerOpenId;
-          let isFirstUser = false;
-          if (!isConfiguredOwner) {
-            const db = await getDb();
-            if (db) {
-              const first = await db.select({ id: users.id }).from(users).orderBy(asc(users.id)).limit(1);
-              isFirstUser = first.length > 0 && first[0].id === u.id;
-            }
-          }
-          if (isConfiguredOwner || isFirstUser) {
-            const db = await getDb();
-            if (db) {
-              await db.update(users).set({ role: "admin" }).where(eq(users.id, u.id));
-            }
-            return { ...u, role: "admin" as const } as typeof u;
-          }
+        const { isOwner: isWsOwner } = await import("./_core/ownerGuard");
+        isOwner = await isWsOwner(raw as any);
+        if (isOwner && u.role !== "admin") {
+          const db = await getDb();
+          if (db) await db.update(users).set({ role: "admin" }).where(eq(users.id, u.id));
+          u.role = "admin";
         }
       } catch (err) {
-        console.warn("[auth.me] owner-promotion check failed:", err);
+        console.warn("[auth.me] owner check failed:", err);
       }
-      return u;
+      // Only when the row has a workspace (the tests that predate workspaces don't).
+      if (u.workspaceId === undefined) return u;
+      try {
+        const { getWorkspace } = await import("./_core/workspace");
+        const { myWorkspaces } = await import("./routers/workspace");
+        const ws = await getWorkspace(u.workspaceId);
+        return {
+          ...u,
+          isOwner,
+          isOperator: u.platformRole === "operator",
+          workspace: ws ? { id: ws.id, name: ws.name, features: ws.features, branding: ws.branding, role: isOwner ? "owner" : u.role === "admin" ? "admin" : "member" } : null,
+          workspaces: await myWorkspaces(raw),
+        };
+      } catch (err) {
+        console.warn("[auth.me] workspace lookup failed:", err);
+        return u;
+      }
     }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
@@ -131,6 +147,7 @@ export const appRouter = router({
   automations: automationsRouter,
   atlas: atlasRouter,
   simplefin: simplefinRouter,
+  workspace: workspaceRouter,
 });
 
 export type AppRouter = typeof appRouter;

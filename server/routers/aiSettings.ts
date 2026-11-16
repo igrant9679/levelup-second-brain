@@ -16,8 +16,8 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
-import * as db from "../db";
-import { invalidateWorkspaceAI, maskKey } from "../_core/workspaceAI";
+import { invalidateWorkspaceAI, maskKey, resolveWorkspaceAI } from "../_core/workspaceAI";
+import { getSettingFor, setSettingFor, wsIdOf } from "../_core/workspace";
 import { isOwnerCtxUser } from "./appData";
 import { isAdminUser } from "../_core/access";
 
@@ -38,17 +38,24 @@ export const aiSettingsRouter = router({
    * Settings pane whether to offer the "replace key" inputs.
    */
   get: protectedProcedure.query(async ({ ctx }) => {
+    // THIS workspace's own keys (-278). When it has none, AI still works on
+    // LevelUp's keys (`usingPlatform`), within the workspace's daily limit.
     const [openai, claude, gemini, provider] = await Promise.all([
-      db.getSystemSetting("aiKey_openai"),
-      db.getSystemSetting("aiKey_claude"),
-      db.getSystemSetting("aiKey_gemini"),
-      db.getSystemSetting("aiProvider"),
+      getSettingFor(ctx.user as any, "aiKey_openai"),
+      getSettingFor(ctx.user as any, "aiKey_claude"),
+      getSettingFor(ctx.user as any, "aiKey_gemini"),
+      getSettingFor(ctx.user as any, "aiProvider"),
     ]);
     const status = (k: string | undefined) => ({ configured: !!String(k || "").trim(), hint: maskKey(k) });
+    const w = await wsIdOf(ctx.user as any);
+    const resolved = await resolveWorkspaceAI(w);
     return {
-      provider: (provider as Provider) || "openai",
+      provider: (provider as Provider) || (resolved.source === "platform" ? (resolved.provider as Provider) : "openai"),
       keys: { openai: status(openai), claude: status(claude), gemini: status(gemini) },
       canEdit: await canManageAIKeys(ctx.user as any),
+      /** AI is answering on LevelUp's keys because this workspace entered none of its own. */
+      usingPlatform: resolved.source === "platform",
+      aiAvailable: resolved.configured,
     };
   }),
 
@@ -67,10 +74,10 @@ export const aiSettingsRouter = router({
       if (!(await canManageAIKeys(ctx.user as any))) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Only the workspace owner or an admin can change the AI keys" });
       }
-      if (input.provider !== undefined) await db.setSystemSetting("aiProvider", input.provider);
-      if (input.openai !== undefined) await db.setSystemSetting("aiKey_openai", input.openai.trim());
-      if (input.claude !== undefined) await db.setSystemSetting("aiKey_claude", input.claude.trim());
-      if (input.gemini !== undefined) await db.setSystemSetting("aiKey_gemini", input.gemini.trim());
+      if (input.provider !== undefined) await setSettingFor(ctx.user as any, "aiProvider", input.provider);
+      if (input.openai !== undefined) await setSettingFor(ctx.user as any, "aiKey_openai", input.openai.trim());
+      if (input.claude !== undefined) await setSettingFor(ctx.user as any, "aiKey_claude", input.claude.trim());
+      if (input.gemini !== undefined) await setSettingFor(ctx.user as any, "aiKey_gemini", input.gemini.trim());
       invalidateWorkspaceAI();
       return { success: true };
     }),
@@ -82,8 +89,8 @@ export const aiSettingsRouter = router({
    */
   test: protectedProcedure
     .input(z.object({ provider: z.enum(PROVIDERS) }))
-    .mutation(async ({ input }) => {
-      const apiKey = String((await db.getSystemSetting(`aiKey_${input.provider}`)) || "").trim();
+    .mutation(async ({ ctx, input }) => {
+      const apiKey = String((await getSettingFor(ctx.user as any, `aiKey_${input.provider}`)) || "").trim();
       if (!apiKey) throw new TRPCError({ code: "PRECONDITION_FAILED", message: `No ${input.provider} key is saved` });
       const { callAIProvider } = await import("../_core/aiProviders");
       const { text, providerUsed } = await callAIProvider({

@@ -26,7 +26,7 @@ import { createHash } from "crypto";
 import Imap from "imap";
 // @ts-ignore - mailparser ships no types (same as routers/oauth-sync.ts)
 import { simpleParser } from "mailparser";
-import { and, eq, gte, isNotNull, like } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, like } from "drizzle-orm";
 import { getDb } from "../db";
 import { coachMessages, pmRecords, smtpImapAccounts, userAppData, users } from "../../drizzle/schema";
 import { coachToken, parseCoachRef, processCoachReply } from "./coachCron";
@@ -43,32 +43,120 @@ const REPLY_HOURLY_CAP = 10;
 const PARENT_MAX_AGE_DAYS = 30;
 
 type Account = typeof smtpImapAccounts.$inferSelect;
-const state = { lastPollAt: null as Date | null, lastOkAt: null as Date | null, lastError: null as string | null, handled: 0, address: null as string | null, lastSkips: [] as string[] };
-export function coachReplyStatus() { return { ...state, lastSkips: state.lastSkips.slice(-8) }; }
+type ReplyState = { lastPollAt: Date | null; lastOkAt: Date | null; lastError: string | null; handled: number; address: string | null; lastSkips: string[] };
+// Multi-workspace (-278): ONE REPLY MAILBOX PER WORKSPACE — its owner's
+// SMTP/IMAP account — so the state is kept per workspace. Key "" = no
+// workspace given (the operator's workspace; the tests that predate workspaces).
+const states = new Map<string, ReplyState>();
+const wsKey = (wsId?: number | null) => (wsId == null ? "" : String(wsId));
+function stateFor(wsId?: number | null): ReplyState {
+  const k = wsKey(wsId);
+  let s = states.get(k);
+  if (!s) { s = { lastPollAt: null, lastOkAt: null, lastError: null, handled: 0, address: null, lastSkips: [] }; states.set(k, s); }
+  return s;
+}
+export function coachReplyStatus(wsId?: number | null) { const state = stateFor(wsId); return { ...state, lastSkips: state.lastSkips.slice(-8) }; }
 
-let _acct: { at: number; acct: Account | null } | null = null;
-/** The mailbox replies go to: the owner's SMTP/IMAP account that sends system
- *  mail (the same accounts sendEmail may use — never a member's, audit F8). */
-export async function getReplyInbox(): Promise<Account | null> {
-  if (_acct && Date.now() - _acct.at < 5 * 60_000) return _acct.acct;
+const _acct = new Map<string, { at: number; acct: Account | null }>();
+/** The mailbox replies go to: the SMTP/IMAP account of the WORKSPACE's owner
+ *  that sends its system mail (the same accounts sendEmail may use — never a
+ *  member's, audit F8; never another workspace's, -278). */
+export async function getReplyInbox(wsId?: number | null): Promise<Account | null> {
+  const k = wsKey(wsId);
+  const hit = _acct.get(k);
+  if (hit && Date.now() - hit.at < 5 * 60_000) return hit.acct;
   const db = await getDb();
   let acct: Account | null = null;
   if (db) {
-    const owners = await ownerUserIds();
-    const rows = await db.select().from(smtpImapAccounts);
+    const owners = await ownerUserIds(wsId);
+    const ids = Array.from(owners);
+    const rows = ids.length ? await db.select().from(smtpImapAccounts).where(inArray(smtpImapAccounts.userId, ids)) : [];
     acct = rows.filter((r) => owners.has(r.userId) && r.imapHost && r.imapUsername && r.imapPassword).sort((a, b) => a.userId - b.userId)[0] || null;
   }
-  _acct = { at: Date.now(), acct };
-  state.address = acct?.email || null;
+  _acct.set(k, { at: Date.now(), acct });
+  stateFor(wsId).address = acct?.email || null;
   return acct;
 }
 /** Reply-To for coach emails — null (so emails do not invite a reply) when no
- *  inbox is configured or the last read of it failed. */
-export async function getReplyInboxAddress(): Promise<string | null> {
-  const a = await getReplyInbox();
+ *  inbox is configured or the last read of it failed. With the platform mail
+ *  service receiving replies, it is the platform's inbound address. */
+export async function getReplyInboxAddress(wsId?: number | null): Promise<string | null> {
+  const { platformMailConfigured, platformInboundAddress } = await import("./platformMail");
+  if (platformMailConfigured() && platformInboundAddress()) return platformInboundAddress();
+  const a = await getReplyInbox(wsId);
   if (!a) return null;
+  const state = stateFor(wsId);
   if (state.lastError && !(state.lastOkAt && Date.now() - state.lastOkAt.getTime() < 3600e3)) return null;
   return a.email;
+}
+
+/**
+ * Everything that must hold before a reply is answered (the mailbox poller and
+ * the platform's inbound webhook both use it): the token matches the message's
+ * owner, the message is recent, it belongs to the workspace whose mailbox
+ * received it, it was not handled before, the sender is that account's own
+ * address, and the hourly cap is not reached.
+ */
+async function vetCoachReply(db: any, o: { ref: { id: number; token: string }; from: string; msgId: string; date?: string; subject: string; wsId?: number | null }, skip: (why: string) => void): Promise<{ userId: number; parentId: number; dedupeKey: string } | null> {
+  const ref = o.ref, from = o.from;
+  // tenancy: by the message id inside a reference that carries an HMAC token bound to its owner (checked on the next line)
+  const [parent] = await db.select({ id: coachMessages.id, userId: coachMessages.userId, createdAt: coachMessages.createdAt }).from(coachMessages).where(eq(coachMessages.id, ref.id)).limit(1);
+  if (!parent || coachToken(parent.userId, parent.id) !== ref.token) { skip(`bad token for #${ref.id}`); return null; }
+  if (Date.now() - new Date(parent.createdAt).getTime() > PARENT_MAX_AGE_DAYS * 86400e3) { skip(`#${ref.id} too old`); return null; }
+  if (o.wsId != null) {
+    const { wsIdOf } = await import("./workspace");
+    if ((await wsIdOf({ id: parent.userId })) !== o.wsId) { skip(`#${ref.id}: not this workspace's message`); return null; }
+  }
+  const dedupeKey = createHash("sha1").update(o.msgId || `${from}|${o.date || ""}|${o.subject}`).digest("hex").slice(0, 40);
+  const [done] = await db.select({ id: coachMessages.id }).from(coachMessages).where(and(eq(coachMessages.userId, parent.userId), eq(coachMessages.runKey, `reply:${dedupeKey}`))).limit(1);
+  if (done) return null;
+  // From must be the account's own address or its check-in address.
+  const [u] = await db.select({ id: users.id, openId: users.openId, email: users.email }).from(users).where(eq(users.id, parent.userId)).limit(1);
+  const [ad] = await db.select({ prefs: userAppData.prefs }).from(userAppData).where(eq(userAppData.userId, parent.userId)).limit(1);
+  let alt = ""; try { alt = String(JSON.parse(ad?.prefs || "{}")?.coach?.checkins?.recipientEmail || ""); } catch { /* ignore */ }
+  // The alternate address is honored only for the workspace owner, and
+  // only once confirmed by the link emailed to it (audit F29).
+  if (alt && !(u && (await isOwner(u)) && (await isRecipientConfirmed(u.id, alt)))) alt = "";
+  const allowed = [u?.email, alt].filter(Boolean).map((e) => String(e).trim().toLowerCase());
+  if (!allowed.includes(from)) { skip(`#${ref.id}: sender ${from} is not the account's address`); return null; }
+  const [cnt] = await db.select({ id: coachMessages.id }).from(coachMessages)
+    .where(and(eq(coachMessages.userId, parent.userId), like(coachMessages.runKey, "reply:%"), gte(coachMessages.createdAt, new Date(Date.now() - 3600e3))))
+    .limit(REPLY_HOURLY_CAP).then((rows: any[]) => [rows.length]);
+  if (cnt >= REPLY_HOURLY_CAP) { skip(`hourly cap reached for user ${parent.userId}`); return null; }
+  return { userId: parent.userId, parentId: parent.id, dedupeKey };
+}
+
+/**
+ * A reply delivered by the platform mail service's inbound webhook
+ * (platformInbound.ts) instead of read from a mailbox. `token` is what was in
+ * the reply address ("reply+<token>@…" → "coach.123.ab12…" / "pmd.45.cd34…").
+ * Same rules as the mailbox poller.
+ */
+export async function handleInboundMail(m: { from: string; subject?: string; text?: string; html?: string; messageId?: string; inReplyTo?: string; references?: string; token?: string | null; headers?: Record<string, string[] | undefined> }): Promise<{ ok: boolean; handled: boolean; skip?: string }> {
+  const db = await getDb();
+  if (!db) return { ok: false, handled: false, skip: "DB unavailable" };
+  const from = addressOf(m.from);
+  const subject = String(m.subject || "");
+  const hd = m.headers || {};
+  let why = "";
+  const skip = (w: string) => { why = w; };
+  const synth = m.token ? `<${String(m.token).replace(/[^A-Za-z0-9._-]/g, "")}@levelupnow.tools>` : "";
+  const ref = parseCoachRef(synth, m.inReplyTo, m.references);
+  const pref = ref ? null : parsePmRef(synth, m.inReplyTo, m.references);
+  if (!ref && !pref) return { ok: true, handled: false, skip: "not a reply to a LevelUp message" };
+  if (isAutoReply(hd, subject)) return { ok: true, handled: false, skip: `auto-reply from ${from}` };
+  const v = senderAuthVerdict(hd["authentication-results"], from);
+  if (!v.ok) return { ok: true, handled: false, skip: `sender ${from} not authenticated (${v.reason})` };
+  const text = extractReplyText(m.text || htmlToText(m.html || ""));
+  if (!text) return { ok: true, handled: false, skip: "empty reply" };
+  if (pref) {
+    const r = await processDelegateReply({ ref: pref, from, text, messageId: m.messageId, subject });
+    return { ok: true, handled: !!r.ok && r.skip !== "already processed", skip: r.skip };
+  }
+  const vetted = await vetCoachReply(db, { ref: ref!, from, msgId: String(m.messageId || ""), subject }, skip);
+  if (!vetted) return { ok: true, handled: false, skip: why || "already processed" };
+  const r = await processCoachReply({ userId: vetted.userId, parentId: vetted.parentId, userText: text, dedupeKey: vetted.dedupeKey, from, subject, messageId: m.messageId || undefined, references: m.references || undefined });
+  return { ok: true, handled: !!(r.id && !r.duplicate) };
 }
 
 // ─── text ──────────────────────────────────────────────────────────────────
@@ -194,23 +282,64 @@ function fetchAll(imap: Imap, uids: number[], bodies: string): Promise<Array<{ u
   });
 }
 
+type PollResult = { ok: boolean; scanned: number; matched: number; handled: number; skipped: string[]; error?: string };
 let _polling = false;
-export async function pollCoachReplies(opts?: { force?: boolean }): Promise<{ ok: boolean; scanned: number; matched: number; handled: number; skipped: string[]; error?: string }> {
-  const result = { ok: false, scanned: 0, matched: 0, handled: 0, skipped: [] as string[], error: undefined as string | undefined };
+/**
+ * Read the reply mailboxes. `wsId` = only that workspace's (an owner's "check
+ * now"); without it, every active workspace's mailbox in turn (the 3-minute
+ * job). Each mailbox only ever answers messages of ITS workspace.
+ */
+export async function pollCoachReplies(opts?: { force?: boolean; wsId?: number | null }): Promise<PollResult> {
+  const result: PollResult = { ok: false, scanned: 0, matched: 0, handled: 0, skipped: [], error: undefined };
   if (_polling) return { ...result, error: "already polling" };
   const db = await getDb();
   if (!db) return { ...result, error: "DB unavailable" };
-  const acct = await getReplyInbox();
-  if (!acct) return { ...result, error: "no SMTP/IMAP mailbox configured" };
+  // Which mailboxes?
+  const targets: Array<{ wsId: number | null; acct: Account }> = [];
+  if (opts?.wsId != null) {
+    const a = await getReplyInbox(opts.wsId);
+    if (a) targets.push({ wsId: opts.wsId, acct: a });
+  } else {
+    const { activeWorkspaceIds } = await import("./workspace");
+    const wsIds = await activeWorkspaceIds();
+    if (wsIds === null) { const a = await getReplyInbox(); if (a) targets.push({ wsId: null, acct: a }); }
+    else {
+      const seen = new Set<number>();
+      for (const w of wsIds) {
+        const a = await getReplyInbox(w);
+        if (a && !seen.has(a.id)) { seen.add(a.id); targets.push({ wsId: w, acct: a }); }
+      }
+    }
+  }
+  if (!targets.length) return { ...result, error: "no SMTP/IMAP mailbox configured" };
   // Nothing to read unless a coach email went out recently.
   const since = new Date(Date.now() - (LOOKBACK_DAYS + 1) * 86400e3);
   if (!opts?.force) {
+    // tenancy: background — "did anybody get a coach email lately?" (an id only, to decide whether to poll at all)
     const [recent] = await db.select({ id: coachMessages.id }).from(coachMessages).where(and(isNotNull(coachMessages.emailedAt), gte(coachMessages.emailedAt, since))).limit(1);
     // …or a PM delegation is open (a delegate can answer a follow-up days later)
+    // tenancy: background — "is any delegation open?" (an id only, to decide whether to poll at all)
     const [openDlg] = recent ? [true] : await db.select({ id: pmRecords.id }).from(pmRecords).where(and(eq(pmRecords.kind, "delegation"), gte(pmRecords.updatedAt, new Date(Date.now() - 30 * 86400e3)))).limit(1);
     if (!recent && !openDlg) return { ...result, ok: true };
   }
   _polling = true;
+  try {
+    let okAll = true;
+    for (const t of targets) {
+      const r = await pollInbox(db, t.acct, t.wsId);
+      result.scanned += r.scanned; result.matched += r.matched; result.handled += r.handled; result.skipped.push(...r.skipped);
+      if (!r.ok) { okAll = false; result.error = r.error; }
+    }
+    result.ok = okAll;
+  } finally {
+    _polling = false;
+  }
+  return result;
+}
+
+async function pollInbox(db: any, acct: Account, wsId: number | null): Promise<PollResult> {
+  const result: PollResult = { ok: false, scanned: 0, matched: 0, handled: 0, skipped: [], error: undefined };
+  const state = stateFor(wsId);
   state.lastPollAt = new Date();
   let imap: Imap | null = null;
   const skip = (why: string) => { result.skipped.push(why); };
@@ -253,26 +382,9 @@ export async function pollCoachReplies(opts?: { force?: boolean }): Promise<{ ok
       const from = addressOf(String((hd.from || [])[0] || ""));
       if (isAutoReply(hd, subject)) { skip(`auto-reply from ${from}`); continue; }
       if (!authOk(hd, from, `#${ref.id}`)) continue;
-      const [parent] = await db.select({ id: coachMessages.id, userId: coachMessages.userId, createdAt: coachMessages.createdAt }).from(coachMessages).where(eq(coachMessages.id, ref.id)).limit(1);
-      if (!parent || coachToken(parent.userId, parent.id) !== ref.token) { skip(`bad token for #${ref.id}`); continue; }
-      if (Date.now() - new Date(parent.createdAt).getTime() > PARENT_MAX_AGE_DAYS * 86400e3) { skip(`#${ref.id} too old`); continue; }
-      const dedupeKey = createHash("sha1").update(msgId || `${from}|${(hd.date || [])[0]}|${subject}`).digest("hex").slice(0, 40);
-      const [done] = await db.select({ id: coachMessages.id }).from(coachMessages).where(and(eq(coachMessages.userId, parent.userId), eq(coachMessages.runKey, `reply:${dedupeKey}`))).limit(1);
-      if (done) continue;
-      // From must be the account's own address or its check-in address.
-      const [u] = await db.select({ id: users.id, openId: users.openId, email: users.email }).from(users).where(eq(users.id, parent.userId)).limit(1);
-      const [ad] = await db.select({ prefs: userAppData.prefs }).from(userAppData).where(eq(userAppData.userId, parent.userId)).limit(1);
-      let alt = ""; try { alt = String(JSON.parse(ad?.prefs || "{}")?.coach?.checkins?.recipientEmail || ""); } catch { /* ignore */ }
-      // The alternate address is honored only for the workspace owner, and
-      // only once confirmed by the link emailed to it (audit F29).
-      if (alt && !(u && (await isOwner(u)) && (await isRecipientConfirmed(u.id, alt)))) alt = "";
-      const allowed = [u?.email, alt].filter(Boolean).map((e) => String(e).trim().toLowerCase());
-      if (!allowed.includes(from)) { skip(`#${ref.id}: sender ${from} is not the account's address`); continue; }
-      const [cnt] = await db.select({ id: coachMessages.id }).from(coachMessages)
-        .where(and(eq(coachMessages.userId, parent.userId), like(coachMessages.runKey, "reply:%"), gte(coachMessages.createdAt, new Date(Date.now() - 3600e3))))
-        .limit(REPLY_HOURLY_CAP).then((rows: any[]) => [rows.length]);
-      if (cnt >= REPLY_HOURLY_CAP) { skip(`hourly cap reached for user ${parent.userId}`); continue; }
-      todo.push({ uid: h.uid, userId: parent.userId, parentId: parent.id, from, dedupeKey });
+      const vetted = await vetCoachReply(db, { ref, from, msgId, date: String((hd.date || [])[0] || ""), subject, wsId }, skip);
+      if (!vetted) continue;
+      todo.push({ uid: h.uid, userId: vetted.userId, parentId: vetted.parentId, from, dedupeKey: vetted.dedupeKey });
     }
     const full = await fetchAll(imap, [...todo.map((t) => t.uid), ...pmTodo.map((t) => t.uid)], "");
     for (const t of pmTodo) {
@@ -281,7 +393,7 @@ export async function pollCoachReplies(opts?: { force?: boolean }): Promise<{ ok
       const parsed: any = await simpleParser(raw.buf);
       const text = extractReplyText(parsed.text || htmlToText(parsed.html || ""));
       if (!text) { skip(`delegation #${t.ref.id}: empty reply`); continue; }
-      const r = await processDelegateReply({ ref: t.ref, from: t.from, text, messageId: parsed.messageId || t.messageId, subject: t.subject });
+      const r = await processDelegateReply({ ref: t.ref, from: t.from, text, messageId: parsed.messageId || t.messageId, subject: t.subject, wsId });
       if (r.skip && r.skip !== "already processed") skip(r.skip);
       else if (r.ok && r.skip !== "already processed") { result.handled++; state.handled++; console.log(`[coach-replies] delegate reply on delegation #${t.ref.id} → message #${r.messageId}`); }
     }
@@ -306,7 +418,6 @@ export async function pollCoachReplies(opts?: { force?: boolean }): Promise<{ ok
     console.error("[coach-replies] poll failed:", result.error);
   } finally {
     try { imap?.end(); } catch { /* ignore */ }
-    _polling = false;
     if (result.skipped.length) state.lastSkips = [...state.lastSkips, ...result.skipped].slice(-20);
   }
   return result;

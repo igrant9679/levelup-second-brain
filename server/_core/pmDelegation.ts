@@ -90,6 +90,10 @@ export async function resolvePerson(db: any, ownerId: number, key: string): Prom
     // them all to every member), never an arbitrary lookup.
     const uid = Number(id);
     if (!/^\d+$/.test(id) || !Number.isSafeInteger(uid) || uid <= 0) return null;
+    // …and a member of the OWNER's workspace (-278): a "u:" key naming
+    // somebody in another workspace resolves to nobody.
+    const { sameWorkspace } = await import("./workspace");
+    if (!(await sameWorkspace({ id: ownerId }, uid))) return null;
     const [u] = await db.select({ name: users.name, email: users.email }).from(users).where(eq(users.id, uid)).limit(1);
     return u ? { name: String(u.name || u.email || "Team member"), email: u.email || null } : null;
   }
@@ -111,7 +115,14 @@ export async function resolvePerson(db: any, ownerId: number, key: string): Prom
 export async function knownRecipientEmails(db: any, userId: number): Promise<Set<string>> {
   const out = new Set<string>();
   const add = (v: unknown) => { const s = String(v ?? "").trim().toLowerCase(); if (s && s.includes("@")) out.add(s); };
-  try { for (const u of await db.select({ email: users.email }).from(users)) add(u.email); } catch { /* none */ }
+  // The accounts of the member's OWN workspace (-278) — it used to be every account on the platform.
+  try {
+    const { wsIdOf } = await import("./workspace");
+    const w = await wsIdOf({ id: userId });
+    // tenancy: w === null only under vitest (no workspace model); otherwise scoped by users.workspaceId
+    const rows = w === null ? await db.select({ email: users.email }).from(users) : (w ? await db.select({ email: users.email }).from(users).where(eq(users.workspaceId, w)) : []);
+    for (const u of rows) add(u.email);
+  } catch { /* none */ }
   try { for (const p of await db.select({ email: pmPeople.email }).from(pmPeople).where(eq(pmPeople.userId, userId))) add(p.email); } catch { /* none */ }
   try {
     const [row] = await db.select({ contacts: userAppData.contacts }).from(userAppData).where(eq(userAppData.userId, userId)).limit(1);
@@ -124,8 +135,14 @@ export async function knownRecipientEmails(db: any, userId: number): Promise<Set
   return out;
 }
 
-async function replyAddress(): Promise<string | null> {
-  try { const m = await import("./coachReplies"); return await m.getReplyInboxAddress(); } catch { return null; }
+/** Where a delegate's reply goes: the reply mailbox of the OWNER's workspace (-278). */
+async function replyAddress(userId?: number | null): Promise<string | null> {
+  try {
+    const m = await import("./coachReplies");
+    const { wsIdOf } = await import("./workspace");
+    const w = userId != null ? await wsIdOf({ id: userId }) : null;
+    return await m.getReplyInboxAddress(w || null);
+  } catch { return null; }
 }
 
 export function renderNudgeEmail(o: { ownerName: string; personName: string; taskTitle: string; projectName?: string; expectedBy?: string | null; note?: string; canReply: boolean; intro?: boolean }): string {
@@ -182,7 +199,7 @@ export async function sendDelegateNudge(ownerId: number, recordId: number, opts?
   if (!person?.email) return { ok: false, error: `${person?.name || "That person"} has no email address — add one in People` };
   const [owner] = await db.select({ name: users.name, email: users.email }).from(users).where(eq(users.id, ownerId)).limit(1);
   const ownerName = String(owner?.name || "Your colleague");
-  const replyTo = await replyAddress();
+  const replyTo = await replyAddress(ownerId);
   const title = d.taskTitle || rec.title || "a task";
   const note = opts?.note ?? "";
   const ok = await sendEmail({
@@ -239,12 +256,18 @@ export async function classifyReply(text: string, ctx: { taskTitle: string; toda
 
 const STATUS_WORD: Record<string, string> = { done: "says it's done", on_track: "says it's on track", at_risk: "says it's running late", blocked: "is blocked", question: "has a question", unknown: "replied" };
 
-export async function processDelegateReply(o: { ref: { id: number; token: string }; from: string; text: string; messageId?: string; subject?: string }): Promise<{ ok: boolean; skip?: string; messageId?: number }> {
+export async function processDelegateReply(o: { ref: { id: number; token: string }; from: string; text: string; messageId?: string; subject?: string; /** the workspace whose mailbox received it (-278) */ wsId?: number | null }): Promise<{ ok: boolean; skip?: string; messageId?: number }> {
   const db = await getDb();
   if (!db) return { ok: false, skip: "DB unavailable" };
+  // tenancy: by the record id inside a reference that carries an HMAC token bound to its owner (checked two lines down)
   const [rec] = await db.select().from(pmRecords).where(eq(pmRecords.id, o.ref.id)).limit(1);
   if (!rec || rec.kind !== "delegation" || rec.deletedAt) return { ok: false, skip: `no delegation #${o.ref.id}` };
   if (pmToken(rec.userId, rec.id) !== o.ref.token) return { ok: false, skip: `bad token for delegation #${rec.id}` };
+  if (o.wsId != null) {
+    const { wsIdOf } = await import("./workspace");
+    if ((await wsIdOf({ id: rec.userId })) !== o.wsId) return { ok: false, skip: `delegation #${rec.id}: not this workspace's` };
+  }
+  (await import("./memberContext")).setMember(rec.userId); // the AI that reads the reply is the owner's workspace's
   const d = parseJSON<DelegationData>(rec.data, {});
   const person = d.personKey ? await resolvePerson(db, rec.userId, d.personKey) : null;
   if (!person?.email || person.email.trim().toLowerCase() !== o.from) return { ok: false, skip: `delegation #${rec.id}: sender ${o.from} is not the delegate` };
@@ -327,6 +350,10 @@ export async function processDelegationNudges(onlyUserId?: number): Promise<{ se
     ? and(eq(pmRecords.kind, "delegation"), isNull(pmRecords.deletedAt), eq(pmRecords.userId, onlyUserId))
     : and(eq(pmRecords.kind, "delegation"), isNull(pmRecords.deletedAt)));
   if (!recs.length) return { sent: 0, errors: 0 };
+  // Suspended / deleted workspaces get no automatic follow-ups (-278).
+  const { activeMemberIds } = await import("./workspace");
+  const active = await activeMemberIds();
+  // tenancy: background — every owner's own PM settings, read back per owner ("userId|projectKey") below
   const settings = await db.select().from(pmRecords).where(and(eq(pmRecords.kind, "pmsettings"), isNull(pmRecords.deletedAt)));
   const projAuto = new Map<string, boolean>();
   settings.forEach((s: any) => projAuto.set(`${s.userId}|${s.projectKey}`, !!parseJSON<any>(s.data, {}).autoNudge));
@@ -334,6 +361,8 @@ export async function processDelegationNudges(onlyUserId?: number): Promise<{ se
   let sent = 0, errors = 0;
   for (const r of recs) {
     try {
+      if (active && !active.has(Number(r.userId))) continue;
+      (await import("./memberContext")).setMember(r.userId); // this owner's turn: their workspace's AI key and limits
       if (!tzCache.has(r.userId)) {
         const [row] = await db.select({ prefs: userAppData.prefs }).from(userAppData).where(eq(userAppData.userId, r.userId)).limit(1);
         tzCache.set(r.userId, localParts(parseJSON<any>(row?.prefs, {})?.coach?.tz));

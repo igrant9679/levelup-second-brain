@@ -9,11 +9,15 @@ import { protectedProcedure, router } from "../_core/trpc";
 import { assertOwner } from "../_core/ownerGuard";
 import { recordError, readErrors } from "../_core/errorLog";
 import { readAudit } from "../_core/audit";
+import { assertOperator, isOperator, wsIdOf } from "../_core/workspace";
 
 // Per-user cap on client reports: 60 an hour (a broken page can loop).
 const perUser = new Map<number, { n: number; at: number }>();
 
 export const opsRouter = router({
+  /** Who am I to the platform? The client shows operator tools only on true. */
+  amOperator: protectedProcedure.query(async ({ ctx }) => ({ operator: await isOperator(ctx.user as any) })),
+
   reportClientError: protectedProcedure
     .input(z.object({
       message: z.string().min(1).max(1000),
@@ -41,14 +45,17 @@ export const opsRouter = router({
   errors: protectedProcedure
     .input(z.object({ sinceHours: z.number().int().min(1).max(24 * 90).default(24 * 7) }).optional())
     .query(async ({ ctx, input }) => {
-      await assertOwner(ctx.user);
+      // The error log is the platform's (every workspace's errors): operator only (-278).
+      await assertOperator(ctx.user as any);
       return readErrors(input?.sinceHours ?? 24 * 7);
     }),
 
   auditLog: protectedProcedure
     .input(z.object({ limit: z.number().int().min(1).max(500).default(100), before: z.number().int().nullable().optional() }).optional())
     .query(async ({ ctx, input }) => {
+      // A workspace's owner reads THEIR workspace's audit log (-278).
       await assertOwner(ctx.user);
-      return readAudit(input?.limit ?? 100, input?.before ?? null);
+      const w = await wsIdOf(ctx.user as any);
+      return readAudit(input?.limit ?? 100, input?.before ?? null, w);
     }),
 });

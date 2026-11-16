@@ -1141,11 +1141,7 @@ var D = {
   // Portfolio layer above projects. Each program groups multiple projects so
   // company / business-line rollups become a first-class view. Seeded with
   // CommunityForce + LSI Media for the COO/CEO use case; user can add more.
-  programs: JSON.parse(localStorage.getItem('lu_programs') || 'null') || [
-    {id:1,name:'CommunityForce',icon:'📊',color:'#1f6feb',owner:'Idris Grant',status:'Active',description:'COO scope: all CF workstreams (federal services + awards platform + Salesforce practice).',projectIds:[],createdAt:'2026-01-01'},
-    {id:2,name:'LSI Media',icon:'💜',color:'#9333ea',owner:'Idris Grant',status:'Active',description:'CEO scope: oversight only — day-to-day handled by team.',projectIds:[],createdAt:'2026-01-01'},
-    {id:3,name:'Personal',icon:'🏠',color:'#10b981',owner:'Idris Grant',status:'Active',description:'Personal projects, home, learning.',projectIds:[],createdAt:'2026-01-01'},
-  ],
+  programs: JSON.parse(localStorage.getItem('lu_programs') || 'null') || [],
   creds: JSON.parse(localStorage.getItem('lu_creds') || '{}'),
   prefs: JSON.parse(localStorage.getItem('lu_prefs') || '{"darkMode":true,"compact":false,"accent":"#3B82F6"}'),
   // External tasks pulled from Smartsheet / NiftyPM by the server cron. Read-only
@@ -1493,8 +1489,8 @@ function _topbarSyncTooltipUpdate(){
 // Refresh tooltip periodically so "5m ago" stays accurate.
 setInterval(()=>{try{_topbarSyncTooltipUpdate();}catch{}}, 60000);
 function _extSourceBadge(src){
-  if(src==='smartsheet')return '<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#1f6feb;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px;margin-right:4px" title="From CommunityForce Smartsheet">CF</span>';
-  if(src==='nifty')return '<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#9333ea;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px;margin-right:4px" title="From LSI Media NiftyPM">LSI</span>';
+  if(src==='smartsheet')return '<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#1f6feb;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px;margin-right:4px" title="From Smartsheet">'+_luCF()+'</span>';
+  if(src==='nifty')return '<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#9333ea;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px;margin-right:4px" title="From NiftyPM">'+_luLSI()+'</span>';
   return '';
 }
 // Build a unified iterator: native tasks + non-tombstoned external tasks
@@ -3622,7 +3618,7 @@ function _gatherRelevantContent(query, opts){
     if(et.removedAt || (et.override && et.override.tombstoned)) continue;
     if(et.status === 'Done' && !opts.includeDone) continue;
     const score = _relevanceScore({title:et.title, body:et.description || '', updated:et.updatedAt || et.fetchedAt}, queryTerms);
-    if(score > 0 || !queryTerms[0]) candidates.push({type:'ext-task', id:et.externalId, title:et.title, snippet:_bodySnippet(et.description || '', maxBodyChars), score, meta:`${et.source==='nifty'?'LSI':'CF'}${et.status?' · '+et.status:''}${et.due?' · due '+et.due:''}`, openFn:`_openExternalAnnotateModal('${et.source}','${et.externalId}')`, icon:et.source==='nifty'?'🟣':'🟦'});
+    if(score > 0 || !queryTerms[0]) candidates.push({type:'ext-task', id:et.externalId, title:et.title, snippet:_bodySnippet(et.description || '', maxBodyChars), score, meta:`${et.source==='nifty'?_luLSI():_luCF()}${et.status?' · '+et.status:''}${et.due?' · due '+et.due:''}`, openFn:`_openExternalAnnotateModal('${et.source}','${et.externalId}')`, icon:et.source==='nifty'?'🟣':'🟦'});
   }
   // Journal entries.
   for(const j of (D.journal || [])){
@@ -3980,7 +3976,7 @@ async function _refreshDailyFocusAI(opts){
       project:t.project||t.projectLabel||null,
       myDay:!!t.myDay,
     }));
-    const sys=`You are a productivity coach for a COO/CEO running two companies. Read the open task list (mix of personal items, CF = CommunityForce Smartsheet items, LSI = LSI Media Nifty items) and pick the TOP 3 to 5 items that the user should focus on TODAY, in order. Bias toward: overdue items, items due today, items flagged "myDay", and high-leverage strategic work over busy work. When two items would compete, prefer the one that unblocks others. Output STRICTLY a JSON array — no prose, no markdown — each element shaped {"id":"<id from input>","reason":"<one short sentence, ~12 words, why this item matters today>"}. Do NOT include items not in the input. Do NOT invent ids.`;
+    const sys=`You are a productivity coach for ${_luWho()}. Read the open task list (mix of personal items${_luSrcLegend()}) and pick the TOP 3 to 5 items that the user should focus on TODAY, in order. Bias toward: overdue items, items due today, items flagged "myDay", and high-leverage strategic work over busy work. When two items would compete, prefer the one that unblocks others. Output STRICTLY a JSON array — no prose, no markdown — each element shaped {"id":"<id from input>","reason":"<one short sentence, ~12 words, why this item matters today>"}. Do NOT include items not in the input. Do NOT invent ids.`;
     const userContent=`Today: ${todayKey}\nOpen tasks (${compact.length}):\n${JSON.stringify(compact)}`;
     const res=await _trpc('ai.assist',{systemPrompt:sys,userContent,provider:provider||'manus'},'mutation');
     const raw=String(res?.result||res?.text||'').trim();
@@ -4869,6 +4865,22 @@ function _jsAttr(s){return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'
 // Open a stored link (bookmark, meeting, news, pushed task) in a new tab —
 // web and mail links only: a javascript: or data: URL saved in a record must
 // never run in the app's window (build -235).
+// Company wording (multi-workspace, build -278). "CF" / "LSI" / "CommunityForce" /
+// "LSI Media" are the ORIGINAL workspace's names for its Smartsheet and NiftyPM
+// work - its cfLabels feature (auth.me -> window._luMe, set by app-workspace.js).
+// Every other workspace sees the plain tool names. Until auth.me has answered
+// the original wording is used, so nothing flickers for the original workspace.
+function _luCfOn(){try{var m=window._luMe;return !(m&&m.workspace)||!!(m.workspace.features||{}).cfLabels;}catch(_){return true;}}
+function _luCF(){return _luCfOn()?'CF':'Smartsheet';}
+function _luLSI(){return _luCfOn()?'LSI':'Nifty';}
+function _luCFLong(){return _luCfOn()?'CommunityForce':'Smartsheet';}
+function _luLSILong(){return _luCfOn()?'LSI Media':'NiftyPM';}
+// Who the AI is told it is helping, and how to read the source tags.
+function _luWho(){return _luCfOn()?'a COO/CEO running two companies':'a busy professional';}
+function _luSrcLegend(paren){
+  if(_luCfOn())return paren?' (CommunityForce = CF, LSI Media = LSI)':', CF = CommunityForce Smartsheet items, LSI = LSI Media Nifty items';
+  return paren?' (items tagged Smartsheet or Nifty come from those tools)':', plus items tagged Smartsheet or Nifty that come from those tools';
+}
 function _luOpenUrl(u){
   u=String(u==null?'':u).trim();
   if(!/^(https?:|mailto:)/i.test(u)){if(typeof toast==='function')toast({type:'warning',title:'Link not opened',msg:'Only web (http/https) and email links can be opened.'});return null;}

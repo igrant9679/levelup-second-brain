@@ -12,7 +12,7 @@ import { sdk } from "../_core/sdk";
 import { ENV } from "../_core/env";
 import { DRIVE_STORAGE_SOURCE, resetDriveTokenCache, storageSelfTest } from "../storage";
 import { signOAuthState, verifyOAuthState, type OAuthStatePayload } from "../_core/oauthState";
-import { isOwner } from "../_core/ownerGuard";
+import { isOperator } from "../_core/workspace";
 
 function getQueryParam(req: Request, key: string): string | undefined {
   const value = req.query[key];
@@ -65,8 +65,33 @@ export function registerProviderOAuthCallbacks(app: Express) {
   app.get("/api/oauth/drive/start", async (req: Request, res: Response) => {
     try {
       const user = await sdk.authenticateRequest(req).catch(() => null);
-      // The Drive token is app-wide (every upload uses it): owner only.
-      if (!user || !(await isOwner(user))) {
+      // ?for=workspace — a workspace connecting ITS OWN Google Drive as its file
+      // storage (Settings → Storage, -278): its owner or an admin. Same Google
+      // client and callback address as the platform reconnect below; the
+      // signed state says which of the two this is.
+      if (getQueryParam(req, "for") === "workspace") {
+        const { isOwner } = await import("../_core/ownerGuard");
+        if (!user || !((user as any).role === "admin" || (await isOwner(user as any)))) {
+          res.status(403).send("<html><body style=\"font-family:sans-serif;padding:40px\"><h2>Owner or admin only</h2><p>Sign in to LevelUp as the workspace's owner or an admin, then open Settings → Storage.</p></body></html>");
+          return;
+        }
+        if (!ENV.googleDriveClientId || !ENV.googleDriveClientSecret) { res.status(500).send("Google Drive sign-in is not set up on this server."); return; }
+        const origin = driveOrigin(req);
+        const u = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+        u.searchParams.set("client_id", ENV.googleDriveClientId);
+        u.searchParams.set("redirect_uri", `${origin}/api/oauth/drive/callback`);
+        u.searchParams.set("response_type", "code");
+        u.searchParams.set("scope", "https://www.googleapis.com/auth/drive.file");
+        u.searchParams.set("access_type", "offline");
+        u.searchParams.set("prompt", "consent");
+        u.searchParams.set("state", signOAuthState({ userId: user.id, origin, slot: "ws-drive" }));
+        res.redirect(u.toString());
+        return;
+      }
+      // The Drive token here is the PLATFORM's file store (every workspace's
+      // default storage): platform operator only (-278). A workspace's own
+      // Drive is connected in Settings → Storage and kept with the workspace.
+      if (!user || !(await isOperator(user as any))) {
         res.status(403).send("<html><body style=\"font-family:sans-serif;padding:40px\"><h2>Owner only</h2><p>Sign in to LevelUp as the workspace owner, then open Settings → Sync → Reconnect Google Drive.</p></body></html>");
         return;
       }
@@ -98,7 +123,46 @@ export function registerProviderOAuthCallbacks(app: Express) {
     const st = await stateForRequest(req, state);
     if (!code || !st) { res.redirect(`/?oauth_error=drive&detail=${encodeURIComponent(STATE_REJECTED)}`); return; }
     const stUser = await sdk.authenticateRequest(req).catch(() => null);
-    if (!stUser || !(await isOwner(stUser))) { res.redirect(`/?oauth_error=drive&detail=${encodeURIComponent("Only the workspace owner can reconnect file storage.")}`); return; }
+    if (st.slot === "ws-drive") {
+      // A workspace's own Google Drive (-278). The token is kept with the
+      // workspace (encrypted), a folder is made in that Drive, and it only
+      // becomes the workspace's storage if a test file can be written, read
+      // back and removed.
+      try {
+        const { isOwner } = await import("../_core/ownerGuard");
+        const { wsIdOf, getWorkspace } = await import("../_core/workspace");
+        if (!stUser || !((stUser as any).role === "admin" || (await isOwner(stUser as any)))) { res.redirect(`/?oauth_error=wsdrive&detail=${encodeURIComponent("Only the workspace's owner or an admin can change its storage.")}`); return; }
+        const wsId = await wsIdOf(stUser as any);
+        if (!wsId) { res.redirect(`/?oauth_error=wsdrive&detail=${encodeURIComponent("No workspace.")}`); return; }
+        const tokenResp = await fetch("https://oauth2.googleapis.com/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ client_id: ENV.googleDriveClientId, client_secret: ENV.googleDriveClientSecret, code, grant_type: "authorization_code", redirect_uri: `${st.origin}/api/oauth/drive/callback` }).toString(),
+        });
+        const body = await tokenResp.text();
+        if (!tokenResp.ok) { console.error("[Drive OAuth] workspace token exchange failed:", tokenResp.status, body.slice(0, 300)); res.redirect(`/?oauth_error=wsdrive&detail=${encodeURIComponent("Google did not accept the sign-in. Please try again.")}`); return; }
+        const tok = JSON.parse(body) as { refresh_token?: string };
+        if (!tok.refresh_token) { res.redirect(`/?oauth_error=wsdrive&detail=${encodeURIComponent("Google returned no long-lived permission. Remove LevelUp's access at myaccount.google.com/permissions and connect again.")}`); return; }
+        const F = await import("../_core/workspaceFiles");
+        const ws = await getWorkspace(wsId);
+        const folderId = await F.driveCreateFolderWith(tok.refresh_token, `LevelUp files — ${ws?.name || "workspace"}`);
+        const store = { id: F.newStoreId(), mode: "gdrive" as const, refreshToken: tok.refresh_token, folderId, account: String((stUser as any).email || ""), addedAt: new Date().toISOString() };
+        const test = await F.testStore(store);
+        if (!test.ok) { res.redirect(`/?oauth_error=wsdrive&detail=${encodeURIComponent("Google Drive was connected, but the test file could not be saved, so nothing was changed: " + String(test.error || "").slice(0, 160))}`); return; }
+        const state2 = await F.readStorage(wsId);
+        state2.stores[store.id] = store;
+        state2.current = store.id;
+        await F.writeStorage(wsId, state2);
+        console.log(`[Drive OAuth] workspace ${wsId} now stores files in its own Google Drive (by user ${st.userId})`);
+        res.redirect("/?oauth_success=wsdrive");
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("[Drive OAuth] workspace callback error:", msg);
+        res.redirect(`/?oauth_error=wsdrive&detail=${encodeURIComponent(msg.slice(0, 200))}`);
+      }
+      return;
+    }
+    if (!stUser || !(await isOperator(stUser as any))) { res.redirect(`/?oauth_error=drive&detail=${encodeURIComponent("Only the workspace owner can reconnect file storage.")}`); return; }
     try {
       const redirectUri = `${st.origin}/api/oauth/drive/callback`;
       const tokenResp = await fetch("https://oauth2.googleapis.com/token", {

@@ -11,8 +11,14 @@ import { userAppData } from "../../drizzle/schema";
 export type PrefsRow = { userId: number; prefs: string | null };
 
 export async function prefsRows(db: any, userId?: number): Promise<PrefsRow[]> {
+  // tenancy: background — every member's own prefs, each handled on its own; filtered to active workspaces below
   const q = db.select({ userId: userAppData.userId, prefs: userAppData.prefs }).from(userAppData);
-  return userId != null ? q.where(eq(userAppData.userId, userId)) : q;
+  const rows: PrefsRow[] = await (userId != null ? q.where(eq(userAppData.userId, userId)) : q);
+  // Multi-workspace (-278): a suspended / deleted workspace gets no
+  // background mail or check-ins.
+  const { activeMemberIds } = await import("./workspace");
+  const active = await activeMemberIds();
+  return active ? rows.filter((r) => active.has(Number(r.userId))) : rows;
 }
 
 export async function fullRow(db: any, lite: PrefsRow): Promise<any> {

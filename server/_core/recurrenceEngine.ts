@@ -217,10 +217,13 @@ export async function processRecurrence(opts?: { userId?: number }): Promise<{
   const where = opts?.userId
     ? and(isNotNull(tasksTable.recurrenceRule), eq(tasksTable.userId, opts.userId))
     : isNotNull(tasksTable.recurrenceRule);
+  // tenancy: background — every member's own repeating tasks; each creates copies for ITS OWNER only
   const templates = await db.select().from(tasksTable).where(where);
+  const active = opts?.userId ? null : await (await import("./workspace")).activeMemberIds();
 
   let created = 0;
   for (const t of templates) {
+    if (active && !active.has(Number(t.userId))) continue;
     try {
       created += await generateForTemplate(db, t);
     } catch (err) {

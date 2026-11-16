@@ -152,11 +152,11 @@ const WIDGET_SOURCES={
         // completedAt = LevelUp-side first-seen-as-done timestamp (or null
         // when still open). Drives "Tasks Completed (by day)" rollups.
         completedAt:done?(et.completedAt||et.fetchedAt||null):null,
-        project:et.projectLabel||(et.source==='smartsheet'?'CF':et.source==='nifty'?'LSI':String(et.source||'External')),
+        project:et.projectLabel||(et.source==='smartsheet'?_luCF():et.source==='nifty'?_luLSI():String(et.source||'External')),
         assignee:et.assignee,
         myDay:!!ov.myDay,
         _source:et.source,
-        _sourceLabel:et.source==='smartsheet'?'CF':et.source==='nifty'?'LSI':String(et.source||'External'),
+        _sourceLabel:et.source==='smartsheet'?_luCF():et.source==='nifty'?_luLSI():String(et.source||'External'),
       };
     });
     // CommunityForce work lives in Atlas since -223 (-275: it was missing here).
@@ -170,7 +170,7 @@ const WIDGET_SOURCES={
         const done=x.status==='done';
         atlas.push({id:'atlas:'+x.id,title:x.subtask||x.task,status:ST[x.status]||'Not Started',priority:x.priority||'Medium',
           due:ymd(x.dueDate),completedAt:done?(x.completedAt||x.updatedAt||null):null,project:projName[String(x.projectId)]||'CF',
-          assignee:x.ownerText||'',myDay:false,_source:'atlas',_sourceLabel:'CF'});
+          assignee:x.ownerText||'',myDay:false,_source:'atlas',_sourceLabel:_luCF()});
       });
     }
     return local.concat(ext,atlas);
@@ -199,7 +199,7 @@ const WIDGET_SOURCES={
         const et=extById.get(r.taskId);
         if(et){
           title=et.title||'';
-          project=et.projectLabel||(r.source==='smartsheet'?'CF':'LSI');
+          project=et.projectLabel||(r.source==='smartsheet'?_luCF():_luLSI());
         }
       }
       const startedAt=r.startedAt||r.createdAt||null;
@@ -210,7 +210,7 @@ const WIDGET_SOURCES={
         title,
         project:project||'(no project)',
         source:r.source||'local',
-        sourceLabel:r.source==='smartsheet'?'CF':r.source==='nifty'?'LSI':'Personal',
+        sourceLabel:r.source==='smartsheet'?_luCF():r.source==='nifty'?_luLSI():'Personal',
         mins:Number(r.durationMins)||0,
         note:r.note||'',
         date,                 // YYYY-MM-DD for groupBy day()
@@ -237,11 +237,11 @@ const WIDGET_SOURCES={
         due:ov.localDue||et.due,
         startDate:et.startDate,
         completedAt:done?(et.completedAt||et.fetchedAt||null):null,
-        project:et.projectLabel||(et.source==='smartsheet'?'CF':et.source==='nifty'?'LSI':String(et.source||'External')),
+        project:et.projectLabel||(et.source==='smartsheet'?_luCF():et.source==='nifty'?_luLSI():String(et.source||'External')),
         assignee:et.assignee||'(unassigned)',
         myDay:!!ov.myDay,
         source:et.source,                                          // 'smartsheet' | 'nifty'
-        sourceLabel:et.source==='smartsheet'?'CF':et.source==='nifty'?'LSI':String(et.source||'External'),
+        sourceLabel:et.source==='smartsheet'?_luCF():et.source==='nifty'?_luLSI():String(et.source||'External'),
         hasPendingPush:!!(ov.pendingStatus),
       };
     });

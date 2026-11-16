@@ -32,6 +32,7 @@ import { userTz, userNow, toMinutes, dayIn, shiftDays, fmtDay, type UserNow } fr
 import { claimSend, settleClaims, releaseSend } from "./sendLedger";
 import { prefsRows, fullRow } from "./prefsScan";
 import { job, isShuttingDown } from "./lifecycle";
+import { CF_LABELS, labelsFor, type SourceLabels } from "./labels";
 
 interface WeeklyPref {
   enabled?: boolean;
@@ -274,7 +275,7 @@ interface AIBlock {
   picks: Array<{ title: string; reason: string; source: string }>;
 }
 
-async function generateAIBlock(rows: BuiltRows): Promise<AIBlock> {
+async function generateAIBlock(rows: BuiltRows, L: SourceLabels = CF_LABELS): Promise<AIBlock> {
   try {
     const { callAIProvider } = await import("./aiProviders");
     const compact = {
@@ -282,7 +283,7 @@ async function generateAIBlock(rows: BuiltRows): Promise<AIBlock> {
       overdue: rows.overdue.slice(0, 20).map(r => ({ s: r.source, t: r.title, due: r.due })),
       nextWeek: rows.nextWeek.slice(0, 20).map(r => ({ s: r.source, t: r.title, due: r.due, pri: r.priority })),
     };
-    const sys = `You are a productivity coach writing a brief weekly reflection for a COO/CEO running two companies (CommunityForce + LSI Media).
+    const sys = `You are a productivity coach writing a brief weekly reflection for ${L.audience}.
 
 Read the week's shipped / overdue / next-week task lists and return STRICTLY a JSON object (no markdown, no prose) with two keys:
 1. "reflection": 3-4 sentences (under 80 words) that acknowledge the most meaningful wins, flag the single biggest carryover risk, and name the one highest-leverage thing to start next week.
@@ -313,11 +314,11 @@ Read the week's shipped / overdue / next-week task lists and return STRICTLY a J
   }
 }
 
-function rowsHtml(rows: WeeklyRow[], emptyText: string): string {
+function rowsHtml(rows: WeeklyRow[], emptyText: string, L: SourceLabels = CF_LABELS): string {
   if (!rows.length) return `<p style="font-size:12px;color:#9ca3af;font-style:italic;margin:6px 0">${emptyText}</p>`;
   const sourceBadge = (s: WeeklyRow['source']) => {
-    if (s === 'CF') return '<span style="padding:1px 5px;background:#1f6feb;color:#fff;font-size:9px;font-weight:600;border-radius:3px;margin-right:4px">CF</span>';
-    if (s === 'LSI') return '<span style="padding:1px 5px;background:#9333ea;color:#fff;font-size:9px;font-weight:600;border-radius:3px;margin-right:4px">LSI</span>';
+    if (s === 'CF') return `<span style="padding:1px 5px;background:#1f6feb;color:#fff;font-size:9px;font-weight:600;border-radius:3px;margin-right:4px">${L.smartsheet}</span>`;
+    if (s === 'LSI') return `<span style="padding:1px 5px;background:#9333ea;color:#fff;font-size:9px;font-weight:600;border-radius:3px;margin-right:4px">${L.nifty}</span>`;
     return '';
   };
   return `<table style="width:100%;border-collapse:collapse">${rows.slice(0, 40).map(r => {
@@ -340,14 +341,14 @@ function rowsHtml(rows: WeeklyRow[], emptyText: string): string {
 // with the daily digest, and richer: net-worth movement, budget status,
 // nudges and an AI insight box. Still '' for non-Money users.
 
-function renderWeeklyHtml(name: string, rows: BuiltRows, ai: AIBlock, financeHtml = "", tz: string = "America/New_York"): string {
+function renderWeeklyHtml(name: string, rows: BuiltRows, ai: AIBlock, financeHtml = "", tz: string = "America/New_York", L: SourceLabels = CF_LABELS): string {
   const weekRange = `${fmtDay(tz, { month: 'short', day: 'numeric' }, new Date(Date.now() - 7 * 86400000))} — ${fmtDay(tz, { month: 'short', day: 'numeric' })}`;
   const picksHtml = ai.picks.length ? `
   <div style="background:#fef3c7;border-left:3px solid #f59e0b;padding:12px 16px;border-radius:0 6px 6px 0;margin:8px 0 16px;font-size:13px;color:#451a03">
     <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#92400e;margin-bottom:6px">✨ Suggested focus for next week</div>
     <ol style="margin:0;padding-left:20px;line-height:1.6">${ai.picks.map(p => {
-      const badge = p.source === 'CF' ? '<span style="padding:1px 5px;background:#1f6feb;color:#fff;font-size:9px;font-weight:600;border-radius:3px;margin-right:4px">CF</span>' :
-                    p.source === 'LSI' ? '<span style="padding:1px 5px;background:#9333ea;color:#fff;font-size:9px;font-weight:600;border-radius:3px;margin-right:4px">LSI</span>' : '';
+      const badge = p.source === 'CF' ? `<span style="padding:1px 5px;background:#1f6feb;color:#fff;font-size:9px;font-weight:600;border-radius:3px;margin-right:4px">${L.smartsheet}</span>` :
+                    p.source === 'LSI' ? `<span style="padding:1px 5px;background:#9333ea;color:#fff;font-size:9px;font-weight:600;border-radius:3px;margin-right:4px">${L.nifty}</span>` : '';
       return `<li><strong>${badge}${escHtml(p.title)}</strong><br><span style="font-size:12px;color:#78350f;font-style:italic">${escHtml(p.reason)}</span></li>`;
     }).join('')}</ol>
   </div>` : '';
@@ -371,11 +372,11 @@ function renderWeeklyHtml(name: string, rows: BuiltRows, ai: AIBlock, financeHtm
   </td></tr>`).join('')}</table>` : ''}
   ${picksHtml}
   <h2 style="font-size:15px;color:#10b981;border-bottom:2px solid #10b981;padding-bottom:4px;margin:20px 0 6px">✅ Shipped this week <span style="color:#9ca3af;font-weight:400;font-size:12px">(${rows.shipped.length})</span></h2>
-  ${rowsHtml(rows.shipped, "Nothing marked done this week — make sure you're stamping completedAt as you ship.")}
+  ${rowsHtml(rows.shipped, "Nothing marked done this week — make sure you're stamping completedAt as you ship.", L)}
   <h2 style="font-size:15px;color:#dc2626;border-bottom:2px solid #dc2626;padding-bottom:4px;margin:20px 0 6px">⚠ Overdue / carryover <span style="color:#9ca3af;font-weight:400;font-size:12px">(${rows.overdue.length})</span></h2>
-  ${rowsHtml(rows.overdue, 'Nothing overdue. Clean slate.')}
+  ${rowsHtml(rows.overdue, 'Nothing overdue. Clean slate.', L)}
   <h2 style="font-size:15px;color:#1f6feb;border-bottom:2px solid #1f6feb;padding-bottom:4px;margin:20px 0 6px">📅 Next 7 days <span style="color:#9ca3af;font-weight:400;font-size:12px">(${rows.nextWeek.length})</span></h2>
-  ${rowsHtml(rows.nextWeek, 'Nothing scheduled in the next 7 days.')}
+  ${rowsHtml(rows.nextWeek, 'Nothing scheduled in the next 7 days.', L)}
   ${financeHtml}
   <p style="font-size:11px;color:#9ca3af;margin-top:24px;border-top:1px solid #e5e7eb;padding-top:12px">
     Open LevelUp: <a href="https://levelupnow.tools/" style="color:#1f6feb">levelupnow.tools</a> · Disable this review in Settings → Notifications · <em>"Shipped" timestamps for CF/LSI rows reflect when LevelUp first observed completion (not the source's actual completion time).</em>
@@ -405,6 +406,7 @@ export async function processWeeklyReview(opts?: { userId?: number; force?: bool
 
   let sent = 0, skipped = 0, errors = 0;
   for (const lite of rows) {
+    (await import("./memberContext")).setMember(lite.userId); // this person's turn: their workspace's AI key and limits
     settleClaims('weekly');
     if (isShuttingDown()) break;
     let row: any = lite;
@@ -433,10 +435,12 @@ export async function processWeeklyReview(opts?: { userId?: number; force?: bool
         skipped++; // the claim stays: nothing to say this week
         continue;
       }
-      const aiBlock = await generateAIBlock(built);
+      // company wording only for the workspace that has it (-278)
+      const _labels = await labelsFor(row.userId);
+      const aiBlock = await generateAIBlock(built, _labels);
       const name = (userRow.name || (userRow.email || '').split('@')[0] || 'there').split(' ')[0];
       const money = await buildMoneySectionHtml((row as any).finance, 'weekly');
-      const html = renderWeeklyHtml(name, built, aiBlock, money.html, tz);
+      const html = renderWeeklyHtml(name, built, aiBlock, money.html, tz, _labels);
       const ok = await sendEmail({
         to: recipient,
         subject: `📊 Weekly review — ${built.shipped.length} shipped, ${built.overdue.length} overdue, ${built.nextWeek.length} ahead`,

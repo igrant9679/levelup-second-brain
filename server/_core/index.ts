@@ -11,7 +11,6 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { sdk } from "./sdk";
 import { registerBookmarkletRoutes } from "./bookmarklet";
-import { isOwner } from "./ownerGuard";
 import { installServerErrorCapture } from "./errorLog";
 import * as dbHelpers from "../db";
 import { sendEmail } from "./sendEmail";
@@ -29,6 +28,7 @@ import { startBackupCron } from "./backup";
 import { installShutdown } from "./lifecycle";
 import { installBodyParsers } from "./bodyLimits";
 import { registerFileRoutes } from "./fileProxy";
+import { registerInboundMailRoute } from "./platformInbound";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -58,6 +58,9 @@ async function startServer() {
   // Deploys send SIGTERM: let running cron passes finish (up to 20 s) and
   // hand unsent emails back to the ledger before exiting (-264).
   installShutdown(server);
+  // Multi-workspace (-278): workspace 1 has its owner and the platform has its
+  // operator before the first request is served. Idempotent; never throws.
+  await (await import("./workspace")).ensureWorkspaceBootstrap();
   // Trust the platform's reverse proxy (Railway, etc.) so req.protocol/req.secure
   // reflect the real client→edge protocol. This makes the session cookie's
   // `secure` flag get set correctly when the request came in over HTTPS.
@@ -83,6 +86,8 @@ async function startServer() {
   registerStorageProxy(app);
   // Private uploads, signed-in only (audit F35).
   registerFileRoutes(app);
+  // Replies to platform mail, delivered by the mail provider (-278). 404 unless MAIL_INBOUND_SECRET is set.
+  registerInboundMailRoute(app);
   registerOAuthRoutes(app);
   registerProviderOAuthCallbacks(app);
 
@@ -97,8 +102,8 @@ async function startServer() {
         res.status(401).json({ error: "Unauthorized" });
         return;
       }
-      // Global job (every user's tokens + log retention): owner only.
-      if (!(await isOwner(user))) { res.status(403).json({ error: "Owner only" }); return; }
+      // Global job (every workspace's tokens + log retention): platform operator only (-278).
+      if (!(await (await import("./workspace")).isOperator(user as any))) { res.status(403).json({ error: "Operator only" }); return; }
 
       const today = new Date().toISOString().slice(0, 10);
 
@@ -205,8 +210,8 @@ async function startServer() {
     try {
       const user = await sdk.authenticateRequest(req).catch(() => null);
       if (!user) { res.status(401).json({ error: 'Unauthorized' }); return; }
-      // Processes every user's reports: owner only.
-      if (!(await isOwner(user))) { res.status(403).json({ error: 'Owner only' }); return; }
+      // Processes every workspace's reports: platform operator only (-278).
+      if (!(await (await import("./workspace")).isOperator(user as any))) { res.status(403).json({ error: 'Operator only' }); return; }
       const stats = await processScheduledReports();
       res.json({ success: true, ...stats });
     } catch (err) {
@@ -244,8 +249,8 @@ async function startServer() {
         res.status(401).send('<html><body style="font-family:sans-serif;padding:40px"><h2>Unauthorized</h2><p>Open this page while logged in to LevelUp.</p></body></html>');
         return;
       }
-      // Runs a live upload against the shared storage account: owner only.
-      if (!(await isOwner(user))) {
+      // Runs a live upload against the platform's storage account: platform operator only (-278).
+      if (!(await (await import("./workspace")).isOperator(user as any))) {
         if (req.query.json != null) { res.status(403).json({ ok: null, backend: null, error: 'Only the workspace owner can run the storage check.' }); return; }
         res.status(403).send('<html><body style="font-family:sans-serif;padding:40px"><h2>Owner only</h2></body></html>');
         return;
@@ -382,6 +387,12 @@ async function startServer() {
     try { startAutomationCron(); } catch (e) { console.error('[startup] automation cron failed:', e); }
     // Nightly encrypted, verified database backup to private storage (build -226).
     try { startBackupCron(); } catch (e) { console.error('[startup] backup cron failed:', e); }
+    // Daily (-278): workspaces closed more than 30 days ago are removed for good.
+    try {
+      const purge = () => { void import('./lifecycle').then(({ job }) => job('workspace-purge', async () => { await (await import('./workspaceAdmin')).purgeDeletedWorkspaces(); })).catch(e => console.error('[workspace] purge tick failed:', e)); };
+      setTimeout(purge, 10 * 60 * 1000);
+      setInterval(purge, 24 * 60 * 60 * 1000);
+    } catch (e) { console.error('[startup] workspace purge job failed:', e); }
     // One-time (-253): invited teammates become ordinary members; the owner grants admin.
     import('./roleMigration').then(m => m.demoteInvitedAdminsOnce()).catch(e => console.error('[startup] role change failed:', e));
     // One-time (audit F25): encrypt secrets still stored in plaintext. Never throws.
