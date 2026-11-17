@@ -145,7 +145,9 @@ try {
   ok(w.styles.some(s => /^th\|.*width:50%/.test(s)) && w.styles.filter(s => /width:25%/.test(s)).length === 2, 'Word: column widths kept as shares', J(w.styles));
   ok(w.styles.some(s => s === 'p|text-align:center') && w.styles.some(s => s === 'p|margin-left:2em') && w.styles.some(s => /^td\|.*text-align:right/.test(s)), 'Word: centring, indent and right-aligned cells kept', J(w.styles));
   ok(w.b >= 2 && w.i === 1 && w.u === 1 && w.mark === 1 && w.a.join() === 'https://example.com/report', 'Word: bold, italic, underline, highlight and link kept', J([w.b, w.i, w.u, w.mark, w.a]));
-  ok(!/color|font-family|font-size|mso-|class="?Mso|windowtext|<o:p|<span/i.test(w.html), "Word: fonts, colours and Word's own markup dropped", (w.html.match(/.{0,40}(color|font-family|font-size|mso-|Mso|windowtext|<o:p|<span).{0,40}/i) || [])[0]);
+  ok(!/font-family|font-size|mso-|class="?Mso|windowtext|<o:p/i.test(w.html), "Word: fonts, sizes and Word's own markup dropped", (w.html.match(/.{0,40}(font-family|font-size|mso-|Mso|windowtext|<o:p).{0,40}/i) || [])[0]);
+  ok(/<span class="lu-tc" style="color:#c00000;--tc:#c00000">Centered note<\/span>/.test(w.html) && !/--tc:#000000/.test(w.html), 'Word: a text colour is kept; plain black text follows the theme', (w.html.match(/.{0,80}Centered note.{0,20}/) || [])[0]);
+  ok(w.styles.filter(x => /^th\|.*background-color:#d9e2f3;color:#000/.test(x)).length === 3 && (w.html.match(/<th class="lu-fill"/g) || []).length === 3, 'Word: cell shading is kept, with text that reads on it', J(w.styles.filter(x => /^th/.test(x))));
   ok(/This is a long paragraph with bold, italic and underlined words/.test(w.text), 'Word: a paragraph broken across source lines reads as one', w.text.slice(0, 200));
   ok(w.blanks === 2, 'Word: two blank paragraphs in a row collapse to one (3 in the source, 2 kept)', w.blanks + ' blank paragraphs');
   ok(w.images === 1 && w.dropped === 0 && w.imgs.length === 1 && /^data:image\/png;base64,iVBOR/.test(w.imgs[0]), "Word: the picture is read from the clipboard's RTF copy", J([w.images, w.dropped, w.imgs]));
@@ -155,6 +157,24 @@ try {
   const hi = await probe(`<p class=MsoNormal>a <span style='background:lime;mso-highlight:lime'>green</span> b <span style='color:white;background:navy;mso-highlight:navy'>navy</span> c <span style='background:yellow;mso-highlight:yellow'>yellow</span> d <span style='background:#FFE599;mso-shading:white'>shaded</span><o:p></o:p></p>`);
   ok(hi.mark === 4 && /<mark style="background-color:#00ff00;color:#000">green<\/mark>/.test(hi.html) && /<mark style="background-color:#000080;color:#fff">navy<\/mark>/.test(hi.html) && /<mark>yellow<\/mark>/.test(hi.html) && /<mark style="background-color:#ffe599;color:#000">shaded<\/mark>/.test(hi.html),
     'Word: highlighter colours are kept, each with text that stays readable on it', hi.html);
+
+  const col = await probe(`<html xmlns:w="urn:schemas-microsoft-com:office:word"><body>
+<p class=MsoNormal><span style='color:red'>red words</span> then <span style='color:#000080'>navy words</span> then <span style='color:white'>white words</span> then <span style='color:windowtext'>auto words</span> then <span style='color:#333333'>grey words</span></p>
+<p class=MsoNormal style='background:#1F3864'><b><span style='color:white'>Banner line</span></b></p>
+<table class=MsoTableGrid border=1 cellspacing=0 cellpadding=0>
+ <tr><td style='border:solid windowtext 1.0pt;background:#1F3864'><p class=MsoNormal><b><span style='color:white'>Date</span></b></p></td>
+     <td style='border:solid windowtext 1.0pt;background:#1F3864'><p class=MsoNormal><b><span style='color:white'>Item</span></b></p></td></tr>
+ <tr bgcolor="#F2F2F2"><td style='border:solid windowtext 1.0pt'><p class=MsoNormal>3/12</p></td>
+     <td style='border:solid windowtext 1.0pt;background:#FFF2CC'><p class=MsoNormal><span style='color:#C00000'>Late</span></p></td></tr>
+ <tr><td style='border:solid windowtext 1.0pt;background:white'><p class=MsoNormal>3/21</p></td>
+     <td style='border:solid windowtext 1.0pt'><p class=MsoNormal>On time</p></td></tr>
+</table></body></html>`);
+  ok(/<span class="lu-tc" style="color:#ff0000;--tc:#ff0000">red words<\/span> then navy words then white words then auto words then grey words/.test(col.html), 'Colours: a real text colour is kept; near-black, dark grey, white and automatic text follow the theme', col.html.slice(0, 260));
+  ok(/<p class="lu-fill" style="background-color:#1f3864;color:#fff;padding:2px 8px"><b><span class="lu-tc" style="color:#ffffff;--tc:#ffffff">Banner line<\/span><\/b><\/p>/.test(col.html), 'Colours: a shaded paragraph keeps its fill and its white text', (col.html.match(/<p class="lu-fill".{0,200}/) || [])[0]);
+  ok((col.html.match(/<th class="lu-fill" style="background-color:#1f3864;color:#fff;text-align:left">/g) || []).length === 2 && /<span class="lu-tc" style="color:#ffffff;--tc:#ffffff">Date<\/span>/.test(col.html), 'Colours: a dark header row keeps its fill and its white text', (col.html.match(/<tr><th.{0,260}/) || [])[0]);
+  ok(/<td class="lu-fill" style="background-color:#f2f2f2;color:#000">3\/12<\/td>/.test(col.html) && /<td class="lu-fill" style="background-color:#fff2cc;color:#000"><span class="lu-tc" style="color:#c00000;--tc:#c00000">Late<\/span><\/td>/.test(col.html), "Colours: a row's shading reaches its cells; a cell's own shading wins", (col.html.match(/<td.{0,330}/) || [])[0]);
+  ok(/<td class="lu-fill" style="background-color:#ffffff;color:#000">3\/21<\/td><td class="lu-fill" style="background-color:#ffffff;color:#000">On time<\/td>/.test(col.html), 'Colours: in a table with shaded rows, the white cells stay white', (col.html.match(/.{0,120}3\/21.{0,120}/) || [])[0]);
+  ok(!/<td class="lu-fill"/.test(w.html) && w.tdCount > 0, 'Colours: with only the header row shaded, the other cells follow the theme', (w.html.match(/<td.{0,80}/) || [])[0]);
 
   // 2 ── Excel
   const x = await probe(EXCEL);
@@ -178,6 +198,7 @@ try {
 
   // 6 ── the real editor
   const setup = await evaluate(`(async()=>{
+    D.prefs.darkMode=true;applyPrefs();applyTheme();
     nav('notes');
     await new Promise(r=>setTimeout(r,400));
     const n=(D.notes||[])[0]; if(!n) return 'no notes';
@@ -206,6 +227,20 @@ try {
   ok(/class="lu-table"/.test(e1.saved) && /<th[^>]*>Name<\/th>/.test(e1.saved), 'Editor: the note saves itself with the table', e1.saved.slice(0, 300));
   ok(/Name \| Qty \| Notes \|/.test(e1.body) && /Widgets \| 12 \|/.test(e1.body) && /# Quarterly Plan/.test(e1.body), 'Editor: search / AI text reads the table row by row', e1.body.slice(0, 400));
   ok(!/PLAIN TEXT FALLBACK/.test(e1.live), 'Editor: the plain-text copy is not pasted as well');
+  ok(/<span class="lu-tc" style="color:\s*(#c00000|rgb\(192, 0, 0\));\s*--tc:\s*#c00000;?">Centered note<\/span>/.test(e1.live) && /lu-tc/.test(e1.saved) && /<th class="lu-fill"/.test(e1.saved), 'Editor: pasted text colour and cell shading survive the insert and the save', (e1.live.match(/.{0,120}Centered note.{0,20}/) || [])[0]);
+  const shades = await evaluate(`(async()=>{
+    const el=document.getElementById('nie-body');
+    const read=()=>{const sp=el.querySelector('span.lu-tc');const th=el.querySelector('th.lu-fill');const b=th.querySelector('b')||th;
+      return {text:getComputedStyle(sp).color, thBg:getComputedStyle(th).backgroundColor, thText:getComputedStyle(b).color};};
+    await new Promise(r=>setTimeout(r,3200)); const dark=read();
+    D.prefs.darkMode=false;applyPrefs();applyTheme(); await new Promise(r=>setTimeout(r,3500)); const light=read();
+    D.prefs.darkMode=true;applyPrefs();applyTheme();
+    return JSON.stringify({dark,light});
+  })()`).then(JSON.parse);
+  const lumOf = c => { const m = /(\d+(?:\.\d+)?)[ ,]+(\d+(?:\.\d+)?)[ ,]+(\d+(?:\.\d+)?)/.exec(c.replace(/^[a-z-]+\(\s*(srgb\s+)?/, '')) || [0, 0, 0, 0]; const k = /srgb|oklab/.test(c) ? 255 : 1; return (0.2126 * m[1] * k + 0.7152 * m[2] * k + 0.0722 * m[3] * k) / 255; };
+  const darkL = parseFloat((/oklab\(([\d.]+)/.exec(shades.dark.text) || [0, '0'])[1]) || lumOf(shades.dark.text);
+  ok(shades.light.text === 'rgb(192, 0, 0)' && shades.dark.text !== 'rgb(192, 0, 0)' && darkL > 0.6, 'Editor: a pasted text colour shows as picked on the light theme and lighter on the dark one', J(shades));
+  ok(shades.dark.thBg === 'rgb(217, 226, 243)' && shades.light.thBg === 'rgb(217, 226, 243)' && shades.dark.thText === 'rgb(0, 0, 0)' && shades.light.thText === 'rgb(0, 0, 0)', 'Editor: a shaded cell looks the same on both themes (fill and text)', J(shades));
 
   const e2 = await pasteInto(`<div style="font-family: Consolas; white-space: pre;"><div><span style="color:#00f">const</span> x = <b>1</b>;</div></div>`, `dt.setData('vscode-editor-data','{"mode":"javascript"}');`);
   ok(/PLAIN TEXT FALLBACK/.test(e2.live), 'Editor: code copied from an editor still pastes as plain text');

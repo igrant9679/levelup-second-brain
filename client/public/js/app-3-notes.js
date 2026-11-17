@@ -3179,24 +3179,43 @@ function _pasteLen(v){
   return n*k;
 }
 function _pasteTag(el){return String(el&&(el.localName||el.tagName)||'').toLowerCase();}
-function _pasteShaded(el,css){
-  const v=String(css['background']||css['background-color']||el.getAttribute('bgcolor')||'').toLowerCase().trim();
-  if(!v)return false;
-  return !/^(none|transparent|white|window|inherit|initial|unset|#fff\b|#ffffff\b|rgba?\(\s*255\s*,\s*255\s*,\s*255|rgba\(\s*0\s*,\s*0\s*,\s*0\s*,\s*0\s*\))/.test(v);
+// Colours (build -281). Any CSS colour → "#rrggbb", or '' for none / system
+// colours / see-through ones. A canvas does the parsing; nothing is drawn.
+let _pasteCtx=null;
+function _pasteColorHex(v){
+  v=String(v==null?'':v).toLowerCase().trim().split(/\s+(?![^(]*\))/)[0];
+  if(/^[0-9a-f]{6}$/.test(v))v='#'+v;
+  if(!v||v.indexOf('var(')>=0||v.indexOf('url(')>=0||/^(windowtext|window|auto|inherit|initial|unset|revert|currentcolor|transparent|none|infotext|buttontext|canvastext|canvas)$/.test(v))return '';
+  try{
+    if(!_pasteCtx)_pasteCtx=document.createElement('canvas').getContext('2d');
+    _pasteCtx.fillStyle='#010203';_pasteCtx.fillStyle=v;
+    const out=String(_pasteCtx.fillStyle);
+    if(out==='#010203'&&v!=='#010203')return '';
+    return /^#[0-9a-f]{6}$/.test(out)?out:'';
+  }catch(_){return '';}
 }
-// Word's highlighter colours (and shaded text): the colour is kept, with black
-// or white text chosen to stay readable on it in either theme. Yellow is the
-// plain <mark>.
-const _PASTE_HI={yellow:'#ffff00',lime:'#00ff00',aqua:'#00ffff',cyan:'#00ffff',fuchsia:'#ff00ff',magenta:'#ff00ff',blue:'#0000ff',red:'#ff0000',navy:'#000080',teal:'#008080',green:'#008000',purple:'#800080',maroon:'#800000',olive:'#808000',gray:'#808080',grey:'#808080',silver:'#c0c0c0',black:'#000000',orange:'#ffa500',pink:'#ffc0cb'};
-function _pasteHiStyle(v){
-  v=String(v||'').toLowerCase().trim().split(/\s+(?![^(]*\))/)[0];
-  let hex=_PASTE_HI[v]||'',m;
-  if(!hex&&(m=/^#([0-9a-f]{3})$/.exec(v)))hex='#'+m[1].split('').map(c=>c+c).join('');
-  if(!hex&&/^#[0-9a-f]{6}$/.test(v))hex=v;
-  if(!hex&&(m=/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/.exec(v)))hex='#'+[m[1],m[2],m[3]].map(n=>Math.min(255,+n).toString(16).padStart(2,'0')).join('');
-  if(!hex||hex==='#ffff00')return '';
+function _pasteLum(hex){
+  return (0.2126*parseInt(hex.slice(1,3),16)+0.7152*parseInt(hex.slice(3,5),16)+0.0722*parseInt(hex.slice(5,7),16))/255;
+}
+// A fill (cell shading, a shaded paragraph, a highlighter) is stored WITH the
+// text colour that reads on it, so it looks the same in light and dark.
+function _pasteFill(el,css){
+  const hex=_pasteColorHex(css['background-color']||css['background']||(el&&el.getAttribute&&el.getAttribute('bgcolor'))||'');
+  return hex&&hex!=='#ffffff'?hex:'';
+}
+// Is this the source's ordinary body text (black, white, or a dark grey such as
+// #202124 / #333)? Those follow the note's theme instead of being pinned.
+function _pasteBodyTextColor(hex){
   const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
-  return 'background-color:'+hex+';color:'+((0.2126*r+0.7152*g+0.0722*b)/255>0.5?'#000':'#fff');
+  const l=_pasteLum(hex),chroma=Math.max(r,g,b)-Math.min(r,g,b);
+  return l>0.9||l<0.05||(chroma<40&&l<0.45);
+}
+function _pasteFillStyle(hex){return 'background-color:'+hex+';color:'+(_pasteLum(hex)>0.5?'#000':'#fff');}
+function _pasteShaded(el,css){return !!_pasteFill(el,css);}
+// Word's highlighter colours: yellow is the plain <mark>, the others keep their colour.
+function _pasteHiStyle(v){
+  const hex=_pasteColorHex(v);
+  return !hex||hex==='#ffff00'?'':_pasteFillStyle(hex);
 }
 function _pasteHasBorder(css){
   return ['border','border-top','border-left','border-bottom','border-right'].some(k=>/\b(solid|double|dashed|dotted|groove|ridge|inset|outset)\b/i.test(css[k]||''));
@@ -3333,8 +3352,10 @@ function _pasteTable(ch,out,st){
     if(ws.every(x=>x>0)&&sum>0)widths=ws.map(x=>Math.round(x/sum*1000)/10);
   }
   const table=doc.createElement('table');const tb=doc.createElement('tbody');table.appendChild(tb);
+  let bodyFilled=false;const unfilled=[];
   rows.forEach((r,ri)=>{
     const tr=doc.createElement('tr');
+    const rowFill=_pasteFill(r,_pasteCss(r));
     cellsOf(r).forEach((c,ci)=>{
       const css=_pasteCss(c);
       if(_pasteHasBorder(css))bordered=true;
@@ -3349,8 +3370,11 @@ function _pasteTable(ch,out,st){
       const va=String(css['vertical-align']||c.getAttribute('valign')||'').toLowerCase();
       if(va==='middle'||va==='bottom')parts.push('vertical-align:'+va);
       if(widths&&ri===0)parts.push('width:'+widths[ci]+'%');
+      const fill=_pasteFill(c,css)||rowFill;
+      if(fill){parts.push(_pasteFillStyle(fill));td.setAttribute('class','lu-fill');if(ri>0)bodyFilled=true;}
+      else unfilled.push(td);
       if(parts.length)td.setAttribute('style',parts.join(';'));
-      _pasteConv(c,td,Object.assign({},st,{tight:true,cell:td,pre:false,bold:isTh}));
+      _pasteConv(c,td,Object.assign({},st,{tight:true,cell:td,pre:false,bold:isTh,fill:fill?true:st.fill,tc:''}));
       _pasteTrimBreaks(td);
       if(isTh&&!/text-align/.test(td.getAttribute('style')||''))td.setAttribute('style',((td.getAttribute('style')||'')+';text-align:left').replace(/^;/,''));
       if(!td.childNodes.length)td.appendChild(doc.createElement('br'));
@@ -3359,6 +3383,13 @@ function _pasteTable(ch,out,st){
     if(tr.childNodes.length)tb.appendChild(tr);
   });
   if(!tb.childNodes.length)return;
+  // Banded or colour-coded rows: the cells left white in the source stay white,
+  // or the table turns patchy on the dark theme. (Only a shaded header row →
+  // the rest follows the theme.)
+  if(bodyFilled)unfilled.forEach(td=>{
+    td.setAttribute('class','lu-fill');
+    td.setAttribute('style',[td.getAttribute('style')||'',_pasteFillStyle('#ffffff')].filter(Boolean).join(';'));
+  });
   // A Word table with no borders is a layout grid: keep it unruled.
   table.setAttribute('class','lu-table'+(st.word&&!st.excel&&!bordered?' lu-plain':''));
   out.appendChild(table);
@@ -3417,12 +3448,20 @@ function _pasteInline(ch,tag,css,out,st){
     const hi=css['mso-highlight']&&!/^(none|white|windowtext|auto)$/i.test(css['mso-highlight'])?css['mso-highlight']:'';
     if(tag==='mark'||hi||(st.docs&&tag==='span'&&_pasteShaded(ch,css)))want.push(['mark','mark',_pasteHiStyle(hi||css['background-color']||css['background']||'')]);
   }
+  // Text colour. Near-black and near-white are the source's "normal text" and
+  // follow the theme instead — except on a fill, where white-on-blue matters.
+  let tc='';
+  if(!st.link&&tag!=='a'&&!st.mark&&!want.some(w=>w[0]==='mark')){
+    const c=_pasteColorHex(css['color']||(tag==='font'?ch.getAttribute('color'):''));
+    if(c&&c!==st.tc&&(st.fill||!_pasteBodyTextColor(c)))tc=c;
+  }
   let href='';
   if(tag==='a'&&!st.link){const h=String(ch.getAttribute('href')||'').trim();if(/^(https?:\/\/|mailto:)/i.test(h)&&h.length<2000)href=h;}
-  if(!want.length&&!href){_pasteConv(ch,out,st);return;}
+  if(!want.length&&!href&&!tc){_pasteConv(ch,out,st);return;}
   const st2=Object.assign({},st);let top=null,cur=null;
   const add=e=>{if(cur)cur.appendChild(e);else top=e;cur=e;};
   if(href){const a=doc.createElement('a');a.setAttribute('href',href);st2.link=true;add(a);}
+  if(tc){const sp=doc.createElement('span');sp.setAttribute('class','lu-tc');sp.setAttribute('style','color:'+tc+';--tc:'+tc);st2.tc=tc;add(sp);}
   want.forEach(w=>{st2[w[0]]=true;const e=doc.createElement(w[1]);if(w[2])e.setAttribute('style',w[2]);add(e);});
   _pasteConv(ch,cur,st2);
   if(!cur.childNodes.length)return;
@@ -3483,8 +3522,11 @@ function _pasteConv(node,out,st){
     }
     if(/^h[1-6]$/.test(tag)){
       const h=doc.createElement(tag>'h3'?'h3':tag);
-      const bs=_pasteBlockStyle(ch,css);if(bs)h.setAttribute('style',bs);
-      _pasteConv(ch,h,Object.assign({},st,{tight:false,cell:null,bold:true,pre:false}));
+      const hf=st.tight?'':_pasteFill(ch,css);
+      const bs=[_pasteBlockStyle(ch,css),hf?_pasteFillStyle(hf)+';padding:2px 8px':''].filter(Boolean).join(';');
+      if(hf)h.setAttribute('class','lu-fill');
+      if(bs)h.setAttribute('style',bs);
+      _pasteConv(ch,h,Object.assign({},st,{tight:false,cell:null,bold:true,pre:false,fill:hf?true:st.fill}));
       _pasteTrimBreaks(h);
       if(h.textContent.trim()||h.querySelector('img'))out.appendChild(h);
       continue;
@@ -3512,8 +3554,11 @@ function _pasteConv(node,out,st){
       }
       const cls=ch.getAttribute('class')||'';
       const el=doc.createElement(/\bMsoTitle\b/.test(cls)?'h1':/\bMsoSubtitle\b/.test(cls)?'h2':'p');
-      const bs=_pasteBlockStyle(ch,css);if(bs)el.setAttribute('style',bs);
-      _pasteConv(ch,el,Object.assign({},st,{bold:_pasteTag(el)!=='p'?true:st.bold}));
+      const pf=_pasteFill(ch,css);
+      const bs=[_pasteBlockStyle(ch,css),pf?_pasteFillStyle(pf)+';padding:2px 8px':''].filter(Boolean).join(';');
+      if(pf)el.setAttribute('class','lu-fill');
+      if(bs)el.setAttribute('style',bs);
+      _pasteConv(ch,el,Object.assign({},st,{bold:_pasteTag(el)!=='p'?true:st.bold,fill:pf?true:st.fill}));
       _pasteTrimBreaks(el);
       if(!el.childNodes.length){if(_pasteTag(el)!=='p')continue;el.appendChild(doc.createElement('br'));}
       out.appendChild(el);
@@ -3560,7 +3605,7 @@ function _pasteCleanHtml(html,rtf){
     word:/urn:schemas-microsoft-com:office:word|ProgId[^>]{0,40}Word|class="?Mso|mso-list:/i.test(src),
     excel:/urn:schemas-microsoft-com:office:excel|ProgId[^>]{0,40}Excel/i.test(src),
     docs:/docs-internal-guid|urn:schemas-microsoft-com:office:word|class="?Mso/i.test(src),
-    tight:false,cell:null,pre:false,bold:false,italic:false,under:false,strike:false,sup:false,sub:false,code:false,mark:false,link:false};
+    tight:false,cell:null,pre:false,bold:false,italic:false,under:false,strike:false,sup:false,sub:false,code:false,mark:false,link:false,fill:false,tc:''};
   _pasteWordLists(body);
   _pasteConv(body,out,st);
   // Word's pictures: one RTF picture per placeholder, in order — or none at all.
@@ -3648,7 +3693,7 @@ function _notePasteRich(e,id){
   if(el){
     // Chrome re-adds the look it computed for inserted text; the note's own styles apply instead.
     el.querySelectorAll('span[style],font').forEach(s=>{
-      if(had.has(s)||(s.classList&&s.classList.contains('lu-wiki')))return;
+      if(had.has(s)||(s.classList&&(s.classList.contains('lu-wiki')||s.classList.contains('lu-tc'))))return;
       if(_pasteTag(s)==='font'||/font-|color|background/i.test(s.getAttribute('style')||'')){
         const pr=s.parentNode;if(!pr)return;
         while(s.firstChild)pr.insertBefore(s.firstChild,s);pr.removeChild(s);
@@ -3714,7 +3759,14 @@ function insertWikiLink(title){if(_notePop&&_notePop.mode==='note'){const i=_not
     // -280: header cells, and a pasted layout grid (a Word table with no borders)
     'table.lu-table th{background:color-mix(in srgb,var(--t1) 7%,transparent);font-weight:600}'+
     'table.lu-table.lu-plain td,table.lu-table.lu-plain th{border-color:transparent}'+
-    '[contenteditable="true"] table.lu-table.lu-plain td,[contenteditable="true"] table.lu-table.lu-plain th{border:1px dashed var(--bd2)}';
+    '[contenteditable="true"] table.lu-table.lu-plain td,[contenteditable="true"] table.lu-table.lu-plain th{border:1px dashed var(--bd2)}'+
+    // -281 pasted colours. A text colour is stored as picked (inline, so exports
+    // and print show it); on the dark theme it is lightened to stay readable.
+    // Inside a pasted fill the fill's own colours rule.
+    'body:not(.light-mode) .lu-tc{color:color-mix(in oklab,var(--tc) 58%,#fff)!important}'+
+    'html body .lu-fill .lu-tc{color:var(--tc)!important}'+
+    'html body .lu-fill p,html body .lu-fill div,html body .lu-fill li,html body .lu-fill ul,html body .lu-fill ol,html body .lu-fill blockquote{color:inherit!important}'+
+    'p.lu-fill,h1.lu-fill,h2.lu-fill,h3.lu-fill{border-radius:3px}';
   document.head.appendChild(s);
 })();
 // Display path for a note body, shared by the editor pane AND the
