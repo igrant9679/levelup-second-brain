@@ -28,7 +28,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "../db";
 import { workspaceBilling, billingEvents, users, teamInvites, files } from "../../drizzle/schema";
 import { billingConfig, planByKey, planByPrice, limitsOf, type Plan, type PlanLimits } from "./plans";
-import { stripeCall, stripeConfigured, StripeError } from "./stripe";
+import { stripeCall, stripeConfigured, stripeHostedUrl, StripeError } from "./stripe";
 import { appOrigin } from "./appOrigin";
 
 export type BillingStatus = "comped" | "trialing" | "active" | "past_due" | "canceled";
@@ -460,6 +460,75 @@ export async function handleStripeEvent(evt: any): Promise<{ handled: boolean; n
     try { await db.delete(billingEvents).where(eq(billingEvents.eventId, id)); } catch { /* the retry will be a duplicate; refresh covers it */ }
     throw e;
   }
+}
+
+// ── invoices and changing plan inside LevelUp (build -283) ──────────────────
+export type InvoiceView = {
+  id: string; number: string | null; date: string | null;
+  /** in the currency's smallest unit (cents) */
+  amount: number; currency: string;
+  status: "paid" | "open" | "void" | "uncollectible";
+  description: string | null; periodStart: string | null; periodEnd: string | null;
+  /** Stripe's own invoice page / PDF */
+  url: string | null; pdf: string | null;
+};
+const isoOf = (unix: any): string | null => { const n = Number(unix); return Number.isFinite(n) && n > 0 ? new Date(n * 1000).toISOString() : null; };
+
+/** The workspace's invoices, newest first, as Stripe has them. A workspace with no billing account has none. */
+export async function listInvoices(wsId: number, limit = 24): Promise<InvoiceView[]> {
+  const row = await billingRow(wsId, true);
+  if (!row?.stripeCustomerId || !stripeConfigured()) return [];
+  const cust = row.stripeCustomerId;
+  const list: any = await stripeCall("GET", "/v1/invoices", { customer: cust, limit: Math.max(1, Math.min(100, Math.floor(limit) || 24)) });
+  const out: InvoiceView[] = [];
+  for (const i of (Array.isArray(list?.data) ? list.data : [])) {
+    if (!i || !i.id) continue;
+    // only this workspace's own customer, whatever the answer holds
+    if ((typeof i.customer === "string" ? i.customer : i.customer?.id) !== cust) continue;
+    const st = String(i.status || "");
+    if (st !== "paid" && st !== "open" && st !== "void" && st !== "uncollectible") continue;      // drafts are Stripe's working copies
+    const line = i.lines?.data?.[0] || null;
+    out.push({
+      id: String(i.id), number: i.number ? String(i.number).slice(0, 60) : null, date: isoOf(i.created),
+      amount: Number(i.total ?? i.amount_due ?? 0) || 0, currency: String(i.currency || "usd").toLowerCase().slice(0, 8),
+      status: st as InvoiceView["status"],
+      description: line?.description ? String(line.description).slice(0, 200) : null,
+      periodStart: isoOf(line?.period?.start ?? i.period_start), periodEnd: isoOf(line?.period?.end ?? i.period_end),
+      url: stripeHostedUrl(i.hosted_invoice_url), pdf: stripeHostedUrl(i.invoice_pdf),
+    });
+  }
+  return out;
+}
+
+/**
+ * Move a workspace that already pays to another plan, or between monthly and
+ * yearly, without leaving LevelUp. Stripe credits the unused part of the
+ * current period and charges the difference (proration). Returns the new state.
+ */
+export async function changePlan(wsId: number, planKey: string, interval: "month" | "year"): Promise<Entitlement> {
+  const cfg = await billingConfig();
+  const plan = cfg.plans.find((p) => p.key === planKey && p.public);
+  const price = plan ? (interval === "year" ? plan.priceYearly : plan.priceMonthly) : "";
+  if (!plan || !price) throw new Error("That plan is not available.");
+  const row = await billingRow(wsId, true);
+  if (row?.status === "past_due") throw new Error("The last payment failed. Update the card first (Manage billing), then change the plan.");
+  if (!row?.stripeSubscriptionId || !row.stripeItemId || (row.status !== "active" && row.status !== "trialing")) {
+    throw new Error("This workspace has no subscription to change. Choose a plan first.");
+  }
+  if (row.plan === plan.key && row.interval === interval) throw new Error("This workspace is already on that plan.");
+  const people = await memberCount(wsId);
+  if (plan.members != null && people > plan.members) {
+    throw new Error(`The ${plan.name} plan allows ${plan.members} ${plan.members === 1 ? "person" : "people"}; this workspace has ${people}. Choose a larger plan or remove members first.`);
+  }
+  const sub: any = await stripeCall("POST", `/v1/subscriptions/${encodeURIComponent(row.stripeSubscriptionId)}`, {
+    items: [{ id: row.stripeItemId, price, quantity: plan.perSeat ? Math.max(1, people) : 1 }],
+    proration_behavior: "create_prorations",
+    metadata: { workspaceId: String(wsId), plan: plan.key },
+    // a double click inside the same minute is one change
+  }, { idempotencyKey: `lu-plan-${wsId}-${row.stripeSubscriptionId}-${price}-${Math.floor(Date.now() / 60_000)}` });
+  if (!sub?.id) throw new Error("Stripe did not confirm the change");
+  await applySubscription(sub, wsId);
+  return entitlement(wsId);
 }
 
 /** Per-seat plans: keep the subscription's quantity equal to the head count. Never throws. */

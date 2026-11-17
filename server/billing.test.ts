@@ -8,7 +8,7 @@
 import { describe, it, expect } from "vitest";
 import { entitlementOf, reminderDue, type BillingRow } from "./_core/billing";
 import { normalizeConfig, DEFAULT_PLANS } from "./_core/plans";
-import { formEncode, signWebhook, verifyWebhook } from "./_core/stripe";
+import { formEncode, signWebhook, stripeHostedUrl, verifyWebhook } from "./_core/stripe";
 // @ts-ignore — plain ESM helper
 import { parseForm } from "../scripts/lib/fake-stripe.mjs";
 
@@ -127,5 +127,29 @@ describe("talking to Stripe", () => {
     expect(() => verifyWebhook(payload, header, secret, 300, NOW + 10 * 60_000)).toThrow(/tolerance/);
     expect(() => verifyWebhook(payload, "", secret, 300, NOW)).toThrow(/Malformed/);
     expect(() => verifyWebhook(payload, header, "", 300, NOW)).toThrow(/secret/);
+  });
+});
+
+describe("links Stripe hands us for the browser (-283)", () => {
+  it("only https pages on stripe.com are passed on", () => {
+    const saved = process.env.STRIPE_API_BASE;
+    delete process.env.STRIPE_API_BASE;
+    try {
+      expect(stripeHostedUrl("https://invoice.stripe.com/i/acct_1/test_abc")).toBe("https://invoice.stripe.com/i/acct_1/test_abc");
+      expect(stripeHostedUrl("https://pay.stripe.com/invoice/acct_1/test_abc/pdf")).toContain("pay.stripe.com");
+      expect(stripeHostedUrl("http://invoice.stripe.com/i/x")).toBeNull();               // not https
+      expect(stripeHostedUrl("https://invoice.stripe.com.evil.example/i/x")).toBeNull();
+      expect(stripeHostedUrl("https://evilstripe.com/i/x")).toBeNull();
+      expect(stripeHostedUrl("javascript:alert(1)")).toBeNull();
+      expect(stripeHostedUrl("http://127.0.0.1:4999/invoice/in_1")).toBeNull();          // a local address only counts for the local fake
+      expect(stripeHostedUrl("")).toBeNull();
+      expect(stripeHostedUrl(null)).toBeNull();
+      process.env.STRIPE_API_BASE = "http://127.0.0.1:4999";
+      expect(stripeHostedUrl("http://127.0.0.1:4999/invoice/in_1")).toBe("http://127.0.0.1:4999/invoice/in_1");
+      expect(stripeHostedUrl("http://127.0.0.1:4999.evil.example/invoice/in_1")).toBeNull();
+      expect(stripeHostedUrl("http://127.0.0.1:5000/invoice/in_1")).toBeNull();
+      process.env.STRIPE_API_BASE = "https://not-local.example";                          // ignored: the real API is used
+      expect(stripeHostedUrl("https://not-local.example/invoice/in_1")).toBeNull();
+    } finally { if (saved == null) delete process.env.STRIPE_API_BASE; else process.env.STRIPE_API_BASE = saved; }
   });
 });

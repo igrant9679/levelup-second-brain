@@ -4,7 +4,8 @@
  * localhost (see server/_core/stripe.ts).
  *
  * It implements the handful of calls LevelUp makes — customers, prices,
- * Checkout sessions, the billing portal, subscriptions, subscription items —
+ * Checkout sessions, the billing portal, subscriptions (read, change of plan,
+ * cancel), subscription items, invoices —
  * and sends the same SIGNED webhooks Stripe would. The "checkout" and
  * "portal" are plain pages with buttons (Pay / Cancel subscription / Payment
  * fails / Payment succeeds), so the whole flow can be clicked through.
@@ -37,7 +38,7 @@ export function parseForm(body) {
 }
 
 export async function startFakeStripe({ prices = {}, webhookUrl = '', webhookSecret = 'whsec_fake', secretKey = 'sk_test_fake', port = 0 } = {}) {
-  const state = { customers: new Map(), sessions: new Map(), subscriptions: new Map(), calls: [], deliveries: [], webhookUrl, webhookSecret };
+  const state = { customers: new Map(), sessions: new Map(), subscriptions: new Map(), invoices: [], calls: [], deliveries: [], webhookUrl, webhookSecret };
   const now = () => Math.floor(Date.now() / 1000);
   let base = '';
 
@@ -46,6 +47,22 @@ export async function startFakeStripe({ prices = {}, webhookUrl = '', webhookSec
     cancel_at_period_end: !!s.cancel_at_period_end, trial_end: s.trial_end || null, current_period_end: s.current_period_end,
     items: { object: 'list', data: [{ id: s.itemId, object: 'subscription_item', quantity: s.quantity, price: { id: s.price, object: 'price' } }] },
   });
+
+  // An invoice as Stripe lists it (the fields LevelUp reads).
+  function addInvoice(s, { status = 'paid', total = null, description = null } = {}) {
+    const pr = prices[s.price] || {};
+    const inv = {
+      id: rid('in'), object: 'invoice', customer: s.customer, subscription: s.id, number: 'FAKE-' + String(state.invoices.length + 1).padStart(4, '0'),
+      created: now(), currency: pr.currency || 'usd', status, paid: status === 'paid',
+      total: total == null ? Number(pr.unit_amount || 0) * (Number(s.quantity) || 1) : total,
+      period_start: now(), period_end: s.current_period_end,
+      lines: { object: 'list', data: [{ description: description || `${s.quantity} × ${s.price} (${pr.interval || 'month'})`, period: { start: now(), end: s.current_period_end } }] },
+    };
+    inv.hosted_invoice_url = `${base}/invoice/${inv.id}`;
+    inv.invoice_pdf = `${base}/invoice/${inv.id}/pdf`;
+    state.invoices.unshift(inv);
+    return inv;
+  }
 
   async function deliver(type, object) {
     const evt = { id: rid('evt'), object: 'event', type, created: now(), data: { object } };
@@ -74,6 +91,7 @@ export async function startFakeStripe({ prices = {}, webhookUrl = '', webhookSec
     };
     state.subscriptions.set(sub.id, sub);
     cs.subscription = sub.id; cs.status = 'complete';
+    if (!trialEnd) addInvoice(sub);                       // charged at once; a trial is invoiced when it ends
     await deliver('customer.subscription.created', subJson(sub));
     await deliver('checkout.session.completed', { id: cs.id, object: 'checkout.session', mode: 'subscription', customer: sub.customer, subscription: sub.id, client_reference_id: cs.params.client_reference_id || null, metadata: cs.params.metadata || {} });
     return sub;
@@ -81,13 +99,17 @@ export async function startFakeStripe({ prices = {}, webhookUrl = '', webhookSec
   async function failPayment(subId) {
     const s = state.subscriptions.get(subId); if (!s) throw new Error('no such subscription');
     s.status = 'past_due';
-    await deliver('invoice.payment_failed', { id: rid('in'), object: 'invoice', subscription: s.id, customer: s.customer });
+    const inv = addInvoice(s, { status: 'open' });
+    await deliver('invoice.payment_failed', { id: inv.id, object: 'invoice', subscription: s.id, customer: s.customer });
     await deliver('customer.subscription.updated', subJson(s));
   }
   async function recover(subId) {
     const s = state.subscriptions.get(subId); if (!s) throw new Error('no such subscription');
     s.status = 'active'; s.trial_end = null; s.current_period_end = now() + 30 * 86400;
-    await deliver('invoice.paid', { id: rid('in'), object: 'invoice', subscription: s.id, customer: s.customer });
+    const open = state.invoices.find((i) => i.subscription === s.id && i.status === 'open');
+    const inv = open || addInvoice(s);
+    inv.status = 'paid'; inv.paid = true;
+    await deliver('invoice.paid', { id: inv.id, object: 'invoice', subscription: s.id, customer: s.customer });
     await deliver('customer.subscription.updated', subJson(s));
   }
   async function cancel(subId) {
@@ -138,6 +160,11 @@ export async function startFakeStripe({ prices = {}, webhookUrl = '', webhookSec
         return redirect(`/portal/${m[1]}?return=${encodeURIComponent(u.searchParams.get('return') || '/')}`);
       }
 
+      if ((m = p.match(/^\/invoice\/(in_\w+)(\/pdf)?$/)) && req.method === 'GET') {
+        const inv = state.invoices.find((i) => i.id === m[1]); if (!inv) return html(404, page('Not found', ''));
+        return html(200, page((m[2] ? 'Invoice PDF ' : 'Invoice ') + inv.number, `<p>${esc(inv.lines.data[0].description)}</p><p><b>${(inv.total / 100).toFixed(2)} ${esc(inv.currency.toUpperCase())}</b> — ${esc(inv.status)}</p>`));
+      }
+
       // ── the API ──
       if (!p.startsWith('/v1/')) return send(404, { error: { message: 'not found' } });
       if ((req.headers.authorization || '') !== `Bearer ${secretKey}`) return send(401, { error: { message: 'Invalid API Key provided', type: 'invalid_request_error' } });
@@ -169,7 +196,31 @@ export async function startFakeStripe({ prices = {}, webhookUrl = '', webhookSec
       if ((m = p.match(/^\/v1\/subscriptions\/(sub_\w+)$/))) {
         const s = state.subscriptions.get(m[1]); if (!s) return send(404, { error: { message: 'No such subscription', code: 'resource_missing' } });
         if (req.method === 'DELETE') { await cancel(s.id); return send(200, subJson(s)); }
+        if (req.method === 'POST') {
+          // change of plan / quantity / cancel-at-period-end, as LevelUp sends it
+          const it = (params.items || [])[0];
+          if (it) {
+            if (it.id !== s.itemId) return send(400, { error: { message: `No such subscription item: '${it.id}'`, code: 'resource_missing' } });
+            if (it.price != null && !prices[it.price]) return send(400, { error: { message: `No such price: '${it.price}'`, code: 'resource_missing' } });
+            const before = Number((prices[s.price] || {}).unit_amount || 0) * s.quantity;
+            if (it.price != null) s.price = it.price;
+            if (it.quantity != null) s.quantity = Number(it.quantity) || 1;
+            const after = Number((prices[s.price] || {}).unit_amount || 0) * s.quantity;
+            if ((prices[s.price] || {}).interval === 'year') s.current_period_end = now() + 365 * 86400;
+            else s.current_period_end = now() + 30 * 86400;
+            if (params.proration_behavior === 'create_prorations' && s.status === 'active') addInvoice(s, { total: Math.max(0, after - before), description: `Change to ${s.quantity} × ${s.price} (unused time on the previous plan credited)` });
+          }
+          if (params.cancel_at_period_end != null) s.cancel_at_period_end = String(params.cancel_at_period_end) === 'true';
+          if (params.metadata) s.metadata = Object.assign({}, s.metadata, params.metadata);
+          void deliver('customer.subscription.updated', subJson(s));
+          return send(200, subJson(s));
+        }
         return send(200, subJson(s));
+      }
+      if (p === '/v1/invoices' && req.method === 'GET') {
+        const lim = Math.max(1, Math.min(100, Number(params.limit) || 10));
+        const all = state.invoices.filter((i) => !params.customer || i.customer === params.customer);
+        return send(200, { object: 'list', has_more: all.length > lim, data: all.slice(0, lim) });
       }
       if ((m = p.match(/^\/v1\/subscription_items\/(si_\w+)$/)) && req.method === 'POST') {
         const s = [...state.subscriptions.values()].find((x) => x.itemId === m[1]); if (!s) return send(404, { error: { message: 'No such subscription item', code: 'resource_missing' } });

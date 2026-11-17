@@ -164,7 +164,7 @@ export const workspaceRouter = router({
       /** Google sign-in for "your own Google Drive" needs the platform's Google client. */
       driveConnectAvailable: !!(ENV.googleDriveClientId && ENV.googleDriveClientSecret),
       filesElsewhere: await F.filesElsewhere(w),
-      move: F.moveStatus(w),
+      move: await F.moveStatus(w),
     };
   }),
 
@@ -219,7 +219,17 @@ export const workspaceRouter = router({
     if (!w) throw new TRPCError({ code: "BAD_REQUEST", message: "No workspace." });
     const F = await import("../_core/workspaceFiles");
     void audit(ctx, "workspace.storage_move", {});
-    return F.moveFiles(w);
+    return F.moveFiles(w, Number((ctx.user as any)?.id) || null);
+  }),
+
+  /** Stop a move that is waiting or under way. Files already moved stay moved; the rest stay where they are. */
+  storageMoveCancel: adminProcedure.mutation(async ({ ctx }) => {
+    const w = await wsIdOf(ctx.user as any);
+    if (!w) throw new TRPCError({ code: "BAD_REQUEST", message: "No workspace." });
+    const F = await import("../_core/workspaceFiles");
+    const stopped = await F.cancelMove(w);
+    if (stopped) void audit(ctx, "workspace.storage_move", { detail: { cancelled: true } });
+    return { ok: true as const, stopped };
   }),
 
   /** Forget an earlier store. Refused while files are still in it. */

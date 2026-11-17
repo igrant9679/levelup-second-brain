@@ -221,4 +221,7 @@ Everything here is OFF until the operator turns it on (Platform console → Bill
   for every workspace (static text).~~ Fixed in build -282 (`_luWsText`, `_wsNeutralWording`).
 - Billing has only ever run against the FAKE Stripe in the tests and the local playground —
   the first real run should be in Stripe's test mode.
-- Moving files runs in the web process; a very large workspace would want a queue.
+- ~~Moving files runs in the web process; a very large workspace would want a queue.~~ Since build
+  -283 a move is a stored job worked through in slices by the "file-moves" background job
+  (resumes after a restart, can be stopped). It still runs inside the server's process, and
+  each file is still read into memory whole.

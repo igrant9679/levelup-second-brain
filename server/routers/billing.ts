@@ -4,7 +4,7 @@
  *   public     plans (what can be bought, sign-up open?), signupStart,
  *              signupPeek, signupConfirm
  *   member     status (what this workspace is on; limits and usage)
- *   owner      checkout, portal, refresh
+ *   owner      checkout, portal, refresh, invoices, changePlan
  *   signed in  createWorkspace (another workspace for the same login)
  *   operator   opConfigGet / opConfigSet (plans, prices, sign-up switch),
  *              opSet (comp a workspace, restart a trial, remove billing)
@@ -135,6 +135,28 @@ export const billingRouter = router({
   portal: ownerProcedure.mutation(async ({ ctx }) => {
     try { return { url: await billing.createPortal(await myWs(ctx)) }; } catch (e) { rethrow(e); }
   }),
+
+  /** The workspace's invoices (newest first), each with a link to Stripe's own invoice page and PDF. */
+  invoices: ownerProcedure.query(async ({ ctx }) => {
+    const w = await myWs(ctx);
+    try { return { invoices: await billing.listInvoices(w), error: null as string | null }; }
+    catch (e: any) {
+      console.error("[billing] invoices:", e?.status || "", e?.code || "", e?.message || e);
+      return { invoices: [] as billing.InvoiceView[], error: "The invoices could not be loaded just now. They are also under “Manage billing”." };
+    }
+  }),
+
+  /** Another plan, or monthly / yearly, for a workspace that already pays. Stripe prorates. */
+  changePlan: ownerProcedure
+    .input(z.object({ plan: z.string().max(32), interval: z.enum(["month", "year"]) }))
+    .mutation(async ({ ctx, input }) => {
+      try {
+        const w = await myWs(ctx);
+        const ent = await billing.changePlan(w, input.plan, input.interval);
+        void audit(ctx, "billing.plan_changed", { detail: { plan: input.plan, interval: input.interval } });
+        return { status: ent.status, plan: ent.plan, planName: ent.planName, interval: ent.interval, currentPeriodEnd: ent.currentPeriodEnd };
+      } catch (e) { rethrow(e); }
+    }),
 
   /** After coming back from Stripe: read the subscription now instead of waiting for the webhook. */
   refresh: ownerProcedure.mutation(async ({ ctx }) => {

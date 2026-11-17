@@ -19,10 +19,11 @@
  * the notes that use them.
  */
 import { createHash, randomBytes } from "crypto";
-import { and, eq, ne } from "drizzle-orm";
+import { and, asc, eq, gt, ne, sql } from "drizzle-orm";
 import { GetObjectCommand, PutObjectCommand, DeleteObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getDb } from "../db";
-import { files, workspaces } from "../../drizzle/schema";
+import { files, workspaces, workspaceSettings } from "../../drizzle/schema";
+import { isShuttingDown, job } from "./lifecycle";
 import { ENV } from "./env";
 import { assertPublicUrl } from "./netGuard";
 import { deleteWorkspaceSetting, getWorkspace, getWorkspaceSetting, setWorkspaceSetting } from "./workspace";
@@ -272,67 +273,211 @@ export async function openFile(row: { workspaceId: number; store: string; backen
 }
 
 // ── moving a workspace's files to its current store ─────────────────────────
-const _moves = new Map<number, { total: number; moved: number; failed: number; running: boolean; error?: string; finishedAt?: string }>();
-export function moveStatus(wsId: number) { return _moves.get(wsId) || null; }
+// A stored, resumable JOB (build -283), not a loop started by a request. The
+// request only QUEUES it (workspace_settings "fileMove"). The "file-moves"
+// background job (startFileMoveJob: one instance at a time, see lifecycle.job)
+// works through it in slices of at most SLICE_MS, a page of rows at a time,
+// and stores its progress as it goes. A deploy or a restart in the middle
+// loses nothing: the next pass carries on after the last file it handled.
+export type MoveJob = {
+  status: "queued" | "running" | "done" | "cancelled" | "failed";
+  /** the store the files are being moved INTO */
+  target: string;
+  total: number; moved: number; failed: number;
+  /** id of the last file handled; the next slice starts after it */
+  cursor: number;
+  queuedAt: string; startedAt?: string; updatedAt?: string; finishedAt?: string;
+  error?: string; by?: number | null;
+};
+/** The storage calls a move makes. Tests pass their own; production uses realIo. */
+export type MoveIo = {
+  folder(wsId: number, state: StorageState): Promise<string | undefined>;
+  open(row: any): Promise<StoredFile>;
+  put(wsId: number, state: StorageState, row: any, body: Buffer, folder?: string): Promise<{ backend: string; ref: string }>;
+  remove(state: StorageState, old: { store: string; backend: string; ref: string }): Promise<void>;
+};
+const MOVE_KEY = "fileMove";
+const SLICE_MS = 45_000;
+const PAGE = 20;
+
+async function readMove(wsId: number): Promise<MoveJob | null> {
+  const raw = await getWorkspaceSetting(wsId, MOVE_KEY);
+  if (!raw) return null;
+  try { const j = JSON.parse(raw); return j && typeof j === "object" && typeof j.status === "string" ? (j as MoveJob) : null; } catch { return null; }
+}
+async function writeMove(wsId: number, j: MoveJob): Promise<void> {
+  j.updatedAt = new Date().toISOString();
+  await setWorkspaceSetting(wsId, MOVE_KEY, JSON.stringify(j));
+}
+const moveActive = (j: MoveJob | null | undefined): boolean => !!j && (j.status === "queued" || j.status === "running");
+/** Store the progress, unless the move was cancelled meanwhile (then it stays cancelled, with the counts so far). */
+async function saveProgress(wsId: number, j: MoveJob): Promise<boolean> {
+  const stored = await readMove(wsId);
+  const cancelled = !!stored && stored.status === "cancelled";
+  if (cancelled) { j.status = "cancelled"; j.finishedAt = stored!.finishedAt || new Date().toISOString(); }
+  await writeMove(wsId, j);
+  return cancelled;
+}
+
+/** What Settings → Storage shows. `running` is true while the move is waiting or under way. */
+export async function moveStatus(wsId: number) {
+  const j = await readMove(wsId);
+  if (!j) return null;
+  return { status: j.status, running: moveActive(j), total: j.total, moved: j.moved, failed: j.failed, error: j.error, queuedAt: j.queuedAt, finishedAt: j.finishedAt };
+}
 
 /** How many of the workspace's files are NOT in its current store. */
 export async function filesElsewhere(wsId: number): Promise<number> {
   const db = await getDb();
   if (!db) return 0;
   const state = await readStorage(wsId);
-  const rows: any[] = await db.select({ id: files.id }).from(files).where(and(eq(files.workspaceId, wsId), ne(files.store, state.current)));
-  return rows.length;
+  const rows: any[] = await db.select({ n: sql<number>`count(*)` }).from(files).where(and(eq(files.workspaceId, wsId), ne(files.store, state.current)));
+  return Number(rows[0]?.n) || 0;
 }
 
 /**
- * Copy every file that is not in the workspace's current store into it, then
- * point its record there. Links don't change. Runs in the background; one at a
- * time per workspace. The old copy is deleted only after the new one is saved.
+ * Queue the move of every file that is not in the workspace's current store.
+ * Links don't change (they name the record, not the provider). Each file is
+ * copied, its record pointed at the copy, and only then is the old one removed.
  */
-export async function moveFiles(wsId: number): Promise<{ started: boolean; total: number }> {
-  const cur = _moves.get(wsId);
-  if (cur?.running) return { started: false, total: cur.total };
+export async function moveFiles(wsId: number, by?: number | null): Promise<{ started: boolean; total: number }> {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
+  const cur = await readMove(wsId);
+  if (moveActive(cur)) return { started: false, total: cur!.total };
+  const total = await filesElsewhere(wsId);
+  if (!total) return { started: false, total: 0 };
   const state = await readStorage(wsId);
-  const rows: any[] = await db.select().from(files).where(and(eq(files.workspaceId, wsId), ne(files.store, state.current)));
-  const st = { total: rows.length, moved: 0, failed: 0, running: true } as { total: number; moved: number; failed: number; running: boolean; error?: string; finishedAt?: string };
-  _moves.set(wsId, st);
-  void (async () => {
-    try {
-      const target = state.current === "platform" ? null : state.stores[state.current];
-      const { storagePutPlatform, storageBackend, storageDeletePlatform } = await import("../storage");
-      const folder = !target && storageBackend() === "drive" ? await platformDriveFolder(wsId) : undefined;
+  await writeMove(wsId, { status: "queued", target: state.current, total, moved: 0, failed: 0, cursor: 0, queuedAt: new Date().toISOString(), by: by ?? null });
+  kickFileMoves();
+  return { started: true, total };
+}
+
+/** Stop a waiting or running move after the file in hand. Files already moved stay moved. */
+export async function cancelMove(wsId: number): Promise<boolean> {
+  const j = await readMove(wsId);
+  if (!moveActive(j)) return false;
+  j!.status = "cancelled"; j!.finishedAt = new Date().toISOString();
+  await writeMove(wsId, j!);
+  return true;
+}
+
+const realIo: MoveIo = {
+  async folder(wsId, state) {
+    if (state.current !== "platform") return undefined;
+    const { storageBackend } = await import("../storage");
+    return storageBackend() === "drive" ? await platformDriveFolder(wsId) : undefined;
+  },
+  open: (row) => openFile(row),
+  async put(wsId, state, row, body, folder) {
+    const key = `ws${wsId}/moved/${row.name}`;
+    const mime = row.mime || "application/octet-stream";
+    const target = state.current === "platform" ? null : state.stores[state.current];
+    if (state.current !== "platform" && !target) throw new Error("the storage to move into no longer exists");
+    if (target) { const p = await ownPut(target, hashed(key), body, mime, !!row.isPublic); return { backend: p.backend, ref: p.ref }; }
+    const { storagePutPlatform } = await import("../storage");
+    const p = await storagePutPlatform(key, body, mime, { public: !!row.isPublic, driveFolderId: folder });
+    return { backend: p.backend, ref: p.ref };
+  },
+  async remove(state, old) {
+    if (old.store === "platform") { const { storageDeletePlatform } = await import("../storage"); await storageDeletePlatform(old.backend, old.ref); return; }
+    const os = state.stores[old.store];
+    if (os) await ownDelete(os, old.ref);
+  },
+};
+
+async function moveOne(db: any, wsId: number, state: StorageState, row: any, io: MoveIo, folder?: string): Promise<void> {
+  const src = await io.open(row);
+  if (src.kind !== "stream") throw new Error("the stored copy could not be opened");
+  const chunks: Buffer[] = [];
+  for await (const c of src.body as any) chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c));
+  const put = await io.put(wsId, state, row, Buffer.concat(chunks), folder);
+  const old = { store: String(row.store), backend: String(row.backend), ref: String(row.ref) };
+  await db.update(files).set({ store: state.current, backend: put.backend, ref: put.ref }).where(and(eq(files.id, row.id), eq(files.workspaceId, wsId)));
+  // The record points at the new copy now. A leftover old copy is only wasted space.
+  try { await io.remove(state, old); }
+  catch (e) { console.warn(`[files] moved file ${row.id} (workspace ${wsId}); its old copy could not be removed:`, String((e as Error)?.message || e).slice(0, 200)); }
+}
+
+/**
+ * Work on one workspace's move until it is finished or cancelled, the slice's
+ * time is up, or the server is stopping. Returns the job as stored.
+ */
+export async function runMoveSlice(wsId: number, opts: { io?: MoveIo; deadline?: number; stop?: () => boolean } = {}): Promise<MoveJob | null> {
+  const db: any = await getDb();
+  if (!db) return null;
+  const j = await readMove(wsId);
+  if (!j || !moveActive(j)) return j;
+  const io = opts.io || realIo;
+  const deadline = opts.deadline ?? Date.now() + SLICE_MS;
+  const stop = opts.stop || isShuttingDown;
+  try {
+    const state = await readStorage(wsId);
+    if (state.current !== j.target) {
+      // the storage was changed while the move waited: move into the new one, from the start
+      j.target = state.current; j.cursor = 0; j.total = j.moved + (await filesElsewhere(wsId));
+    }
+    if (j.status === "queued") { j.status = "running"; j.startedAt = new Date().toISOString(); }
+    if (await saveProgress(wsId, j)) return j;
+    const folder = await io.folder(wsId, state);
+    let sinceSave = 0, halted = false;
+    while (!halted) {
+      const rows: any[] = await db.select().from(files)
+        .where(and(eq(files.workspaceId, wsId), ne(files.store, state.current), gt(files.id, j.cursor)))
+        .orderBy(asc(files.id)).limit(PAGE);
+      if (!rows.length) { j.status = "done"; j.finishedAt = new Date().toISOString(); break; }
       for (const row of rows) {
-        try {
-          const src = await openFile(row);
-          if (src.kind !== "stream") { st.failed++; continue; }
-          const chunks: Buffer[] = [];
-          for await (const c of src.body as any) chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c));
-          const body = Buffer.concat(chunks);
-          const key = `ws${wsId}/moved/${row.name}`;
-          let backend: string, ref: string;
-          if (target) { const p = await ownPut(target, hashed(key), body, row.mime || "application/octet-stream", !!row.isPublic); backend = p.backend; ref = p.ref; }
-          else { const p = await storagePutPlatform(key, body, row.mime || "application/octet-stream", { public: !!row.isPublic, driveFolderId: folder }); backend = p.backend; ref = p.ref; }
-          const old = { store: row.store, backend: row.backend, ref: row.ref };
-          await db.update(files).set({ store: state.current, backend, ref }).where(and(eq(files.id, row.id), eq(files.workspaceId, wsId)));
-          // the old copy, now that the record points at the new one
-          if (old.store === "platform") await storageDeletePlatform(old.backend, old.ref);
-          else { const os = state.stores[old.store]; if (os) await ownDelete(os, old.ref); }
-          st.moved++;
-        } catch (e) {
-          st.failed++;
+        if (stop() || Date.now() > deadline) { halted = true; break; }
+        const stored = await readMove(wsId);
+        if (!stored || stored.status === "cancelled") { halted = true; break; }
+        try { await moveOne(db, wsId, state, row, io, folder); j.moved++; }
+        catch (e) {
+          j.failed++;
           console.error(`[files] move failed for file ${row.id} (workspace ${wsId}):`, String((e as Error)?.message || e).slice(0, 200));
         }
+        j.cursor = Number(row.id);
+        if (++sinceSave >= 5) { sinceSave = 0; if (await saveProgress(wsId, j)) { halted = true; break; } }
       }
-    } catch (e) {
-      st.error = String((e as Error)?.message || e).slice(0, 300);
-      console.error(`[files] move job failed for workspace ${wsId}:`, e);
-    } finally {
-      st.running = false; st.finishedAt = new Date().toISOString();
     }
-  })();
-  return { started: true, total: rows.length };
+    await saveProgress(wsId, j);
+  } catch (e) {
+    j.status = "failed"; j.error = String((e as Error)?.message || e).slice(0, 300); j.finishedAt = new Date().toISOString();
+    console.error(`[files] move job failed for workspace ${wsId}:`, e);
+    try { await writeMove(wsId, j); } catch { /* the next pass sees it as still running and tries again */ }
+  }
+  return j;
+}
+
+/** One pass of the background job: each workspace with a move waiting or under way gets a slice. Returns how many are still unfinished. */
+export async function processFileMoves(opts: { io?: MoveIo; sliceMs?: number } = {}): Promise<number> {
+  const db: any = await getDb();
+  if (!db) return 0;
+  // tenancy: background — which workspaces have a file move stored (each is then handled inside its own workspace)
+  const rows: any[] = await db.select({ w: workspaceSettings.workspaceId, value: workspaceSettings.value }).from(workspaceSettings).where(eq(workspaceSettings.key, MOVE_KEY));
+  let left = 0;
+  for (const r of rows) {
+    if (isShuttingDown()) break;
+    let stored: MoveJob | null = null;
+    try { stored = JSON.parse(String(r.value)); } catch { stored = null; }
+    if (!moveActive(stored)) continue;
+    const ws: any = await getWorkspace(Number(r.w));
+    if (!ws || ws.deletedAt) continue;                       // closed: its files go with it
+    const after = await runMoveSlice(Number(r.w), { io: opts.io, deadline: Date.now() + (opts.sliceMs ?? SLICE_MS) });
+    if (moveActive(after)) left++;
+  }
+  return left;
+}
+
+/** Run a pass now (after a move is queued, and again while work is left). Never throws. */
+export function kickFileMoves(): void {
+  void job("file-moves", () => processFileMoves())
+    .then((left) => { if (left && !isShuttingDown()) setTimeout(kickFileMoves, 500).unref?.(); })
+    .catch((e) => console.error("[files] move pass failed:", e));
+}
+/** Started once at boot: picks up moves that were waiting or cut short by a restart. */
+export function startFileMoveJob(): void {
+  setTimeout(kickFileMoves, 45_000).unref?.();
+  setInterval(kickFileMoves, 60_000).unref?.();
 }
 
 /** Before a workspace is purged: delete its stored objects (best effort). */

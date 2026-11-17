@@ -276,6 +276,76 @@ describe("sign-up and billing, end to end (real MySQL + fake Stripe)", () => {
     expect((await (await as(NEW)).c.auth.me()).billing).toMatchObject({ status: "active", locked: false });
   });
 
+  it("inside LevelUp: the owner sees the invoices and switches plan (-283)", async () => {
+    const nora = (await as(NEW)).c;
+    const sub = (await bill(W)).stripeSubscriptionId;
+    const cust = (await bill(W)).stripeCustomerId;
+
+    // the first charge is listed, with links to Stripe's own pages
+    let inv = await nora.billing.invoices();
+    expect(inv.error).toBeNull();
+    expect(inv.invoices).toHaveLength(1);
+    expect(inv.invoices[0]).toMatchObject({ status: "paid", amount: 1200, currency: "usd", number: "FAKE-0001" });
+    expect(inv.invoices[0].url).toBe(fake.url + "/invoice/" + inv.invoices[0].id);
+    expect(inv.invoices[0].pdf).toBe(fake.url + "/invoice/" + inv.invoices[0].id + "/pdf");
+    expect(Date.parse(inv.invoices[0].date!)).toBeGreaterThan(Date.now() - 600_000);
+    // a workspace with no billing account has none, and Stripe is not asked
+    const callsBefore = fake.state.calls.length;
+    expect((await (await as(OP)).c.billing.invoices()).invoices).toEqual([]);
+    expect(fake.state.calls.length).toBe(callsBefore);
+    // a link that is not Stripe's is never passed on; neither is another customer's invoice
+    const real = fake.state.invoices[0];
+    const keep = real.hosted_invoice_url;
+    real.hosted_invoice_url = "https://evil.example/pay";
+    fake.state.invoices.push({ ...real, id: "in_other", customer: "cus_someone_else" });
+    const fakeList = fake.state.invoices.filter.bind(fake.state.invoices);
+    inv = await nora.billing.invoices();
+    expect(inv.invoices).toHaveLength(1);
+    expect(inv.invoices[0].url).toBeNull();
+    expect(inv.invoices[0].pdf).toContain("/pdf");
+    real.hosted_invoice_url = keep; fake.state.invoices.pop(); void fakeList;
+    // Stripe unreachable: the page still loads, with a message
+    const base = process.env.STRIPE_API_BASE;
+    process.env.STRIPE_API_BASE = "http://127.0.0.1:9";
+    const down = await nora.billing.invoices();
+    process.env.STRIPE_API_BASE = base;
+    expect(down.invoices).toEqual([]);
+    expect(down.error).toMatch(/could not be loaded/);
+
+    // changing plan: refused where it makes no sense
+    await expect(nora.billing.changePlan({ plan: "business", interval: "month" })).rejects.toThrow(/not available/);
+    await expect(nora.billing.changePlan({ plan: "team", interval: "month" })).rejects.toThrow(/already on that plan/);
+    await expect((await as(OP)).c.billing.changePlan({ plan: "team", interval: "year" })).rejects.toThrow(/no subscription to change/);
+    expect(await bill(W)).toMatchObject({ plan: "team", interval: "month" });
+
+    // monthly → yearly, same plan
+    const r1 = await nora.billing.changePlan({ plan: "team", interval: "year" });
+    expect(r1).toMatchObject({ status: "active", plan: "team", interval: "year" });
+    const call = fake.state.calls.filter((c: any) => c.method === "POST" && c.path === "/v1/subscriptions/" + sub).pop();
+    expect(call.params).toMatchObject({ items: [{ id: (await bill(W)).stripeItemId, price: "price_team_y", quantity: "1" }], proration_behavior: "create_prorations", metadata: { workspaceId: String(W), plan: "team" } });
+    expect(fake.state.subscriptions.get(sub).price).toBe("price_team_y");
+    fresh();
+    expect(await bill(W)).toMatchObject({ status: "active", plan: "team", interval: "year", stripeSubscriptionId: sub, stripeCustomerId: cust });
+    expect((await nora.billing.status())).toMatchObject({ plan: "team", interval: "year", hasSubscription: true });
+    // the difference shows up as a new invoice, newest first
+    inv = await nora.billing.invoices();
+    expect(inv.invoices.map((i: any) => i.amount)).toEqual([10800, 1200]);
+
+    // to another plan, and back — the limits follow the plan
+    await nora.billing.changePlan({ plan: "solo", interval: "month" });
+    fresh();
+    expect(await bill(W)).toMatchObject({ plan: "solo", interval: "month" });
+    expect((await nora.billing.status()).limits.members).toBe(1);
+    await nora.billing.changePlan({ plan: "team", interval: "month" });
+    fresh();
+    expect(await bill(W)).toMatchObject({ status: "active", plan: "team", interval: "month", seats: 1 });
+    expect((await q("SELECT action FROM audit_log WHERE action = 'billing.plan_changed'")).length).toBe(3);
+    // the webhooks those changes sent are the same state: nothing flips back
+    await new Promise((r) => setTimeout(r, 400));
+    fresh();
+    expect(await bill(W)).toMatchObject({ plan: "team", interval: "month" });
+  });
+
   it("a failed payment: a grace period, then the workspace is LOCKED — for everyone in it, and only it", async () => {
     const sub = (await bill(W)).stripeSubscriptionId;
     // a teammate joins first (so the lock can be seen from a member's side, and for the seat count below)
@@ -292,6 +362,9 @@ describe("sign-up and billing, end to end (real MySQL + fake Stripe)", () => {
     fresh();
     let b = await bill(W);
     expect(b.status).toBe("past_due");
+    // (-283) no plan change while a payment is outstanding; the unpaid invoice is listed as due
+    await expect((await as(NEW)).c.billing.changePlan({ plan: "team", interval: "year" })).rejects.toThrow(/last payment failed/);
+    expect((await (await as(NEW)).c.billing.invoices()).invoices[0]).toMatchObject({ status: "open" });
     expect(b.pastDueSince).toBeTruthy();
     let me = await (await as(NEW)).c.auth.me();
     expect(me.billing).toMatchObject({ status: "past_due", locked: false });

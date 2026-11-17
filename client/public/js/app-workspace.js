@@ -266,6 +266,7 @@ async function wsOpenSettings(tab){
   }
   _wsRenderSettings(_wsTab==='billing'?_wsBillingHtml(_wsBill):_wsTab==='storage'?_wsStorageHtml():_wsTab==='data'?_wsDataHtml():_wsGeneralHtml(cur));
   if(_wsTab==='storage')_wsWatchMove();
+  if(_wsTab==='billing')_wsLoadInvoices();
 }
 function _wsRenderSettings(body){
   var tabs=[['general','General']];
@@ -337,7 +338,8 @@ function _wsStorageHtml(){
     h+='<div class="ws-card" id="ws-move-card"><h3>Move existing files</h3>'
       +'<p><b>'+Number(s.filesElsewhere||0).toLocaleString()+'</b> file'+(s.filesElsewhere===1?' is':'s are')+' still in an earlier storage. They open normally. Moving copies each one into the current storage, checks it, then removes the old copy. Links in your notes do not change.</p>'
       +'<div id="ws-move-status" class="ws-msg">'+_wsMoveText(mv)+'</div>'
-      +'<div class="ws-row"><button class="btn" id="ws-move-btn"'+(mv&&mv.running?' disabled':'')+_wsAct('wsStorageMove')+'>Move them to the current storage</button></div></div>';
+      +'<div class="ws-row"><button class="btn" id="ws-move-btn"'+(mv&&mv.running?' disabled':'')+_wsAct('wsStorageMove')+'>Move them to the current storage</button>'
+      +(mv&&mv.running?'<button class="btn btn-s" id="ws-move-stop"'+_wsAct('wsStorageMoveCancel')+'>Stop</button>':'')+'</div></div>';
   }
   // own S3
   h+='<div class="ws-card"><h3>Use your own S3 bucket</h3>'
@@ -376,8 +378,14 @@ function _wsStorageHtml(){
 }
 function _wsMoveText(mv){
   if(!mv)return '';
-  if(mv.running)return 'Moving… '+mv.moved+' of '+mv.total+' done'+(mv.failed?' · '+mv.failed+' could not be moved':'')+'. You can close this window; it carries on.';
-  return 'Last move: '+mv.moved+' of '+mv.total+' moved'+(mv.failed?' · <span style="color:var(--red)">'+mv.failed+' could not be moved and stay where they were</span>':'')+(mv.error?' · '+_wsEsc(mv.error):'')+'.';
+  var n=function(v){return Number(v||0).toLocaleString();};
+  if(mv.running){
+    if(mv.status==='queued'&&!mv.moved)return 'Waiting to start… '+n(mv.total)+' file'+(mv.total===1?'':'s')+' to move. You can close this window; it carries on.';
+    return 'Moving… '+n(mv.moved)+' of '+n(mv.total)+' done'+(mv.failed?' · '+n(mv.failed)+' could not be moved':'')+'. You can close this window; it carries on, also across a LevelUp update.';
+  }
+  return (mv.status==='cancelled'?'Stopped: ':'Last move: ')+n(mv.moved)+' of '+n(mv.total)+' moved'
+    +(mv.failed?' · <span style="color:var(--red)">'+n(mv.failed)+' could not be moved and stay where they were (press Move to try them again)</span>':'')
+    +(mv.status==='failed'?' · <span style="color:var(--red)">it stopped on an error'+(mv.error?': '+_wsEsc(mv.error):'')+'</span>':'')+'.';
 }
 function _wsS3Input(){
   var g=function(id){return ((document.getElementById(id)||{}).value||'').trim();};
@@ -430,6 +438,11 @@ async function wsStorageMove(){
   var b=document.getElementById('ws-move-btn');if(b)b.disabled=true;
   try{await _trpc('workspace.storageMove',undefined,'mutation');_wsWatchMove(true);}
   catch(e){toast((e&&e.message)||'Could not start the move','error',8000);if(b)b.disabled=false;}
+}
+async function wsStorageMoveCancel(){
+  var b=document.getElementById('ws-move-stop');if(b)b.disabled=true;
+  try{await _trpc('workspace.storageMoveCancel',undefined,'mutation');toast('The move stops after the file in hand. Files already moved stay moved.','info',7000);}
+  catch(e){toast((e&&e.message)||'Could not stop the move','error',8000);if(b)b.disabled=false;}
 }
 function _wsWatchMove(force){
   if(_wsMovePoll){clearInterval(_wsMovePoll);_wsMovePoll=null;}
@@ -596,7 +609,20 @@ function _wsBillCSS(){
     +'background:var(--s1);color:var(--t1);border:1px solid var(--bd2);border-radius:999px;padding:6px 8px 6px 14px;font-size:12.5px;box-shadow:0 6px 20px rgba(0,0,0,.25)}'
     +'#ws-bill-bar.bad{border-color:var(--red)}#ws-bill-bar span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
     +'#ws-bill-bar button{flex:none}'
-    +'.wsb-tbl input.inp{min-width:70px}.wsb-tbl td{vertical-align:top}';
+    +'.wsb-tbl input.inp{min-width:70px}.wsb-tbl td{vertical-align:top}'
+    +'.ws-cur{font-size:12px;font-weight:650;color:var(--ok);padding:5px 0}'
+    +'.ws-inv-wrap{overflow-x:auto}.ws-inv{width:100%;border-collapse:collapse;font-size:12.5px}'
+    +'.ws-inv th{text-align:left;font-weight:600;color:var(--t2);padding:6px 8px;border-bottom:1px solid var(--bd1);white-space:nowrap}'
+    +'.ws-inv td{padding:7px 8px;border-bottom:1px solid var(--bd1);white-space:nowrap}.ws-inv td.num{text-align:right;font-variant-numeric:tabular-nums}'
+    +'.ws-inv .ws-st{font-weight:600}.ws-inv .ws-st.paid{color:var(--ok)}.ws-inv .ws-st.open{color:var(--warn)}'
+    +'.ws-inv td.c-for{white-space:normal;min-width:150px}'
+    // phones: one invoice per block instead of a table that has to be scrolled sideways
+    +'@media(max-width:600px){.ws-inv thead{position:absolute;left:-9999px}.ws-inv,.ws-inv tbody{display:block}'
+    +'.ws-inv tr{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:10px 0;border-bottom:1px solid var(--bd1)}'
+    +'.ws-inv td{border:0;padding:0;white-space:normal}.ws-inv td.c-date{font-weight:600}'
+    +'.ws-inv td.c-amt{grid-column:2;grid-row:1;font-weight:600}.ws-inv td.c-num{grid-column:1;grid-row:2;color:var(--t2)}'
+    +'.ws-inv td.c-st{grid-column:2;grid-row:2;text-align:right}.ws-inv td.c-for{grid-column:1/-1;color:var(--t2);min-width:0}'
+    +'.ws-inv td.c-act{grid-column:1/-1;padding-top:5px}}';
   document.head.appendChild(s);
 }
 function _wsMoney(p){
@@ -614,7 +640,7 @@ async function _wsLoadPub(force){
   try{_wsPub=await _trpc('billing.plans',undefined,'query');}catch(_){_wsPub={signupOpen:false,billingOn:false,trialDays:0,plans:[]};}
   return _wsPub;
 }
-function _wsPlanCards(plans,buy){
+function _wsPlanCards(plans,buy,cur){
   if(!plans||!plans.length)return '<p style="font-size:12.5px;color:var(--t2)">No plans are on sale yet.</p>';
   return '<div class="ws-plans">'+plans.map(function(p){
     var per=p.perSeat?' per person':'';
@@ -622,7 +648,16 @@ function _wsPlanCards(plans,buy){
     var alt=p.monthly&&p.yearly?'<div class="ws-price">or '+_wsEsc(_wsMoney(p.yearly))+per+' / year</div>':'';
     var people=p.members==null?'Any number of people':(p.members===1?'One person':'Up to '+p.members+' people');
     var btns='';
-    if(buy&&p.buyable){
+    if(cur&&p.buyable){
+      // a workspace that already pays: switch plan or monthly / yearly here
+      var mine=cur.plan===p.key;
+      var one=function(iv,label){
+        if(!p[iv==='year'?'yearly':'monthly'])return '';
+        if(mine&&cur.interval===iv)return '<span class="ws-cur">Your plan</span>';
+        return '<button class="btn btn-s'+(mine?'':' btn-p')+'"'+_wsAct('wsBillChange',[p.key,iv])+'>'+label+'</button>';
+      };
+      btns='<div class="ws-row" style="margin-top:auto">'+one('month',mine?'Switch to monthly':'Switch · monthly')+one('year',mine?'Switch to yearly':'Switch · yearly')+'</div>';
+    }else if(buy&&p.buyable){
       btns='<div class="ws-row" style="margin-top:auto">'
         +(p.monthly?'<button class="btn btn-p btn-s"'+_wsAct('wsBillCheckout',[p.key,'month'])+'>Choose monthly</button>':'')
         +(p.yearly?'<button class="btn btn-s"'+_wsAct('wsBillCheckout',[p.key,'year'])+'>Choose yearly</button>':'')+'</div>';
@@ -662,7 +697,7 @@ function _wsBillingHtml(st){
   if(st.isOwner){
     if(st.hasSubscription){
       h+='<div class="ws-row"><button class="btn btn-p"'+_wsAct('wsBillPortal')+'>Manage billing</button></div>'
-        +'<p>Opens Stripe’s secure page: change the card, see invoices, change the plan or cancel.'+(st.seats>1?' You are billed for '+st.seats+' people; the number follows your member list.':'')+'</p>';
+        +'<p>Opens Stripe’s secure page: change the card or cancel. Plans and invoices are also below.'+(st.seats>1?' You are billed for '+st.seats+' people; the number follows your member list.':'')+'</p>';
     }else if(st.status==='comped'){
       h+='';
     }else if(!st.canBuy){
@@ -679,11 +714,58 @@ function _wsBillingHtml(st){
     +_wsMeter('Emails today',(u.email&&u.email.used)||0,u.email?u.email.cap:null)
     +(u.storageBytes!=null&&l&&l.storageMb!=null?_wsMeter('File storage',Math.round(u.storageBytes/1048576),l.storageMb,_wsStorageMb):'')
     +'<p>AI requests count only when LevelUp’s keys are used — with your own key (Settings → AI Features) they don’t. File storage counts LevelUp’s storage only, not your own bucket or Drive.</p></div>';
+  if(st.isOwner&&st.hasSubscription&&st.canBuy&&(st.status==='active'||st.status==='trialing')&&(st.plans||[]).some(function(p){return p.buyable;})){
+    h+='<div class="ws-card"><h3>Change plan</h3>'+_wsPlanCards(st.plans,false,{plan:st.plan,interval:st.interval})
+      +'<p>The change takes effect at once. Stripe credits the unused part of what you have already paid and charges the difference to the card on file'+(st.status==='trialing'?' (nothing is charged before your free trial ends)':'')+'. To cancel or change the card, use <b>Manage billing</b>.</p></div>';
+  }
+  if(st.isOwner&&st.billed&&st.status!=='comped'){
+    h+='<div class="ws-card"><h3>Invoices</h3><div id="ws-invoices" role="status"><p>Loading…</p></div></div>';
+  }
   if(st.isOwner&&!st.hasSubscription&&st.status!=='comped'&&st.canBuy){
     h+='<div class="ws-card"><h3>Choose a plan</h3>'+_wsPlanCards(st.plans,true)
       +'<p>You pay on Stripe’s secure page.'+(st.status==='trialing'&&st.trialDaysLeft>2?' The days left in your free trial are kept — the first charge is on '+_wsEsc(_wsNiceDay(st.trialEndsAt))+'.':'')+' You can change plan or cancel at any time.</p></div>';
   }
   return h;
+}
+// The invoices card fills itself in after the page is drawn (one call to Stripe).
+function _wsInvoicesHtml(r){
+  var list=(r&&r.invoices)||[];
+  if(r&&r.error&&!list.length)return '<p style="color:var(--red)">'+_wsEsc(r.error)+'</p>';
+  if(!list.length)return '<p>No invoices yet. The first one appears here when the first payment is made.</p>';
+  var label={paid:'Paid',open:'Due',void:'Cancelled',uncollectible:'Unpaid'};
+  return '<div class="ws-inv-wrap"><table class="ws-inv"><thead><tr><th scope="col">Date</th><th scope="col">Invoice</th><th scope="col">For</th><th scope="col" style="text-align:right">Amount</th><th scope="col">Status</th><th scope="col">Open</th></tr></thead><tbody>'
+    +list.map(function(i){
+      return '<tr><td class="c-date">'+_wsEsc(_wsNiceDay(i.date))+'</td><td class="c-num">'+_wsEsc(i.number||'—')+'</td>'
+        +'<td class="c-for">'+_wsEsc(i.description||'')+'</td>'
+        +'<td class="num c-amt">'+_wsEsc(_wsMoney({amount:i.amount,currency:i.currency}))+'</td>'
+        +'<td class="c-st"><span class="ws-st '+_wsEsc(i.status)+'">'+_wsEsc(label[i.status]||i.status)+'</span></td>'
+        +'<td class="c-act">'+(i.url?'<button class="btn btn-s"'+_wsAct('_luOpenUrl',[i.url])+' aria-label="'+_wsEsc((i.status==='open'?'Pay invoice ':'View invoice ')+(i.number||''))+'">'+(i.status==='open'?'Pay':'View')+'</button> ':'')
+        +(i.pdf?'<button class="btn btn-s"'+_wsAct('_luOpenUrl',[i.pdf])+' aria-label="'+_wsEsc('Download invoice '+(i.number||'')+' as PDF')+'">PDF</button>':'')+'</td></tr>';
+    }).join('')+'</tbody></table></div>'
+    +'<p>Invoices open on Stripe’s own pages.</p>';
+}
+async function _wsLoadInvoices(){
+  var el=document.getElementById('ws-invoices');if(!el)return;
+  var r=null;try{r=await _trpc('billing.invoices',undefined,'query');}catch(e){r={invoices:[],error:(e&&e.message)||'The invoices could not be loaded.'};}
+  el=document.getElementById('ws-invoices');if(el)el.innerHTML=_wsInvoicesHtml(r);
+}
+async function wsBillChange(plan,interval){
+  var st=_wsBill||{};var p=(st.plans||[]).filter(function(x){return x.key===plan;})[0];
+  if(!p)return;
+  var pr=interval==='year'?p.yearly:p.monthly;
+  var what=p.name+', billed '+(interval==='year'?'yearly':'monthly')+(pr?' ('+_wsMoney(pr)+(p.perSeat?' per person':'')+' / '+(interval==='year'?'year':'month')+')':'');
+  if(!confirm('Switch this workspace to '+what+'?\n\nThe change takes effect now. Stripe credits the unused part of what you have already paid and charges the difference to the card on file.'))return;
+  var msg=document.getElementById('ws-bill-msg');
+  if(msg){msg.textContent='Changing the plan…';msg.style.color='var(--t2)';}
+  try{
+    var r=await _trpc('billing.changePlan',{plan:plan,interval:interval},'mutation');
+    try{_wsMe=await _trpc('auth.me',{},'query');window._luMe=_wsMe;}catch(_){}
+    toast('Plan changed to '+((r&&r.planName)||p.name)+' · billed '+(interval==='year'?'yearly':'monthly'),'success',7000);
+    wsOpenSettings('billing');
+  }catch(e){
+    if(msg){msg.textContent=(e&&e.message)||'The plan was not changed.';msg.style.color='var(--red)';}
+    else toast((e&&e.message)||'The plan was not changed','error',9000);
+  }
 }
 async function wsBillCheckout(plan,interval){
   var msg=document.getElementById('ws-bill-msg')||document.getElementById('ws-lock-msg');
@@ -1045,8 +1127,14 @@ function _wsBillInit(){
           '',
           'On a plan priced **per person**, the bill follows your member list: adding or removing someone changes the next invoice, with the difference for the current period worked out by Stripe.',
           '',
-          '### Changing the card, seeing invoices, changing plan, cancelling',
-          '**Manage billing** opens Stripe’s customer portal for all of these. If you cancel, the workspace keeps working until the end of the period you paid for.',
+          '### Changing plan, or monthly / yearly',
+          'Under **Change plan**, press **Switch** on the plan you want. The change takes effect at once: Stripe credits the unused part of what you have already paid and charges the difference to the card on file. A plan with fewer people than the workspace has cannot be chosen until members are removed, and the plan cannot be changed while a payment is outstanding.',
+          '',
+          '### Invoices',
+          'Every invoice is listed under **Invoices**, newest first, with its amount and whether it is paid. **View** opens it on Stripe’s own page (an unpaid one can be paid there); **PDF** downloads it.',
+          '',
+          '### Changing the card, cancelling',
+          '**Manage billing** opens Stripe’s customer portal for these. If you cancel, the workspace keeps working until the end of the period you paid for.',
           '',
           '### If a payment fails',
           'The owner gets an email and sees a notice in LevelUp. The workspace keeps working for a few days. If the payment is still outstanding after that, the workspace is **locked**.',

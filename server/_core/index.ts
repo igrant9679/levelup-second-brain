@@ -396,6 +396,8 @@ async function startServer() {
       setTimeout(purge, 10 * 60 * 1000);
       setInterval(purge, 24 * 60 * 60 * 1000);
     } catch (e) { console.error('[startup] workspace purge job failed:', e); }
+    // File moves between a workspace's storages (-283): a stored job worked through in slices, resumed after a restart.
+    try { void import('./workspaceFiles').then((m) => m.startFileMoveJob()).catch(e => console.error('[startup] file-move job failed:', e)); } catch (e) { console.error('[startup] file-move job failed:', e); }
     // Daily (-279): trial / failed-payment reminders to owners, seat counts of per-seat plans, stale sign-up requests.
     try {
       const billingTick = () => { void import('./lifecycle').then(({ job }) => job('billing-daily', async () => {

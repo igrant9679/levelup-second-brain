@@ -39,6 +39,23 @@ function apiBase(): string {
   return "https://api.stripe.com";
 }
 
+/**
+ * A link Stripe gave us for the customer's browser (an invoice page, its PDF):
+ * returned only when it is an https page on stripe.com — or, for the local fake
+ * (tests, playground), a page of that same local server. Anything else → null.
+ */
+export function stripeHostedUrl(u: unknown): string | null {
+  const s = String(u || "").trim();
+  if (!s || s.length > 2000) return null;
+  try {
+    const url = new URL(s);
+    const base = apiBase();
+    if (base !== "https://api.stripe.com" && s.startsWith(base + "/")) return s;
+    if (url.protocol !== "https:") return null;
+    return url.hostname === "stripe.com" || url.hostname.endsWith(".stripe.com") ? s : null;
+  } catch { return null; }
+}
+
 /** {a:{b:1}, c:[{d:2}]} → a[b]=1&c[0][d]=2 (Stripe's form encoding). */
 export function formEncode(obj: Record<string, any>, prefix = "", out: string[] = []): string {
   for (const [k, v] of Object.entries(obj || {})) {
