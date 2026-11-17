@@ -299,7 +299,7 @@ function pmNewPersonDialog(prefill){
       '<div class="pm-muted" style="margin-bottom:10px">They do not need a LevelUp account. Add an email address so LevelUp can send them follow-ups.</div>'+
       '<div class="pm-row"><label>Name</label><input class="inp" id="pmnp-name" value="'+_pmE(prefill&&prefill.name||'')+'"></div>'+
       '<div class="pm-row"><label>Email</label><input class="inp" id="pmnp-email" type="email" value="'+_pmE(prefill&&prefill.email||'')+'"></div>'+
-      '<div class="pm-row"><label>Organisation</label><input class="inp" id="pmnp-org" placeholder="e.g. CommunityForce, a client"></div>'+
+      '<div class="pm-row"><label>Organisation</label><input class="inp" id="pmnp-org" placeholder="e.g. your company, a client"></div>'+
       '<div class="pm-row"><label>Role / title</label><input class="inp" id="pmnp-title"></div>'+
       (src==='both'?'<div class="pm-row"><label>Save to</label><select class="inp" id="pmnp-target"><option value="person">Project people list</option><option value="contact">My Contacts</option></select></div>':'')+
       '<div class="pm-acts"><button class="btn btn-s" onclick="pmCloseModal()">Cancel</button><button class="btn btn-p" id="pmnp-save">Add person</button></div>');

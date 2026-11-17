@@ -3722,10 +3722,10 @@ function _renderSourceFilterChips(){
     const allCollapsed=collapsedCount===totalLabels && totalLabels>0;
     const anyCollapsed=collapsedCount>0;
     let label, fn;
-    if(allCollapsed){ label='⤢ Expand all CF'; fn='_expandAllCfProjects()'; }
+    if(allCollapsed){ label='⤢ Expand all '+_luCF(); fn='_expandAllCfProjects()'; }
     else if(anyCollapsed){ label=`⤢ Expand all (${collapsedCount}/${totalLabels} folded)`; fn='_expandAllCfProjects()'; }
-    else { label='⤡ Fold all CF'; fn='_foldAllCfProjects()'; }
-    return `<button class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;background:transparent;color:var(--ach);border:1px solid color-mix(in srgb,#1f6feb 35%,transparent);border-radius:11px;margin-left:4px" onclick="${fn}" title="${allCollapsed?'Expand every CF project section':(anyCollapsed?'Expand all currently-folded CF project sections':'Fold every CF project section')}">${label}</button>`;
+    else { label='⤡ Fold all '+_luCF(); fn='_foldAllCfProjects()'; }
+    return `<button class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;background:transparent;color:var(--ach);border:1px solid color-mix(in srgb,#1f6feb 35%,transparent);border-radius:11px;margin-left:4px" onclick="${fn}" title="${_luWsText(allCollapsed?'Expand every CF project section':(anyCollapsed?'Expand all currently-folded CF project sections':'Fold every CF project section'))}">${label}</button>`;
   })();
   return `<div style="display:flex;align-items:center;gap:6px;margin:6px 0;flex-wrap:wrap">
     <span style="font-size:11px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Sources</span>
@@ -3977,8 +3977,8 @@ function renderTaskList(){
         case 'source':{
           const s=t._source||'';
           if(!s)return '1·Personal';
-          if(s==='smartsheet')return '2·CF';
-          if(s==='nifty')return '3·LSI';
+          if(s==='smartsheet')return '2·'+_luCF();
+          if(s==='nifty')return '3·'+_luLSI();
           return '9·'+s;
         }
       }
@@ -4439,7 +4439,7 @@ function renderTaskCards(){
         case 'start':return t.startDate||'9999';
         case 'end':return t.due||t.endDate||'9999';
         case 'created':return t.createdAt||'9999';
-        case 'source':{const s=t._source||'';if(!s)return '1·Personal';if(s==='smartsheet')return '2·CF';if(s==='nifty')return '3·LSI';return '9·'+s;}
+        case 'source':{const s=t._source||'';if(!s)return '1·Personal';if(s==='smartsheet')return '2·'+_luCF();if(s==='nifty')return '3·'+_luLSI();return '9·'+s;}
       }
       return '';
     };
@@ -5503,8 +5503,8 @@ function _renderExternalClusterCards(){
   if(!ext.length)return '';
   const today=_todayStr;
   const sources=[
-    {key:'smartsheet',label:'CommunityForce · Smartsheet',accent:'#1f6feb',icon:'📊'},
-    {key:'nifty',     label:'LSI Media · NiftyPM',       accent:'#9333ea',icon:'💜'},
+    {key:'smartsheet',label:_luWsText('CommunityForce · Smartsheet'),accent:'#1f6feb',icon:'📊'},
+    {key:'nifty',     label:_luWsText('LSI Media · NiftyPM'),accent:'#9333ea',icon:'💜'},
   ];
   return sources.map(src=>{
     if(!_sourceOn(src.key))return '';
@@ -6030,7 +6030,7 @@ function _renderExternalTasksRailWidget(){
     smartsheet:relevant.filter(t=>t.source==='smartsheet').length,
     nifty:relevant.filter(t=>t.source==='nifty').length,
   };
-  const summary=[counts.smartsheet?`${counts.smartsheet} CF`:'',counts.nifty?`${counts.nifty} LSI`:''].filter(Boolean).join(' · ');
+  const summary=[counts.smartsheet?`${counts.smartsheet} ${_luCF()}`:'',counts.nifty?`${counts.nifty} ${_luLSI()}`:''].filter(Boolean).join(' · ');
   return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
       <div style="font-size:11px;font-weight:600">🔗 External · Next 7 days</div>
@@ -6088,8 +6088,8 @@ function _extBulkStatusMenu(event){
     const nfCommon=nfOpts.length?nfOpts.reduce((a,b)=>a.filter(v=>b.includes(v))):[];
     // Build menu sections per source.
     const sections=[];
-    if(ssCommon.length){sections.push(`<div style="font-size:11px;color:var(--t3);padding:6px 6px 2px;text-transform:uppercase;letter-spacing:.4px">CF · Set ${visible.filter(t=>t.source==='smartsheet').length} Smartsheet row${visible.filter(t=>t.source==='smartsheet').length===1?'':'s'} to:</div>`+ssCommon.map(v=>`<button class="btn btn-s" style="display:block;width:100%;text-align:left;height:24px;font-size:11px;padding:0 8px;background:transparent;border:none;cursor:pointer" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='transparent'" data-source="smartsheet" data-status="${esc(v)}">${esc(v)}</button>`).join(''));}
-    if(nfCommon.length){sections.push(`<div style="font-size:11px;color:var(--t3);padding:6px 6px 2px;text-transform:uppercase;letter-spacing:.4px">LSI · Set ${visible.filter(t=>t.source==='nifty').length} Nifty task${visible.filter(t=>t.source==='nifty').length===1?'':'s'} to:</div>`+nfCommon.map(v=>`<button class="btn btn-s" style="display:block;width:100%;text-align:left;height:24px;font-size:11px;padding:0 8px;background:transparent;border:none;cursor:pointer" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='transparent'" data-source="nifty" data-status="${esc(v)}">${esc(v)}</button>`).join(''));}
+    if(ssCommon.length){sections.push(`<div style="font-size:11px;color:var(--t3);padding:6px 6px 2px;text-transform:uppercase;letter-spacing:.4px">${_luCF()} · Set ${visible.filter(t=>t.source==='smartsheet').length} Smartsheet row${visible.filter(t=>t.source==='smartsheet').length===1?'':'s'} to:</div>`+ssCommon.map(v=>`<button class="btn btn-s" style="display:block;width:100%;text-align:left;height:24px;font-size:11px;padding:0 8px;background:transparent;border:none;cursor:pointer" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='transparent'" data-source="smartsheet" data-status="${esc(v)}">${esc(v)}</button>`).join(''));}
+    if(nfCommon.length){sections.push(`<div style="font-size:11px;color:var(--t3);padding:6px 6px 2px;text-transform:uppercase;letter-spacing:.4px">${_luLSI()} · Set ${visible.filter(t=>t.source==='nifty').length} Nifty task${visible.filter(t=>t.source==='nifty').length===1?'':'s'} to:</div>`+nfCommon.map(v=>`<button class="btn btn-s" style="display:block;width:100%;text-align:left;height:24px;font-size:11px;padding:0 8px;background:transparent;border:none;cursor:pointer" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='transparent'" data-source="nifty" data-status="${esc(v)}">${esc(v)}</button>`).join(''));}
     if(!sections.length){pop.innerHTML='<div style="padding:8px;font-size:11px;color:var(--warn)">No common status options found across the visible items\' source watches. Configure the statusColumn on each watch first.</div>';return;}
     pop.innerHTML=sections.join('');
     pop.querySelectorAll('button[data-status]').forEach(b=>{

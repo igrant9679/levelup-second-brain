@@ -94,6 +94,77 @@ const EXCEL = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><met
 <tr height=20><td height=20>Rent</td><td align=right>1200</td><td align=right>1200</td></tr>
 <!--EndFragment--></table></body></html>`;
 
+// Excel as it really copies: every look lives in the <style> block, by class.
+const EXCEL_STYLED = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta name=ProgId content=Excel.Sheet>
+<style><!--table
+	{mso-displayed-decimal-separator:"\\.";
+	mso-displayed-thousand-separator:"\\,";}
+@page
+	{margin:.75in .7in .75in .7in;}
+tr
+	{mso-height-source:auto;}
+td
+	{padding-top:1px;
+	color:black;
+	font-size:11.0pt;
+	font-weight:400;
+	font-style:normal;
+	text-decoration:none;
+	font-family:Calibri, sans-serif;
+	text-align:general;
+	vertical-align:bottom;
+	border:none;
+	white-space:nowrap;}
+.xl65
+	{mso-style-parent:style0;
+	color:white;
+	font-weight:700;
+	background:#1F4E78;
+	mso-pattern:black none;}
+.xl66
+	{color:#C00000;
+	font-weight:700;}
+.xl67
+	{font-style:italic;
+	background:#E2EFDA;
+	mso-pattern:black none;}
+.xl68
+	{text-align:center;
+	text-decoration:underline;}
+.xl69
+	{color:#0563C1;
+	text-decoration:underline;}
+.font5
+	{color:red;
+	font-weight:700;}
+--></style></head><body><table border=0 cellpadding=0 cellspacing=0 width=192 style='border-collapse:collapse;width:144pt'>
+<!--StartFragment--><col width=64 span=3 style='width:48pt'>
+<tr height=20><td height=20 class=xl65 width=64>Region</td><td class=xl65 width=64>Sales</td><td class=xl65 width=64>Note</td></tr>
+<tr height=20><td height=20>North</td><td class=xl66 align=right>1,200</td><td class=xl67>on plan</td></tr>
+<tr height=20><td height=20>South</td><td align=right>950</td><td class=xl68>check <font class="font5">now</font></td></tr>
+<tr height=20><td height=20>West</td><td align=right>400</td><td class=xl69><a href="https://example.com/west">open</a></td></tr>
+<!--EndFragment--></table></body></html>`;
+
+// Google Sheets: the look is inline, on the cell itself.
+const GSHEETS = `<meta charset='utf-8'><google-sheets-html-origin><style type="text/css"><!--td {border: 1px solid #cccccc;}br {mso-data-placement:same-cell;}--></style><table xmlns="http://www.w3.org/1999/xhtml" cellspacing="0" cellpadding="0" dir="ltr" border="1" style="table-layout:fixed;font-size:10pt;font-family:Arial;width:0px;border-collapse:collapse;border:none"><colgroup><col width="100"/><col width="100"/></colgroup><tbody><tr style="height:21px;"><td style="overflow:hidden;padding:2px 3px 2px 3px;vertical-align:bottom;background-color:#4a86e8;font-weight:bold;color:#ffffff;">Task</td><td style="overflow:hidden;padding:2px 3px 2px 3px;vertical-align:bottom;background-color:#4a86e8;font-weight:bold;color:#ffffff;">Owner</td></tr><tr style="height:21px;"><td style="overflow:hidden;padding:2px 3px 2px 3px;vertical-align:bottom;font-style:italic;color:#ff0000;">Late</td><td style="overflow:hidden;padding:2px 3px 2px 3px;vertical-align:bottom;">Sam</td></tr></tbody></table></google-sheets-html-origin>`;
+
+// Word's named styles: their look is in the <style> block too.
+const WORD_STYLES = `<html xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta name=ProgId content=Word.Document>
+<style><!--
+ p.MsoNormal, li.MsoNormal, div.MsoNormal {margin:0in;font-size:11.0pt;font-family:"Calibri",sans-serif;}
+ a:link, span.MsoHyperlink {color:#0563C1;text-decoration:underline;}
+ p.MsoQuote, li.MsoQuote, div.MsoQuote {margin-left:.6in;font-style:italic;color:#404040;}
+ span.MsoIntenseEmphasis {color:#4472C4;font-style:italic;}
+ p.Warning, li.Warning, div.Warning {color:#C00000;font-weight:bold;}
+ @list l0:level1 {mso-level-text:"%1.";color:red;}
+--></style></head><body><!--StartFragment-->
+<p class=Warning>Careful here<o:p></o:p></p>
+<p class=MsoNormal><span class=MsoHyperlink><a href="https://example.com/x">a link</a></span> and <span class=MsoIntenseEmphasis>strong words</span> and plain.<o:p></o:p></p>
+<p class=MsoQuote>Quoted line<o:p></o:p></p>
+<!--EndFragment--></body></html>`;
+
+const WIDE = '<table border=1>' + [0, 1, 2].map(r => '<tr>' + Array.from({ length: 9 }, (_, c) => '<td>' + (r ? 'Value ' + r + '.' + c : 'Column ' + c) + '</td>').join('') + '</tr>').join('') + '</table>';
+
 const GDOCS = `<meta charset='utf-8'><b style="font-weight:normal;" id="docs-internal-guid-1b2c3d4e-7fff-aaaa-bbbb-cccccccccccc"><p dir="ltr" style="line-height:1.38;margin-top:0pt;margin-bottom:0pt;"><span style="font-size:11pt;font-family:Arial,sans-serif;color:#000000;font-weight:700;white-space:pre-wrap;">Bold start</span><span style="font-size:11pt;font-family:Arial,sans-serif;color:#000000;font-weight:400;font-style:italic;white-space:pre-wrap;"> then italic</span></p><ul style="margin-top:0;margin-bottom:0;"><li dir="ltr" style="list-style-type:disc;font-size:11pt;"><p dir="ltr" style="line-height:1.38;" role="presentation"><span style="font-size:11pt;color:#000000;">one</span></p></li><li dir="ltr"><p dir="ltr" role="presentation"><span style="text-decoration:line-through;">two</span></p></li></ul></b>`;
 
 const HOSTILE = `<p onclick="alert(1)">para<img src=x onerror="alert(2)"><script>alert(3)</script></p><a href="javascript:alert(4)">bad link</a><iframe src="https://evil.test"></iframe><form><input value="x"></form><b onmouseover="alert(5)">bold</b><a href="https://ok.test/a" onclick="alert(6)" target="_top">good link</a><svg><script>alert(7)</script></svg><style>*{display:none}</style>`;
@@ -178,8 +249,27 @@ try {
 
   // 2 ── Excel
   const x = await probe(EXCEL);
-  ok(x.rich && x.tables === 1 && x.ruled === 1 && x.tdCount === 6 && /Rent/.test(x.text), 'Excel: cells arrive as a ruled table', J([x.tables, x.ruled, x.tdCount, x.html.slice(0, 200)]));
+  ok(x.rich && x.tables === 1 && x.ruled === 1 && x.tdCount === 3 && x.th.join('|') === 'Item|Jan|Feb' && x.b === 0 && /Rent/.test(x.text), 'Excel: cells arrive as a ruled table, and a bold first row (bold by class) is the header row', J([x.tables, x.ruled, x.tdCount, x.th, x.b, x.html.slice(0, 200)]));
   ok(x.styles.filter(s => /text-align:right/.test(s)).length === 2, 'Excel: right-aligned numbers stay right-aligned', J(x.styles));
+
+  const xs = await probe(EXCEL_STYLED);
+  ok((xs.html.match(/<th class="lu-fill" style="[^"]*background-color:#1f4e78;color:#fff;text-align:left"><span class="lu-tc" style="color:#ffffff;--tc:#ffffff">/g) || []).length === 3 && xs.b === 2 && xs.th.join('|') === 'Region|Sales|Note', 'Excel styles: a header row filled and coloured by class keeps its fill and white text', xs.html.slice(0, 420));
+  ok(/<td style="text-align:right;background-color:#ffffff;color:#000" class="lu-fill"><span class="lu-tc" style="color:#c00000;--tc:#c00000"><b>1,200<\/b><\/span><\/td>/.test(xs.html), 'Excel styles: a bold red number (by class) stays bold and red', (xs.html.match(/.{0,160}1,200.{0,40}/) || [])[0]);
+  ok(/<td class="lu-fill" style="background-color:#e2efda;color:#000"><i>on plan<\/i><\/td>/.test(xs.html), 'Excel styles: a cell colour and italic (by class) are kept', (xs.html.match(/.{0,120}on plan.{0,30}/) || [])[0]);
+  ok(/<td style="text-align:center;background-color:#ffffff;color:#000" class="lu-fill"><u>check <span class="lu-tc" style="color:#ff0000;--tc:#ff0000"><b>now<\/b><\/span><\/u><\/td>/.test(xs.html), 'Excel styles: alignment and underline by class, and a coloured word inside a cell', (xs.html.match(/.{0,120}check.{0,160}/) || [])[0]);
+  ok(/<td[^>]*><a href="https:\/\/example.com\/west">open<\/a><\/td>/.test(xs.html), "Excel styles: a link cell is a plain link (the link style's blue and underline are not doubled)", (xs.html.match(/.{0,80}open.{0,30}/) || [])[0]);
+  ok(/>North<\/td>/.test(xs.html) && !/font-size|font-family|white-space|mso-|class="xl/.test(xs.html), 'Excel styles: plain cells stay plain; fonts, sizes and Excel classes are dropped', xs.html.slice(0, 300));
+
+  const gs = await probe(GSHEETS);
+  ok((gs.html.match(/<th class="lu-fill" style="[^"]*background-color:#4a86e8;color:#(000|fff);text-align:left"><span class="lu-tc" style="color:#ffffff;--tc:#ffffff">/g) || []).length === 2 && gs.th.join('|') === 'Task|Owner' && gs.b === 0, 'Google Sheets: a filled, bold first row is the header row, with its white text', gs.html.slice(0, 300));
+  ok(/<td[^>]*><span class="lu-tc" style="color:#ff0000;--tc:#ff0000"><i>Late<\/i><\/span><\/td>/.test(gs.html) && />Sam<\/td>/.test(gs.html), "Google Sheets: a cell's own colour and italic are kept", (gs.html.match(/.{0,140}Late.{0,60}/) || [])[0]);
+
+  const ws = await probe(WORD_STYLES);
+  ok(/<p><span class="lu-tc" style="color:#c00000;--tc:#c00000"><b>Careful here<\/b><\/span><\/p>/.test(ws.html), "Word styles: a named paragraph style's colour and bold are kept", ws.html.slice(0, 200));
+  ok(/<p><a href="https:\/\/example.com\/x">a link<\/a> and <span class="lu-tc" style="color:#4472c4;--tc:#4472c4"><i>strong words<\/i><\/span> and plain\.<\/p>/.test(ws.html), "Word styles: a character style is kept; Word's link style adds nothing to a link", (ws.html.match(/<p><a.{0,220}/) || [])[0]);
+  ok(/<p><i>Quoted line<\/i><\/p>/.test(ws.html) && !/red|#ff0000/.test(ws.html), 'Word styles: only the listed properties are read (no indent from a class, no @-rules)', (ws.html.match(/.{0,60}Quoted line.{0,30}/) || [])[0]);
+  const after = await evaluate(`String(_pasteRules)+'|'+_pasteCleanHtml('<p class="xl66">after</p><p>x</p>','').html`);
+  ok(after === 'null|<p>after</p><p>x</p>', 'Styles from one paste never carry over to the next', after);
 
   // 3 ── Google Docs
   const g = await probe(GDOCS);
@@ -244,6 +334,27 @@ try {
 
   const e2 = await pasteInto(`<div style="font-family: Consolas; white-space: pre;"><div><span style="color:#00f">const</span> x = <b>1</b>;</div></div>`, `dt.setData('vscode-editor-data','{"mode":"javascript"}');`);
   ok(/PLAIN TEXT FALLBACK/.test(e2.live), 'Editor: code copied from an editor still pastes as plain text');
+
+  // a wide table scrolls inside itself; a narrow one still fills the width
+  const tableBox = async () => evaluate(`(()=>{
+    const el=document.getElementById('nie-body');const ts=Array.from(el.querySelectorAll('table.lu-table'));
+    const t=ts[ts.length-1];if(!t)return JSON.stringify({none:1});
+    const tb=t.querySelector('tbody');const cs=getComputedStyle(t);const td=t.querySelector('td,th');
+    return JSON.stringify({ox:cs.overflowX,display:cs.display,client:t.clientWidth,scroll:t.scrollWidth,body:Math.round(tb.getBoundingClientRect().width),
+      host:el.clientWidth,cell:Math.round(td.getBoundingClientRect().width),right:Math.round(t.getBoundingClientRect().right),
+      page:document.documentElement.scrollWidth,win:window.innerWidth,cols:t.rows[0].cells.length});
+  })()`).then(JSON.parse);
+  await pasteInto('<table border=1><tr><td>One</td><td>Two</td></tr><tr><td>a</td><td>b</td></tr></table>');
+  const narrow = await tableBox();
+  ok(narrow.cols === 2 && narrow.scroll <= narrow.client + 1 && narrow.body >= narrow.client - 2 && narrow.client >= narrow.host - 4, 'Tables: a narrow table still fills the width of the note', J(narrow));
+  await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+  await new Promise(r => setTimeout(r, 400));
+  await pasteInto(WIDE);
+  const wide = await tableBox();
+  ok(wide.cols === 9 && wide.ox === 'auto' && wide.scroll > wide.client + 200 && wide.cell >= 100, 'Tables on a phone: a 9-column table scrolls sideways inside the note, with readable columns', J(wide));
+  ok(wide.page <= wide.win + 1 && wide.right <= wide.win + 1, 'Tables on a phone: the page itself does not scroll sideways', J(wide));
+  await send('Emulation.clearDeviceMetricsOverride');
+  await new Promise(r => setTimeout(r, 300));
 
   // the New Note box is a note editor too
   const fa = await evaluate(`(async()=>{

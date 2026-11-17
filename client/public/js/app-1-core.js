@@ -997,7 +997,7 @@ function _luNameFix(c){
 // reached without a mouse. Checked after layout; only boxes that really
 // overflow become a tab stop. A div gets role=region and a name; a table
 // keeps its own role.
-const _LU_SCROLL_SEL='.pipe-board,table.fin-tx,.fin-tx-wrap,.pm-scroll,[style*="overflow-x:auto"],[style*="overflow-y:auto"],[style*="overflow:auto"]';
+const _LU_SCROLL_SEL='.pipe-board,table.lu-table,table.fin-tx,.fin-tx-wrap,.pm-scroll,[style*="overflow-x:auto"],[style*="overflow-y:auto"],[style*="overflow:auto"]';
 let _luScrollQ=null;
 function _luScrollFix(list){
   if(!list.length)return;
@@ -1467,7 +1467,7 @@ function _topbarSyncTooltipUpdate(){
   if(last){
     const ago=(Date.now()-_pd(last).getTime())/60000;
     const label=ago<2?'just now':ago<60?`${Math.floor(ago)}m ago`:ago<1440?`${Math.floor(ago/60)}h ago`:`${Math.floor(ago/1440)}d ago`;
-    btn.title=`Sync NiftyPM · last pulled ${label} · ${cfN} CF + ${lsiN} LSI rows`;
+    btn.title=`Sync NiftyPM · last pulled ${label} · ${cfN} ${_luCF()} + ${lsiN} ${_luLSI()} rows`;
     // Compact label visible beside the button on desktop.
     const lbl=document.getElementById('topbar-sync-label');
     if(lbl){lbl.style.display='';lbl.textContent=`synced ${label}${sources?' · '+sources+' src':''}`;}
@@ -1531,10 +1531,12 @@ function _unifiedTasks(opts){
 // Stored in D.prefs.taskContexts so it rides with the prefs sync. Defaults
 // cover both the legacy seed values and the user-suggested business buckets.
 const _DEFAULT_TASK_CONTEXTS=['LSI Business','CF Business','Financial Personal','Deep Work','Admin','Calls','Learning','Creative','Personal','Inbox'];
+// The first two defaults are the original workspace's own companies (build -282).
+function _luDefaultTaskContexts(){return _luCfOn()?_DEFAULT_TASK_CONTEXTS.slice():['Business','Client Work'].concat(_DEFAULT_TASK_CONTEXTS.slice(2));}
 function _getTaskContexts(){
   const arr=(D.prefs&&Array.isArray(D.prefs.taskContexts))?D.prefs.taskContexts.slice():null;
   if(arr&&arr.length)return arr;
-  return _DEFAULT_TASK_CONTEXTS.slice();
+  return _luDefaultTaskContexts();
 }
 function _renderContextSelect(id,current,className){
   const opts=_getTaskContexts();
@@ -1551,7 +1553,7 @@ function manageTaskContexts(){
   const list=_getTaskContexts();
   m.innerHTML=`
     <h2 style="font-size:15px;font-weight:600;margin-bottom:6px">⚙ Manage Task Contexts</h2>
-    <p style="font-size:11px;color:var(--t2);margin-bottom:8px">Used as a category on each task — e.g. <em>LSI Business</em>, <em>Deep Work</em>, <em>Admin</em>. One per line.</p>
+    <p style="font-size:11px;color:var(--t2);margin-bottom:8px">Used as a category on each task — e.g. <em>${_luCfOn()?'LSI Business':'Client Work'}</em>, <em>Deep Work</em>, <em>Admin</em>. One per line.</p>
     <textarea id="ctx-mgr-list" class="inp" style="min-height:200px;font-size:12px;line-height:1.6;font-family:ui-monospace,monospace">${esc(list.join('\n'))}</textarea>
     <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">
       <button class="btn btn-s" onclick="_resetTaskContexts()">↺ Reset to Defaults</button>
@@ -1581,7 +1583,7 @@ function _saveTaskContexts(){
 function _resetTaskContexts(){
   if(!confirm('Reset to the default set of contexts? Any custom additions will be removed.'))return;
   const ta=document.getElementById('ctx-mgr-list');
-  if(ta)ta.value=_DEFAULT_TASK_CONTEXTS.join('\n');
+  if(ta)ta.value=_luDefaultTaskContexts().join('\n');
 }
 function saveAll(){['tasks','notes','projects','goals','journal','habits','teams','aiTopics','ideas','contacts','mindmaps','clusters','prefs','opportunities'].forEach(k=>{try{(window.save||save)(k);}catch(_){localStorage.setItem('lu_'+k,JSON.stringify(D[k]));}});localStorage.setItem('lu_creds',JSON.stringify(D.creds))}
 function applyPrefs(){
@@ -4877,6 +4879,29 @@ function _luCF(){return _luCfOn()?'CF':'Smartsheet';}
 function _luLSI(){return _luCfOn()?'LSI':'Nifty';}
 function _luCFLong(){return _luCfOn()?'CommunityForce':'Smartsheet';}
 function _luLSILong(){return _luCfOn()?'LSI Media':'NiftyPM';}
+// Fixed texts (Help articles, report presets, hints) are written in the original
+// workspace's words; every other workspace reads them through this (build -282).
+// "CommunityForce" stays where the workspace has Atlas - that is whose system it is.
+function _luWsText(s){
+  if(s==null||_luCfOn())return s;
+  var atlas=false;try{atlas=!!((window._luMe.workspace.features||{}).atlas);}catch(_){}
+  s=String(s)
+    .replace(/Atlas (?:\(CommunityForce\)|\u00b7 CommunityForce)/g,'Atlas')
+    .replace(/Smartsheet \((?:CommunityForce|CF)\)/g,'Smartsheet')
+    .replace(/(Nifty(?:PM)?) \((?:LSI Media|LSI)\)/g,'$1')
+    .replace(/(?:CommunityForce|CF) \(Smartsheet\)/g,'Smartsheet')
+    .replace(/(?:LSI Media|LSI) \((Nifty(?:PM)?)\)/g,'$1')
+    .replace(/(?:CommunityForce|CF) \u00b7 Smartsheet/g,'Smartsheet')
+    .replace(/(?:LSI Media|LSI) \u00b7 (Nifty(?:PM)?)/g,'$1')
+    .replace(/ \(LSI \/ LSI Media\)/g,'')
+    .replace(/CommunityForce \(CF\)/g,'Smartsheet')
+    .replace(/LSI Media \(LSI\)/g,'NiftyPM')
+    .replace(/LSI[ -]Media/g,'NiftyPM')
+    .replace(/\bLSI\b/g,'Nifty')
+    .replace(/\bCF\b/g,'Smartsheet');
+  if(!atlas)s=s.replace(/CommunityForce/g,'Smartsheet');
+  return s.replace(/\b(Smartsheet|NiftyPM|Nifty)(?: \1)+\b/g,'$1');
+}
 // Who the AI is told it is helping, and how to read the source tags.
 function _luWho(){return _luCfOn()?'a COO/CEO running two companies':'a busy professional';}
 function _luSrcLegend(paren){

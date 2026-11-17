@@ -406,7 +406,7 @@ function renderSettingsHTML(){
   <!-- Weekly Review (server-side) -->
   <div id="weekly-review-panel" style="margin-bottom:16px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
     <div style="font-size:12px;font-weight:600;margin-bottom:4px">📊 Weekly Review Email</div>
-    <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Late-week recap email: what shipped this past week, what's overdue / carrying over, what's coming next week — across CF + LSI + Personal. Includes an AI-generated reflection (if an AI key is configured).</p>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Late-week recap email: what shipped this past week, what's overdue / carrying over, what's coming next week — across ${_luCF()} + ${_luLSI()} + Personal. Includes an AI-generated reflection (if an AI key is configured).</p>
     <div id="weekly-review-body" style="font-size:11px;color:var(--t2)">Loading…</div>
   </div>
 
@@ -1726,7 +1726,7 @@ function _renderAutoProjectsMaint(){
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center">
       <span style="font-size:11px;color:var(--t3)">${all.length} auto-synced · <strong style="color:var(--red)">${empties.length} empty</strong> · <strong style="color:var(--warn)">${missingDesc.length} without description</strong>${orphans.length?` · <strong style="color:var(--ach)">${orphans.length} not in a program</strong>`:''}</span>
       <div style="flex:1"></div>
-      ${orphans.length?`<button class="btn btn-s" style="height:26px;font-size:11px;color:var(--ach);border-color:var(--ac)" onclick="_linkAutoProjectsToPrograms()" title="Push CF auto-synced projects into the CommunityForce program, LSI ones into LSI Media. Runs only on projects not already in a program.">🔗 Link ${orphans.length} to program</button>`:''}
+      ${orphans.length&&_luCfOn()?`<button class="btn btn-s" style="height:26px;font-size:11px;color:var(--ach);border-color:var(--ac)" onclick="_linkAutoProjectsToPrograms()" title="Push CF auto-synced projects into the CommunityForce program, LSI ones into LSI Media. Runs only on projects not already in a program.">🔗 Link ${orphans.length} to program</button>`:''}
       ${empties.length?`<button class="btn btn-d" style="height:26px;font-size:11px" onclick="_cleanupEmptyAutoProjects()" title="Delete every auto-synced project with zero linked tasks">🗑 Delete ${empties.length} empty</button>`:''}
       ${missingDesc.length?`<button class="btn btn-s" style="height:26px;font-size:11px;color:var(--purp);border-color:var(--purp)" onclick="_aiFillAutoProjectDescriptions()" title="AI-generate 2-sentence descriptions for projects that don't have one">✨ AI fill ${missingDesc.length} description${missingDesc.length===1?'':'s'}</button>`:''}
     </div>
@@ -1844,7 +1844,7 @@ function _renderExternalSourcesPanelHTML(status,ssWatches,nfWatches){
 function _renderSmartsheetCard(s,watches){
   return `
   <div style="background:var(--s3);border:1px solid var(--bd1);border-radius:6px;padding:10px">
-    <div style="font-size:12px;font-weight:600;margin-bottom:4px">📊 Smartsheet (CF) — retired</div>
+    <div style="font-size:12px;font-weight:600;margin-bottom:4px">📊 Smartsheet${_luCfOn()?' (CF)':''} — retired</div>
     <div style="font-size:11px;color:var(--t3);line-height:1.5">No longer synced: CommunityForce work now comes from <a href="javascript:void(0)" onclick="nav('atlas')" style="color:var(--ach)">Atlas</a> and the <a href="javascript:void(0)" onclick="nav('pm')" style="color:var(--ach)">PM Workspace</a>. Tasks it pulled earlier are hidden, not deleted; the projects it created stay as ordinary projects, and Pipeline opportunities stay but no longer update.</div>
   </div>`;
 }
@@ -1852,7 +1852,7 @@ function _renderSmartsheetCardLegacy(s,watches){
   const connected=!!s.connected;
   return `
   <div style="background:var(--s3);border:1px solid var(--bd1);border-radius:6px;padding:10px">
-    <div style="font-size:12px;font-weight:600;margin-bottom:4px">📊 Smartsheet (CF)</div>
+    <div style="font-size:12px;font-weight:600;margin-bottom:4px">📊 Smartsheet${_luCfOn()?' (CF)':''}</div>
     ${connected
       ?`<div style="font-size:11px;color:var(--ok);margin-bottom:6px">✓ ${esc(s.accountDisplayName||s.accountEmail||'Connected')} · ${s.watchCount} watched</div>`
       :`<div style="font-size:11px;color:var(--t3);margin-bottom:6px">Not connected — <a href="https://app.smartsheet.com/b/personalsettings" target="_blank" style="color:var(--ach)">get an API token</a></div>`}
@@ -1899,7 +1899,7 @@ function _renderNiftyCard(s,watches){
   }
   return `
   <div style="background:var(--s3);border:1px solid var(--bd1);border-radius:6px;padding:10px">
-    <div style="font-size:12px;font-weight:600;margin-bottom:4px">💜 NiftyPM (LSI)</div>
+    <div style="font-size:12px;font-weight:600;margin-bottom:4px">💜 NiftyPM${_luCfOn()?' (LSI)':''}</div>
     ${body}
   </div>`;
 }
@@ -2085,7 +2085,7 @@ function _renderAddSmartsheetWatchModal(sheets){
       </div>
       <div style="margin-top:8px">
         <div style="font-size:11px;color:var(--t2);margin-bottom:4px">Friendly label</div>
-        <input id="ext-ss-label" class="inp" style="width:100%;font-size:11px" placeholder="CF: 120-Day Plan">
+        <input id="ext-ss-label" class="inp" style="width:100%;font-size:11px" placeholder="e.g. 120-Day Plan">
       </div>
       <div style="margin-top:8px">
         <div style="font-size:11px;color:var(--t2);margin-bottom:4px">Exclude these statuses (comma-separated, leave blank to pull everything including Closed)</div>
@@ -2361,7 +2361,7 @@ function _renderAddNiftyWatchModal(projects){
       ${projects.map(p=>`<option value="${esc(p.id)}" data-name="${esc(p.name)}">${esc(p.name)}</option>`).join('')}
     </select>
     <div style="font-size:11px;color:var(--t2);margin-bottom:4px">Friendly label</div>
-    <input id="ext-nf-label" class="inp" style="width:100%;font-size:11px;margin-bottom:8px" placeholder="LSI: Q3 Launch">
+    <input id="ext-nf-label" class="inp" style="width:100%;font-size:11px;margin-bottom:8px" placeholder="e.g. Q3 Launch">
     <label style="display:flex;align-items:center;gap:8px;font-size:11px;margin-bottom:8px"><input id="ext-nf-mine-only" type="checkbox" checked> Only tasks assigned to me</label>
     <div style="margin-top:8px;padding:8px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
       <div style="font-size:11px;font-weight:600;margin-bottom:4px">${_icon('folder',13,'currentColor')} Mirror as LevelUp project</div>
@@ -3877,7 +3877,7 @@ function buildSearchIndex(){
   // source URL in a new tab since we can't open a drawer for read-only rows.
   (D.externalTasks||[]).forEach(et=>{
     if(et.override&&et.override.tombstoned)return;
-    const label=(et.source==='smartsheet'?'[CF] ':et.source==='nifty'?'[LSI] ':'')+et.title;
+    const label=(et.source==='smartsheet'?'['+_luCF()+'] ':et.source==='nifty'?'['+_luLSI()+'] ':'')+et.title;
     const due=(et.override&&et.override.localDue)||et.due||'';
     items.push({
       type:et.source==='smartsheet'?'Smartsheet':'NiftyPM',
@@ -17917,7 +17917,7 @@ function finOpenStream(id){
   const scheduled=st&&st.perMonth&&Object.keys(st.perMonth||{}).length;
   _finModal(`<div style="padding:16px;max-width:440px">
     <h2 style="font-size:15px;font-weight:600;margin-bottom:12px">${st?'✏ Edit':'＋ New'} Income Stream</h2>
-    <div class="field"><label>Name</label><input class="inp" id="fs-name" value="${esc(st?st.name:'')}" placeholder="e.g. LSI Media — VALA, Salary, Rental"></div>
+    <div class="field"><label>Name</label><input class="inp" id="fs-name" value="${esc(st?st.name:'')}" placeholder="e.g. Salary, Client retainer, Rental"></div>
     <div class="field-row">
       <div class="field"><label>Expected / month${scheduled?' <span style="color:var(--ach)" title="This stream has a per-month schedule from your import; this value is used for months outside the schedule">📅</span>':''}</label><input class="inp" id="fs-expected" type="number" min="0" step="1" value="${st?(st.expected||''):''}" placeholder="0 if irregular"></div>
       <div class="field"><label>Category</label><select class="inp" id="fs-cat">${_finCatOptions(st?st.catId:'inc-salary','income')}</select></div>

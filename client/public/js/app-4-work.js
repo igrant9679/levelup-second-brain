@@ -153,8 +153,8 @@ function renderCommandCenter(){
     </div>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
       ${chip('all','All hats','#f59e0b')}
-      ${chip('cf','CF · '+cfCount,'#1f6feb')}
-      ${chip('lsi','LSI · '+lsiCount,'#9333ea')}
+      ${chip('cf',_luCF()+' · '+cfCount,'#1f6feb')}
+      ${chip('lsi',_luLSI()+' · '+lsiCount,'#9333ea')}
       ${chip('personal','Personal','#10b981')}
       <button class="btn btn-s" style="height:26px;padding:0 10px;font-size:11px" onclick="_saveCurrentCCView()" title="Save the current hat as a view">⭐ Save view</button>
       <button class="btn btn-s" style="height:26px;padding:0 10px;font-size:11px" onclick="refreshExternalTasksNow()" title="Force fresh pull">↻ Sync</button>
@@ -243,7 +243,7 @@ function renderCommandCenter(){
       <div style="font-size:11px;font-weight:600;margin-bottom:6px">📡 Sync status</div>
       <div style="font-size:11px;color:var(--t2);line-height:1.7">
         Last pull: <strong>${lastLabel}</strong><br>
-        CF rows: <strong>${cfCount}</strong> · LSI rows: <strong>${lsiCount}</strong><br>
+        ${_luCF()} rows: <strong>${cfCount}</strong> · ${_luLSI()} rows: <strong>${lsiCount}</strong><br>
         ${pendingRows.length?`<span style="color:var(--warn)">⏳ ${pendingRows.length} pending push</span>`:'<span style="color:var(--ok)">✓ Push queue clear</span>'}
       </div>
     </div>
@@ -1346,7 +1346,7 @@ async function _dropPushItem(source,externalId){
 // list onto the Home dashboard, but is deferred — for now the views just one-
 // click restore the hat.
 function _saveCurrentCCView(){
-  const name=prompt('Name this view (e.g. "CF Recruiting overdue", "LSI shipping"):',(_ccHat()==='all'?'All hats':_ccHat().toUpperCase())+' view');
+  const name=prompt(_luWsText('Name this view (e.g. "CF Recruiting overdue", "LSI shipping"):'),(_ccHat()==='all'?'All hats':_ccHat().toUpperCase())+' view');
   if(!name||!name.trim())return;
   D.prefs=D.prefs||{};
   D.prefs.savedCCViews=Array.isArray(D.prefs.savedCCViews)?D.prefs.savedCCViews:[];
@@ -2181,7 +2181,7 @@ function openProjectDetail(pid){
     <span class="pill ${statusPill(p.status)}">${p.status||'—'}</span>
     ${p.autoCreatedBy?(function(){
       const src=(p.autoSyncSource&&p.autoSyncSource.source)||(p.autoCreatedBy==='nifty-sync'?'nifty':'smartsheet');
-      const label=src==='nifty'?'LSI · NiftyPM':'CF · Smartsheet';
+      const label=_luWsText(src==='nifty'?'LSI · NiftyPM':'CF · Smartsheet');
       const color=src==='nifty'?'#9333ea':'#1f6feb';
       const sheetName=(p.autoSyncSource&&p.autoSyncSource.sheetName)?` · ${esc(p.autoSyncSource.sheetName)}`:'';
       return `<span class="pill" style="background:color-mix(in srgb,${color} 16%,transparent);color:${_luAccentText(color)};font-weight:600;font-size:11px" title="Auto-synced from ${esc(label)}${sheetName}">📊 Auto-synced${sheetName}</span>`;
@@ -2397,7 +2397,7 @@ async function _aiProjectStatusUpdate(pid){
 One short sentence ($pct% complete framing) capturing overall health and momentum.
 
 ## Shipped this week
-Bulleted list of the most meaningful completions (3-6 items max). Group [CF]/[LSI] tags when relevant.
+Bulleted list of the most meaningful completions (3-6 items max). Group [${_luCF()}]/[${_luLSI()}] tags when relevant.
 
 ## In progress
 Bulleted list of active work (3-6 items). Note urgency.
@@ -2740,7 +2740,7 @@ function _renderExtPickerHTML(){
     <div style="font-size:13px;font-weight:600;margin-bottom:4px">Link external tasks to <em>${esc(p?p.name:'project')}</em></div>
     <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Check tasks to include them on this project's page. Unchecking removes the link (the task itself stays in its source).</div>
     <div style="display:flex;gap:6px;margin-bottom:6px">
-      ${['all','smartsheet','nifty'].map(s=>`<button class="btn btn-s" style="font-size:11px;background:${_extPickerSourceFilter===s?'var(--ac)':'transparent'};color:${_extPickerSourceFilter===s?'#fff':'var(--t2)'}" onclick="_extPickerSourceFilter='${_jsAttr(s)}';document.getElementById('modal-content').innerHTML=_renderExtPickerHTML()">${s==='all'?'All':(s==='smartsheet'?'CF only':'LSI only')}</button>`).join('')}
+      ${['all','smartsheet','nifty'].map(s=>`<button class="btn btn-s" style="font-size:11px;background:${_extPickerSourceFilter===s?'var(--ac)':'transparent'};color:${_extPickerSourceFilter===s?'#fff':'var(--t2)'}" onclick="_extPickerSourceFilter='${_jsAttr(s)}';document.getElementById('modal-content').innerHTML=_renderExtPickerHTML()">${s==='all'?'All':(s==='smartsheet'?_luCF()+' only':_luLSI()+' only')}</button>`).join('')}
       <input id="ext-pick-search" class="inp" placeholder="Search title…" style="flex:1;font-size:11px;height:26px" value="${esc(_extPickerSearch)}" oninput="_extPickerSearch=this.value;document.getElementById('ext-pick-results').innerHTML=_renderExtPickerRows();setTimeout(()=>document.getElementById('ext-pick-search').focus(),0)">
     </div>
     <div id="ext-pick-results" style="flex:1;overflow-y:auto;border:1px solid var(--bd1);border-radius:6px;margin-bottom:10px">${rows||'<div style="padding:14px;text-align:center;color:var(--t3);font-size:11px">No matching external tasks.</div>'}${tooMany}</div>
@@ -2871,7 +2871,7 @@ function renderProjectsGantt(header){
     const cfN=extLinked.filter(t=>t.source==='smartsheet').length;
     const lsiN=extLinked.filter(t=>t.source==='nifty').length;
     const extBadge=extLinked.length
-      ?`<span title="${cfN?cfN+' CF':''}${cfN&&lsiN?' · ':''}${lsiN?lsiN+' LSI':''} external task${extLinked.length===1?'':'s'} linked" style="display:inline-flex;align-items:center;gap:2px;font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;background:var(--s3);color:var(--t2);margin-left:4px">${cfN?`<span style="color:var(--ach)">${cfN}CF</span>`:''}${cfN&&lsiN?'·':''}${lsiN?`<span style="color:var(--purp)">${lsiN}LSI</span>`:''}</span>`
+      ?`<span title="${cfN?cfN+' '+_luCF():''}${cfN&&lsiN?' · ':''}${lsiN?lsiN+' '+_luLSI():''} external task${extLinked.length===1?'':'s'} linked" style="display:inline-flex;align-items:center;gap:2px;font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;background:var(--s3);color:var(--t2);margin-left:4px">${cfN?`<span style="color:var(--ach)">${cfN}${_luCfOn()?'CF':' SS'}</span>`:''}${cfN&&lsiN?'·':''}${lsiN?`<span style="color:var(--purp)">${lsiN}${_luCfOn()?'LSI':' NF'}</span>`:''}</span>`
       :'';
     return`<div class="gantt-row" style="display:flex;align-items:center;gap:8px;padding:8px 6px;border-bottom:1px solid var(--bd1);border-radius:7px">
       <div style="width:170px;flex-shrink:0;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="openProject(${p.id})" title="${esc(p.name)} · ${hp.label}">

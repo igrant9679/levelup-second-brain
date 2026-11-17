@@ -592,7 +592,7 @@ async function _runAIWidgetBuilder(){
 Schema:
 {
   "title": string,                            // short human-readable label
-  "source": one of: tasks, habits, goals, journal, projects, ideas, bookmarks, focus, allTasks (= native tasks + Smartsheet/Nifty external — use when the user asks about "all my work" / "across companies" / "CF + LSI + personal")
+  "source": one of: tasks, habits, goals, journal, projects, ideas, bookmarks, focus, allTasks (= native tasks + Smartsheet/Nifty external — use when the user asks about "all my work" / "across companies" / "${_luCF()} + ${_luLSI()} + personal")
   "groupBy": one of: _total, _rows, day(<dateField>), week(<dateField>), month(<dateField>), or a field name like status / priority / project / context / assignedTo / title / cadence / category / stage / idea_type / mood / name / color
   "metric": one of: count, list, sum(<field>), avg(<field>)
   "viz": one of: kpi, bar, line, donut, heatmap, sparkline, progress, table
@@ -742,17 +742,17 @@ function _groupByOptions(src){
     bookmarks:[['source','Source']],
     focus:[],
     allTasks:[
-      ['_sourceLabel','Source (Personal/CF/LSI)'],
+      ['_sourceLabel',_luWsText('Source (Personal/CF/LSI)')],
       ['status','Status'],['priority','Priority'],['project','Project'],['assignee','Assignee'],
     ],
     external:[
-      ['sourceLabel','Source (CF/LSI)'],
+      ['sourceLabel',_luWsText('Source (CF/LSI)')],
       ['source','Source key'],
       ['status','Status'],['priority','Priority'],['project','Project'],['assignee','Assignee'],
     ],
     time:[
       ['project','Project'],
-      ['sourceLabel','Source (Personal/CF/LSI)'],
+      ['sourceLabel',_luWsText('Source (Personal/CF/LSI)')],
       ['source','Source key'],
     ],
   }[src]||[];

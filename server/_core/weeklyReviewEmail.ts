@@ -380,7 +380,7 @@ function renderWeeklyHtml(name: string, rows: BuiltRows, ai: AIBlock, financeHtm
   ${rowsHtml(rows.nextWeek, 'Nothing scheduled in the next 7 days.', L)}
   ${financeHtml}
   <p style="font-size:11px;color:#9ca3af;margin-top:24px;border-top:1px solid #e5e7eb;padding-top:12px">
-    Open LevelUp: <a href="${appOrigin()}/" style="color:#1f6feb">${appOrigin().replace(/^https?:\/\//, "")}</a> · Disable this review in Settings → Notifications · <em>"Shipped" timestamps for CF/LSI rows reflect when LevelUp first observed completion (not the source's actual completion time).</em>
+    Open LevelUp: <a href="${appOrigin()}/" style="color:#1f6feb">${appOrigin().replace(/^https?:\/\//, "")}</a> · Disable this review in Settings → Notifications · <em>"Shipped" timestamps for ${L.smartsheet}/${L.nifty} rows reflect when LevelUp first observed completion (not the source's actual completion time).</em>
   </p>
 </div></body></html>`;
 }

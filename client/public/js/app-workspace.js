@@ -106,6 +106,31 @@ function wsCloseModal(){
 }
 document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.getElementById('ws-modal')){e.stopPropagation();wsCloseModal();}},true);
 
+// Help articles and report presets are written in the original workspace's
+// words ("CF", "LSI", "CommunityForce"). Every other workspace gets them
+// reworded, once per page load (switching workspace reloads the page), and
+// loses the Help sections about Atlas when it has no Atlas (build -282).
+function _wsNeutralWording(){
+  if(typeof _luCfOn!=='function'||typeof _luWsText!=='function'||_luCfOn()||window._wsWorded)return;
+  window._wsWorded=true;
+  var atlas=luWsFeature('atlas');
+  try{
+    if(typeof HC_ARTICLES!=='undefined'&&Array.isArray(HC_ARTICLES))HC_ARTICLES.forEach(function(a){
+      if(!atlas&&a.body)a.body=String(a.body).replace(/\n###? [^\n]*Atlas[^\n]*\n[\s\S]*?(?=\n###? |$)/g,'');
+      ['title','summary','body'].forEach(function(k){if(a[k])a[k]=_luWsText(a[k]);});
+    });
+  }catch(_){}
+  try{
+    if(typeof WIDGET_TEMPLATES!=='undefined')WIDGET_TEMPLATES.forEach(function(t){
+      if(t.label)t.label=_luWsText(t.label);
+      if(t.w&&t.w.title)t.w.title=_luWsText(t.w.title);
+    });
+    if(typeof WIDGET_SOURCES!=='undefined')Object.keys(WIDGET_SOURCES).forEach(function(k){
+      var s=WIDGET_SOURCES[k];if(s&&s.label)s.label=_luWsText(s.label);
+    });
+  }catch(_){}
+}
+
 // ─── who am I here ──────────────────────────────────────────────────────────
 async function wsBoot(){
   _wsCSS();
@@ -131,6 +156,7 @@ async function wsBoot(){
       for(var hi=HC_ARTICLES.length-1;hi>=0;hi--)if(drop.indexOf(HC_ARTICLES[hi].slug)>=0)HC_ARTICLES.splice(hi,1);
     }
   }catch(_){}
+  _wsNeutralWording();
   _wsBillAfterBoot();
   // back from connecting Google Drive as this workspace's storage
   try{

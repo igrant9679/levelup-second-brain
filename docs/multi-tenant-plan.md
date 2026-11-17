@@ -217,8 +217,8 @@ Everything here is OFF until the operator turns it on (Platform console → Bill
 
 ## Known gaps (follow-ups)
 
-- Report widget presets, Help articles and a few Settings descriptions still say "CF / LSI"
-  for every workspace (static text).
+- ~~Report widget presets, Help articles and a few Settings descriptions still say "CF / LSI"
+  for every workspace (static text).~~ Fixed in build -282 (`_luWsText`, `_wsNeutralWording`).
 - Billing has only ever run against the FAKE Stripe in the tests and the local playground —
   the first real run should be in Stripe's test mode.
 - Moving files runs in the web process; a very large workspace would want a queue.

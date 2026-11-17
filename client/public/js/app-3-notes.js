@@ -3165,10 +3165,45 @@ function _notePopPick(i){
 const _PASTE_SKIP=new Set(['style','script','head','title','meta','link','xml','template','noscript','svg','math','iframe','frame','object','embed','form','input','button','textarea','select','option','audio','video','canvas','colgroup','col','base','o:p']);
 const _PASTE_BLOCK=new Set(['p','div','table','ul','ol','li','h1','h2','h3','h4','h5','h6','blockquote','pre','hr','section','article','header','footer','main','aside','nav','figure','figcaption','dl','dt','dd','address','center','tr','td','th','thead','tbody','tfoot','caption']);
 let _pasteSeq=0;
+// Excel keeps bold, colours and fills in a <style> block, by class (".xl65"),
+// and so do Word's named styles (build -282). Only these properties are read,
+// only for ".class" / "tag.class" selectors, and each value still goes through
+// the same checks as an inline style. Set for the length of one paste.
+let _pasteRules=null;
+const _PASTE_RULE_PROPS=new Set(['color','background','background-color','font-weight','font-style','text-decoration','text-decoration-line','text-align','vertical-align']);
+function _pasteStyleRules(src){
+  const rules=Object.create(null);let n=0;
+  const re=/<style\b[^>]*>([\s\S]*?)<\/style>/gi;let m;
+  while((m=re.exec(src))&&n<4000){
+    const text=m[1].slice(0,600000).replace(/\/\*[\s\S]*?\*\//g,'').replace(/<!--|-->/g,'');
+    const rr=/([^{}]+)\{([^{}]*)\}/g;let r;
+    while((r=rr.exec(text))&&n<4000){
+      const sel=r[1].trim();if(!sel||sel.charAt(0)==='@')continue;
+      const decl={};let any=false;
+      r[2].split(';').forEach(d=>{
+        const i=d.indexOf(':');if(i<=0)return;
+        const k=d.slice(0,i).trim().toLowerCase();
+        if(_PASTE_RULE_PROPS.has(k)){decl[k]=d.slice(i+1).replace(/!\s*important/i,'').trim();any=true;}
+      });
+      if(!any)continue;
+      sel.split(',').forEach(s=>{
+        const sm=/^([a-zA-Z][a-zA-Z0-9]*)?\.([A-Za-z_][\w-]*)$/.exec(s.trim());
+        // Word's link, tracked-change and comment styles are handled by their tags
+        if(!sm||/^mso(hyperlink|ins|del|changeprop|comment)/i.test(sm[2]))return;
+        (rules[sm[2]]=rules[sm[2]]||[]).push({tag:(sm[1]||'').toLowerCase(),css:decl});n++;
+      });
+    }
+  }
+  return n?rules:null;
+}
 function _pasteCss(el){
-  const o={};const s=el&&el.getAttribute&&el.getAttribute('style');
-  if(!s)return o;
-  s.split(';').forEach(d=>{const i=d.indexOf(':');if(i>0)o[d.slice(0,i).trim().toLowerCase()]=d.slice(i+1).trim();});
+  const o={};if(!el||!el.getAttribute)return o;
+  if(_pasteRules){
+    const cls=el.getAttribute('class');
+    if(cls){const tag=_pasteTag(el);cls.split(/\s+/).forEach(c=>{const rs=_pasteRules[c];if(rs)rs.forEach(r=>{if(!r.tag||r.tag===tag)Object.assign(o,r.css);});});}
+  }
+  const s=el.getAttribute('style');
+  if(s)s.split(';').forEach(d=>{const i=d.indexOf(':');if(i>0)o[d.slice(0,i).trim().toLowerCase()]=d.slice(i+1).trim();});
   return o;
 }
 function _pasteLen(v){
@@ -3308,7 +3343,7 @@ function _pasteAllBold(cell){
       }
     }
   };
-  walk(cell,_pasteTag(cell)==='th');
+  walk(cell,_pasteTag(cell)==='th'||/^(bold|bolder|[6-9]00)$/.test(String(_pasteCss(cell)['font-weight']||'').toLowerCase()));
   return any&&all;
 }
 function _pasteImg(ch,out,st){
@@ -3374,7 +3409,7 @@ function _pasteTable(ch,out,st){
       if(fill){parts.push(_pasteFillStyle(fill));td.setAttribute('class','lu-fill');if(ri>0)bodyFilled=true;}
       else unfilled.push(td);
       if(parts.length)td.setAttribute('style',parts.join(';'));
-      _pasteConv(c,td,Object.assign({},st,{tight:true,cell:td,pre:false,bold:isTh,fill:fill?true:st.fill,tc:''}));
+      _pasteStyled(c,css,td,Object.assign({},st,{tight:true,cell:td,cellIn:null,pre:false,bold:isTh,fill:fill?true:st.fill,tc:''}));
       _pasteTrimBreaks(td);
       if(isTh&&!/text-align/.test(td.getAttribute('style')||''))td.setAttribute('style',((td.getAttribute('style')||'')+';text-align:left').replace(/^;/,''));
       if(!td.childNodes.length)td.appendChild(doc.createElement('br'));
@@ -3471,6 +3506,30 @@ function _pasteInline(ch,tag,css,out,st){
   }
   out.appendChild(top);
 }
+// A block's OWN bold / italic / underline / colour — a spreadsheet cell, a
+// paragraph in a named style — becomes wrappers around what it holds (-282).
+function _pasteStyled(ch,css,out,st){
+  const doc=out.ownerDocument;
+  const fw=String(css['font-weight']||'').toLowerCase(),fs=String(css['font-style']||'').toLowerCase();
+  const dec=String((css['text-decoration']||'')+' '+(css['text-decoration-line']||'')).toLowerCase();
+  const link=!!(ch.querySelector&&ch.querySelector('a[href]'));
+  let tc='';
+  if(!link&&!st.link&&!st.mark){const c=_pasteColorHex(css['color']);if(c&&c!==st.tc&&(st.fill||!_pasteBodyTextColor(c)))tc=c;}
+  const want=[];
+  if(!st.bold&&/^(bold|bolder|[6-9]00)$/.test(fw))want.push(['bold','b']);
+  if(!st.italic&&/^(italic|oblique)/.test(fs))want.push(['italic','i']);
+  if(!st.under&&!st.link&&!link&&/\bunderline\b/.test(dec))want.push(['under','u']);
+  if(!st.strike&&/\bline-through\b/.test(dec))want.push(['strike','s']);
+  if((!want.length&&!tc)||(ch.querySelector&&ch.querySelector('table,ul,ol,h1,h2,h3,h4,h5,h6,blockquote,pre,hr'))){_pasteConv(ch,out,st);return;}
+  const st2=Object.assign({},st);let top=null,cur=null;
+  const add=e=>{if(cur)cur.appendChild(e);else top=e;cur=e;};
+  if(tc){const sp=doc.createElement('span');sp.setAttribute('class','lu-tc');sp.setAttribute('style','color:'+tc+';--tc:'+tc);st2.tc=tc;add(sp);}
+  want.forEach(w=>{st2[w[0]]=true;add(doc.createElement(w[1]));});
+  if(st.cell&&st.cell===out)st2.cellIn=cur;
+  _pasteConv(ch,cur,st2);
+  _pasteTrimBreaks(cur);
+  if(cur.childNodes.length)out.appendChild(top);
+}
 function _pasteConv(node,out,st){
   const doc=out.ownerDocument;
   for(const ch of Array.from(node.childNodes)){
@@ -3526,7 +3585,7 @@ function _pasteConv(node,out,st){
       const bs=[_pasteBlockStyle(ch,css),hf?_pasteFillStyle(hf)+';padding:2px 8px':''].filter(Boolean).join(';');
       if(hf)h.setAttribute('class','lu-fill');
       if(bs)h.setAttribute('style',bs);
-      _pasteConv(ch,h,Object.assign({},st,{tight:false,cell:null,bold:true,pre:false,fill:hf?true:st.fill}));
+      _pasteStyled(ch,css,h,Object.assign({},st,{tight:false,cell:null,cellIn:null,bold:true,pre:false,fill:hf?true:st.fill}));
       _pasteTrimBreaks(h);
       if(h.textContent.trim()||h.querySelector('img'))out.appendChild(h);
       continue;
@@ -3546,9 +3605,9 @@ function _pasteConv(node,out,st){
         if(!_pasteEndsBroken(out))out.appendChild(doc.createElement('br'));
         const before=out.childNodes.length;
         const al=String(css['text-align']||ch.getAttribute('align')||'').toLowerCase();
-        if(st.cell&&st.cell===out&&!before&&(al==='center'||al==='right')&&!/text-align/.test(out.getAttribute('style')||''))
-          out.setAttribute('style',((out.getAttribute('style')||'')+';text-align:'+al).replace(/^;/,''));
-        _pasteConv(ch,out,st);
+        if(st.cell&&(st.cell===out||st.cellIn===out)&&!before&&(al==='center'||al==='right')&&!/text-align/.test(st.cell.getAttribute('style')||''))
+          st.cell.setAttribute('style',((st.cell.getAttribute('style')||'')+';text-align:'+al).replace(/^;/,''));
+        _pasteStyled(ch,css,out,st);
         if(out.childNodes.length===before&&before)out.appendChild(doc.createElement('br'));       // an empty line
         continue;
       }
@@ -3558,7 +3617,7 @@ function _pasteConv(node,out,st){
       const bs=[_pasteBlockStyle(ch,css),pf?_pasteFillStyle(pf)+';padding:2px 8px':''].filter(Boolean).join(';');
       if(pf)el.setAttribute('class','lu-fill');
       if(bs)el.setAttribute('style',bs);
-      _pasteConv(ch,el,Object.assign({},st,{bold:_pasteTag(el)!=='p'?true:st.bold,fill:pf?true:st.fill}));
+      _pasteStyled(ch,css,el,Object.assign({},st,{bold:_pasteTag(el)!=='p'?true:st.bold,fill:pf?true:st.fill}));
       _pasteTrimBreaks(el);
       if(!el.childNodes.length){if(_pasteTag(el)!=='p')continue;el.appendChild(doc.createElement('br'));}
       out.appendChild(el);
@@ -3605,9 +3664,12 @@ function _pasteCleanHtml(html,rtf){
     word:/urn:schemas-microsoft-com:office:word|ProgId[^>]{0,40}Word|class="?Mso|mso-list:/i.test(src),
     excel:/urn:schemas-microsoft-com:office:excel|ProgId[^>]{0,40}Excel/i.test(src),
     docs:/docs-internal-guid|urn:schemas-microsoft-com:office:word|class="?Mso/i.test(src),
-    tight:false,cell:null,pre:false,bold:false,italic:false,under:false,strike:false,sup:false,sub:false,code:false,mark:false,link:false,fill:false,tc:''};
-  _pasteWordLists(body);
-  _pasteConv(body,out,st);
+    tight:false,cell:null,pre:false,bold:false,italic:false,under:false,strike:false,sup:false,sub:false,code:false,mark:false,link:false,fill:false,tc:'',cellIn:null};
+  try{_pasteRules=_pasteStyleRules(src);}catch(_){_pasteRules=null;}
+  try{
+    _pasteWordLists(body);
+    _pasteConv(body,out,st);
+  }finally{_pasteRules=null;}
   // Word's pictures: one RTF picture per placeholder, in order — or none at all.
   let dropped=0;
   const local=st.images.filter(i=>i.local);
@@ -3756,6 +3818,19 @@ function insertWikiLink(title){if(_notePop&&_notePop.mode==='note'){const i=_not
     'ul.lu-check>li[data-checked="true"]{opacity:.6;text-decoration:line-through}'+
     'table.lu-table{border-collapse:collapse;margin:8px 0 14px;width:100%;font-size:.95em}'+
     'table.lu-table td,table.lu-table th{border:1px solid var(--bd2);padding:6px 8px;min-width:60px;vertical-align:top}'+
+    // -282: a table wider than the note scrolls sideways inside itself instead
+    // of being cut off. The table becomes the scroll box and its body the grid,
+    // which still fills the width. Tables with a separate <thead> (typed as
+    // Markdown) only do this on phones: their two parts must stay one grid.
+    'table.lu-table:not(:has(>thead)){display:block;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}'+
+    'table.lu-table:not(:has(>thead))>tbody{display:table;width:100%;border-collapse:collapse}'+
+    // a word is no longer split to squeeze a column: the table scrolls instead (a very long word or link still wraps at 30em)
+    'table.lu-table:not(:has(>thead)) td,table.lu-table:not(:has(>thead)) th{word-break:normal;overflow-wrap:break-word;max-width:30em}'+
+    '@media(max-width:700px){'+
+      'table.lu-table:has(>thead){display:block;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}'+
+      'table.lu-table td,table.lu-table th{word-break:normal;overflow-wrap:break-word;max-width:30em}'+
+      'table.lu-table:has(tr>:nth-child(4)) td,table.lu-table:has(tr>:nth-child(4)) th{min-width:104px}'+
+    '}'+
     // -280: header cells, and a pasted layout grid (a Word table with no borders)
     'table.lu-table th{background:color-mix(in srgb,var(--t1) 7%,transparent);font-weight:600}'+
     'table.lu-table.lu-plain td,table.lu-table.lu-plain th{border-color:transparent}'+
