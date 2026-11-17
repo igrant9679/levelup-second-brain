@@ -64,6 +64,25 @@ export async function startFakeStripe({ prices = {}, webhookUrl = '', webhookSec
     return inv;
   }
 
+  // What a change of price / quantity costs at unix time `at`, the way Stripe prorates:
+  // unused time on the old price is credited; monthly ↔ yearly starts a new period and is
+  // invoiced at once, otherwise the remaining time on the new price waits for the next invoice.
+  function planChange(s, price, qty, at) {
+    const oldPr = prices[s.price] || {}, newPr = prices[price] || {};
+    const oldAmt = Number(oldPr.unit_amount || 0) * (Number(s.quantity) || 1), newAmt = Number(newPr.unit_amount || 0) * qty;
+    const currency = newPr.currency || oldPr.currency || 'usd';
+    const recurring = { description: `${qty} × ${price} (${newPr.interval || 'month'})`, amount: newAmt, proration: false };
+    if (s.status === 'trialing') return { now: false, lines: [recurring], prorations: [], date: s.trial_end || s.current_period_end, currency };
+    const start = s.current_period_start || (s.current_period_end - (oldPr.interval === 'year' ? 365 : 30) * 86400);
+    const frac = Math.min(1, Math.max(0, (s.current_period_end - at) / Math.max(1, s.current_period_end - start)));
+    const unused = { description: `Unused time on ${s.quantity} × ${s.price}`, amount: -Math.round(oldAmt * frac), proration: true };
+    if ((oldPr.interval || 'month') !== (newPr.interval || 'month')) {
+      return { now: true, lines: [...(s.pending || []), unused, recurring], prorations: [unused], date: at, currency };
+    }
+    const remaining = { description: `Remaining time on ${qty} × ${price}`, amount: Math.round(newAmt * frac), proration: true };
+    return { now: false, lines: [...(s.pending || []), unused, remaining, recurring], prorations: [unused, remaining], date: s.current_period_end, currency };
+  }
+
   async function deliver(type, object) {
     const evt = { id: rid('evt'), object: 'event', type, created: now(), data: { object } };
     const payload = JSON.stringify(evt);
@@ -86,7 +105,7 @@ export async function startFakeStripe({ prices = {}, webhookUrl = '', webhookSec
     const trialEnd = Number(cs.params.subscription_data?.trial_end) || null;
     const sub = {
       id: rid('sub'), itemId: rid('si'), customer: cs.params.customer, price: li.price, quantity: Number(li.quantity) || 1,
-      status: trialEnd ? 'trialing' : 'active', trial_end: trialEnd, current_period_end: trialEnd || now() + 30 * 86400,
+      status: trialEnd ? 'trialing' : 'active', trial_end: trialEnd, current_period_start: now(), current_period_end: trialEnd || now() + 30 * 86400,
       metadata: cs.params.subscription_data?.metadata || {}, cancel_at_period_end: false,
     };
     state.subscriptions.set(sub.id, sub);
@@ -202,13 +221,23 @@ export async function startFakeStripe({ prices = {}, webhookUrl = '', webhookSec
           if (it) {
             if (it.id !== s.itemId) return send(400, { error: { message: `No such subscription item: '${it.id}'`, code: 'resource_missing' } });
             if (it.price != null && !prices[it.price]) return send(400, { error: { message: `No such price: '${it.price}'`, code: 'resource_missing' } });
-            const before = Number((prices[s.price] || {}).unit_amount || 0) * s.quantity;
+            const at = Number(params.proration_date) || now();
+            const pc = planChange(s, it.price != null ? it.price : s.price, it.quantity != null ? (Number(it.quantity) || 1) : s.quantity, at);
             if (it.price != null) s.price = it.price;
             if (it.quantity != null) s.quantity = Number(it.quantity) || 1;
-            const after = Number((prices[s.price] || {}).unit_amount || 0) * s.quantity;
-            if ((prices[s.price] || {}).interval === 'year') s.current_period_end = now() + 365 * 86400;
-            else s.current_period_end = now() + 30 * 86400;
-            if (params.proration_behavior === 'create_prorations' && s.status === 'active') addInvoice(s, { total: Math.max(0, after - before), description: `Change to ${s.quantity} × ${s.price} (unused time on the previous plan credited)` });
+            if (params.proration_behavior === 'create_prorations' && s.status === 'active') {
+              if (pc.now) {
+                // a new billing period from today, invoiced at once (credit included)
+                s.current_period_start = at;
+                s.current_period_end = at + ((prices[s.price] || {}).interval === 'year' ? 365 : 30) * 86400;
+                const total = pc.lines.reduce((t, l) => t + l.amount, 0);
+                s.pending = [];
+                addInvoice(s, { total, description: `Change to ${s.quantity} × ${s.price} (unused time on the previous plan credited)` });
+              } else {
+                // same billing period: the difference is added to the next invoice
+                s.pending = [...(s.pending || []), ...pc.prorations];
+              }
+            }
           }
           if (params.cancel_at_period_end != null) s.cancel_at_period_end = String(params.cancel_at_period_end) === 'true';
           if (params.metadata) s.metadata = Object.assign({}, s.metadata, params.metadata);
@@ -216,6 +245,18 @@ export async function startFakeStripe({ prices = {}, webhookUrl = '', webhookSec
           return send(200, subJson(s));
         }
         return send(200, subJson(s));
+      }
+      if (p === '/v1/invoices/upcoming' && req.method === 'GET') {
+        // the preview of the invoice a change would lead to (subscription_items + proration date)
+        const s = state.subscriptions.get(params.subscription); if (!s) return send(404, { error: { message: 'No such subscription', code: 'resource_missing' } });
+        if (params.customer && params.customer !== s.customer) return send(400, { error: { message: 'The subscription does not belong to that customer' } });
+        const it = (params.subscription_items || [])[0] || {};
+        if (it.id && it.id !== s.itemId) return send(400, { error: { message: `No such subscription item: '${it.id}'`, code: 'resource_missing' } });
+        if (it.price != null && !prices[it.price]) return send(400, { error: { message: `No such price: '${it.price}'`, code: 'resource_missing' } });
+        const pc = planChange(s, it.price || s.price, it.quantity != null ? (Number(it.quantity) || 1) : s.quantity, Number(params.subscription_proration_date) || now());
+        const total = pc.lines.reduce((t, l) => t + l.amount, 0);
+        return send(200, { object: 'invoice', customer: s.customer, subscription: s.id, currency: pc.currency, total, subtotal: total, amount_due: Math.max(0, total),
+          next_payment_attempt: pc.date, created: pc.date, period_end: pc.date, lines: { object: 'list', data: pc.lines.map((l) => ({ object: 'line_item', ...l })) } });
       }
       if (p === '/v1/invoices' && req.method === 'GET') {
         const lim = Math.max(1, Math.min(100, Number(params.limit) || 10));

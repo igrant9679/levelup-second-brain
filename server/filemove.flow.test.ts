@@ -228,4 +228,48 @@ describe("moving a workspace's files is a stored, resumable job (real MySQL)", (
     expect(log).toEqual([]);
     expect((await stored(WS2)).status).toBe("queued");
   });
+
+  it("(-285) a big file goes from the old storage to the new one in pieces — never read whole", async () => {
+    // the workspace's files are on LevelUp storage now; one big file is still on "old"
+    const MB = 1024 * 1024, SIZE = 40 * MB + 123;
+    await q("INSERT INTO files (publicId, workspaceId, store, backend, ref, name, size, mime) VALUES (?,?,?,?,?,?,?,?)",
+      [crypto.randomBytes(16).toString("hex"), WS, "old", "s3", "big/video", "big.mp4", SIZE, "video/mp4"]);
+    await conn.query("UPDATE workspace_settings SET value = ? WHERE workspaceId = ? AND `key` = 'fileMove'", [JSON.stringify({ status: "queued", target: "platform", total: 1, moved: 0, failed: 0, cursor: 0, queuedAt: new Date().toISOString() }), WS]);
+    let pulled = 0, maxPiece = 0, seen = 0, wholePuts = 0, gotLength: number | undefined, destroyed = false;
+    const base = io();
+    const streaming: import("./_core/workspaceFiles").MoveIo = {
+      ...base,
+      async open(row: any) {
+        if (row.ref !== "big/video") return base.open(row);
+        // made only as it is read: pulled - consumed is what the move holds
+        async function* gen() { while (pulled < SIZE) { const n = Math.min(1 * MB, SIZE - pulled); pulled += n; yield Buffer.alloc(n, 7); } }
+        const body = Readable.from(gen());
+        body.on("close", () => { destroyed = true; });
+        return { kind: "stream", body, length: SIZE } as any;
+      },
+      async put() { wholePuts++; throw new Error("the whole-file path must not be used"); },
+      async putStream(wsId, state, row, body, length) {
+        gotLength = length;
+        // a target that takes 5 MB pieces, slowly
+        const { chunked } = await import("./_core/streamUpload");
+        for await (const piece of chunked(body, 5 * MB)) {
+          maxPiece = Math.max(maxPiece, pulled - seen);
+          seen += piece.length;
+          await new Promise((r) => setTimeout(r, 5));
+        }
+        log.push("stream " + row.id);
+        return { backend: "forge", ref: "moved/big-" + wsId };
+      },
+    };
+    await F.processFileMoves({ io: streaming });
+    expect(await F.moveStatus(WS)).toMatchObject({ status: "done", moved: 1, failed: 0 });
+    expect(wholePuts).toBe(0);
+    expect(seen).toBe(SIZE);
+    expect(gotLength).toBe(SIZE);
+    expect(destroyed).toBe(true);
+    // at any moment the move held about one piece of the target plus one read from the source — not 40 MB
+    expect(maxPiece).toBeLessThanOrEqual(5 * MB + 2 * MB);
+    const row = (await rowsOf(WS)).find((r) => r.name === "big.mp4");
+    expect(row).toMatchObject({ store: "platform", backend: "forge", ref: "moved/big-" + WS });
+  });
 });

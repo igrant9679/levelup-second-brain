@@ -223,5 +223,7 @@ Everything here is OFF until the operator turns it on (Platform console → Bill
   the first real run should be in Stripe's test mode.
 - ~~Moving files runs in the web process; a very large workspace would want a queue.~~ Since build
   -283 a move is a stored job worked through in slices by the "file-moves" background job
-  (resumes after a restart, can be stopped). It still runs inside the server's process, and
-  each file is still read into memory whole.
+  (resumes after a restart, can be stopped). It still runs inside the server's process. Since
+  -285 a file is streamed from the old storage to the new one in 8 MiB pieces (S3 multipart /
+  Drive resumable), not read into memory whole (legacy Forge storage excepted). Since -285 the
+  owner also sees Stripe's exact amount before a plan change is confirmed.

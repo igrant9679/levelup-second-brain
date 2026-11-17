@@ -505,7 +505,81 @@ export async function listInvoices(wsId: number, limit = 24): Promise<InvoiceVie
  * yearly, without leaving LevelUp. Stripe credits the unused part of the
  * current period and charges the difference (proration). Returns the new state.
  */
-export async function changePlan(wsId: number, planKey: string, interval: "month" | "year"): Promise<Entitlement> {
+export async function changePlan(wsId: number, planKey: string, interval: "month" | "year", prorationDate?: number | null, nowMs = Date.now()): Promise<Entitlement> {
+  const { plan, price, row, quantity } = await planChangeTarget(wsId, planKey, interval);
+  // the moment the preview was priced at, so the charge is the amount the owner saw (within the hour only)
+  const at = Math.floor(Number(prorationDate));
+  const nowS = Math.floor(nowMs / 1000);
+  const pin = Number.isFinite(at) && at <= nowS + 300 && at >= nowS - 3600 ? Math.min(at, nowS) : null;
+  const sub: any = await stripeCall("POST", `/v1/subscriptions/${encodeURIComponent(row.stripeSubscriptionId!)}`, {
+    items: [{ id: row.stripeItemId, price, quantity }],
+    proration_behavior: "create_prorations",
+    ...(pin ? { proration_date: pin } : {}),
+    metadata: { workspaceId: String(wsId), plan: plan.key },
+    // a double click inside the same minute is one change
+  }, { idempotencyKey: `lu-plan-${wsId}-${row.stripeSubscriptionId}-${price}-${Math.floor(nowMs / 60_000)}` });
+  if (!sub?.id) throw new Error("Stripe did not confirm the change");
+  await applySubscription(sub, wsId);
+  return entitlement(wsId);
+}
+
+export type PlanChangePreview = {
+  plan: string; planName: string; interval: "month" | "year"; currency: string;
+  /** unix seconds the amounts were worked out at — sent back with the change so Stripe charges the same */
+  prorationDate: number;
+  /** monthly ↔ yearly on a paying subscription: Stripe starts a new billing period and invoices at once */
+  chargedNow: boolean;
+  /** charged to the card today (cents); 0 unless chargedNow */
+  dueNow: number;
+  /** the invoice the change leads to — today's when chargedNow, otherwise the next renewal (cents, may be < 0 = credit) */
+  total: number;
+  /** the credit/charge for the change itself (proration lines), negative = credit */
+  adjustment: number;
+  /** what is left over as credit for later invoices (cents) */
+  credit: number;
+  /** when that invoice is charged (ISO) */
+  date: string | null;
+  /** the new recurring price for the whole workspace (cents per interval) */
+  recurring: number;
+  lines: { description: string; amount: number; proration: boolean }[];
+};
+
+/**
+ * What switching would cost, worked out by Stripe (its upcoming-invoice
+ * preview, with the same proration as the change itself). Nothing is changed.
+ */
+export async function previewPlanChange(wsId: number, planKey: string, interval: "month" | "year", nowMs = Date.now()): Promise<PlanChangePreview> {
+  const { plan, price, row, quantity } = await planChangeTarget(wsId, planKey, interval);
+  const at = Math.floor(nowMs / 1000);
+  const inv: any = await stripeCall("GET", "/v1/invoices/upcoming", {
+    ...(row.stripeCustomerId ? { customer: row.stripeCustomerId } : {}),
+    subscription: row.stripeSubscriptionId,
+    subscription_items: [{ id: row.stripeItemId, price, quantity }],
+    subscription_proration_behavior: "create_prorations",
+    subscription_proration_date: at,
+  });
+  const raw: any[] = (Array.isArray(inv?.lines?.data) ? inv.lines.data : []).filter((l: any) => l && typeof l === "object");
+  const num = (v: any) => { const n = Number(v); return Number.isFinite(n) ? Math.round(n) : 0; };
+  const lines = raw.map((l) => ({ description: String(l.description || "").slice(0, 200), amount: num(l.amount), proration: !!l.proration }));
+  const total = num(inv?.total ?? lines.reduce((s, l) => s + l.amount, 0));
+  const chargedNow = row.status === "active" && (row.interval || "month") !== interval;
+  const pr = await priceInfo(price).catch(() => null);
+  return {
+    plan: plan.key, planName: plan.name, interval,
+    currency: String(inv?.currency || pr?.currency || "usd").toLowerCase().slice(0, 8),
+    prorationDate: at, chargedNow,
+    dueNow: chargedNow ? Math.max(0, num(inv?.amount_due ?? total)) : 0,
+    total,
+    adjustment: lines.filter((l) => l.proration).reduce((s, l) => s + l.amount, 0),
+    credit: Math.max(0, -total),
+    date: chargedNow ? new Date(nowMs).toISOString() : (isoOf(inv?.next_payment_attempt) || isoOf(inv?.period_end) || (row.currentPeriodEnd ? row.currentPeriodEnd.toISOString() : null)),
+    recurring: pr ? pr.amount * quantity : 0,
+    lines: lines.slice(0, 12),
+  };
+}
+
+/** The checks both the preview and the change make; the plan, its Stripe price and the quantity to charge for. */
+async function planChangeTarget(wsId: number, planKey: string, interval: "month" | "year") {
   const cfg = await billingConfig();
   const plan = cfg.plans.find((p) => p.key === planKey && p.public);
   const price = plan ? (interval === "year" ? plan.priceYearly : plan.priceMonthly) : "";
@@ -520,15 +594,7 @@ export async function changePlan(wsId: number, planKey: string, interval: "month
   if (plan.members != null && people > plan.members) {
     throw new Error(`The ${plan.name} plan allows ${plan.members} ${plan.members === 1 ? "person" : "people"}; this workspace has ${people}. Choose a larger plan or remove members first.`);
   }
-  const sub: any = await stripeCall("POST", `/v1/subscriptions/${encodeURIComponent(row.stripeSubscriptionId)}`, {
-    items: [{ id: row.stripeItemId, price, quantity: plan.perSeat ? Math.max(1, people) : 1 }],
-    proration_behavior: "create_prorations",
-    metadata: { workspaceId: String(wsId), plan: plan.key },
-    // a double click inside the same minute is one change
-  }, { idempotencyKey: `lu-plan-${wsId}-${row.stripeSubscriptionId}-${price}-${Math.floor(Date.now() / 60_000)}` });
-  if (!sub?.id) throw new Error("Stripe did not confirm the change");
-  await applySubscription(sub, wsId);
-  return entitlement(wsId);
+  return { plan, price, row, quantity: plan.perSeat ? Math.max(1, people) : 1 };
 }
 
 /** Per-seat plans: keep the subscription's quantity equal to the head count. Never throws. */

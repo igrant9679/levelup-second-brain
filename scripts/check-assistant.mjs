@@ -11,6 +11,11 @@
 // the pane stays open across pages and through Escape, dialogs sit beside it,
 // it is remembered after a reload, and phones keep the full-screen popup.
 //
+// Build -285 adds: docking needs a 1200px window (the page keeps 860px, the
+// width every screen's layout fits) — all pages checked at that width with
+// nothing under the pane; the WINDOW resized while docked (wide → narrower →
+// too narrow → phone width → wide again); iPads (touch).
+//
 //   pnpm build && node scripts/check-assistant.mjs
 //
 // Needs a local Chrome/Edge (CHROME_PATH to override), like check:screens.
@@ -202,6 +207,69 @@ try {
   ok(!close.closed.docked && close.closed.appRight >= close.w - 1 && close.closed.open === null, 'Docked: ✕ closes the pane and the page takes the full width again', J(close.closed));
   ok(!close.undocked.docked && close.undocked.overlay && close.undocked.appRight >= close.w - 1 && close.undocked.pref === null, 'Undock: it floats over the page again', J(close.undocked));
   ok(!close.esc.open && !close.esc.overlay, 'Floating: Escape closes it, and its dimming goes with it', J(close.esc));
+
+  // ── (-285) docking needs room: the page keeps 860px (every screen's desktop layout fits), so a window
+  // narrower than 1200px gets the floating assistant. Measured the way a person sees it: content clipped by
+  // its own scroll box, or hidden, is not "under" the pane.
+  const view = async (width, height, mobile = false) => { await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile }); await new Promise((r) => setTimeout(r, 350)); };
+  const measure = `(()=>{const p=document.getElementById('ai-panel'),app=document.querySelector('.app'),r=p.getBoundingClientRect(),a=app.getBoundingClientRect(),b=document.getElementById('ai-dock-btn');
+    return JSON.stringify({w:innerWidth,open:p.classList.contains('show'),docked:document.body.classList.contains('ai-dock-on'),paneL:Math.round(r.left),paneW:Math.round(r.width),appR:Math.round(a.right),
+      scroll:document.documentElement.scrollWidth-innerWidth,btn:b?getComputedStyle(b).display:'',overlay:getComputedStyle(document.getElementById('ai-panel-overlay')).display});})()`;
+  const underAll = (pages) => evaluate(`(async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));const p=document.getElementById('ai-panel');
+    const inFixed=e=>{for(let n=e;n&&n!==document.body;n=n.parentElement)if(getComputedStyle(n).position==='fixed')return true;return false;};
+    const visR=e=>{let r=e.getBoundingClientRect().right;for(let n=e.parentElement;n&&n!==document.body;n=n.parentElement){const cs=getComputedStyle(n);if(cs.overflowX!=='visible')r=Math.min(r,n.getBoundingClientRect().right);}return r;};
+    const seen=e=>{for(let n=e;n&&n!==document.body;n=n.parentElement){const cs=getComputedStyle(n);if(cs.visibility==='hidden'||cs.opacity==='0'||cs.display==='none')return false;}return true;};
+    const bad={};
+    for(const k of ${J(pages)}){
+      try{nav(k);}catch(_){continue;}await wait(220);
+      if(!document.body.classList.contains('ai-dock-on')){bad[k]='not docked';continue;}
+      const L=p.getBoundingClientRect().left;
+      const u=Array.from(document.querySelectorAll('.app *')).filter(e=>{const b=e.getBoundingClientRect();return b.width>0&&b.height>0&&b.right>L+2&&visR(e)>L+2&&e.offsetParent!==null&&!inFixed(e)&&seen(e);});
+      if(u.length)bad[k]=u.length+' '+u.filter(e=>!u.includes(e.parentElement)).slice(0,3).map(e=>e.tagName.toLowerCase()+'.'+String(e.className).split(' ')[0]+' r='+Math.round(e.getBoundingClientRect().right)).join(' | ');
+    }
+    nav('tasks');await wait(150);
+    return JSON.stringify(bad);})()`).then(JSON.parse);
+
+  // the narrowest window that docks, a pane dragged very wide: every page, nothing under the pane
+  await view(1200, 900);
+  await evaluate(`(async()=>{const wait=ms=>new Promise(r=>setTimeout(r,ms));localStorage.setItem('lu_ai_panel_w','1300');nav('tasks');await wait(150);
+    if(!document.getElementById('ai-panel').classList.contains('show'))toggleAIPanel();await wait(320);if(!_aiDockPref())document.getElementById('ai-dock-btn').click();await wait(200);return true;})()`);
+  const n1200 = JSON.parse(await evaluate(measure));
+  const u1200 = await underAll(pages);
+  ok(n1200.docked && n1200.paneW === 340 && Math.abs(n1200.appR - n1200.paneL) <= 1 && n1200.appR === 860, 'Docked in the narrowest window that docks (1200px): the pane is at its narrowest, the page keeps 860px', J(n1200));
+  ok(!Object.keys(u1200).length, `Docked at 1200px: on all ${pages.length} pages nothing of the page is under the pane`, J(u1200));
+
+  // the window resized while docked
+  await view(1440, 900);
+  const rz = [JSON.parse(await evaluate(measure))];
+  const u1440 = await underAll(['notes', 'calendar', 'pipeline', 'contacts', 'pm', 'settings', 'money']);
+  await view(1280, 800); rz.push(JSON.parse(await evaluate(measure)));
+  await view(1100, 800); rz.push(JSON.parse(await evaluate(measure)));
+  await view(800, 800); rz.push(JSON.parse(await evaluate(measure)));
+  await view(1440, 900); rz.push(JSON.parse(await evaluate(measure)));
+  const fits = (m) => m.open && m.docked && Math.abs(m.appR - m.paneL) <= 1 && m.appR >= 860 && m.scroll <= 0;
+  ok(fits(rz[0]) && rz[0].paneW === 1440 - 860 && !Object.keys(u1440).length, 'Docked + wide window: a pane dragged very wide still leaves the page 860px, nothing under it', J({ m: rz[0], under: u1440 }));
+  ok(fits(rz[1]) && rz[1].paneW === 1280 - 860, 'Docked: the window made narrower (1280) — the pane gives way, the page keeps its room', J(rz[1]));
+  ok(rz[2].open && !rz[2].docked && rz[2].btn === 'none' && rz[2].appR >= 1099 && rz[2].scroll <= 0, 'Docked: a window too narrow to dock (1100) — the assistant floats over the page, which takes its whole width back', J(rz[2]));
+  ok(rz[3].open && !rz[3].docked && rz[3].paneL <= 1 && rz[3].paneW >= 799 && rz[3].appR >= 799 && rz[3].btn === 'none' && rz[3].scroll <= 0, 'Docked: the window made phone-width (800) — the full-width popup', J(rz[3]));
+  ok(fits(rz[4]) && rz[4].paneW === 1440 - 860, 'Docked: the window made wide again — docked again, as before', J(rz[4]));
+
+  // ── (-285) iPads: touch; a 13" iPad Pro in landscape docks, smaller ones get the popup ──
+  try { await send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 }); } catch {}
+  await evaluate(`(()=>{localStorage.removeItem('lu_ai_panel_w');return true;})()`);
+  await view(1366, 1024, true);
+  const padL = JSON.parse(await evaluate(`(async()=>{_aiPanelApplySize();_aiDockApply();await new Promise(r=>setTimeout(r,200));return ${measure};})()`));
+  await view(1180, 820, true);
+  const padM = JSON.parse(await evaluate(measure));
+  await view(820, 1180, true);
+  const padS = JSON.parse(await evaluate(measure));
+  ok(fits(padL) && padL.btn !== 'none' && padL.paneW === 420, 'iPad Pro 13" landscape (1366, touch): the pane docks at its usual width beside the page', J(padL));
+  ok(padM.open && !padM.docked && padM.btn === 'none' && padM.scroll <= 0, 'iPad 11" landscape (1180, touch): the floating assistant (too narrow to dock)', J(padM));
+  ok(padS.open && !padS.docked && padS.paneW >= 819 && padS.scroll <= 0, 'iPad portrait (820, touch): the full-width popup', J(padS));
+  try { await send('Emulation.setTouchEmulationEnabled', { enabled: false }); } catch {}
+  await view(1440, 900);
+  await evaluate(`(async()=>{const p=document.getElementById('ai-panel');if(p.classList.contains('show'))toggleAIPanel();localStorage.removeItem('lu_ai_panel_dock');localStorage.removeItem('lu_ai_panel_open');localStorage.removeItem('lu_ai_panel_w');_aiPanelApplySize();_aiDockApply();return true;})()`);
 
   // phones: the full-screen popup, even when docked on this device
   await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });

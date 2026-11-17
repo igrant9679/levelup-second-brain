@@ -147,12 +147,29 @@ export const billingRouter = router({
   }),
 
   /** Another plan, or monthly / yearly, for a workspace that already pays. Stripe prorates. */
-  changePlan: ownerProcedure
+  /**
+   * What switching would cost (Stripe's own figures), before anything changes.
+   * A plan that cannot be chosen throws, as changePlan would; Stripe being
+   * unreachable answers {preview: null, error} so the page can still offer the change.
+   */
+  previewPlanChange: ownerProcedure
     .input(z.object({ plan: z.string().max(32), interval: z.enum(["month", "year"]) }))
+    .query(async ({ ctx, input }) => {
+      const w = await myWs(ctx);
+      try { return { preview: await billing.previewPlanChange(w, input.plan, input.interval), error: null as string | null }; }
+      catch (e: any) {
+        if (!(e instanceof StripeError) || e.code === "not_configured") rethrow(e);
+        console.error("[billing] plan preview:", e.status, e.code || "", e.message);
+        return { preview: null as billing.PlanChangePreview | null, error: "Stripe could not work out the exact amount just now." };
+      }
+    }),
+
+  changePlan: ownerProcedure
+    .input(z.object({ plan: z.string().max(32), interval: z.enum(["month", "year"]), prorationDate: z.number().int().positive().optional() }))
     .mutation(async ({ ctx, input }) => {
       try {
         const w = await myWs(ctx);
-        const ent = await billing.changePlan(w, input.plan, input.interval);
+        const ent = await billing.changePlan(w, input.plan, input.interval, input.prorationDate ?? null);
         void audit(ctx, "billing.plan_changed", { detail: { plan: input.plan, interval: input.interval } });
         return { status: ent.status, plan: ent.plan, planName: ent.planName, interval: ent.interval, currentPeriodEnd: ent.currentPeriodEnd };
       } catch (e) { rethrow(e); }

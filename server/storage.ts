@@ -270,7 +270,11 @@ async function storagePutDrive(
       ? await driveResumableUpload(token, metadata, body, contentType)
       : await driveMultipartUpload(token, metadata, body, contentType);
   if (!fileId) throw new Error("Drive upload returned empty file id");
+  return driveFinish(token, key, filename, fileId, contentType, isPublic);
+}
 
+/** After a Drive upload: share it if it is public, and the URL to give out. */
+async function driveFinish(token: string, key: string, filename: string, fileId: string, contentType: string, isPublic: boolean): Promise<PutResult> {
   // Private (default since audit F35): no public permission; served through
   // the signed-in proxy.
   if (!isPublic) return { key, url: proxyUrl("d", fileId, filename), backend: "drive", ref: fileId };
@@ -483,6 +487,36 @@ export async function storagePutPlatform(
 }
 
 /**
+ * The PLATFORM store, from a stream (build -285: storage moves). The file is
+ * sent in pieces (S3 multipart / Drive resumable chunks), never held whole in
+ * memory. Legacy Forge storage has no piecewise upload: there it is read whole.
+ */
+export async function storagePutPlatformStream(
+  relKey: string,
+  src: NodeJS.ReadableStream | AsyncIterable<any>,
+  contentType = "application/octet-stream",
+  opts: { public?: boolean; driveFolderId?: string; length?: number } = {},
+): Promise<PutResult> {
+  const pub = opts.public === true;
+  const su = await import("./_core/streamUpload");
+  if (hasS3Config()) {
+    const key = appendHashSuffix(normalizeKey(relKey));
+    await su.s3PutStream(getS3Client(), ENV.s3Bucket, key, src, contentType);
+    return { key, url: pub ? publicUrlForKey(key) : proxyUrl("s", key), backend: "s3", ref: key };
+  }
+  if (hasDriveConfig()) {
+    const key = appendHashSuffix(normalizeKey(relKey));
+    const filename = key.split("/").pop() ?? key;
+    const token = await getDriveAccessToken();
+    const fileId = await su.driveStreamUpload(token, { name: filename, parents: [opts.driveFolderId || ENV.googleDriveFolderId], mimeType: contentType }, src, contentType, opts.length, su.CHUNK, DRIVE_MULTIPART_LIMIT);
+    return driveFinish(token, key, filename, fileId, contentType, pub);
+  }
+  const parts: Buffer[] = [];
+  for await (const c of src as AsyncIterable<any>) parts.push(Buffer.isBuffer(c) ? c : Buffer.from(c));
+  return storagePutPlatform(relKey, Buffer.concat(parts), contentType, opts);
+}
+
+/**
  * Upload a file that must NOT be shared publicly (database backups). On Drive
  * it is created in the app folder without the "anyone with the link"
  * permission that storagePut adds; on S3 it is a normal object (callers
@@ -525,15 +559,15 @@ export async function storageOpen(kind: "d" | "s" | "f", id: string): Promise<St
   if (kind === "d") {
     if (!hasDriveConfig()) return { kind: "missing" };
     const token = await getDriveAccessToken();
-    const resp = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?alt=media`, {
+    // a limit on the answer and on stalls, not on the whole download (a big file took longer than 60 s and was cut off)
+    const { fetchBodyStream } = await import("./_core/streamUpload");
+    const { resp, body } = await fetchBodyStream(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?alt=media`, {
       headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(60_000),
     });
-    if (resp.status === 404) return { kind: "missing" };
-    if (!resp.ok || !resp.body) throw new Error(`Drive download failed (${resp.status})`);
-    const { Readable } = await import("stream");
+    if (resp.status === 404) { body?.destroy(); return { kind: "missing" }; }
+    if (!resp.ok || !body) { body?.destroy(); throw new Error(`Drive download failed (${resp.status})`); }
     const len = Number(resp.headers.get("content-length") || 0) || undefined;
-    return { kind: "stream", body: Readable.fromWeb(resp.body as any), length: len };
+    return { kind: "stream", body, length: len };
   }
   if (kind === "s") {
     if (!hasS3Config()) return { kind: "missing" };

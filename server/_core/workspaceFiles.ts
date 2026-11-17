@@ -26,6 +26,7 @@ import { files, workspaces, workspaceSettings } from "../../drizzle/schema";
 import { isShuttingDown, job } from "./lifecycle";
 import { ENV } from "./env";
 import { assertPublicUrl } from "./netGuard";
+import { CHUNK, driveStreamUpload, fetchBodyStream, s3PutStream } from "./streamUpload";
 import { deleteWorkspaceSetting, getWorkspace, getWorkspaceSetting, setWorkspaceSetting } from "./workspace";
 import type { PutResult, StoredFile } from "../storage";
 
@@ -141,6 +142,21 @@ export async function ownPut(st: OwnStore, key: string, data: Buffer, contentTyp
   }
   return { backend: "drive", ref: id, publicUrl };
 }
+/** Like ownPut, from a stream: sent in pieces, never held whole in memory (build -285). */
+export async function ownPutStream(st: OwnStore, key: string, src: NodeJS.ReadableStream | AsyncIterable<any>, contentType: string, isPublic = false, length?: number): Promise<{ backend: "s3" | "drive"; ref: string }> {
+  if (st.mode === "s3") {
+    const k = s3Key(st, key);
+    await s3PutStream(s3For(st), st.bucket, k, src, contentType);
+    return { backend: "s3", ref: k };
+  }
+  const { DRIVE_MULTIPART_LIMIT } = await import("../storage");
+  const token = await driveToken(st.refreshToken);
+  const id = await driveStreamUpload(token, { name: key.split("/").pop() || key, parents: [st.folderId], mimeType: contentType }, src, contentType, length, CHUNK, DRIVE_MULTIPART_LIMIT);
+  if (isPublic) {
+    await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}/permissions`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ role: "reader", type: "anyone" }) }).catch(() => null);
+  }
+  return { backend: "drive", ref: id };
+}
 export async function ownOpen(st: OwnStore, ref: string): Promise<StoredFile> {
   if (st.mode === "s3") {
     try {
@@ -152,11 +168,11 @@ export async function ownOpen(st: OwnStore, ref: string): Promise<StoredFile> {
     }
   }
   const token = await driveToken(st.refreshToken);
-  const resp = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(ref)}?alt=media`, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(60_000) });
-  if (resp.status === 404) return { kind: "missing" };
-  if (!resp.ok || !resp.body) throw new Error(`Drive download failed (${resp.status})`);
-  const { Readable } = await import("stream");
-  return { kind: "stream", body: Readable.fromWeb(resp.body as any), length: Number(resp.headers.get("content-length") || 0) || undefined };
+  // a limit on the answer and on stalls, not on the whole download (big files took longer than 60 s)
+  const { resp, body } = await fetchBodyStream(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(ref)}?alt=media`, { headers: { Authorization: `Bearer ${token}` } });
+  if (resp.status === 404) { body?.destroy(); return { kind: "missing" }; }
+  if (!resp.ok || !body) { body?.destroy(); throw new Error(`Drive download failed (${resp.status})`); }
+  return { kind: "stream", body, length: Number(resp.headers.get("content-length") || 0) || undefined };
 }
 export async function ownDelete(st: OwnStore, ref: string): Promise<boolean> {
   try {
@@ -294,6 +310,8 @@ export type MoveIo = {
   folder(wsId: number, state: StorageState): Promise<string | undefined>;
   open(row: any): Promise<StoredFile>;
   put(wsId: number, state: StorageState, row: any, body: Buffer, folder?: string): Promise<{ backend: string; ref: string }>;
+  /** the same from a stream, in pieces (build -285); when absent the file is read whole and put */
+  putStream?(wsId: number, state: StorageState, row: any, body: NodeJS.ReadableStream | AsyncIterable<any>, length: number | undefined, folder?: string): Promise<{ backend: string; ref: string }>;
   remove(state: StorageState, old: { store: string; backend: string; ref: string }): Promise<void>;
 };
 const MOVE_KEY = "fileMove";
@@ -369,6 +387,16 @@ const realIo: MoveIo = {
     return storageBackend() === "drive" ? await platformDriveFolder(wsId) : undefined;
   },
   open: (row) => openFile(row),
+  async putStream(wsId, state, row, body, length, folder) {
+    const key = `ws${wsId}/moved/${row.name}`;
+    const mime = row.mime || "application/octet-stream";
+    const target = state.current === "platform" ? null : state.stores[state.current];
+    if (state.current !== "platform" && !target) throw new Error("the storage to move into no longer exists");
+    if (target) return ownPutStream(target, hashed(key), body, mime, !!row.isPublic, length);
+    const { storagePutPlatformStream } = await import("../storage");
+    const p = await storagePutPlatformStream(key, body, mime, { public: !!row.isPublic, driveFolderId: folder, length });
+    return { backend: p.backend, ref: p.ref };
+  },
   async put(wsId, state, row, body, folder) {
     const key = `ws${wsId}/moved/${row.name}`;
     const mime = row.mime || "application/octet-stream";
@@ -387,11 +415,25 @@ const realIo: MoveIo = {
 };
 
 async function moveOne(db: any, wsId: number, state: StorageState, row: any, io: MoveIo, folder?: string): Promise<void> {
-  const src = await io.open(row);
+  let src = await io.open(row);
+  if (src.kind === "redirect") {
+    // legacy platform storage hands out a signed link to its own bucket: read it from there
+    const { fetchBodyStream } = await import("./streamUpload");
+    const { resp, body } = await fetchBodyStream(src.url, {});
+    if (!resp.ok || !body) { body?.destroy(); throw new Error(`the stored copy could not be read (${resp.status})`); }
+    src = { kind: "stream", body, length: Number(resp.headers.get("content-length") || 0) || undefined };
+  }
   if (src.kind !== "stream") throw new Error("the stored copy could not be opened");
-  const chunks: Buffer[] = [];
-  for await (const c of src.body as any) chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c));
-  const put = await io.put(wsId, state, row, Buffer.concat(chunks), folder);
+  let put: { backend: string; ref: string };
+  if (io.putStream) {
+    // build -285: straight from the old storage into the new one, a piece at a time
+    try { put = await io.putStream(wsId, state, row, src.body, src.length, folder); }
+    finally { try { (src.body as any).destroy?.(); } catch { /* already finished */ } }
+  } else {
+    const chunks: Buffer[] = [];
+    for await (const c of src.body as any) chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c));
+    put = await io.put(wsId, state, row, Buffer.concat(chunks), folder);
+  }
   const old = { store: String(row.store), backend: String(row.backend), ref: String(row.ref) };
   await db.update(files).set({ store: state.current, backend: put.backend, ref: put.ref }).where(and(eq(files.id, row.id), eq(files.workspaceId, wsId)));
   // The record points at the new copy now. A leftover old copy is only wasted space.

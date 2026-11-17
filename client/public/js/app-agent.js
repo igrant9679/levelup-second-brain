@@ -1428,7 +1428,17 @@ try{_luAgentCSS();}catch(_){}
 // Phones keep the full-width panel from index.html's ≤900px rules.
 var AI_PANEL_MIN_W=340, AI_PANEL_DEFAULT_W=420;
 function _aiPanelLS(k,v){try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);}catch(_){}return null;}
-function _aiPanelMaxW(){return Math.max(AI_PANEL_MIN_W,Math.round(window.innerWidth*0.92));}
+// docked (build -285): the page beside the pane keeps at least AI_DOCK_PAGE_MIN px, so a narrower window or a
+// pane dragged wide never squeezes the page (floating, the pane may cover 92% of the window). 860 = the narrowest
+// page every screen's desktop layout fits without anything sliding under the pane (measured on all pages; Notes,
+// with its folders / list / editor / links columns, is the widest). Docking therefore needs a window of
+// AI_DOCK_PAGE_MIN + AI_PANEL_MIN_W = 1200px; narrower, the assistant floats over the page as on a tablet.
+var AI_DOCK_PAGE_MIN=860;
+function _aiPanelMaxW(){
+  var max=Math.round(window.innerWidth*0.92);
+  if(typeof _aiDockPref==='function'&&_aiDockPref()&&window.innerWidth>=AI_DOCK_PAGE_MIN+AI_PANEL_MIN_W&&_aiPanelLS('lu_ai_panel_full')!=='1')max=Math.min(max,window.innerWidth-AI_DOCK_PAGE_MIN);
+  return Math.max(AI_PANEL_MIN_W,max);
+}
 function _aiPanelApplySize(){
   var p=document.getElementById('ai-panel');if(!p)return;
   var full=_aiPanelLS('lu_ai_panel_full')==='1';
@@ -1447,7 +1457,7 @@ function toggleAIPanelFull(){_aiPanelLS('lu_ai_panel_full',_aiPanelLS('lu_ai_pan
 // of being covered, the pane stays open while you move between pages, and
 // Escape does not close it. Full screen wins over docked; phones (≤900px) keep
 // the full-width popup.
-var AI_DOCK_MIN_VIEW=901;
+var AI_DOCK_MIN_VIEW=AI_DOCK_PAGE_MIN+AI_PANEL_MIN_W;   // 1200 (build -285; was 901, where pages slid under the pane)
 function _aiDockPref(){return _aiPanelLS('lu_ai_panel_dock')==='1';}
 function _aiDocked(){return !!(document.body&&document.body.classList.contains('ai-dock-on'));}
 function _aiDockCSS(){
@@ -1489,6 +1499,7 @@ function toggleAIPanelDock(){
   var p=document.getElementById('ai-panel');
   _aiPanelLS('lu_ai_panel_open',on&&p&&p.classList.contains('show')?'1':null);
   if(!on&&p&&p.classList.contains('show')){var ov=document.getElementById('ai-panel-overlay');if(ov)ov.classList.add('show');}
+  _aiPanelApplySize();      // docked, the widest pane is narrower (the page keeps its room)
   _aiDockApply();
   try{toast(on?'Assistant docked — it stays open beside the page':'Assistant floats over the page again','success',3500);}catch(_){}
 }

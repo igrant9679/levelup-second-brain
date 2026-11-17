@@ -611,6 +611,12 @@ function _wsBillCSS(){
     +'#ws-bill-bar button{flex:none}'
     +'.wsb-tbl input.inp{min-width:70px}.wsb-tbl td{vertical-align:top}'
     +'.ws-cur{font-size:12px;font-weight:650;color:var(--ok);padding:5px 0}'
+    +'.ws-review{border:1px solid var(--ac);border-radius:10px;padding:12px 14px;margin:10px 0;background:var(--s2);font-size:13px;line-height:1.5}'
+    +'.ws-review h4{margin:0 0 6px;font-size:14px}.ws-review h4:focus{outline:none}.ws-review .ws-due{font-size:20px;font-weight:700;color:var(--t1)}'
+    +'.ws-review p{margin:4px 0;color:var(--t1)}.ws-review .ws-note{color:var(--t2);font-size:12px}'
+    +'.ws-review details{margin:6px 0;font-size:12px;color:var(--t2)}.ws-review summary{cursor:pointer}'
+    +'.ws-review table{width:100%;border-collapse:collapse;margin-top:4px}.ws-review td{padding:3px 0;border-bottom:1px solid var(--bd1);vertical-align:top}'
+    +'.ws-review td.num{text-align:right;white-space:nowrap;padding-left:10px;font-variant-numeric:tabular-nums}'
     +'.ws-inv-wrap{overflow-x:auto}.ws-inv{width:100%;border-collapse:collapse;font-size:12.5px}'
     +'.ws-inv th{text-align:left;font-weight:600;color:var(--t2);padding:6px 8px;border-bottom:1px solid var(--bd1);white-space:nowrap}'
     +'.ws-inv td{padding:7px 8px;border-bottom:1px solid var(--bd1);white-space:nowrap}.ws-inv td.num{text-align:right;font-variant-numeric:tabular-nums}'
@@ -716,7 +722,8 @@ function _wsBillingHtml(st){
     +'<p>AI requests count only when LevelUp’s keys are used — with your own key (Settings → AI Features) they don’t. File storage counts LevelUp’s storage only, not your own bucket or Drive.</p></div>';
   if(st.isOwner&&st.hasSubscription&&st.canBuy&&(st.status==='active'||st.status==='trialing')&&(st.plans||[]).some(function(p){return p.buyable;})){
     h+='<div class="ws-card"><h3>Change plan</h3>'+_wsPlanCards(st.plans,false,{plan:st.plan,interval:st.interval})
-      +'<p>The change takes effect at once. Stripe credits the unused part of what you have already paid and charges the difference to the card on file'+(st.status==='trialing'?' (nothing is charged before your free trial ends)':'')+'. To cancel or change the card, use <b>Manage billing</b>.</p></div>';
+      +'<div id="ws-plan-review" class="ws-review" role="region" aria-label="Review the plan change" hidden></div>'
+      +'<p>You see the exact amount before anything changes. Stripe credits the unused part of what you have already paid and charges the difference to the card on file'+(st.status==='trialing'?' (nothing is charged before your free trial ends)':'')+'. To cancel or change the card, use <b>Manage billing</b>.</p></div>';
   }
   if(st.isOwner&&st.billed&&st.status!=='comped'){
     h+='<div class="ws-card"><h3>Invoices</h3><div id="ws-invoices" role="status"><p>Loading…</p></div></div>';
@@ -749,20 +756,87 @@ async function _wsLoadInvoices(){
   var r=null;try{r=await _trpc('billing.invoices',undefined,'query');}catch(e){r={invoices:[],error:(e&&e.message)||'The invoices could not be loaded.'};}
   el=document.getElementById('ws-invoices');if(el)el.innerHTML=_wsInvoicesHtml(r);
 }
+// Switching plan (build -285): Stripe works out the exact amount first (its upcoming-invoice
+// preview), the owner reads it, and only "Confirm" changes anything — at the same moment's price.
+var _wsPlanAsk=0;
+function _wsPlanReviewHtml(p,iv,pv,err){
+  var per=iv==='year'?'year':'month';
+  var head='<h4 tabindex="-1">Switch to '+_wsEsc(p.name)+', billed '+(iv==='year'?'yearly':'monthly')+'</h4>';
+  var m=function(a){return _wsEsc(_wsMoney({amount:a,currency:(pv&&pv.currency)||'usd'}));};
+  var body='';
+  if(!pv){
+    var pr=iv==='year'?p.yearly:p.monthly;
+    body='<p style="color:var(--warn)">'+_wsEsc(err||'Stripe could not work out the exact amount just now.')+'</p>'
+      +(pr?'<p>The new price is '+_wsEsc(_wsMoney(pr))+(p.perSeat?' per person':'')+' / '+per+'.</p>':'')
+      +'<p class="ws-note">You can still switch: Stripe credits the unused part of what you have already paid and charges the difference to the card on file.</p>';
+  }else{
+    var when=_wsEsc(_wsNiceDay(pv.date));
+    var trial=(_wsBill&&_wsBill.status==='trialing');
+    if(trial){
+      body='<p>Nothing is charged before your free trial ends'+(when?' on <b>'+when+'</b>':'')+'.</p><p>Then <b>'+m(pv.recurring)+'</b> / '+per+'.</p>';
+    }else if(pv.chargedNow){
+      body='<div class="ws-note">Charged to the card on file today</div><div class="ws-due">'+m(pv.dueNow)+'</div>'
+        +'<p>'+m(pv.recurring)+' for the first '+per+(pv.adjustment<0?', less '+m(-pv.adjustment)+' for the unused time on your current plan':'')+'. A new '+(iv==='year'?'yearly':'monthly')+' billing period starts today.</p>'
+        +(pv.credit>0?'<p>'+m(pv.credit)+' is left over as credit and comes off your next invoices.</p>':'');
+    }else{
+      body='<div class="ws-note">Charged today</div><div class="ws-due">'+m(0)+'</div>'
+        +'<p>Your next invoice'+(when?', on <b>'+when+'</b>,':'')+' will be <b>'+m(Math.max(0,pv.total))+'</b>: '+m(pv.recurring)+' for the next '+per
+        +(pv.adjustment>0?' plus '+m(pv.adjustment)+' for the rest of this period on the new plan':(pv.adjustment<0?' less '+m(-pv.adjustment)+' credit for the rest of this period':''))+'.</p>'
+        +(pv.credit>0?'<p>'+m(pv.credit)+' is left over as credit for the invoices after that.</p>':'');
+    }
+    var lines=(pv.lines||[]).filter(function(l){return l&&l.description;});
+    if(lines.length)body+='<details><summary>How Stripe worked it out</summary><table>'+lines.map(function(l){
+      return '<tr><td>'+_wsEsc(l.description)+'</td><td class="num">'+m(l.amount)+'</td></tr>';}).join('')+'</table></details>';
+  }
+  return head+body+'<div class="ws-row" style="margin-top:8px"><button class="btn btn-p" id="ws-plan-confirm"'+_wsAct('wsBillChangeConfirm',[p.key,iv,pv?pv.prorationDate:0])+'>Confirm switch</button>'
+    +'<button class="btn btn-s"'+_wsAct('wsBillChangeCancel')+'>Cancel</button></div>';
+}
+function wsBillChangeCancel(){
+  _wsPlanAsk++;
+  var box=document.getElementById('ws-plan-review');if(box){box.hidden=true;box.innerHTML='';}
+}
 async function wsBillChange(plan,interval){
   var st=_wsBill||{};var p=(st.plans||[]).filter(function(x){return x.key===plan;})[0];
   if(!p)return;
-  var pr=interval==='year'?p.yearly:p.monthly;
-  var what=p.name+', billed '+(interval==='year'?'yearly':'monthly')+(pr?' ('+_wsMoney(pr)+(p.perSeat?' per person':'')+' / '+(interval==='year'?'year':'month')+')':'');
-  if(!confirm('Switch this workspace to '+what+'?\n\nThe change takes effect now. Stripe credits the unused part of what you have already paid and charges the difference to the card on file.'))return;
+  var box=document.getElementById('ws-plan-review');
+  var msg=document.getElementById('ws-bill-msg');if(msg)msg.textContent='';
+  var ask=++_wsPlanAsk;
+  if(box){box.hidden=false;box.innerHTML='<h4>Switch to '+_wsEsc(p.name)+', billed '+(interval==='year'?'yearly':'monthly')+'</h4><p class="ws-note" role="status">Asking Stripe for the exact amount…</p>';
+    try{box.scrollIntoView({block:'nearest',behavior:'smooth'});}catch(_){}}
+  var r=null,err='';
+  try{r=await _trpc('billing.previewPlanChange',{plan:plan,interval:interval},'query');}
+  catch(e){
+    // the plan cannot be chosen (too many people, already on it…): say why, offer nothing
+    if(ask!==_wsPlanAsk)return;
+    if(box){box.innerHTML='<p style="color:var(--red)">'+_wsEsc((e&&e.message)||'That plan cannot be chosen.')+'</p><div class="ws-row"><button class="btn btn-s"'+_wsAct('wsBillChangeCancel')+'>Close</button></div>';}
+    else toast((e&&e.message)||'That plan cannot be chosen','error',9000);
+    return;
+  }
+  if(ask!==_wsPlanAsk)return;                      // another plan was picked meanwhile
+  if(r&&r.error)err=r.error;
+  var pv=r&&r.preview||null;
+  if(!box){
+    // no Change plan card on screen (should not happen): a plain question instead
+    if(!confirm('Switch this workspace to '+p.name+'?'))return;
+    return wsBillChangeConfirm(plan,interval,pv?pv.prorationDate:0);
+  }
+  box.innerHTML=_wsPlanReviewHtml(p,interval,pv,err);
+  var h=box.querySelector('h4');if(h)try{h.focus({preventScroll:true});}catch(_){}
+  try{box.scrollIntoView({block:'nearest',behavior:'smooth'});}catch(_){}
+}
+async function wsBillChangeConfirm(plan,interval,prorationDate){
+  var st=_wsBill||{};var p=(st.plans||[]).filter(function(x){return x.key===plan;})[0]||{name:plan};
   var msg=document.getElementById('ws-bill-msg');
+  var btn=document.getElementById('ws-plan-confirm');if(btn){btn.disabled=true;btn.textContent='Switching…';}
   if(msg){msg.textContent='Changing the plan…';msg.style.color='var(--t2)';}
   try{
-    var r=await _trpc('billing.changePlan',{plan:plan,interval:interval},'mutation');
+    var args={plan:plan,interval:interval};if(Number(prorationDate)>0)args.prorationDate=Math.floor(Number(prorationDate));
+    var r=await _trpc('billing.changePlan',args,'mutation');
     try{_wsMe=await _trpc('auth.me',{},'query');window._luMe=_wsMe;}catch(_){}
     toast('Plan changed to '+((r&&r.planName)||p.name)+' · billed '+(interval==='year'?'yearly':'monthly'),'success',7000);
     wsOpenSettings('billing');
   }catch(e){
+    if(btn){btn.disabled=false;btn.textContent='Confirm switch';}
     if(msg){msg.textContent=(e&&e.message)||'The plan was not changed.';msg.style.color='var(--red)';}
     else toast((e&&e.message)||'The plan was not changed','error',9000);
   }
@@ -1128,7 +1202,7 @@ function _wsBillInit(){
           'On a plan priced **per person**, the bill follows your member list: adding or removing someone changes the next invoice, with the difference for the current period worked out by Stripe.',
           '',
           '### Changing plan, or monthly / yearly',
-          'Under **Change plan**, press **Switch** on the plan you want. The change takes effect at once: Stripe credits the unused part of what you have already paid and charges the difference to the card on file. A plan with fewer people than the workspace has cannot be chosen until members are removed, and the plan cannot be changed while a payment is outstanding.',
+          'Under **Change plan**, press **Switch** on the plan you want. LevelUp first asks Stripe what it will cost and shows you: the amount charged today (switching between monthly and yearly starts a new billing period and is charged at once, less the unused time on your current plan), or, for another plan with the same billing period, nothing today and the amount of your next invoice — with **How Stripe worked it out** listing each line. Nothing changes until you press **Confirm switch**, and the charge is the amount you were shown. A plan with fewer people than the workspace has cannot be chosen until members are removed, and the plan cannot be changed while a payment is outstanding.',
           '',
           '### Invoices',
           'Every invoice is listed under **Invoices**, newest first, with its amount and whether it is paid. **View** opens it on Stripe’s own page (an unpaid one can be paid there); **PDF** downloads it.',
