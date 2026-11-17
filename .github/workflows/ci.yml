@@ -89,6 +89,8 @@ jobs:
 
       - name: Paste into a note (Word / Excel / Google Docs clipboard HTML in headless Chrome)
         run: pnpm check:paste
+      - name: The assistant on every page (docked and floating, headless Chrome)
+        run: pnpm check:assistant
 
       - name: Accessibility (axe on every screen + the task forms; no critical violations)
         run: pnpm check:a11y

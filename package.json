@@ -21,8 +21,9 @@
     "check:screens": "node scripts/check-screens.mjs",
     "check:dates": "node scripts/check-dates.mjs",
     "check:paste": "node scripts/check-paste.mjs",
+    "check:assistant": "node scripts/check-assistant.mjs",
     "check:a11y": "node scripts/check-a11y.mjs --serious",
-    "check:all": "pnpm check:bundles && pnpm check:tenancy && pnpm check:handlers && pnpm check:mobile-nav && pnpm check:ai-prompt && pnpm check:ai-knowledge && pnpm check:ai-agent && pnpm check:account-switch && node scripts/check-electric-contrast.mjs && pnpm check:dates && pnpm check:screens && pnpm check:paste && pnpm check:a11y",
+    "check:all": "pnpm check:bundles && pnpm check:tenancy && pnpm check:handlers && pnpm check:mobile-nav && pnpm check:ai-prompt && pnpm check:ai-knowledge && pnpm check:ai-agent && pnpm check:account-switch && node scripts/check-electric-contrast.mjs && pnpm check:dates && pnpm check:screens && pnpm check:paste && pnpm check:assistant && pnpm check:a11y",
     "check:tenancy": "node scripts/check-tenancy.mjs",
     "test:tenancy": "vitest run server/tenancy.isolation.test.ts server/tenancy.migration.test.ts"
   },

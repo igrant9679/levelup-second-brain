@@ -4606,7 +4606,7 @@ document.addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT'||e.target.isContentEditable)return;
   if(!_kbEnabled){
     // Escape still works even when shortcuts are disabled
-    if(e.key==='Escape'){closeModal();dismissDrawer();document.getElementById('ai-panel').classList.remove('show');closeSearch();if(typeof _tourOverlayActive!=='undefined'&&_tourOverlayActive)exitTour();if(typeof _helpDrawerOpen!=='undefined'&&_helpDrawerOpen)closeHelpDrawer();}
+    if(e.key==='Escape'){closeModal();dismissDrawer();if(typeof _aiEscClose==='function')_aiEscClose();else document.getElementById('ai-panel').classList.remove('show');closeSearch();if(typeof _tourOverlayActive!=='undefined'&&_tourOverlayActive)exitTour();if(typeof _helpDrawerOpen!=='undefined'&&_helpDrawerOpen)closeHelpDrawer();}
     return;
   }
   // Single-letter navigation — plain keypresses only. Without the modifier
@@ -4633,7 +4633,7 @@ document.addEventListener('keydown',e=>{
   // (both bound above) win; Help stays reachable via sidebar + command palette.
   if(e.key==='Escape'){
     closeModal();dismissDrawer();
-    document.getElementById('ai-panel').classList.remove('show');
+    if(typeof _aiEscClose==='function')_aiEscClose();else document.getElementById('ai-panel').classList.remove('show');
     closeSearch();
     if(_tourOverlayActive)exitTour();
     if(_helpDrawerOpen)closeHelpDrawer();
