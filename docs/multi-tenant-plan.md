@@ -16,7 +16,7 @@ between workspaces.
 | AI keys | **Platform keys by default**, with per-workspace daily caps; a workspace's owner or admins may enter their own key instead. |
 | Operator access | The operator **manages workspaces but does not read their data**: create, suspend, change owner, see member counts and usage. |
 | File storage | **Platform Google Drive by default** (the current one). In Settings a workspace's owner or admin can switch to **their own S3 bucket** or **their own Google Drive**, with step-by-step instructions. |
-| Email | **A platform transactional service** (Postmark or Resend), branded per workspace ("Acme via LevelUp"), plus one platform reply inbox routed by token. |
+| Email | **A platform transactional service** (Postmark or Resend — or, since -287, a dedicated SMTP mailbox), branded per workspace ("Acme via LevelUp"), plus one platform reply inbox routed by token. |
 | Atlas, CommunityForce / LSI wording | **Private to the original workspace**, as per-workspace features. Plain wording everywhere else. |
 | Address | **One address** (levelupnow.tools) plus a workspace switcher. |
 
@@ -130,8 +130,11 @@ client; cross-workspace reads exist only in `operatorProcedure` tools and never 
   for **account mail only** (invites, password resets) the operator workspace's sender.
   Content mail (digests, check-ins, reports, follow-ups) never goes through another
   workspace's mailbox; without a sender it is skipped and logged.
-- Platform service (`_core/platformMail.ts`): Postmark or Resend, off until configured:
-  `MAIL_PROVIDER`, `POSTMARK_SERVER_TOKEN` or `RESEND_API_KEY`, `MAIL_FROM`; replies:
+- Platform service (`_core/platformMail.ts`): Postmark, Resend or SMTP, off until configured:
+  `MAIL_PROVIDER`, `POSTMARK_SERVER_TOKEN` or `RESEND_API_KEY`, `MAIL_FROM`; or (-287)
+  `MAIL_PROVIDER=smtp` + `MAIL_SMTP_HOST`, `MAIL_SMTP_PORT` (465 TLS / 587 or other STARTTLS,
+  never plain), `MAIL_SMTP_USER`, `MAIL_SMTP_PASS`, optional `MAIL_SMTP_PER_MINUTE`
+  (`MAIL_FROM` optional: the login is the sender); replies:
   `MAIL_INBOUND_ADDRESS`, `MAIL_INBOUND_SECRET` → `POST /api/inbound/mail?key=…`
   (`_core/platformInbound.ts`). From name: "‹Workspace› via LevelUp".
 - The reply mailbox is per workspace (its owner's SMTP/IMAP account) until the platform inbox is on.
@@ -191,7 +194,12 @@ Everything here is OFF until the operator turns it on (Platform console → Bill
 
 - **To switch on platform mail:** choose Postmark or Resend, sign up, verify the sending
   domain (DNS: SPF / DKIM / DMARC), then set `MAIL_PROVIDER`, the API token and `MAIL_FROM` on
-  Railway. For replies by email also set up inbound mail and `MAIL_INBOUND_ADDRESS` /
+  Railway. **Or, without a new service (-287):** a mailbox used only for LevelUp's mail
+  (e.g. `notify@` on its own domain, with an app password) — set `MAIL_PROVIDER=smtp`,
+  `MAIL_SMTP_HOST`, `MAIL_SMTP_PORT` (465 or 587), `MAIL_SMTP_USER`, `MAIL_SMTP_PASS`, and
+  `MAIL_SMTP_PER_MINUTE` to stay under the mailbox's sending limit. Mailboxes usually allow a
+  few hundred mails a day; every workspace's mail then counts against that. Don't use a
+  personal mailbox: copies of customers' digests and check-ins would land in its Sent folder. For replies by email also set up inbound mail and `MAIL_INBOUND_ADDRESS` /
   `MAIL_INBOUND_SECRET`. Until then: invites to new workspaces go out through your own sender,
   and a new workspace's digests / check-ins need its owner to connect a mail account.
 - **For "own Google Drive" to work for customers:** in Google Cloud, the OAuth consent screen of
