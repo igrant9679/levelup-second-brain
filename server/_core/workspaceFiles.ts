@@ -26,7 +26,7 @@ import { files, workspaces, workspaceSettings } from "../../drizzle/schema";
 import { isShuttingDown, job } from "./lifecycle";
 import { ENV } from "./env";
 import { assertPublicUrl } from "./netGuard";
-import { CHUNK, driveStreamUpload, fetchBodyStream, s3PutStream } from "./streamUpload";
+import { CHUNK, abortStaleUploads, driveStreamUpload, fetchBodyStream, s3PutStream } from "./streamUpload";
 import { deleteWorkspaceSetting, getWorkspace, getWorkspaceSetting, setWorkspaceSetting } from "./workspace";
 import type { PutResult, StoredFile } from "../storage";
 
@@ -313,7 +313,14 @@ export type MoveIo = {
   /** the same from a stream, in pieces (build -285); when absent the file is read whole and put */
   putStream?(wsId: number, state: StorageState, row: any, body: NodeJS.ReadableStream | AsyncIterable<any>, length: number | undefined, folder?: string): Promise<{ backend: string; ref: string }>;
   remove(state: StorageState, old: { store: string; backend: string; ref: string }): Promise<void>;
+  /** abort uploads into the move's folder that a stopped server left unfinished (build -286); returns how many */
+  cleanup?(wsId: number, state: StorageState): Promise<number>;
 };
+/** the folder (key prefix) a workspace's moved files are written under */
+const movedPrefix = (wsId: number) => `ws${wsId}/moved/`;
+/** cleanup at most once per workspace per CLEANUP_EVERY (it lists the bucket) */
+const CLEANUP_EVERY = 10 * 60_000;
+const _lastCleanup = new Map<number, number>();
 const MOVE_KEY = "fileMove";
 const SLICE_MS = 45_000;
 const PAGE = 20;
@@ -388,7 +395,7 @@ const realIo: MoveIo = {
   },
   open: (row) => openFile(row),
   async putStream(wsId, state, row, body, length, folder) {
-    const key = `ws${wsId}/moved/${row.name}`;
+    const key = `${movedPrefix(wsId)}${row.name}`;
     const mime = row.mime || "application/octet-stream";
     const target = state.current === "platform" ? null : state.stores[state.current];
     if (state.current !== "platform" && !target) throw new Error("the storage to move into no longer exists");
@@ -398,7 +405,7 @@ const realIo: MoveIo = {
     return { backend: p.backend, ref: p.ref };
   },
   async put(wsId, state, row, body, folder) {
-    const key = `ws${wsId}/moved/${row.name}`;
+    const key = `${movedPrefix(wsId)}${row.name}`;
     const mime = row.mime || "application/octet-stream";
     const target = state.current === "platform" ? null : state.stores[state.current];
     if (state.current !== "platform" && !target) throw new Error("the storage to move into no longer exists");
@@ -411,6 +418,12 @@ const realIo: MoveIo = {
     if (old.store === "platform") { const { storageDeletePlatform } = await import("../storage"); await storageDeletePlatform(old.backend, old.ref); return; }
     const os = state.stores[old.store];
     if (os) await ownDelete(os, old.ref);
+  },
+  async cleanup(wsId, state) {
+    if (state.current === "platform") { const { platformAbortStaleUploads } = await import("../storage"); return platformAbortStaleUploads(movedPrefix(wsId)); }
+    const st = state.stores[state.current];
+    if (!st || st.mode !== "s3") return 0;                      // Drive: nothing to clean
+    return abortStaleUploads(s3For(st), st.bucket, s3Key(st, movedPrefix(wsId)));
   },
 };
 
@@ -461,6 +474,12 @@ export async function runMoveSlice(wsId: number, opts: { io?: MoveIo; deadline?:
     }
     if (j.status === "queued") { j.status = "running"; j.startedAt = new Date().toISOString(); }
     if (await saveProgress(wsId, j)) return j;
+    // a deploy that stopped the server in the middle of a big file left an unfinished upload: abort it
+    if (io.cleanup && Date.now() - (_lastCleanup.get(wsId) || 0) >= CLEANUP_EVERY) {
+      _lastCleanup.set(wsId, Date.now());
+      try { const n = await io.cleanup(wsId, state); if (n) console.log(`[files] workspace ${wsId}: aborted ${n} unfinished upload(s) left by an interrupted move`); }
+      catch (e) { console.warn(`[files] workspace ${wsId}: could not check for unfinished uploads:`, String((e as Error)?.message || e).slice(0, 200)); }
+    }
     const folder = await io.folder(wsId, state);
     let sinceSave = 0, halted = false;
     while (!halted) {

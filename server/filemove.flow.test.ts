@@ -235,7 +235,7 @@ describe("moving a workspace's files is a stored, resumable job (real MySQL)", (
     await q("INSERT INTO files (publicId, workspaceId, store, backend, ref, name, size, mime) VALUES (?,?,?,?,?,?,?,?)",
       [crypto.randomBytes(16).toString("hex"), WS, "old", "s3", "big/video", "big.mp4", SIZE, "video/mp4"]);
     await conn.query("UPDATE workspace_settings SET value = ? WHERE workspaceId = ? AND `key` = 'fileMove'", [JSON.stringify({ status: "queued", target: "platform", total: 1, moved: 0, failed: 0, cursor: 0, queuedAt: new Date().toISOString() }), WS]);
-    let pulled = 0, maxPiece = 0, seen = 0, wholePuts = 0, gotLength: number | undefined, destroyed = false;
+    let pulled = 0, maxPiece = 0, seen = 0, wholePuts = 0, gotLength: number | undefined, destroyed = false, cleanups = 0;
     const base = io();
     const streaming: import("./_core/workspaceFiles").MoveIo = {
       ...base,
@@ -248,6 +248,8 @@ describe("moving a workspace's files is a stored, resumable job (real MySQL)", (
         return { kind: "stream", body, length: SIZE } as any;
       },
       async put() { wholePuts++; throw new Error("the whole-file path must not be used"); },
+      // (-286) unfinished uploads a stopped server left behind are checked for once, before copying
+      async cleanup() { cleanups++; return 1; },
       async putStream(wsId, state, row, body, length) {
         gotLength = length;
         // a target that takes 5 MB pieces, slowly
@@ -264,6 +266,7 @@ describe("moving a workspace's files is a stored, resumable job (real MySQL)", (
     await F.processFileMoves({ io: streaming });
     expect(await F.moveStatus(WS)).toMatchObject({ status: "done", moved: 1, failed: 0 });
     expect(wholePuts).toBe(0);
+    expect(cleanups).toBe(1);
     expect(seen).toBe(SIZE);
     expect(gotLength).toBe(SIZE);
     expect(destroyed).toBe(true);

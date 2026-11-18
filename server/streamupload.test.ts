@@ -7,7 +7,7 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import crypto from "crypto";
 import { Readable, PassThrough } from "stream";
-import { chunked, s3PutStream, driveStreamUpload, idleTimeout, CHUNK } from "./_core/streamUpload";
+import { chunked, s3PutStream, driveStreamUpload, idleTimeout, abortStaleUploads, CHUNK } from "./_core/streamUpload";
 
 const MB = 1024 * 1024;
 /** A source of `total` pseudo-random bytes in odd-sized pieces, made only when read. Tracks how much was read. */
@@ -110,6 +110,37 @@ describe("S3: a multipart upload in pieces", () => {
     await expect(s3PutStream(s3, "bkt", "k", source(20 * MB).stream, "x/y")).rejects.toThrow(/network went away/);
     expect(s3.calls.map((c) => c.name)).toEqual(["CreateMultipartUploadCommand", "UploadPartCommand", "UploadPartCommand", "AbortMultipartUploadCommand"]);
     expect(s3.finished).toBeNull();
+  });
+});
+
+describe("S3: unfinished uploads left by a stopped server (-286)", () => {
+  it("aborts only uploads under the move's folder that are over an hour old, across pages", async () => {
+    const now = Date.parse("2026-11-18T12:00:00Z");
+    const ago = (min: number) => new Date(now - min * 60_000).toISOString();
+    const uploads = [
+      { Key: "lu/ws7/moved/a.mp4", UploadId: "u1", Initiated: ago(180) },   // stale → abort
+      { Key: "lu/ws7/moved/b.mp4", UploadId: "u2", Initiated: ago(5) },     // a move in progress → keep
+      { Key: "lu/ws7/moved/c.pdf", UploadId: "u3", Initiated: ago(61) },    // stale → abort (on page 2)
+      { Key: "lu/ws8/moved/d.pdf", UploadId: "u4", Initiated: ago(999) },   // another workspace: outside the prefix
+      { Key: "lu/ws7/other/e.pdf", UploadId: "u5", Initiated: ago(999) },   // the customer's own upload elsewhere
+    ];
+    const calls: { name: string; input: any }[] = [];
+    const s3 = {
+      async send(cmd: any) {
+        const name = cmd.constructor.name; calls.push({ name, input: cmd.input });
+        if (name === "ListMultipartUploadsCommand") {
+          // a listing that ignores the prefix (a misbehaving S3-compatible store): the helper must still not touch others
+          if (!cmd.input.KeyMarker) return { Uploads: uploads.slice(0, 2).concat(uploads.slice(3)), IsTruncated: true, NextKeyMarker: "lu/ws7/moved/b.mp4", NextUploadIdMarker: "u2" };
+          return { Uploads: [uploads[2]], IsTruncated: false };
+        }
+        if (name === "AbortMultipartUploadCommand") return {};
+        throw new Error("unexpected " + name);
+      },
+    };
+    expect(await abortStaleUploads(s3, "bkt", "lu/ws7/moved/", 60 * 60_000, now)).toBe(2);
+    expect(calls.filter((c) => c.name === "AbortMultipartUploadCommand").map((c) => c.input.UploadId)).toEqual(["u1", "u3"]);
+    expect(calls.filter((c) => c.name === "ListMultipartUploadsCommand").map((c) => [c.input.Prefix, c.input.KeyMarker || null])).toEqual([["lu/ws7/moved/", null], ["lu/ws7/moved/", "lu/ws7/moved/b.mp4"]]);
+    await expect(abortStaleUploads(s3, "bkt", "")).rejects.toThrow(/prefix/);
   });
 });
 

@@ -516,6 +516,13 @@ export async function storagePutPlatformStream(
   return storagePutPlatform(relKey, Buffer.concat(parts), contentType, opts);
 }
 
+/** LevelUp's own S3 storage: abort unfinished multipart uploads under `prefix` (storage moves, build -286). */
+export async function platformAbortStaleUploads(prefix: string): Promise<number> {
+  if (!hasS3Config()) return 0;
+  const { abortStaleUploads } = await import("./_core/streamUpload");
+  return abortStaleUploads(getS3Client(), ENV.s3Bucket, normalizeKey(prefix));
+}
+
 /**
  * Upload a file that must NOT be shared publicly (database backups). On Drive
  * it is created in the app folder without the "anyone with the link"

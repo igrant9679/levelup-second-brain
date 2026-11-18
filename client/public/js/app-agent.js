@@ -1429,11 +1429,13 @@ try{_luAgentCSS();}catch(_){}
 var AI_PANEL_MIN_W=340, AI_PANEL_DEFAULT_W=420;
 function _aiPanelLS(k,v){try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);}catch(_){}return null;}
 // docked (build -285): the page beside the pane keeps at least AI_DOCK_PAGE_MIN px, so a narrower window or a
-// pane dragged wide never squeezes the page (floating, the pane may cover 92% of the window). 860 = the narrowest
-// page every screen's desktop layout fits without anything sliding under the pane (measured on all pages; Notes,
-// with its folders / list / editor / links columns, is the widest). Docking therefore needs a window of
-// AI_DOCK_PAGE_MIN + AI_PANEL_MIN_W = 1200px; narrower, the assistant floats over the page as on a tablet.
-var AI_DOCK_PAGE_MIN=860;
+// pane dragged wide never squeezes the page (floating, the pane may cover 92% of the window). 760 = the narrowest
+// page every screen fits without anything sliding under the pane (measured on all 34; every page but Notes fits
+// 660). Notes has five columns (menu, folders, list, editor, links) and needs AI_DOCK_NOTES_FULL px for them; on
+// a narrower docked page it goes "tight" (body.ai-dock-tight, build -286): folders and links share the list's
+// column, switched by a List / Folders / Links strip, and the editor keeps the rest. Docking therefore needs a
+// window of AI_DOCK_PAGE_MIN + AI_PANEL_MIN_W = 1100px (an 11" iPad held sideways docks); narrower, it floats.
+var AI_DOCK_PAGE_MIN=760, AI_DOCK_NOTES_FULL=1040;
 function _aiPanelMaxW(){
   var max=Math.round(window.innerWidth*0.92);
   if(typeof _aiDockPref==='function'&&_aiDockPref()&&window.innerWidth>=AI_DOCK_PAGE_MIN+AI_PANEL_MIN_W&&_aiPanelLS('lu_ai_panel_full')!=='1')max=Math.min(max,window.innerWidth-AI_DOCK_PAGE_MIN);
@@ -1444,7 +1446,9 @@ function _aiPanelApplySize(){
   var full=_aiPanelLS('lu_ai_panel_full')==='1';
   p.classList.toggle('ai-full',full);
   var w=parseInt(_aiPanelLS('lu_ai_panel_w'),10);
-  p.style.width=(!full&&w>0)?Math.min(Math.max(w,AI_PANEL_MIN_W),_aiPanelMaxW())+'px':'';
+  var max=_aiPanelMaxW();
+  // no width chosen: the default, unless that is more than the room there is (docked in a narrower window)
+  p.style.width=full?'':(w>0?Math.min(Math.max(w,AI_PANEL_MIN_W),max)+'px':(AI_PANEL_DEFAULT_W>max?max+'px':''));
   var b=document.getElementById('ai-full-btn');
   if(b){b.textContent=full?'⤡':'⤢';b.title=full?'Exit full screen':'Full screen';b.setAttribute('aria-label',b.title);b.setAttribute('aria-pressed',full?'true':'false');}
 }
@@ -1457,7 +1461,7 @@ function toggleAIPanelFull(){_aiPanelLS('lu_ai_panel_full',_aiPanelLS('lu_ai_pan
 // of being covered, the pane stays open while you move between pages, and
 // Escape does not close it. Full screen wins over docked; phones (≤900px) keep
 // the full-width popup.
-var AI_DOCK_MIN_VIEW=AI_DOCK_PAGE_MIN+AI_PANEL_MIN_W;   // 1200 (build -285; was 901, where pages slid under the pane)
+var AI_DOCK_MIN_VIEW=AI_DOCK_PAGE_MIN+AI_PANEL_MIN_W;   // 1100 (-286; 1200 in -285; 901 in -284, where pages slid under the pane)
 function _aiDockPref(){return _aiPanelLS('lu_ai_panel_dock')==='1';}
 function _aiDocked(){return !!(document.body&&document.body.classList.contains('ai-dock-on'));}
 function _aiDockCSS(){
@@ -1472,10 +1476,35 @@ function _aiDockCSS(){
     +D+' #ai-fab{display:none!important}'
     // dialogs, drawers and the palette sit in what is left, so the pane stays usable beside them
     +D+' .modal-ov,'+D+' .fa-modal-ov,'+D+' .drawer-overlay,'+D+' #ws-modal,'+D+' .cmdp-overlay,'+D+' .shortcuts-overlay,'+D+' .sb-backdrop{right:var(--ai-dock-w,420px)!important}'
+    // Notes on a narrow docked page (-286): menu | list-or-folders-or-links | editor, with a strip to switch
+    +_aiDockTightCSS()
     +'}'
+    // a narrow pane (340px): the header's buttons move to a second row instead of squeezing the title into a column (-286)
+    +'.ai-panel-h{flex-wrap:wrap;row-gap:8px}.ai-panel-h-title{flex:1 1 110px}.ai-panel-h-title b,.ai-panel-h-title small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ai-panel-h-actions{margin-left:auto;flex-wrap:wrap}'
     +'#ai-dock-btn[aria-pressed="true"]{background:color-mix(in srgb,var(--ac) 18%,transparent);border-color:var(--ac);color:var(--t1)}'
     +'@media (max-width:'+(AI_DOCK_MIN_VIEW-1)+'px){#ai-dock-btn{display:none!important}}';
   document.head.appendChild(s);
+}
+function _aiDockTightCSS(){
+  var B='body.ai-dock-on.ai-dock-tight:not(.notes-grid-view):not(.notes-focus-mode)',T=B+' .scr#s-notes';
+  var pane=function(p){return B+'.notes-pane-'+p+' .scr#s-notes';};
+  var on='background:var(--ac);color:#fff;border-color:var(--ac)';
+  return T+'>.bg{grid-template-columns:var(--side) 0 minmax(200px,240px) minmax(0,1fr) 0!important;grid-template-rows:auto auto 1fr!important}'
+    +T+' #notes-mobile-tabs{display:flex;grid-column:3;grid-row:2;gap:4px;padding:6px 8px;margin:0;background:var(--s2);border-bottom:1px solid var(--bd1);position:static}'
+    +T+' #notes-mobile-tabs button{flex:1;min-width:0;height:30px;padding:0 4px;background:transparent;border:1px solid transparent;border-radius:7px;color:var(--t2);font-size:11px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:3px;white-space:nowrap;overflow:hidden}'
+    +T+' #notes-mobile-tabs button[data-pane="editor"]{display:none}'
+    +T+' #notes-mobile-tabs button.on,'+pane('editor')+' #notes-mobile-tabs button[data-pane="list"]{'+on+'}'
+    +T+' .notes-nav,'+T+' .notes-rail{display:none!important}'
+    +T+' .notes-list{grid-column:3!important;grid-row:3!important;min-width:0}'
+    +T+' .notes-editor{grid-column:4!important;grid-row:3!important;min-width:0}'
+    +pane('folders')+' .notes-nav,'+pane('rail')+' .notes-rail{display:block!important;grid-column:3!important;grid-row:3!important;min-width:0;border-left:0}'
+    +pane('folders')+' .notes-list,'+pane('rail')+' .notes-list{display:none!important}'
+    // the editor keeps every pixel it can: less padding around the open note
+    +T+' .notes-editor{padding:10px 12px!important}'+T+' .note-doc{padding:14px 8px 60px}'
+    +T+' .notes-resize{display:none!important}'
+    +T+' #notes-bulk-bar{grid-column:4/-1!important;grid-row:2!important}'
+    +T+' #notes-sheets-section,'+T+' #notes-slides-section{grid-row:2/-1!important}'
+    +'body.notes-mode-sheets '+T.replace(B,'')+' #notes-mobile-tabs,body.notes-mode-slides '+T.replace(B,'')+' #notes-mobile-tabs{display:none!important}';
 }
 function _aiDockApply(){
   var p=document.getElementById('ai-panel');if(!p||!document.body)return;
@@ -1484,6 +1513,9 @@ function _aiDockApply(){
   if(on){var w=Math.round(p.getBoundingClientRect().width)||parseInt(p.style.width,10)||AI_PANEL_DEFAULT_W;document.documentElement.style.setProperty('--ai-dock-w',w+'px');}
   var was=_aiDocked();
   document.body.classList.toggle('ai-dock-on',on);
+  // Notes keeps all five columns only on a page at least AI_DOCK_NOTES_FULL wide
+  var pageW=on?window.innerWidth-(parseInt(getComputedStyle(document.documentElement).getPropertyValue('--ai-dock-w'),10)||AI_PANEL_DEFAULT_W):window.innerWidth;
+  document.body.classList.toggle('ai-dock-tight',on&&pageW<AI_DOCK_NOTES_FULL);
   if(on){var ov=document.getElementById('ai-panel-overlay');if(ov)ov.classList.remove('show');}
   p.setAttribute('role',on?'complementary':'dialog');
   var b=document.getElementById('ai-dock-btn');
@@ -1642,7 +1674,7 @@ function _aiPanelSizingInit(){
     if(e.button!==0)return;e.preventDefault();
     try{h.setPointerCapture(e.pointerId);}catch(_){}
     p.classList.add('ai-resizing');
-    var move=function(ev){var w=Math.min(Math.max(window.innerWidth-ev.clientX,AI_PANEL_MIN_W),_aiPanelMaxW());p.style.width=w+'px';if(typeof _aiDocked==='function'&&_aiDocked())document.documentElement.style.setProperty('--ai-dock-w',w+'px');};
+    var move=function(ev){var w=Math.min(Math.max(window.innerWidth-ev.clientX,AI_PANEL_MIN_W),_aiPanelMaxW());p.style.width=w+'px';if(typeof _aiDocked==='function'&&_aiDocked()){document.documentElement.style.setProperty('--ai-dock-w',w+'px');document.body.classList.toggle('ai-dock-tight',window.innerWidth-w<AI_DOCK_NOTES_FULL);}};
     var up=function(){h.removeEventListener('pointermove',move);h.removeEventListener('pointerup',up);h.removeEventListener('pointercancel',up);
       p.classList.remove('ai-resizing');var w=parseInt(p.style.width,10);if(w>0)_aiPanelLS('lu_ai_panel_w',String(w));};
     h.addEventListener('pointermove',move);h.addEventListener('pointerup',up);h.addEventListener('pointercancel',up);

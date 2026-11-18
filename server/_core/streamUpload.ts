@@ -92,6 +92,35 @@ export async function s3PutStream(client: S3Like, bucket: string, key: string, s
   }
 }
 
+/**
+ * Multipart uploads under `prefix` that were started more than `olderThanMs`
+ * ago and never finished — left behind when the server was stopped in the
+ * middle of a file (a deploy) — are aborted, so their parts stop costing
+ * storage. Only keys under the given prefix are ever looked at. Returns how
+ * many were aborted. (Drive needs nothing: an unfinished resumable session
+ * holds no space and expires by itself.)
+ */
+export async function abortStaleUploads(client: S3Like, bucket: string, prefix: string, olderThanMs = 60 * 60_000, now = Date.now()): Promise<number> {
+  const S = await import("@aws-sdk/client-s3");
+  if (!prefix || prefix === "/") throw new Error("a prefix is required");
+  let aborted = 0, keyMarker: string | undefined, idMarker: string | undefined;
+  for (let page = 0; page < 20; page++) {
+    const r: any = await client.send(new S.ListMultipartUploadsCommand({ Bucket: bucket, Prefix: prefix, KeyMarker: keyMarker, UploadIdMarker: idMarker, MaxUploads: 100 }));
+    for (const u of (Array.isArray(r?.Uploads) ? r.Uploads : [])) {
+      const key = String(u?.Key || ""), id = String(u?.UploadId || "");
+      if (!key.startsWith(prefix) || !id) continue;               // never trust the listing beyond the prefix
+      const started = u?.Initiated ? new Date(u.Initiated).getTime() : NaN;
+      if (!Number.isFinite(started) || now - started < olderThanMs) continue;
+      try { await client.send(new S.AbortMultipartUploadCommand({ Bucket: bucket, Key: key, UploadId: id })); aborted++; }
+      catch { /* gone already, or not ours to abort: leave it */ }
+    }
+    if (!r?.IsTruncated) break;
+    keyMarker = r.NextKeyMarker; idMarker = r.NextUploadIdMarker;
+    if (!keyMarker) break;
+  }
+  return aborted;
+}
+
 // ── Google Drive ───────────────────────────────────────────────────────────
 /**
  * Upload to Drive from a stream. `length` (if known) is sent up front; without

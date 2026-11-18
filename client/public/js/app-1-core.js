@@ -1587,7 +1587,7 @@ function _resetTaskContexts(){
 }
 function saveAll(){['tasks','notes','projects','goals','journal','habits','teams','aiTopics','ideas','contacts','mindmaps','clusters','prefs','opportunities'].forEach(k=>{try{(window.save||save)(k);}catch(_){localStorage.setItem('lu_'+k,JSON.stringify(D[k]));}});localStorage.setItem('lu_creds',JSON.stringify(D.creds))}
 function applyPrefs(){
-  document.body.classList.toggle('light-mode',D.prefs.darkMode===false);
+  document.body.classList.toggle('light-mode',D.prefs.darkMode===false);try{document.documentElement.style.colorScheme=D.prefs.darkMode===false?'light':'dark';}catch(_){}
   // Aurora Glass — ambient accent auras behind frosted surfaces. One class
   // drives the whole look (see the AURORA GLASS block in index.html), so it
   // can be switched off from Settings → Appearance without a deploy.
