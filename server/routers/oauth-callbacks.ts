@@ -71,8 +71,8 @@ export function registerProviderOAuthCallbacks(app: Express) {
       // signed state says which of the two this is.
       if (getQueryParam(req, "for") === "workspace") {
         const { isOwner } = await import("../_core/ownerGuard");
-        if (!user || !((user as any).role === "admin" || (await isOwner(user as any)))) {
-          res.status(403).send("<html><body style=\"font-family:sans-serif;padding:40px\"><h2>Owner or admin only</h2><p>Sign in to LevelUp as the workspace's owner or an admin, then open Settings → Storage.</p></body></html>");
+        if (!user || !(await isOwner(user as any))) { // Audit 3: owner only (an admin could move every file into a Drive they control)
+          res.status(403).send("<html><body style=\"font-family:sans-serif;padding:40px\"><h2>Owner only</h2><p>Sign in to LevelUp as the workspace's owner, then open Settings → Storage.</p></body></html>");
           return;
         }
         if (!ENV.googleDriveClientId || !ENV.googleDriveClientSecret) { res.status(500).send("Google Drive sign-in is not set up on this server."); return; }
@@ -131,7 +131,7 @@ export function registerProviderOAuthCallbacks(app: Express) {
       try {
         const { isOwner } = await import("../_core/ownerGuard");
         const { wsIdOf, getWorkspace } = await import("../_core/workspace");
-        if (!stUser || !((stUser as any).role === "admin" || (await isOwner(stUser as any)))) { res.redirect(`/?oauth_error=wsdrive&detail=${encodeURIComponent("Only the workspace's owner or an admin can change its storage.")}`); return; }
+        if (!stUser || !(await isOwner(stUser as any))) { res.redirect(`/?oauth_error=wsdrive&detail=${encodeURIComponent("Only the workspace's owner can change its storage.")}`); return; }
         const wsId = await wsIdOf(stUser as any);
         if (!wsId) { res.redirect(`/?oauth_error=wsdrive&detail=${encodeURIComponent("No workspace.")}`); return; }
         const tokenResp = await fetch("https://oauth2.googleapis.com/token", {

@@ -85,12 +85,14 @@ async function accountOf(user: any): Promise<any> {
 const escHtml = (s: string) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as any)[c]);
 
 /**
- * Self-registration is invite-only unless ALLOW_SIGNUP=true. The very first
- * account (empty users table) can always register, so a fresh deploy can be
- * bootstrapped. Teammates join through teamInvites.accept.
+ * `register` creates ONLY the very first account of a fresh install (empty users
+ * table), so a new deploy can be bootstrapped. Everyone else joins through an
+ * invitation (teamInvites.accept) or self-serve sign-up (billing.signupStart,
+ * which proves the address first). Audit 3: ALLOW_SIGNUP=true no longer opens
+ * this path — it had no email check, no rate limit, and could overwrite an
+ * existing row through upsertUser.
  */
 async function signupAllowed(): Promise<boolean> {
-  if (String(process.env.ALLOW_SIGNUP || '').toLowerCase() === 'true') return true;
   const conn = await getDb();
   if (!conn) return false;
   // tenancy: platform — "is this a brand-new install with no accounts at all?"
@@ -121,6 +123,12 @@ async function entryMemberRow(login: any): Promise<any> {
 
 const SALT_ROUNDS = 10;
 const ONE_DAY_MS = 86_400_000;
+/** A bcrypt hash of nothing anyone types: compared against when there is no account (equal timing). */
+const DUMMY_HASH = '$2a$12$C6UzMDM.H6dfI/f/IKcEeO6bSO7RnZ9lBEN6PL4ZuI3ifUYGFbIim';
+/** The per-address-and-IP sign-in counter (shared with invite accepts, Audit 3). */
+export function loginKeyFor(email: string, ip: string): string {
+  return 'login:ei:' + crypto.createHash('sha256').update(String(email).toLowerCase().trim() + '|' + String(ip || '')).digest('hex').slice(0, 40);
+}
 const THIRTY_DAYS_MS = 30 * ONE_DAY_MS;
 const RESET_TOKEN_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
 
@@ -137,25 +145,30 @@ export const emailAuthRouter = router({
       rememberMe: z.boolean().optional().default(false),
     }))
     .mutation(async ({ input, ctx }) => {
-      // Throttle guessing (-255): 8 failures per address or 30 per IP in 15 minutes.
-      // Counters are persistent and shared by every instance (audit F19).
+      // Throttle guessing (-255, Audit 3). Counters are persistent and shared by every instance (F19).
+      //  - 8 tries per address FROM ONE IP: a stranger hammering an address no longer locks its
+      //    owner out everywhere (the old per-address block refused even the right password);
+      //  - 30 failures per IP; 100 tries per address from anywhere (slows a spread-out attack).
+      //  - The try is counted BEFORE the password is checked, so a burst of parallel requests
+      //    can't all slip past the check before any failure is recorded.
       const em = input.email.toLowerCase().trim(), ip = clientIp(ctx.req), WIN = 15 * 60_000;
-      if ((await rlBlocked('login:e:' + em, 8, WIN)) || (await rlBlocked('login:ip:' + ip, 30, WIN))) {
-        throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: 'Too many sign-in attempts. Wait 15 minutes and try again, or reset your password.' });
-      }
+      const kEI = loginKeyFor(em, ip), kE = 'login:e:' + em, kI = 'login:ip:' + ip;
+      const tooMany = () => new TRPCError({ code: 'TOO_MANY_REQUESTS', message: 'Too many sign-in attempts. Wait 15 minutes and try again, or reset your password.' });
+      if ((await rlBlocked(kI, 30, WIN))) throw tooMany();
+      if (!(await rlHit(kEI, 8, WIN)) || !(await rlHit(kE, 100, WIN))) throw tooMany();
       const failed = async (): Promise<never> => {
-        await rlHit('login:e:' + em, 8, WIN); await rlHit('login:ip:' + ip, 30, WIN);
+        await rlHit(kI, 30, WIN);
         throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid email or password' });
       };
       const user = await db.getUserByEmail(em);
-      if (!user) return failed();
+      // Audit 3: the same bcrypt work whether or not the address has an account (timing gave it away)
+      if (!user || !user.passwordHash) { await bcrypt.compare(input.password, DUMMY_HASH); return failed(); }
       // Audit F36: an account with no password gets the same answer as a
       // wrong password — a distinct "no password set" message told anyone
       // which addresses have accounts. (Forgot password sets one.)
-      if (!user.passwordHash) return failed();
       const valid = await bcrypt.compare(input.password, user.passwordHash);
       if (!valid) return failed();
-      await rlClear('login:e:' + em);
+      await rlClear(kEI); await rlClear(kE);
       // The password belongs to the login; the session belongs to one of its
       // member rows — the workspace this person used last (-278).
       const member = await entryMemberRow(user);
@@ -203,7 +216,7 @@ export const emailAuthRouter = router({
       if (existing) conflict();
       const passwordHash = await bcrypt.hash(input.password, SALT_ROUNDS);
       // Use email as openId for email-registered users (prefixed to avoid collision with Manus OAuth openIds)
-      const openId = `email:${input.email.toLowerCase().trim()}`;
+      const openId = `acct:${crypto.randomBytes(24).toString('hex')}`; // Audit 3: random (was email:<address>)
       // Which workspace? (-278) The very first account of a fresh install owns
       // workspace 1. With ALLOW_SIGNUP=true every later sign-up gets a NEW
       // workspace of its own — never a seat in somebody else's.
@@ -215,6 +228,7 @@ export const emailAuthRouter = router({
         // tenancy: platform — is this the first account of the install?
         const [cnt] = await conn0.select({ n: sql<number>`count(*)` }).from(users);
         firstEver = Number(cnt?.n || 0) === 0;
+        if (!firstEver) throw new TRPCError({ code: 'FORBIDDEN', message: 'LevelUp accounts are by invitation. Ask the workspace owner for an invite.' });
         if (!firstEver) {
           const { workspaces } = await import('../../drizzle/schema');
           const base = ws.slugify(input.name);
@@ -466,6 +480,13 @@ export const emailAuthRouter = router({
       // Audit F20: every existing session of the account ends (a reset is
       // what you do when someone else may be signed in).
       await bumpTv(resetToken.userId);
+      // Audit 3: a reset clears the address's sign-in counters (someone else's failed guesses
+      // must not keep the owner out after they proved the mailbox is theirs)
+      try {
+        const u: any = await db.getUserById(resetToken.userId);
+        const em = String(u?.email || '').toLowerCase().trim();
+        if (em) { await rlClear('login:e:' + em); await rlClear(loginKeyFor(em, clientIp(ctx.req))); }
+      } catch { /* best effort */ }
 
       return { success: true, message: 'Password updated successfully. You can now sign in.' };
     }),
@@ -502,27 +523,75 @@ export const emailAuthRouter = router({
       if ((await otherAccountsUsing(user as any, newEmail)).length || ((user as any).workspaceId !== undefined && (await db.emailHasAccount(newEmail)) && String(account.email || '').trim().toLowerCase() !== newEmail)) {
         throw new TRPCError({ code: 'CONFLICT', message: 'This email address is already in use by another account' });
       }
-      // Update email in DB
-      await db.updateUserEmail(user.id, newEmail);
-      await invalidateIdentityCache();
-      // For email-based accounts, also update the openId so login still works
-      if (String(account.openId || '').startsWith('email:')) {
-        const dbConn = await getDb();
-        if (dbConn) {
-          const { users } = await import('../../drizzle/schema');
-          await dbConn.update(users).set({ openId: `email:${newEmail}` }).where(eq(users.id, account.id));
-        }
-        // This session names the login row itself → its id just changed, so
-        // re-issue the cookie. (A member row in a further workspace keeps its own id.)
-        if (account.id === user.id) {
-          const sessionToken = await sdk.createSessionToken(`email:${newEmail}`, {
-            name: user.name || '',
-            expiresInMs: ONE_YEAR_MS,
-          });
-          const cookieOptions = getSessionCookieOptions(ctx.req);
-          ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
-        }
+      // Audit 3: the address changes only when the link sent TO it is opened — the new address
+      // must be proven (it receives digests, check-ins and password resets), and the old one is told.
+      const conn = await getDb();
+      if (!conn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+      if (!(await rlHit('emailchange:' + account.id, 5, 3_600_000))) throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: 'Too many email changes in the last hour. Please try again later.' });
+      const { emailChanges } = await import('../../drizzle/schema');
+      const token = crypto.randomBytes(32).toString('hex');
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+      // tenancy: the caller's OWN login row's pending changes
+      await conn.delete(emailChanges).where(and(eq(emailChanges.userId, account.id), isNull(emailChanges.usedAt)));
+      await conn.insert(emailChanges).values({ tokenHash, userId: account.id, newEmail, expiresAt: new Date(Date.now() + 3_600_000) });
+      const link = `${appOrigin()}/?confirmEmail=${token}`;
+      const wsId = await (await import('../_core/workspace')).wsIdOf(user as any).catch(() => null);
+      const sent = await sendEmail({
+        to: newEmail, kind: 'account', senderUserId: null, workspaceId: wsId ?? null,
+        subject: 'Confirm your new LevelUp sign-in email',
+        html: `<p>Someone asked to make this address the sign-in email of a LevelUp account.</p><p><a href="${link}">Confirm this address</a></p><p>The link works once and for one hour. If you didn't ask for this, ignore this email — nothing changes.</p>`,
+        text: `Confirm this address as your LevelUp sign-in email:
+${link}
+
+The link works once and for one hour. If you didn't ask for this, ignore this email.`,
+      } as any).catch(() => false);
+      if (!sent) {
+        // tenancy: the request row just inserted, by its unguessable token hash
+        await conn.delete(emailChanges).where(eq(emailChanges.tokenHash, tokenHash));
+        throw new TRPCError({ code: 'SERVICE_UNAVAILABLE', message: "We couldn't send the confirmation email to the new address just now. Please try again later." });
       }
+      const oldEmail = String(account.email || '').trim();
+      if (oldEmail) {
+        void sendEmail({
+          to: oldEmail, kind: 'account', senderUserId: null, workspaceId: wsId ?? null,
+          subject: 'Your LevelUp sign-in email is about to change',
+          html: `<p>Someone signed in to your LevelUp account asked to change its sign-in email to <b>${escHtml(newEmail)}</b>. It changes once that address confirms.</p><p>If this wasn't you, reset your password now from the sign-in page and use “Sign out everywhere” in Settings.</p>`,
+        } as any).catch(() => false);
+      }
+      return { success: true, pending: true, newEmail };
+    }),
+
+  /**
+   * The link from the "confirm your new sign-in email" mail (Audit 3). Changes the LOGIN's
+   * email and its member rows' copies, once. The login's id and openId stay as they are,
+   * so its sessions carry on; new accounts never get an `email:` openId any more.
+   */
+  confirmEmailChange: publicProcedure
+    .input(z.object({ token: z.string().min(1).max(128) }))
+    .mutation(async ({ input }) => {
+      const bad = () => new TRPCError({ code: 'BAD_REQUEST', message: 'This confirmation link is no longer valid. Change the email again from Settings → Profile.' });
+      if (!/^[a-f0-9]{64}$/.test(input.token)) throw bad();
+      const conn = await getDb();
+      if (!conn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+      const { emailChanges, users } = await import('../../drizzle/schema');
+      const tokenHash = crypto.createHash('sha256').update(input.token).digest('hex');
+      // tenancy: by an unguessable token (stored hashed)
+      const [row] = await conn.select().from(emailChanges).where(eq(emailChanges.tokenHash, tokenHash)).limit(1);
+      if (!row || row.usedAt || new Date(row.expiresAt).getTime() < Date.now()) throw bad();
+      const newEmail = String(row.newEmail).toLowerCase().trim();
+      // still free? (someone may have taken it in the meantime)
+      const taken: any = await db.getUserByEmail(newEmail);
+      if ((taken && Number(taken.id) !== Number(row.userId) && Number(taken.accountId) !== Number(row.userId)) || (await otherAccountsUsing({ id: row.userId } as any, newEmail)).length) {
+        throw new TRPCError({ code: 'CONFLICT', message: 'This email address is already in use by another account.' });
+      }
+      // tenancy: claiming the confirmed request, by its unguessable token hash
+      const claim: any = await conn.update(emailChanges).set({ usedAt: new Date() }).where(and(eq(emailChanges.tokenHash, tokenHash), isNull(emailChanges.usedAt)));
+      if (Number(claim?.[0]?.affectedRows ?? claim?.affectedRows ?? 0) !== 1) throw bad();
+      // the login row and every member row of that login carry the address
+      // tenancy: the confirmed login's own rows (by its id / accountId)
+      await conn.update(users).set({ email: newEmail }).where(eq(users.id, row.userId));
+      await conn.update(users).set({ email: newEmail }).where(eq(users.accountId, row.userId));
+      await invalidateIdentityCache();
       return { success: true, newEmail };
     }),
 

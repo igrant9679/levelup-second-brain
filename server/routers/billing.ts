@@ -23,7 +23,7 @@ import * as billing from "../_core/billing";
 import { workspaceUsage } from "../_core/quota";
 import { clientIp } from "../_core/rateLimit";
 import { audit } from "../_core/audit";
-import { SignupError, confirmSignup, createOwnWorkspace, peekSignup, startSignup } from "../_core/signup";
+import { SignupError, confirmSignup, createOwnWorkspace, peekSignup, startSignup, signupReady } from "../_core/signup";
 import { issueCookieFor } from "./workspace";
 
 const TRPC_CODES = new Set(["FORBIDDEN", "TOO_MANY_REQUESTS", "BAD_REQUEST", "CONFLICT", "UNAUTHORIZED", "INTERNAL_SERVER_ERROR"]);
@@ -46,7 +46,8 @@ export const billingRouter = router({
   /** What the sign-in page and the billing page offer. No workspace data. */
   plans: publicProcedure.query(async () => {
     const cfg = await billingConfig();
-    const open = await signupOpen();
+    // Audit 3: the sign-in page offers sign-up only when it can actually be used
+    const open = (await signupReady()).ok;
     const sellable = await billing.sellable();
     return {
       signupOpen: open,
@@ -190,6 +191,8 @@ export const billingRouter = router({
       config: cfg,
       stripe: { configured: stripeConfigured(), mode: stripeMode(), webhookSecretSet: !!stripeWebhookSecret() },
       sellable: await billing.sellable(),
+      // Audit 3: why sign-up is not usable yet (closed | nothing_to_buy | no_platform_mail), null = ready
+      signupBlocked: (await signupReady()).reason,
       prices: await billing.publicPlans().then((ps) => Object.fromEntries(ps.map((p) => [p.key, { monthly: p.monthly, yearly: p.yearly }]))),
     };
   }),
@@ -201,7 +204,7 @@ export const billingRouter = router({
       const cfg = await saveBillingConfig(input.config);
       billing._resetBillingForTest();   // prices and rows are re-read with the new plans
       void audit(ctx, "billing.config_change", { detail: { signupOpen: cfg.signupOpen, wasOpen: before.signupOpen, plans: cfg.plans.map((p) => p.key), trialDays: cfg.trialDays } });
-      return { config: cfg };
+      return { config: cfg, signupBlocked: (await signupReady()).reason };
     }),
 
   opSet: operatorProcedure.meta({ crossWorkspace: true })

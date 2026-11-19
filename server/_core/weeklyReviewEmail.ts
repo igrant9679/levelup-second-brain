@@ -278,7 +278,6 @@ interface AIBlock {
 
 async function generateAIBlock(rows: BuiltRows, L: SourceLabels = CF_LABELS): Promise<AIBlock> {
   try {
-    const { callAIProvider } = await import("./aiProviders");
     const compact = {
       shipped: rows.shipped.slice(0, 20).map(r => ({ s: r.source, t: r.title, c: r.completedAt })),
       overdue: rows.overdue.slice(0, 20).map(r => ({ s: r.source, t: r.title, due: r.due })),
@@ -289,10 +288,9 @@ async function generateAIBlock(rows: BuiltRows, L: SourceLabels = CF_LABELS): Pr
 Read the week's shipped / overdue / next-week task lists and return STRICTLY a JSON object (no markdown, no prose) with two keys:
 1. "reflection": 3-4 sentences (under 80 words) that acknowledge the most meaningful wins, flag the single biggest carryover risk, and name the one highest-leverage thing to start next week.
 2. "picks": an array of exactly 3 objects, each {"title":"<exact task title from input>","source":"<personal|CF|LSI>","reason":"<one short sentence why this matters next week>"}. Choose from the overdue + nextWeek arrays. Pick high-leverage items, not busy work. Use exact titles as they appear in the input.`;
-    const { resolveWorkspaceAI } = await import("./workspaceAI");
-    const ai = await resolveWorkspaceAI(); // was provider:'manus' (no longer in use) — workspace provider + key
-    const res = await callAIProvider({ provider: ai.provider, apiKey: ai.apiKey, systemPrompt: sys, userContent: JSON.stringify(compact), maxTokens: 600, jsonMode: true });
-    const raw = String((res as { result?: string; text?: string }).result || (res as { text?: string }).text || '').trim();
+    // workspace provider + key, counted against the daily AI allowance (Audit 3)
+    const { callWorkspaceAI } = await import("./workspaceAI");
+    const raw = String(await callWorkspaceAI({ systemPrompt: sys, userContent: JSON.stringify(compact), maxTokens: 600, jsonMode: true }) || '').trim();
     // Tolerate fenced code blocks + leading prose
     const m = raw.match(/\{[\s\S]*\}/);
     if (!m) return { reflection: raw.slice(0, 800), picks: [] };

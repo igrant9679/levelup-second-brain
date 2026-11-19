@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { notifyOwner } from "./notification";
-import { adminProcedure, publicProcedure, router } from "./trpc";
+import { operatorProcedure, publicProcedure, router } from "./trpc";
 
 export const systemRouter = router({
   health: publicProcedure
@@ -13,7 +13,7 @@ export const systemRouter = router({
       ok: true,
     })),
 
-  notifyOwner: adminProcedure
+  notifyOwner: operatorProcedure /* Audit 3: every self-serve owner is an admin — the platform channel is the operator's */
     .input(
       z.object({
         title: z.string().min(1, "title is required"),

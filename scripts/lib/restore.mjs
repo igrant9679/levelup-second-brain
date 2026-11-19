@@ -82,6 +82,22 @@ export async function restoreDump(conn, dump, { log = () => {}, batch = 200 } = 
       }
       log("  backup predates workspaces: everything placed in workspace 1");
     }
+    // Audit 3: a removed member's rows survive under their old id. After a restore the next new
+    // account must not get such an id (and inherit those rows): start the users ids above every
+    // user id anything in the backup refers to.
+    if (present.has("users")) {
+      let maxId = 0;
+      for (const t of Object.values(dump.tables)) {
+        for (const r of Array.isArray(t?.rows) ? t.rows : []) {
+          for (const k of ["userId", "accountId", "ownerUserId", "invitedBy", "acceptedUserId", "createdBy", "uploadedBy"]) {
+            const v = Number(r?.[k]);
+            if (Number.isInteger(v) && v > maxId) maxId = v;
+          }
+        }
+      }
+      for (const r of Array.isArray(dump.tables.users?.rows) ? dump.tables.users.rows : []) { const v = Number(r?.id); if (Number.isInteger(v) && v > maxId) maxId = v; }
+      if (maxId > 0) await conn.query(`ALTER TABLE users AUTO_INCREMENT = ${Math.floor(maxId) + 1}`);
+    }
   } finally {
     await conn.query("SET FOREIGN_KEY_CHECKS=1");
   }

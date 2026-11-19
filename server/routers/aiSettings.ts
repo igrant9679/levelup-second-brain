@@ -24,6 +24,8 @@ import { isAdminUser } from "../_core/access";
 /** Owner or an admin the owner granted (-277). Members can only use the keys. */
 export async function canManageAIKeys(user: any): Promise<boolean> {
   if (!user) return false;
+  // (Audit 3 noted that in the operator's workspace these are also the platform's keys. Left as the
+  // owner decided in -277 — admins manage them — and reported as an owner decision.)
   if (isAdminUser(user)) return true;
   return await isOwnerCtxUser(user);
 }
@@ -92,6 +94,8 @@ export const aiSettingsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const apiKey = String((await getSettingFor(ctx.user as any, `aiKey_${input.provider}`)) || "").trim();
       if (!apiKey) throw new TRPCError({ code: "PRECONDITION_FAILED", message: `No ${input.provider} key is saved` });
+      // Audit 3: a failing key falls back to the built-in model, so a test counts like any AI request
+      await (await import("../_core/quota")).spendQuota(ctx.user as any, "ai");
       const { callAIProvider } = await import("../_core/aiProviders");
       const { text, providerUsed } = await callAIProvider({
         provider: input.provider,

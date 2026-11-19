@@ -37,7 +37,8 @@ import { users, workspaces, workspaceSettings } from "../../drizzle/schema";
 import { getDb, getSystemSetting, setSystemSetting } from "../db";
 import { decryptSecret, encryptSecret } from "./secrets";
 
-const LEGACY_OK = !!process.env.VITEST;
+// (Audit 3: never in production, whatever the environment says)
+const LEGACY_OK = !!process.env.VITEST && process.env.NODE_ENV !== "production";
 const TTL = 30_000;
 
 export type WsUserLike = {
@@ -69,8 +70,19 @@ function parseObj(v: unknown): Record<string, any> {
 // ── caches ───────────────────────────────────────────────────────────────────
 const _ws = new Map<number, { at: number; v: WorkspaceInfo | null }>();
 const _members = new Map<number, { at: number; ids: number[] }>();
-/** member row id → workspace id. A member row never changes workspace. */
-const _userWs = new Map<number, number>();
+/**
+ * member row id → workspace id. A member row never changes workspace, but a removed one is
+ * detached (workspace 0) — Audit 3: entries expire after 10 minutes, so another server
+ * instance stops treating a removed member as "same workspace" soon after.
+ */
+const _userWsRaw = new Map<number, { ws: number; at: number }>();
+const USERWS_TTL = 10 * 60_000;
+const _userWs = {
+  get(id: number): number | undefined { const e = _userWsRaw.get(id); if (!e) return undefined; if (Date.now() - e.at > USERWS_TTL) { _userWsRaw.delete(id); return undefined; } return e.ws; },
+  set(id: number, ws: number) { _userWsRaw.set(id, { ws, at: Date.now() }); },
+  delete(id: number) { _userWsRaw.delete(id); },
+  clear() { _userWsRaw.clear(); },
+};
 
 export function invalidateWorkspace(id?: number | null) {
   if (id == null) { _ws.clear(); _members.clear(); } else { _ws.delete(id); _members.delete(id); }
@@ -220,7 +232,14 @@ export async function activeMemberIds(): Promise<Set<number> | null> {
     if (!db) return LEGACY_OK ? null : new Set<number>();
     // tenancy: background — which workspaces are active (ids only)
     const wsRows: any[] = await db.select({ id: workspaces.id, status: workspaces.status, deletedAt: workspaces.deletedAt }).from(workspaces);
-    const okWs = (wsRows || []).filter(w => w && w.id != null && String(w.status || "active") === "active" && !w.deletedAt).map(w => Number(w.id));
+    let okWs = (wsRows || []).filter(w => w && w.id != null && String(w.status || "active") === "active" && !w.deletedAt).map(w => Number(w.id));
+    // …minus those locked for non-payment (Audit 3): a locked workspace gets no
+    // check-ins, digests, reports, syncs, nudges or AI spend (it used to get all of them).
+    try {
+      const { billingSummaries } = await import("./billing");
+      const sums = await billingSummaries();
+      if (sums.size) okWs = okWs.filter(id => !sums.get(id)?.locked);
+    } catch { /* billing tables unreadable: nobody is locked */ }
     if (!(wsRows || []).some(w => w && w.id != null)) {
       // no workspace rows at all: the tests' fake databases
       ids = LEGACY_OK ? null : new Set<number>();
@@ -378,7 +397,15 @@ export async function featuresOf(user: WsUserLike | null | undefined): Promise<R
   return ws ? ws.features : {};
 }
 export async function hasFeature(user: WsUserLike | null | undefined, name: string): Promise<boolean> {
-  return !!(await featuresOf(user))[name];
+  const on = !!(await featuresOf(user))[name];
+  if (!on || name !== "atlas") return on;
+  // Audit 3: the Atlas feed (one company's HR and finance data, from platform-wide credentials) is
+  // the operator's own workspace's only — a console tick can't hand it to a customer.
+  const w = await wsIdOf(user);
+  if (w === null) return true; // tests' no-workspace mode
+  const { operatorWorkspaceId } = await import("./mailTrust");
+  const op = await operatorWorkspaceId();
+  return op != null ? w === op : w === 1;
 }
 
 // ── per-workspace settings ───────────────────────────────────────────────────

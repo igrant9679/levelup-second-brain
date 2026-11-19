@@ -68,6 +68,12 @@ export function registerBookmarkletRoutes(app: Express, sdk: Auth) {
       if (!bmSameOrigin(req)) { res.status(403).send(bmPage('Refused', '<h2>Refused: this request did not come from LevelUp.</h2>')); return; }
       const user = await sdk.authenticateRequest(req).catch(() => null);
       if (!user) { res.status(401).send(bmPage('Sign in', '<h2>Please sign in to LevelUp, then try again.</h2>')); return; }
+      // Audit 3: a workspace locked for non-payment saves nothing (the rest of the app is locked too)
+      try {
+        const { wsIdOf } = await import('./workspace');
+        const w = await wsIdOf(user as any);
+        if (w && (await (await import('./billing')).isBillingLocked(w))) { res.status(403).send(bmPage('Locked', '<h2>This workspace is locked until a plan is chosen.</h2>')); return; }
+      } catch { /* not locked */ }
       const body: any = req.body || {};
       const v = bmParse(body.url, body.title);
       if (!v) { res.status(400).send(bmPage('Error', '<h2>Error: invalid or missing URL.</h2>', true)); return; }

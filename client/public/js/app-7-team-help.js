@@ -328,10 +328,8 @@ async function loadInviteList(){
       const status=inv.accepted?'<span class="pill" style="background:var(--oks);color:var(--ok);font-size:11px">✓ Accepted</span>'
         :expired?'<span class="pill" style="background:var(--s3);color:var(--t3);font-size:11px">Expired</span>'
         :'<span class="pill" style="background:var(--acs);color:var(--ach);font-size:11px">Pending</span>';
-      const inviteUrl=inv.inviteUrl||(window.location.origin+'/invite/'+inv.token);
       const actions=inv.accepted?''
-        :`<button class="btn btn-s" style="height:22px;font-size:11px" onclick="copyInviteLink('${_jsAttr(inv.token)}')" title="Copy invite link">📋 Copy Link</button>
-          <button class="btn btn-s" style="height:22px;font-size:11px" onclick="resendInvite(${inv.id})" title="Regenerate token and extend expiry">🔄 Resend</button>
+        :`<button class="btn btn-s" style="height:22px;font-size:11px" onclick="resendInvite(${inv.id})" title="Email a new link and extend the expiry">🔄 Resend</button>
           <button class="btn btn-s" style="height:22px;font-size:11px;color:var(--red)" onclick="revokeInvite(${inv.id})" title="Revoke invite">🗑️ Revoke</button>`;
       return`<div class="lr" style="padding:8px 0;border-bottom:1px solid var(--bd1);gap:8px;flex-wrap:wrap">
         <div style="flex:1;min-width:0">
@@ -355,12 +353,18 @@ async function sendInvite(){
   if(!email){toast('⚠ Email is required');return;}
   try{
     const inv=await _trpc('teamInvites.create',{email,name,role,expiryDays:7,origin:window.location.origin},'mutate');
-    const inviteUrl=inv.inviteUrl||(window.location.origin+'/invite/'+inv.token);
-    toast('✓ Invite created! Copying link...');
-    await navigator.clipboard.writeText(inviteUrl).catch(()=>{});
     document.getElementById('inv-email').value='';
     document.getElementById('inv-name').value='';
     loadInviteList();
+    // Audit 3: the link goes only to the invited address (the platform operator also gets it to hand over)
+    if(!inv.inviteUrl){
+      if(inv.emailed)toast('✉️ Invitation emailed to '+email);
+      else toast('⚠ The invitation was saved but the email could not be sent. Try Resend later.','error',9000);
+      return;
+    }
+    const inviteUrl=inv.inviteUrl;
+    toast('✓ Invite created! Copying link...');
+    await navigator.clipboard.writeText(inviteUrl).catch(()=>{});
     // Show the link in a modal so admin can copy/share it
     const m=document.getElementById('modal-content');
     m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:12px">✉️ Invite Link Created</h2>
@@ -388,10 +392,15 @@ function copyInviteLink(token){
 async function resendInvite(id){
   try{
     const updated=await _trpc('teamInvites.resend',{id,expiryDays:7,origin:window.location.origin},'mutate');
-    const url=updated.inviteUrl||(window.location.origin+'/invite/'+updated.token);
+    loadInviteList();
+    if(!updated.inviteUrl){
+      if(updated.emailed)toast('✉️ A new invitation link was emailed to '+updated.email);
+      else toast('⚠ The email could not be sent just now. Please try again later.','error',9000);
+      return;
+    }
+    const url=updated.inviteUrl;
     toast('✓ Invite regenerated! Copying new link...');
     await navigator.clipboard.writeText(url).catch(()=>{});
-    loadInviteList();
     // Show new link
     const m=document.getElementById('modal-content');
     m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:12px">🔄 Invite Resent</h2>

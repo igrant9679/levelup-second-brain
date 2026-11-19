@@ -339,7 +339,6 @@ export const bookmarksRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       // the workspace key costs the workspace: count it against the AI quota (-255)
-      if (!input.apiKey) await spendQuota(ctx.user, 'ai');
       // Use provided metadata or fetch it
       let title = input.title;
       let description = input.description;
@@ -354,7 +353,7 @@ export const bookmarksRouter = router({
 
       const { text } = await callAIProvider({
         // No key from the browser since -214 → workspace provider + key.
-        ...(await resolveRequestAI(input)),
+        ...(await resolveRequestAI(input, ctx.user)),
         systemPrompt: 'You are a bookmark tagging assistant. Given a web page title, description, and URL, suggest 3 to 5 concise, lowercase tags that categorize the content. Return ONLY a JSON object of the form {"tags": ["tag1", "tag2"]}, no explanation.',
         userContent: `Title: ${title}\nDescription: ${description || '(none)'}\nURL: ${input.url}`,
         jsonMode: true,
@@ -387,7 +386,6 @@ export const bookmarksRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       // the workspace key costs the workspace: count it against the AI quota (-255)
-      if (!input.apiKey) await spendQuota(ctx.user, 'ai');
       let title = input.title;
       let pageDesc = input.description;
       if (!title || !pageDesc) {
@@ -398,7 +396,7 @@ export const bookmarksRouter = router({
       const { callAIProvider } = await import('../_core/aiProviders');
       const { text } = await callAIProvider({
         // No key from the browser since -214 → workspace provider + key.
-        ...(await resolveRequestAI(input)),
+        ...(await resolveRequestAI(input, ctx.user)),
         systemPrompt: 'You are a bookmark description writer. Given a web page title, raw page description, and URL, write a single concise 1–2 sentence summary (max 240 chars) that explains what the page is about and why someone would save it. Plain prose, no leading title, no quotes, no markdown.',
         userContent: `Title: ${title}\nPage description: ${pageDesc || '(none)'}\nURL: ${input.url}`,
         maxTokens: 200,

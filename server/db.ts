@@ -1,4 +1,5 @@
 import { and, desc, eq, gte, isNull, lte, or, sql, inArray } from "drizzle-orm";
+import { createHash as createHashForInvite } from "crypto";
 import { drizzle } from "drizzle-orm/mysql2";
 import { credentialAuditLog, emailDeliveryLog, emailNotificationPrefs, InsertCredentialAuditLog, InsertEmailDeliveryLog, InsertOAuthToken, InsertUser, InsertUserOauthCredential, InsertScheduledTaskLog, oauthTokens, scheduledTaskLog, systemSettings, userOauthCredentials, users, smtpImapAccounts, InsertSmtpImapAccount, SmtpImapAccount, userActivityLog, externalSourceCredentials, InsertExternalSourceCredential } from "../drizzle/schema";
 import { ENV } from './_core/env';
@@ -1497,6 +1498,25 @@ export async function incrementShareViewCount(token: string) {
 
 // ─── Team Invites ─────────────────────────────────────────────────────────────
 
+/**
+ * Invitation links are stored hashed (Audit 3), like reset and sign-up tokens: "h1:" + SHA-256.
+ * A database or backup reader can't use them. Rows written before this change hold the raw
+ * token and still work until they are accepted, resent or expire.
+ */
+export function inviteTokenStored(token: string): string {
+  return 'h1:' + createHashForInvite('sha256').update(String(token)).digest('hex');
+}
+async function inviteRowByToken(db: any, teamInvites: any, token: string): Promise<any | null> {
+  const t = String(token || '').trim();
+  if (!t || t.startsWith('h1:')) return null;
+  // tenancy: by an unguessable token (stored hashed)
+  const [row] = await db.select().from(teamInvites).where(eq(teamInvites.token, inviteTokenStored(t))).limit(1);
+  if (row) return row;
+  // tenancy: a pre-hashing invite, by its raw unguessable token
+  const [legacy] = await db.select().from(teamInvites).where(eq(teamInvites.token, t)).limit(1);
+  return legacy && !String(legacy.token).startsWith('h1:') ? legacy : null;
+}
+
 export async function createTeamInvite(data: {
   invitedBy: number;
   /** The workspace the invitee joins (-278). */
@@ -1522,11 +1542,11 @@ export async function createTeamInvite(data: {
       email: data.email.toLowerCase().trim(),
       name: data.name ?? null,
       role: data.role,
-      token: data.token,
+      token: inviteTokenStored(data.token),
       expiresAt: data.expiresAt,
     });
     // tenancy: read back the row just inserted, by its unguessable token
-    const [row] = await db.select().from(teamInvites).where(eq(teamInvites.token, data.token)).limit(1);
+    const [row] = await db.select().from(teamInvites).where(eq(teamInvites.token, inviteTokenStored(data.token))).limit(1);
     return row ?? null;
   } catch (err) {
     console.warn('[Database] Failed to create team invite:', err);
@@ -1569,8 +1589,7 @@ export async function getTeamInviteByToken(token: string) {
   if (!db) return null;
   try {
     const { teamInvites } = await import('../drizzle/schema');
-    const [row] = await db.select().from(teamInvites).where(eq(teamInvites.token, token)).limit(1);
-    return row ?? null;
+    return await inviteRowByToken(db, teamInvites, token);
   } catch (err) {
     console.warn('[Database] Failed to get team invite by token:', err);
     return null;
@@ -1595,10 +1614,12 @@ export async function acceptTeamInvite(token: string, userId: number) {
   if (!db) return null;
   try {
     const { teamInvites } = await import('../drizzle/schema');
+    const found = await inviteRowByToken(db, teamInvites, token);
+    if (!found) return null;
     await db.update(teamInvites)
       .set({ accepted: 1, acceptedAt: new Date(), acceptedUserId: userId })
-      .where(eq(teamInvites.token, token));
-    const [row] = await db.select().from(teamInvites).where(eq(teamInvites.token, token)).limit(1);
+      .where(eq(teamInvites.id, found.id));
+    const [row] = await db.select().from(teamInvites).where(eq(teamInvites.id, found.id)).limit(1);
     return row ?? null;
   } catch (err) {
     console.warn('[Database] Failed to accept team invite:', err);
@@ -1612,7 +1633,7 @@ export async function resendTeamInvite(id: number, newToken: string, newExpiresA
   try {
     const { teamInvites } = await import('../drizzle/schema');
     await db.update(teamInvites)
-      .set({ token: newToken, expiresAt: newExpiresAt })
+      .set({ token: inviteTokenStored(newToken), expiresAt: newExpiresAt })
       .where(and(eq(teamInvites.id, id), eq(teamInvites.accepted, 0)));
     const [row] = await db.select().from(teamInvites).where(eq(teamInvites.id, id)).limit(1);
     return row ?? null;
@@ -1770,6 +1791,19 @@ export async function removeWorkspaceMember(userId: number): Promise<void> {
   }
   if (detach) await db.update(users).set({ workspaceId: 0, role: 'user' }).where(eq(users.id, userId));
   else await db.delete(users).where(eq(users.id, userId));
+  // Audit 3: remember who WAS a member, so the workspace's purge also removes the rows still kept
+  // under that id (tasks, notes, Money, tokens…) — they used to outlive the workspace for ever.
+  try {
+    const ws = Number(row.workspaceId);
+    if (Number.isInteger(ws) && ws > 0) {
+      const { getWorkspaceSetting, setWorkspaceSetting } = await import('./_core/workspace');
+      let list: number[] = [];
+      try { list = JSON.parse(String((await getWorkspaceSetting(ws, 'formerMembers')) || '[]')); } catch { list = []; }
+      if (!Array.isArray(list)) list = [];
+      if (!list.includes(Number(userId))) list.push(Number(userId));
+      await setWorkspaceSetting(ws, 'formerMembers', JSON.stringify(list.slice(-5000)));
+    }
+  } catch (e) { console.error('[team] could not record the former member', userId, e); }
   _forgetUserWorkspace(userId);
   invalidateWorkspace(Number(row.workspaceId) || null);
 }

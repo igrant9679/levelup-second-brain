@@ -1079,6 +1079,14 @@ export const appDataRouter = router({
     const db = await getDb();
     if (!db) return { ok: false as const, error: 'db unavailable' };
     const myWs = await ws.wsIdOf(ctx.user as any);
+    // Audit 3: the operator flag follows the login into every workspace — a customer who adds the
+    // operator as an admin must not have their whole workspace downloadable this way. Only the
+    // operator's OWN workspace (the customer's owner has workspace.export for theirs).
+    if (myWs !== null) {
+      const { operatorWorkspaceId } = await import('../_core/mailTrust');
+      const opWs = await operatorWorkspaceId();
+      if (opWs == null || myWs !== opWs) return { ok: false as const, error: "Switch to your own workspace to download its copy. A customer's workspace is exported by its owner." };
+    }
     let dump: { createdAt: string; tables: Record<string, { count: number; rows: any[] }> };
     if (myWs === null) {
       // no workspace model (tests that predate workspaces): every table, as before

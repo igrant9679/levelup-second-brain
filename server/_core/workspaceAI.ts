@@ -84,11 +84,18 @@ export function invalidateWorkspaceAI(): void {
  * with: a pre-214 bundle still open in a tab during deploy skew sends one, and
  * Settings → AI Features "Test" sends a freshly typed key before it is saved.
  */
-export async function resolveRequestAI(input: { provider?: string; apiKey?: string }): Promise<{ provider: AIProvider; apiKey?: string }> {
+export async function resolveRequestAI(input: { provider?: string; apiKey?: string }, user?: any): Promise<{ provider: AIProvider; apiKey?: string }> {
+  // Audit 3: the daily AI allowance is spent HERE, decided by the key that is actually used. Callers
+  // used to charge only when `!input.apiKey` — so apiKey " " (trimmed to nothing below) ran on the
+  // platform key for free, and a bogus key fell back to the built-in model unmetered. Now: a key typed
+  // in the browser is charged (it can fall back to the built-in model), the PLATFORM key is charged,
+  // the workspace's OWN saved key is not (Settings says so).
+  const spend = async () => { if (user !== undefined) await (await import("./quota")).spendQuota(user, "ai"); };
   const explicit = String(input.apiKey || "").trim();
-  if (explicit) return { provider: (input.provider || "manus") as AIProvider, apiKey: explicit };
-  const { provider, apiKey } = await resolveWorkspaceAI();
-  return { provider, apiKey };
+  if (explicit) { await spend(); return { provider: (input.provider || "manus") as AIProvider, apiKey: explicit }; }
+  const r = await resolveWorkspaceAI();
+  if (r.source !== "workspace") await spend();
+  return { provider: r.provider, apiKey: r.apiKey };
 }
 
 /** 'sk-…abcd' — enough to recognise a key, never enough to use it. */
@@ -101,7 +108,17 @@ export function maskKey(key: string | null | undefined): string {
 }
 
 export async function callWorkspaceAI(o: { systemPrompt: string; userContent: string; jsonMode?: boolean; maxTokens?: number }): Promise<string> {
-  const { provider, apiKey } = await resolveWorkspaceAI();
+  // Audit 3: background AI (coach check-ins and replies, reading delegate replies, digest / weekly /
+  // Money summaries) on the PLATFORM key counts against the member's and workspace's daily AI
+  // allowance like a request does. Over the allowance → throws, and every caller falls back to its
+  // non-AI text. A workspace's own key is not counted.
+  const { provider, apiKey, source } = await resolveWorkspaceAI();
+  const { currentMemberId } = await import("./memberContext");
+  const member = currentMemberId();
+  if (member && source !== "workspace") {
+    const { trySpendQuota } = await import("./quota");
+    if (!(await trySpendQuota(member, "ai"))) throw new Error("today's AI allowance for this workspace is used up");
+  }
   const r = await callAIProvider({ provider, apiKey, systemPrompt: o.systemPrompt, userContent: o.userContent, jsonMode: o.jsonMode, maxTokens: o.maxTokens });
   return r.text;
 }

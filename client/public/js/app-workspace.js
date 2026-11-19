@@ -955,7 +955,7 @@ function wsCreateWorkspaceDialog(){
   try{if(typeof closePopMenu==='function')closePopMenu('sb-user-menu');}catch(_){}
   var p=_wsPub||{};
   wsModal('<div class="ws-h"><h2>Create a workspace</h2><button class="btn btn-s"'+_wsAct('wsCloseModal')+'>Close</button></div>'
-    +'<div class="ws-card"><p>A new, empty workspace that you own — for another company, a client or yourself. It is separate from this one: its own people, items, files and plan.'+(p.billingOn&&p.trialDays?' It starts with a '+p.trialDays+'-day free trial.':'')+'</p>'
+    +'<div class="ws-card"><p>A new, empty workspace that you own — for another company, a client or yourself. It is separate from this one: its own people, items, files and plan.'+(p.billingOn&&p.trialDays?' It starts with a '+p.trialDays+'-day free trial if you haven’t had one before (one free trial per person); otherwise choose a plan to start using it.':'')+'</p>'
     +'<div class="ws-row"><div class="ws-f"><label for="wsn-name">Workspace name</label><input class="inp" id="wsn-name" maxlength="120" placeholder="Acme Inc."></div><button class="btn btn-p"'+_wsAct('wsCreateWorkspace')+'>Create and open</button></div>'
     +'<div id="wsn-msg" class="ws-msg" role="status"></div></div>');
   setTimeout(function(){var e=document.getElementById('wsn-name');if(e)e.focus();},50);
@@ -1036,6 +1036,22 @@ async function _wsSignupStart(){
   }
 }
 function wsSignupAgain(){location.replace('/');}
+// the link that confirms a new sign-in email: /?confirmEmail=<token> (Audit 3)
+async function _wsConfirmEmailPage(token){
+  _wsCSS();
+  try{history.replaceState(null,'','/');}catch(_){}
+  var d=document.createElement('div');d.id='ws-inactive';
+  var paint=function(html){d.innerHTML='<div class="ws-dlg" style="max-width:460px">'+html+'</div>';};
+  paint('<h2 style="font-size:18px;margin:0 0 8px">Confirming your email…</h2>');
+  document.body.appendChild(d);
+  try{
+    var r=await _trpc('emailAuth.confirmEmailChange',{token:token},'mutation');
+    paint('<h2 style="font-size:18px;margin:0 0 8px">Email changed</h2><p style="font-size:13px;color:var(--t2);line-height:1.55;margin:0 0 14px">You now sign in with <b>'+_wsEsc((r&&r.newEmail)||'')+'</b>.</p><button class="btn btn-p"'+_wsAct('wsCloseInactive')+'>Continue</button>');
+  }catch(e){
+    paint('<h2 style="font-size:18px;margin:0 0 8px">This link is no longer valid</h2><p style="font-size:13px;color:var(--t2);line-height:1.55;margin:0 0 14px">'+_wsEsc((e&&e.message)||'Change the email again from Settings → Profile.')+'</p><button class="btn btn-p"'+_wsAct('wsCloseInactive')+'>Continue</button>');
+  }
+}
+function wsCloseInactive(){var d=document.getElementById('ws-inactive');if(d)d.remove();try{location.replace('/');}catch(_){}}
 // the link from the confirmation email: /?signup=<token>
 async function _wsSignupConfirmPage(token){
   _wsCSS();
@@ -1089,7 +1105,8 @@ function _wsBillAdminHtml(r){
     +'3. In Stripe → Developers → Webhooks add an endpoint for <code>'+_wsEsc(hook)+'</code> with the events <code>checkout.session.completed</code>, <code>customer.subscription.created</code>, <code>customer.subscription.updated</code>, <code>customer.subscription.deleted</code>, <code>invoice.paid</code> and <code>invoice.payment_failed</code>; copy its <b>signing secret</b> to Railway as <code>STRIPE_WEBHOOK_SECRET</code>. '
     +'4. In Stripe → Settings → Billing → Customer portal, switch the portal on. Use Stripe’s <b>test mode</b> keys first: nothing is charged, and test cards work.</p></div>';
   h+='<div class="ws-card"><h3>Sign-up and trial</h3>'
-    +(c.signupOpen&&!r.sellable?'<p style="color:var(--red)"><b>Sign-up is open but nothing is on sale</b> (Stripe is not connected, or no plan has a price): new workspaces are free and have no plan limits.</p>':'')
+    +(c.signupOpen&&r.signupBlocked==='nothing_to_buy'?'<p style="color:var(--red)"><b>Sign-up is switched on but not offered yet:</b> nothing is on sale (Stripe is not connected, or no plan has a price). Nobody can create a workspace until a plan can be bought.</p>':'')
+    +(c.signupOpen&&r.signupBlocked==='no_platform_mail'?'<p style="color:var(--red)"><b>Sign-up is switched on but not offered yet:</b> set up the platform mail service on Railway first (<code>MAIL_PROVIDER</code> and its settings). Without it, confirmation, password-reset and invitation emails for other companies’ workspaces would go out from your own mailbox.</p>':'')
     +'<label style="display:flex;gap:8px;align-items:center;font-size:12.5px;margin:6px 0"><input type="checkbox" id="wsb-open"'+(c.signupOpen?' checked':'')+'> Anyone can create a workspace from the sign-in page (email confirmation required)</label>'
     +'<div class="ws-row"><div class="ws-f" style="max-width:150px"><label for="wsb-trial">Free trial, days</label><input class="inp" id="wsb-trial" type="number" min="0" max="90" value="'+_wsEsc(c.trialDays)+'"></div>'
     +'<div class="ws-f" style="max-width:190px"><label for="wsb-trialplan">Limits during the trial</label><select class="inp" id="wsb-trialplan">'+c.plans.map(function(p){return '<option value="'+_wsEsc(p.key)+'"'+(p.key===c.trialPlan?' selected':'')+'>'+_wsEsc(p.name)+'</option>';}).join('')+'</select></div>'
@@ -1167,6 +1184,9 @@ function _wsBillInit(){
   try{
     var tok='';try{tok=new URLSearchParams(location.search).get('signup')||'';}catch(_){}
     if(/^[a-f0-9]{64}$/.test(tok)){_wsSignupConfirmPage(tok);return;}
+    // Audit 3: the link that confirms a new sign-in email (/?confirmEmail=<token>)
+    var ce='';try{ce=new URLSearchParams(location.search).get('confirmEmail')||'';}catch(_){}
+    if(/^[a-f0-9]{64}$/.test(ce)){_wsConfirmEmailPage(ce);}
   }catch(_){}
   var tries=0;
   var up=function(){
@@ -1185,7 +1205,7 @@ function _wsBillInit(){
         body:[
           '## Plans, the free trial and billing',
           '',
-          'A workspace that was created from the sign-up page starts with a **free trial** — no card needed. To keep using it after the trial its **owner** chooses a plan. Workspaces set up for you by LevelUp may not be billed at all: then **Workspace settings** has no *Plan & billing* tab and nothing here applies.',
+          'A workspace that was created from the sign-up page starts with a **free trial** — no card needed. There is **one free trial per person**: a further workspace, or a new sign-up with the same address (or the same address with a +tag), starts without one and needs a plan from the start. To keep using it after the trial its **owner** chooses a plan. Workspaces set up for you by LevelUp may not be billed at all: then **Workspace settings** has no *Plan & billing* tab and nothing here applies.',
           '',
           '### Where it is',
           'Menu on your name (bottom of the sidebar) → **Workspace: …** → **Plan & billing**. Everyone in the workspace can see the plan and how much is used; only the owner can change it.',
@@ -1195,20 +1215,20 @@ function _wsBillInit(){
           '',
           '### What a plan limits',
           '- **People** — how many members the workspace can have (invitations that are still open count).',
-          '- **AI requests a day** — on LevelUp’s keys. With the workspace’s own AI key (Settings → AI Features) there is no such limit.',
+          '- **AI requests a day** — on LevelUp’s keys. With the workspace’s own AI key (Settings → AI Features) there is no such limit. During a free trial the daily AI and email allowances are smaller than the plan’s; they go up to the plan’s once a plan is chosen.',
           '- **Emails a day** — digests, check-ins, reports and invitations.',
           '- **File storage** — in LevelUp’s storage. Files in your own S3 bucket or Google Drive don’t count.',
           '',
           'On a plan priced **per person**, the bill follows your member list: adding or removing someone changes the next invoice, with the difference for the current period worked out by Stripe.',
           '',
           '### Changing plan, or monthly / yearly',
-          'Under **Change plan**, press **Switch** on the plan you want. LevelUp first asks Stripe what it will cost and shows you: the amount charged today (switching between monthly and yearly starts a new billing period and is charged at once, less the unused time on your current plan), or, for another plan with the same billing period, nothing today and the amount of your next invoice — with **How Stripe worked it out** listing each line. Nothing changes until you press **Confirm switch**, and the charge is the amount you were shown. A plan with fewer people than the workspace has cannot be chosen until members are removed, and the plan cannot be changed while a payment is outstanding.',
+          'Under **Change plan**, press **Switch** on the plan you want. LevelUp first asks Stripe what it will cost and shows you: the amount charged today — the difference for the rest of the period, less the unused time on your current plan (switching between monthly and yearly starts a new billing period). The new plan applies once that payment goes through; if the card is declined, nothing changes — update the card under Manage billing and switch again. **How Stripe worked it out** lists **How Stripe worked it out** listing each line. Nothing changes until you press **Confirm switch**, and the charge is the amount you were shown. A plan with fewer people than the workspace has cannot be chosen until members are removed, and the plan cannot be changed while a payment is outstanding.',
           '',
           '### Invoices',
           'Every invoice is listed under **Invoices**, newest first, with its amount and whether it is paid. **View** opens it on Stripe’s own page (an unpaid one can be paid there); **PDF** downloads it.',
           '',
           '### Changing the card, cancelling',
-          '**Manage billing** opens Stripe’s customer portal for these. If you cancel, the workspace keeps working until the end of the period you paid for.',
+          '**Manage billing** opens Stripe’s customer portal for these (plans are changed here in LevelUp, not in the portal). If you cancel, the workspace keeps working until the end of the period you paid for.',
           '',
           '### If a payment fails',
           'The owner gets an email and sees a notice in LevelUp. The workspace keeps working for a few days. If the payment is still outstanding after that, the workspace is **locked**.',
@@ -1217,7 +1237,7 @@ function _wsBillInit(){
           'Nobody can open the workspace’s items — but **nothing is deleted**. The owner can sign in, choose a plan or update the card (which unlocks it at once), **download all the data**, or close the workspace. Members see a message asking them to contact the owner, and can still switch to their other workspaces.',
           '',
           '### Another workspace',
-          'One sign-in can own several workspaces — for a second company, a client, or yourself. Menu on your name → **Create a workspace**. Each workspace has its own plan. You can have one free trial running at a time.',
+          'One sign-in can own several workspaces — for a second company, a client, or yourself. Menu on your name → **Create a workspace**. Each workspace has its own plan. Only your first workspace gets a free trial.',
         ].join('\n')});
     }
   }catch(_){}

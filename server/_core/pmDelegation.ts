@@ -263,6 +263,8 @@ export async function processDelegateReply(o: { ref: { id: number; token: string
   const [rec] = await db.select().from(pmRecords).where(eq(pmRecords.id, o.ref.id)).limit(1);
   if (!rec || rec.kind !== "delegation" || rec.deletedAt) return { ok: false, skip: `no delegation #${o.ref.id}` };
   if (pmToken(rec.userId, rec.id) !== o.ref.token) return { ok: false, skip: `bad token for delegation #${rec.id}` };
+  // Audit 3: a suspended, closed or billing-locked workspace gets no AI reading of replies
+  { const { isActiveMember } = await import("./workspace"); if (!(await isActiveMember(rec.userId))) return { ok: false, skip: `delegation #${rec.id}: its workspace is not active` }; }
   if (o.wsId != null) {
     const { wsIdOf } = await import("./workspace");
     if ((await wsIdOf({ id: rec.userId })) !== o.wsId) return { ok: false, skip: `delegation #${rec.id}: not this workspace's` };

@@ -10,6 +10,13 @@ function getQueryParam(req: Request, key: string): string | undefined {
 }
 
 export function registerOAuthRoutes(app: Express) {
+  // Audit 3: the old Manus sign-in callback is retired. Its `state` was only the redirect address
+  // (sign-in CSRF), and it wrote the provider's email onto an existing login with no uniqueness
+  // check. LevelUp signs in with email + password; set LEGACY_MANUS_OAUTH=true only to bring it back.
+  if (String(process.env.LEGACY_MANUS_OAUTH || "").toLowerCase() !== "true") {
+    app.get("/api/oauth/callback", (_req: Request, res: Response) => { res.status(410).type("text/plain").send("This sign-in method is no longer available. Sign in with your email and password."); });
+    return;
+  }
   app.get("/api/oauth/callback", async (req: Request, res: Response) => {
     const code = getQueryParam(req, "code");
     const state = getQueryParam(req, "state");

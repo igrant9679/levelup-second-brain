@@ -35,9 +35,30 @@ export class SignupError extends Error { code: string; constructor(code: string,
 
 export type SignupInput = { name: string; workspaceName: string; email: string; password: string; ip: string };
 
+/**
+ * Can sign-up be USED right now? (Audit 3) Open in the console AND something can be bought
+ * (else every new workspace would have no billing row — never billed) AND a platform mail
+ * service is set (else confirmations, resets and invites for strangers' workspaces go out
+ * from the operator's own mailbox, which then holds live sign-in links for every customer).
+ */
+export async function signupReady(): Promise<{ ok: boolean; reason: string | null }> {
+  if (!(await signupOpen())) return { ok: false, reason: "closed" };
+  const { sellable } = await import("./billing");
+  if (!(await sellable())) return { ok: false, reason: "nothing_to_buy" };
+  const { platformMailConfigured } = await import("./platformMail");
+  if (!platformMailConfigured()) return { ok: false, reason: "no_platform_mail" };
+  return { ok: true, reason: null };
+}
+async function assertReady(closedMsg: string): Promise<void> {
+  const r = await signupReady();
+  if (r.ok) return;
+  if (r.reason === "closed") throw new SignupError("FORBIDDEN", closedMsg);
+  throw new SignupError("SERVICE_UNAVAILABLE", "New workspaces can't be created on this LevelUp just yet. Please try again later.");
+}
+
 /** Step 1: remember the request and mail the confirmation link. */
 export async function startSignup(input: SignupInput): Promise<{ ok: true }> {
-  if (!(await signupOpen())) throw new SignupError("FORBIDDEN", "LevelUp accounts are by invitation. Ask the workspace owner for an invite.");
+  await assertReady("LevelUp accounts are by invitation. Ask the workspace owner for an invite.");
   const email = input.email.toLowerCase().trim();
   const name = input.name.trim().slice(0, 128);
   const workspaceName = (input.workspaceName.trim() || `${name}'s workspace`).slice(0, 120);
@@ -100,13 +121,15 @@ export async function confirmSignup(token: string): Promise<{ user: any; workspa
   const hash = sha(token);
   const [row] = await conn.select().from(signups).where(eq(signups.tokenHash, hash)).limit(1);
   if (!row || row.usedAt || new Date(row.expiresAt).getTime() < Date.now()) throw bad();
-  if (!(await signupOpen())) throw new SignupError("FORBIDDEN", "Sign-up is closed at the moment.");
+  await assertReady("Sign-up is closed at the moment.");
   // claim the link: exactly one request wins
   const claim: any = await conn.update(signups).set({ usedAt: new Date() }).where(and(eq(signups.id, row.id), isNull(signups.usedAt)));
   if (Number(claim?.[0]?.affectedRows ?? claim?.affectedRows ?? 0) !== 1) throw bad();
 
   const email = String(row.email).toLowerCase();
-  const openId = `email:${email}`.slice(0, 64);
+  // Audit 3: a random id — derived from the address (and cut to 64 characters) two long addresses could
+  // collide, and an id that can be re-created later could revive old sessions that named it
+  const openId = `acct:${crypto.randomBytes(24).toString("hex")}`;
   let workspaceId = 0;
   try {
     await createUserSerialised(email, (e) => db.emailHasAccount(e), () => { throw new SignupError("CONFLICT", "This email already has a LevelUp account. Sign in instead."); }, async () => {
@@ -124,12 +147,26 @@ export async function confirmSignup(token: string): Promise<{ user: any; workspa
     throw e;
   }
   const user = await db.getUserByOpenId(openId);
-  if (!user) throw new SignupError("INTERNAL_SERVER_ERROR", "Failed to create the account");
-  await conn.update(workspaces).set({ ownerUserId: user.id, createdBy: user.id }).where(eq(workspaces.id, workspaceId));
-  const { invalidateWorkspace } = await import("./workspace");
-  invalidateWorkspace(workspaceId);
-  const { startTrial } = await import("./billing");
-  await startTrial(workspaceId);
+  try {
+    if (!user) throw new SignupError("INTERNAL_SERVER_ERROR", "Failed to create the account");
+    await conn.update(workspaces).set({ ownerUserId: user.id, createdBy: user.id }).where(eq(workspaces.id, workspaceId));
+    const { invalidateWorkspace } = await import("./workspace");
+    invalidateWorkspace(workspaceId);
+    // Audit 3: billing is part of creating the workspace — if it fails, nothing is left behind
+    // (it used to leave a workspace with no billing row: never billed). One free trial per person.
+    const { startTrial, claimTrial } = await import("./billing");
+    const trial = await claimTrial(email, Number(user.id), workspaceId);
+    await startTrial(workspaceId, Date.now(), { trial });
+  } catch (e: any) {
+    try { if (user) await conn.delete(users).where(eq(users.id, user.id)); } catch { /* */ }
+    try { await conn.delete(workspaces).where(eq(workspaces.id, workspaceId)); } catch { /* */ }
+    try { await conn.delete(workspaceBilling).where(eq(workspaceBilling.workspaceId, workspaceId)); } catch { /* */ }
+    try { await conn.execute(sql`DELETE FROM trial_claims WHERE workspaceId = ${workspaceId}`); } catch { /* */ }
+    try { await conn.update(signups).set({ usedAt: null }).where(eq(signups.id, row.id)); } catch { /* */ }
+    try { (await import("./workspace")).invalidateWorkspace(workspaceId); } catch { /* */ }
+    if (e instanceof SignupError) throw e;
+    throw new SignupError("SERVICE_UNAVAILABLE", "Your workspace couldn't be set up just now. Please open the link again in a few minutes.");
+  }
   // the password hash has done its job; do not keep a copy in the request row
   try { await conn.update(signups).set({ passwordHash: "" }).where(eq(signups.id, row.id)); } catch { /* */ }
   return { user, workspaceId };
@@ -140,7 +177,7 @@ export async function confirmSignup(token: string): Promise<{ user: any; workspa
  * member row (the caller switches the session to it).
  */
 export async function createOwnWorkspace(me: any, workspaceName: string): Promise<{ user: any; workspaceId: number }> {
-  if (!(await signupOpen())) throw new SignupError("FORBIDDEN", "Creating workspaces is not open on this LevelUp. Ask the platform operator.");
+  await assertReady("Creating workspaces is not open on this LevelUp. Ask the platform operator.");
   const conn: any = await getDb();
   if (!conn) throw new SignupError("INTERNAL_SERVER_ERROR", "Database unavailable");
   const name = String(workspaceName || "").trim().slice(0, 120);
@@ -162,13 +199,29 @@ export async function createOwnWorkspace(me: any, workspaceName: string): Promis
   const { createWorkspace } = await import("./workspaceAdmin");
   const ws = await createWorkspace({ name, createdBy: accountId });
   const openId = `m:${crypto.randomBytes(24).toString("hex")}`;
-  await conn.insert(users).values({ openId, name: login.name, email: login.email, loginMethod: "member", role: "admin", workspaceId: ws.id, accountId, lastSignedIn: new Date() });
-  const [created] = await conn.select().from(users).where(eq(users.openId, openId)).limit(1);
-  await conn.update(workspaces).set({ ownerUserId: created.id }).where(eq(workspaces.id, ws.id));
-  const { invalidateWorkspace } = await import("./workspace");
-  invalidateWorkspace(ws.id);
-  const { startTrial } = await import("./billing");
-  await startTrial(ws.id);
+  let created: any = null;
+  try {
+    await conn.insert(users).values({ openId, name: login.name, email: login.email, loginMethod: "member", role: "admin", workspaceId: ws.id, accountId, lastSignedIn: new Date() });
+    [created] = await conn.select().from(users).where(eq(users.openId, openId)).limit(1);
+    if (!created) throw new Error("member row not created");
+    await conn.update(workspaces).set({ ownerUserId: created.id }).where(eq(workspaces.id, ws.id));
+    const { invalidateWorkspace } = await import("./workspace");
+    invalidateWorkspace(ws.id);
+    // Audit 3: one free trial per person, ever — closing a workspace and making another no longer
+    // starts a fresh one (the claim is keyed by the login AND its normalised address).
+    const { startTrial, claimTrial } = await import("./billing");
+    const trial = await claimTrial(login.email, accountId, ws.id);
+    await startTrial(ws.id, Date.now(), { trial });
+  } catch (e: any) {
+    // billing is part of creating it: nothing half-made is left behind
+    try { if (created) await conn.delete(users).where(eq(users.id, created.id)); else await conn.delete(users).where(eq(users.openId, openId)); } catch { /* */ }
+    try { await conn.delete(workspaces).where(eq(workspaces.id, ws.id)); } catch { /* */ }
+    try { await conn.delete(workspaceBilling).where(eq(workspaceBilling.workspaceId, ws.id)); } catch { /* */ }
+    try { await conn.execute(sql`DELETE FROM trial_claims WHERE workspaceId = ${ws.id}`); } catch { /* */ }
+    try { (await import("./workspace")).invalidateWorkspace(ws.id); } catch { /* */ }
+    if (e instanceof SignupError) throw e;
+    throw new SignupError("SERVICE_UNAVAILABLE", "The workspace couldn't be set up just now. Please try again in a few minutes.");
+  }
   return { user: created, workspaceId: ws.id };
 }
 

@@ -2085,12 +2085,11 @@ export const oauthSyncRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       // the workspace key costs the workspace: count it against the AI quota (-255)
-      if (!input.apiKey) await (await import('../_core/quota')).spendQuota(ctx.user, 'ai');
       const { callAIProvider } = await import('../_core/aiProviders');
       const userContent = `Email draft to follow up on.\n\nSubject: ${input.subject || '(no subject)'}\n\nBody:\n${input.body || '(empty)'}`;
       const { text } = await callAIProvider({
         // No key from the browser since -214 → workspace provider + key.
-        ...(await resolveRequestAI(input)),
+        ...(await resolveRequestAI(input, ctx.user)),
         systemPrompt: 'You are a helpful email writing assistant. Suggest exactly 3 concise follow-up messages (1-3 sentences each) the sender could use if they don\'t receive a reply within a few days. Return ONLY a JSON object of the form {"suggestions": ["...", "...", "..."]} — no commentary.',
         userContent,
         jsonMode: true,

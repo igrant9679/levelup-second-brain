@@ -187,9 +187,10 @@ describe("registration is invite-only", () => {
   it("refuses sign-up once accounts exist", async () => {
     await expect(emailAuthRouter.createCaller(ctx(null)).register({ name: "Stranger", email: "s@x.com", password: "longenough1" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
-  it("allows the very first account, or when ALLOW_SIGNUP=true", async () => {
+  it("ALLOW_SIGNUP=true no longer opens it (Audit 3) — only the first account of a fresh install", async () => {
     process.env.ALLOW_SIGNUP = "true";
-    await expect(emailAuthRouter.createCaller(ctx(null)).register({ name: "Stranger", email: "s@x.com", password: "longenough1" })).rejects.not.toMatchObject({ code: "FORBIDDEN" });
+    await expect(emailAuthRouter.createCaller(ctx(null)).register({ name: "Stranger", email: "s@x.com", password: "longenough1" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    delete process.env.ALLOW_SIGNUP;
   });
 });
 

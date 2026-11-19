@@ -64,7 +64,11 @@ export function parseInbound(body: any): { from: string; subject: string; text: 
 
 export function registerInboundMailRoute(app: Express): void {
   app.post("/api/inbound/mail", async (req: Request, res: Response) => {
-    if (!secretOk(req.query.key)) { res.status(404).type("text/plain").send("Not found"); return; }
+    // Audit 3: the secret may come in a header or as the basic-auth password (the provider's
+    // "https://user:secret@…" URL) instead of the query string, which ends up in proxy logs.
+    const basic = (() => { const h = String(req.headers.authorization || ""); if (!/^basic /i.test(h)) return ""; try { const d = Buffer.from(h.slice(6).trim(), "base64").toString("utf8"); return d.includes(":") ? d.slice(d.indexOf(":") + 1) : ""; } catch { return ""; } })();
+    const given = (req.headers["x-levelup-inbound-key"] as string) || basic || req.query.key;
+    if (!secretOk(given)) { res.status(404).type("text/plain").send("Not found"); return; }
     try {
       const m = parseInbound(req.body);
       if (!m) { res.status(200).json({ ok: true, handled: false, skip: "unreadable payload" }); return; }

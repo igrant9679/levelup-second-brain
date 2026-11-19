@@ -339,7 +339,7 @@ class SDKServer {
     // Workspace must exist and be active. (Older unit tests build users with
     // no workspaceId at all: that is the "no workspace model" mode.)
     let wsStatus = "active";
-    if ((user as any).workspaceId !== undefined || !process.env.VITEST) {
+    if ((user as any).workspaceId !== undefined || !process.env.VITEST || process.env.NODE_ENV === "production") {
       const { getWorkspace } = await import("./workspace");
       const ws = await getWorkspace((user as any).workspaceId);
       wsStatus = !ws ? "missing" : (ws.deletedAt ? "deleted" : ws.status);

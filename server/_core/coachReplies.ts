@@ -155,6 +155,8 @@ export async function handleInboundMail(m: { from: string; subject?: string; tex
   }
   const vetted = await vetCoachReply(db, { ref: ref!, from, msgId: String(m.messageId || ""), subject }, skip);
   if (!vetted) return { ok: true, handled: false, skip: why || "already processed" };
+  // Audit 3: a suspended, closed or billing-locked workspace gets no AI answers to emailed replies
+  { const { isActiveMember } = await import("./workspace"); if (!(await isActiveMember(vetted.userId))) return { ok: true, handled: false, skip: "workspace not active" }; }
   const r = await processCoachReply({ userId: vetted.userId, parentId: vetted.parentId, userText: text, dedupeKey: vetted.dedupeKey, from, subject, messageId: m.messageId || undefined, references: m.references || undefined });
   return { ok: true, handled: !!(r.id && !r.duplicate) };
 }

@@ -95,6 +95,16 @@ export function registerFileRoutes(app: Express, deps?: Partial<Deps>): void {
       if (ref && ref.kind === "p") {
         const row = await lookup(ref.id);
         if (!row || !row.isPublic) { res.status(404).type("text/plain").send("File not found."); return; }
+        // Audit 3: a locked (unpaid), suspended or closed workspace's public links stop serving from
+        // LevelUp storage — a lock is never purged, so they used to be free file hosting for ever.
+        if (String(row.store || "platform") === "platform" && !deps?.lookup) {
+          const wsId = Number(row.workspaceId);
+          const { getWorkspace } = await import("./workspace");
+          const ws: any = await getWorkspace(wsId).catch(() => null);
+          const closed = !ws || String(ws.status || "active") !== "active" || !!ws.deletedAt;
+          const locked = closed || (await (await import("./billing")).isBillingLocked(wsId));
+          if (locked) { res.status(404).type("text/plain").send("File not found."); return; }
+        }
         const pf = await openRecord(row);
         res.setHeader("X-Content-Type-Options", "nosniff");
         res.setHeader("Cache-Control", "public, max-age=3600");
@@ -123,6 +133,7 @@ export function registerFileRoutes(app: Express, deps?: Partial<Deps>): void {
       } else {
         // An old, unrecorded link: the original workspace's only.
         if (readerWs !== null && readerWs !== 1) { res.status(404).type("text/plain").send("File not found."); return; }
+        if (!deps?.open && !(await (await import("./workspaceFiles")).legacyRefAllowed(ref.id))) { res.status(404).type("text/plain").send("File not found."); return; }
         const open = deps?.open || (async (k: "d" | "s" | "f", id: string) => (await import("../storage")).storageOpen(k, id));
         f = await open(ref.kind as "d" | "s" | "f", ref.id);
       }

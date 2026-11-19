@@ -38,7 +38,7 @@ export function parseForm(body) {
 }
 
 export async function startFakeStripe({ prices = {}, webhookUrl = '', webhookSecret = 'whsec_fake', secretKey = 'sk_test_fake', port = 0 } = {}) {
-  const state = { customers: new Map(), sessions: new Map(), subscriptions: new Map(), invoices: [], calls: [], deliveries: [], webhookUrl, webhookSecret };
+  const state = { customers: new Map(), sessions: new Map(), subscriptions: new Map(), invoices: [], calls: [], deliveries: [], portalConfigs: new Map(), cardFails: false, webhookUrl, webhookSecret };
   const now = () => Math.floor(Date.now() / 1000);
   let base = '';
 
@@ -67,7 +67,7 @@ export async function startFakeStripe({ prices = {}, webhookUrl = '', webhookSec
   // What a change of price / quantity costs at unix time `at`, the way Stripe prorates:
   // unused time on the old price is credited; monthly ↔ yearly starts a new period and is
   // invoiced at once, otherwise the remaining time on the new price waits for the next invoice.
-  function planChange(s, price, qty, at) {
+  function planChange(s, price, qty, at, mode) {
     const oldPr = prices[s.price] || {}, newPr = prices[price] || {};
     const oldAmt = Number(oldPr.unit_amount || 0) * (Number(s.quantity) || 1), newAmt = Number(newPr.unit_amount || 0) * qty;
     const currency = newPr.currency || oldPr.currency || 'usd';
@@ -80,6 +80,8 @@ export async function startFakeStripe({ prices = {}, webhookUrl = '', webhookSec
       return { now: true, lines: [...(s.pending || []), unused, recurring], prorations: [unused], date: at, currency };
     }
     const remaining = { description: `Remaining time on ${qty} × ${price}`, amount: Math.round(newAmt * frac), proration: true };
+    // always_invoice (what LevelUp sends since Audit 3): the difference is invoiced at once
+    if (mode === 'always_invoice') return { now: true, samePeriod: true, lines: [...(s.pending || []), unused, remaining], prorations: [unused, remaining], date: at, currency };
     return { now: false, lines: [...(s.pending || []), unused, remaining, recurring], prorations: [unused, remaining], date: s.current_period_end, currency };
   }
 
@@ -101,6 +103,7 @@ export async function startFakeStripe({ prices = {}, webhookUrl = '', webhookSec
     const cs = state.sessions.get(sessionId);
     if (!cs) throw new Error('no such checkout session');
     if (cs.subscription) return state.subscriptions.get(cs.subscription);
+    if (cs.status === 'expired') throw new Error('checkout session expired');
     const li = (cs.params.line_items || [])[0] || {};
     const trialEnd = Number(cs.params.subscription_data?.trial_end) || null;
     const sub = {
@@ -205,7 +208,19 @@ export async function startFakeStripe({ prices = {}, webhookUrl = '', webhookSec
         state.sessions.set(cs.id, cs);
         return send(200, { id: cs.id, object: 'checkout.session', url: `${base}/pay/${cs.id}` });
       }
+      if ((m = p.match(/^\/v1\/checkout\/sessions\/(cs_\w+)\/expire$/)) && req.method === 'POST') {
+        const cs = state.sessions.get(m[1]); if (!cs) return send(404, { error: { message: 'No such checkout session', code: 'resource_missing' } });
+        if (cs.status !== 'open' || cs.subscription) return send(400, { error: { message: 'Only open sessions can be expired' } });
+        cs.status = 'expired';
+        return send(200, { id: cs.id, object: 'checkout.session', status: 'expired' });
+      }
+      if (p === '/v1/billing_portal/configurations' && req.method === 'POST') {
+        const id = rid('bpc'); state.portalConfigs.set(id, params);
+        return send(200, { id, object: 'billing_portal.configuration', features: params.features || {} });
+      }
       if (p === '/v1/billing_portal/sessions' && req.method === 'POST') {
+        if (params.configuration && !state.portalConfigs.has(params.configuration)) return send(400, { error: { message: `No such configuration: '${params.configuration}'`, code: 'resource_missing' } });
+        state.lastPortal = params;
         if (!state.customers.has(params.customer)) return send(400, { error: { message: 'No such customer', code: 'resource_missing' } });
         return send(200, { id: rid('bps'), object: 'billing_portal.session', url: `${base}/portal/${params.customer}?return=${encodeURIComponent(params.return_url || '/')}` });
       }
@@ -222,10 +237,19 @@ export async function startFakeStripe({ prices = {}, webhookUrl = '', webhookSec
             if (it.id !== s.itemId) return send(400, { error: { message: `No such subscription item: '${it.id}'`, code: 'resource_missing' } });
             if (it.price != null && !prices[it.price]) return send(400, { error: { message: `No such price: '${it.price}'`, code: 'resource_missing' } });
             const at = Number(params.proration_date) || now();
-            const pc = planChange(s, it.price != null ? it.price : s.price, it.quantity != null ? (Number(it.quantity) || 1) : s.quantity, at);
+            const pc = planChange(s, it.price != null ? it.price : s.price, it.quantity != null ? (Number(it.quantity) || 1) : s.quantity, at, params.proration_behavior);
+            // pending_if_incomplete + a card that fails: nothing changes, the update waits (Stripe's pending_update)
+            if (params.payment_behavior === 'pending_if_incomplete' && s.status === 'active' && pc.now && state.cardFails) {
+              addInvoice(s, { total: pc.lines.reduce((t, l) => t + l.amount, 0), status: 'open', description: 'Change of plan (payment failed)' });
+              return send(200, { ...subJson(s), pending_update: { subscription_items: [{ price: it.price, quantity: it.quantity }], expires_at: now() + 23 * 3600 } });
+            }
             if (it.price != null) s.price = it.price;
             if (it.quantity != null) s.quantity = Number(it.quantity) || 1;
-            if (params.proration_behavior === 'create_prorations' && s.status === 'active') {
+            if (params.proration_behavior === 'always_invoice' && s.status === 'active' && pc.samePeriod) {
+              const total = pc.lines.reduce((t, l) => t + l.amount, 0);
+              s.pending = [];
+              addInvoice(s, { total, description: `Change to ${s.quantity} × ${s.price} (difference for the rest of the period)` });
+            } else if ((params.proration_behavior === 'create_prorations' || params.proration_behavior === 'always_invoice') && s.status === 'active') {
               if (pc.now) {
                 // a new billing period from today, invoiced at once (credit included)
                 s.current_period_start = at;
@@ -253,7 +277,7 @@ export async function startFakeStripe({ prices = {}, webhookUrl = '', webhookSec
         const it = (params.subscription_items || [])[0] || {};
         if (it.id && it.id !== s.itemId) return send(400, { error: { message: `No such subscription item: '${it.id}'`, code: 'resource_missing' } });
         if (it.price != null && !prices[it.price]) return send(400, { error: { message: `No such price: '${it.price}'`, code: 'resource_missing' } });
-        const pc = planChange(s, it.price || s.price, it.quantity != null ? (Number(it.quantity) || 1) : s.quantity, Number(params.subscription_proration_date) || now());
+        const pc = planChange(s, it.price || s.price, it.quantity != null ? (Number(it.quantity) || 1) : s.quantity, Number(params.subscription_proration_date) || now(), params.subscription_proration_behavior);
         const total = pc.lines.reduce((t, l) => t + l.amount, 0);
         return send(200, { object: 'invoice', customer: s.customer, subscription: s.id, currency: pc.currency, total, subtotal: total, amount_due: Math.max(0, total),
           next_payment_attempt: pc.date, created: pc.date, period_end: pc.date, lines: { object: 'list', data: pc.lines.map((l) => ({ object: 'line_item', ...l })) } });

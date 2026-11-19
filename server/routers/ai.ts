@@ -148,9 +148,8 @@ export const aiRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       // Calls on the workspace AI key count against the daily AI quota.
-      if (!input.apiKey) await spendQuota(ctx.user, "ai");
       const { systemPrompt, userContent } = input;
-      const { provider, apiKey } = await resolveRequestAI(input);
+      const { provider, apiKey } = await resolveRequestAI(input, ctx.user);
 
       let result: string;
 
@@ -211,7 +210,6 @@ export const aiRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       // Calls on the workspace AI key count against the daily AI quota.
-      if (!input.apiKey) await spendQuota(ctx.user, "ai");
       const total =
         input.system.length +
         input.messages.reduce((n, m) => n + m.content.length, 0);
@@ -219,7 +217,7 @@ export const aiRouter = router({
         throw new Error(`agent payload too large (${total} chars; max 60000)`);
       }
       const { callAIProviderChat } = await import("../_core/aiProviders");
-      const { provider, apiKey } = await resolveRequestAI(input);
+      const { provider, apiKey } = await resolveRequestAI(input, ctx.user);
       try {
         const { text, providerUsed } = await callAIProviderChat({
           provider,

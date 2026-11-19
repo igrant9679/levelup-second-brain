@@ -181,22 +181,15 @@ describe("serialised account creation (F70)", () => {
     async release(name: string) { events.push(`release ${name}`); },
     async close() { events.push("close"); },
   });
-  it("register takes lu_user_create and re-checks the email (case-insensitive) inside it", async () => {
+  // Audit 3: `register` makes only the very first account of a fresh install — ALLOW_SIGNUP no
+  // longer opens it (no email proof, no rate limit, and upsertUser could overwrite a row). Public
+  // sign-up is billing.signupStart / signupConfirm, serialised the same way (billing.flow test).
+  it("register is refused outside a fresh install, even with ALLOW_SIGNUP=true; nothing is created", async () => {
     const events: string[] = [];
     _setLockProviderForTests(conn(true, events));
-    H.emailTaken = true; // another sign-up committed while this one hashed its password
     const c = emailAuthRouter.createCaller({ ...ctxFor().ctx, user: null });
-    await expect(c.register({ name: "Bo", email: "Bo@X.com", password: "password1" })).rejects.toMatchObject({ code: "CONFLICT" });
-    expect(events).toEqual(["lock lu_user_create 5", "release lu_user_create", "close"]);
-    expect(H.inserted.length).toBe(0);
-    H.emailTaken = false;
-    await c.register({ name: "Bo", email: "bo@x.com", password: "password1" });
-    expect(H.inserted.length).toBe(1);
-  });
-  it("a busy lock is reported, nothing is created", async () => {
-    _setLockProviderForTests(conn(false, []));
-    const c = emailAuthRouter.createCaller({ ...ctxFor().ctx, user: null });
-    await expect(c.register({ name: "Cy", email: "cy@x.com", password: "password1" })).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
+    await expect(c.register({ name: "Bo", email: "Bo@X.com", password: "password1" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(events).toEqual([]);
     expect(H.inserted.length).toBe(0);
   });
 });

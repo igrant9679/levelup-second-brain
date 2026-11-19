@@ -76,7 +76,7 @@ async function sendInviteEmail(opts: {
   inviteUrl: string;
   expiresAt: Date;
   isResend?: boolean;
-}): Promise<void> {
+}): Promise<boolean> {
   const wsName = opts.workspaceName ? `${opts.workspaceName} on LevelUp` : 'LevelUp';
   const subject = opts.isResend
     ? `Reminder: You've been invited to ${wsName}`
@@ -96,6 +96,27 @@ async function sendInviteEmail(opts: {
     // Non-fatal: log but don't throw — the invite was still created
     console.warn(`[teamInvites] Email not sent to ${opts.to} (no SMTP sender configured or send failed)`);
   }
+  return !!sent;
+}
+
+/**
+ * Audit 3: what the inviter gets back. The link itself goes ONLY to the invited address (so
+ * accepting proves that mailbox) — except for the platform operator, who may hand it over by
+ * other means. The stored token is a hash and is never returned.
+ */
+async function inviteResult(ctx: any, row: any, inviteUrl: string, emailed: boolean) {
+  const { token: _t, ...rest } = row || {};
+  const { isOperator } = await import('../_core/workspace');
+  const op = await isOperator(ctx.user as any).catch(() => false);
+  return { ...rest, emailed, ...(op ? { inviteUrl } : {}) };
+}
+/** Invitations are email the platform sends: limited per workspace and counted as email (Audit 3). */
+async function inviteBudget(ctx: any, wsId: number | null, key: string): Promise<void> {
+  const w = wsId ?? 0;
+  if (!(await rlHit(`invite:ws:${w}`, 30, 24 * 3_600_000)) || !(await rlHit(key, 5, 24 * 3_600_000))) {
+    throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: 'Too many invitations sent today. Please try again tomorrow.' });
+  }
+  await (await import('../_core/quota')).spendQuota(ctx.user, 'email');
 }
 
 /** The platform operator's invitation to the future OWNER of a new workspace. */
@@ -138,6 +159,7 @@ export const teamInvitesRouter = router({
         const seats = await seatCheck(wsId, { countInvites: true });
         if (!seats.ok) throw new TRPCError({ code: 'FORBIDDEN', message: seatMessage(seats) });
       }
+      await inviteBudget(ctx, wsId, `invite:to:${wsId ?? 0}:${createHash('sha256').update(input.email.toLowerCase().trim()).digest('hex').slice(0, 32)}`);
       const token = randomBytes(32).toString('hex');
       const expiresAt = new Date(Date.now() + input.expiryDays * 24 * 60 * 60 * 1000);
       const invite = await db.createTeamInvite({
@@ -154,7 +176,7 @@ export const teamInvitesRouter = router({
       // Send invite email (non-fatal if SMTP not configured). The link always
       // uses the app's own origin, never one supplied by the browser.
       const inviteUrl = `${appOrigin()}/invite/${token}`;
-      await sendInviteEmail({
+      const emailed = await sendInviteEmail({
         workspaceId: wsId, workspaceName: ws?.name ?? null,
         to: input.email,
         inviteeName: input.name ?? null,
@@ -164,14 +186,15 @@ export const teamInvitesRouter = router({
         expiresAt,
       });
 
-      return { ...invite, inviteUrl };
+      return await inviteResult(ctx, invite, inviteUrl, emailed);
     }),
 
   // ── Admin: list all invites ───────────────────────────────────────────────
   list: adminProcedure
     .query(async ({ ctx }) => {
       await assertOwner(ctx.user);
-      return await db.getAllTeamInvites(await wsIdOf(ctx.user as any));
+      // the stored token is a hash: never sent to the browser (Audit 3)
+      return (await db.getAllTeamInvites(await wsIdOf(ctx.user as any))).map((r: any) => { const { token: _t, ...rest } = r || {}; return rest; });
     }),
 
   // ── Admin: delete invite ──────────────────────────────────────────────────
@@ -200,6 +223,13 @@ export const teamInvitesRouter = router({
       const invite = allInvites.find(i => i.id === input.id);
       if (!invite) throw new TRPCError({ code: 'NOT_FOUND', message: 'Invite not found' });
       if (invite.accepted) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Cannot resend an already accepted invite' });
+      await inviteBudget(ctx, wsId, `invite:resend:${invite.id}`);
+      // the plan's head count still applies (Audit 3: resend skipped it)
+      if (wsId) {
+        const { seatCheck, seatMessage } = await import('../_core/billing');
+        const seats = await seatCheck(wsId, { countInvites: true, adding: 0 });
+        if (!seats.ok) throw new TRPCError({ code: 'FORBIDDEN', message: seatMessage(seats) });
+      }
 
       const newToken = randomBytes(32).toString('hex');
       const newExpiresAt = new Date(Date.now() + input.expiryDays * 24 * 60 * 60 * 1000);
@@ -208,7 +238,7 @@ export const teamInvitesRouter = router({
 
       // Re-send invite email with new link (non-fatal)
       const inviteUrl = `${appOrigin()}/invite/${newToken}`;
-      await sendInviteEmail({
+      const emailed = await sendInviteEmail({
         workspaceId: wsId, workspaceName: ws?.name ?? null, asOwner: !!(invite as any).asOwner,
         to: invite.email,
         inviteeName: invite.name ?? null,
@@ -219,7 +249,7 @@ export const teamInvitesRouter = router({
         isResend: true,
       });
 
-      return { ...updated, inviteUrl };
+      return await inviteResult(ctx, updated, inviteUrl, emailed);
     }),
 
   // ── Public: validate token (used on the accept-invite page) ──────────────
@@ -294,6 +324,12 @@ export const teamInvitesRouter = router({
         const seats = await seatCheck(workspaceId);
         if (!seats.ok) throw new TRPCError({ code: 'FORBIDDEN', message: 'This workspace is full on its current plan. Ask whoever invited you to make room, then try the link again.' });
       }
+      const seatsStillFree = async () => {
+        if (legacy) return;
+        const { seatCheck } = await import('../_core/billing');
+        // re-checked inside the account-creation lock: two accepts at once can't both take the last seat (Audit 3)
+        if (!(await seatCheck(workspaceId)).ok) throw new TRPCError({ code: 'FORBIDDEN', message: 'This workspace is full on its current plan. Ask whoever invited you to make room, then try the link again.' });
+      };
 
       const { getDb } = await import('../db');
       const dbConn = await getDb();
@@ -310,6 +346,7 @@ export const teamInvitesRouter = router({
         // inside the lock — two accepts of the same invite, or an accept racing
         // a sign-up, can't create two accounts.
         userId = await createUserSerialised(invite.email, async () => false, () => { throw new Error('unreachable'); }, async () => {
+          await seatsStillFree();
           // tenancy: login identity is platform-wide — the LOGIN row for this address
           const [login] = await dbConn.select().from(users).where(and(eq(users.email, invite.email), isNull(users.accountId))).limit(1);
           const loginCI: any = login || (await db.emailHasAccount(invite.email) ? await db.getUserByEmail(invite.email) : null);
@@ -325,6 +362,12 @@ export const teamInvitesRouter = router({
             const session: any = ctx?.user || (ctx as any)?.inactiveUser || null;
             const sessionIsThem = !!session && (Number(session.accountId) || Number(session.id)) === Number(acct.id);
             if (!sessionIsThem) {
+              // Audit 3: guesses here count against the same sign-in limits as the sign-in box
+              const em = String(acct.email || invite.email).toLowerCase().trim(), ip = clientIp(ctx?.req), WIN = 15 * 60_000;
+              const { loginKeyFor } = await import('./emailAuth');
+              if (!(await rlHit(loginKeyFor(em, ip), 8, WIN)) || !(await rlHit('login:e:' + em, 100, WIN))) {
+                throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: 'Too many attempts. Wait 15 minutes and try again, or reset your password.' });
+              }
               const ok = !!acct.passwordHash && await bcrypt.compare(input.password, acct.passwordHash);
               if (!ok) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'This email already has a LevelUp account. Enter that account\'s password to add this workspace to it (or use Forgot password first).' });
             }
@@ -348,8 +391,8 @@ export const teamInvitesRouter = router({
           }
           // ── a new person: a login in the inviting workspace ──
           const passwordHash = await bcrypt.hash(input.password, 12);
-          // openId is varchar(64) — token is 64 hex chars, so truncate to fit
-          const openId = `inv:${invite.token.slice(0, 60)}`;
+          // a random id (Audit 3: it was derived from the token)
+          const openId = `inv:${randomBytes(24).toString('hex')}`;
           await dbConn.insert(users).values({
             openId,
             name: input.name,

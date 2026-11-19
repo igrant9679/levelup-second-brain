@@ -23,8 +23,12 @@ export interface EmailTemplateOptions {
   };
 }
 
-export function emailTemplate({ subject, body, cta }: EmailTemplateOptions): string {
+export function emailTemplate({ subject: rawSubject, body, cta }: EmailTemplateOptions): string {
   const appName = process.env.VITE_APP_TITLE ?? "LevelUp";
+  // Audit 3: the subject is plain text and often carries a workspace / person / task name another
+  // customer typed — escape it before it goes into the <title> and the hidden preview line, where
+  // markup used to become part of the email body (a visible link, say).
+  const subject = String(rawSubject ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" } as any)[c]);
   const appUrl = process.env.VITE_OAUTH_PORTAL_URL ?? "#";
   const logoUrl = process.env.VITE_APP_LOGO ?? "";
 

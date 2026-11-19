@@ -23,6 +23,8 @@ export function registerStorageProxy(app: Express) {
         const { wsIdOf } = await import("./workspace");
         const w = await wsIdOf(user);
         if (w !== null && w !== 1) { res.status(404).send("File not found."); return; }
+        // Audit 3: not another workspace's object in the shared store
+        if (w !== null && !(await (await import("./workspaceFiles")).legacyRefAllowed(key))) { res.status(404).send("File not found."); return; }
       } catch {
         res.status(401).send("Sign in to open this file.");
         return;

@@ -431,13 +431,25 @@ describe("two workspaces stay apart (real MySQL)", () => {
     const mine = await bo.teamInvites.list();
     expect(mine.map((i: any) => i.email)).toEqual(["invitee-beta@invites.test"]);
     const [aInv] = await q("SELECT id, token FROM team_invites WHERE workspaceId = 1 LIMIT 1");
+    // Audit 3: invitation links are stored hashed and never listed
+    expect(String(aInv.token)).toMatch(/^h1:[a-f0-9]{64}$/);
+    expect(ser(mine)).not.toContain("h1:");
     await expect(bo.teamInvites.delete({ id: Number(aInv.id) })).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(bo.teamInvites.resend({ id: Number(aInv.id), expiryDays: 7 })).rejects.toMatchObject({ code: "NOT_FOUND" });
-    // a new person accepts A's invite → a member of A, not of B
+    // B's owner is not the platform operator: no link comes back, it goes to the invited mailbox only
+    const bNew: any = await bo.teamInvites.resend({ id: Number(mine[0].id), expiryDays: 7 });
+    expect(bNew.inviteUrl).toBeUndefined();
+    // the operator (A's owner) may hand a link over: a fresh one for A's invite
+    const reA: any = await (await callerFor(P.aOwner)).caller.teamInvites.resend({ id: Number(aInv.id), expiryDays: 7 });
+    const aTok = String(reA.inviteUrl).split("/invite/")[1];
+    // the stored hash itself is not a working link
+    const [aRow] = await q("SELECT token FROM team_invites WHERE id = ?", [Number(aInv.id)]);
     const anon = (await callerFor(null)).caller;
-    const v = await anon.teamInvites.validate({ token: String(aInv.token) });
+    await expect(anon.teamInvites.validate({ token: String(aRow.token) })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    // a new person accepts A's invite → a member of A, not of B
+    const v = await anon.teamInvites.validate({ token: aTok });
     expect(v).toMatchObject({ workspaceName: "LevelUp", hasAccount: false });
-    await anon.teamInvites.accept({ token: String(aInv.token), name: "Newcomer", password: "a-long-password-1" });
+    await anon.teamInvites.accept({ token: aTok, name: "Newcomer", password: "a-long-password-1" });
     const [nu] = await q("SELECT workspaceId, role, accountId FROM users WHERE email = 'invitee-alpha@invites.test'");
     expect(nu).toMatchObject({ workspaceId: 1, role: "user", accountId: null });
   });

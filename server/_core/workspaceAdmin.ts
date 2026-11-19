@@ -34,6 +34,8 @@ async function workspaceTables(db: any): Promise<Array<{ name: string; by: "work
   const out: Array<{ name: string; by: "workspaceId" | "userId" | "users" | "workspaces" }> = [];
   for (const name of names) {
     if (name === "__drizzle_migrations") continue;
+    // the platform's memory of who already had a free trial outlives the workspace (Audit 3)
+    if (name === "trial_claims") continue;
     if (name === "users") { out.push({ name, by: "users" }); continue; }
     if (name === "workspaces") { out.push({ name, by: "workspaces" }); continue; }
     const cols = rowsOf(await db.execute(sql.raw("SHOW COLUMNS FROM `" + name + "`"))).map((c) => String(c.Field));
@@ -71,6 +73,9 @@ export async function dumpWorkspace(wsId: number): Promise<WorkspaceDump> {
     if (t.name === "users") rows = rows.map((r) => { const { passwordHash: _p, tokenVersion: _t, platformRole: _r, ...rest } = r; return rest; });
     if (t.name === "workspaces") rows = rows.map((r) => ({ ...r, storage: r.storage ? "[redacted]" : null }));
     if (t.name === "workspace_settings") rows = rows.map((r) => (/^aiKey_/.test(String(r.key)) ? { ...r, value: "[redacted]" } : r));
+    // Audit 3: a push subscription's address and keys let whoever holds them take over that device's
+    // notifications — not in the owner's export (the encrypted nightly backup keeps them for a restore)
+    if (t.name === "push_subscriptions") rows = rows.map((r) => ({ ...r, endpoint: "[redacted]", p256dh: "[redacted]", auth: "[redacted]" }));
     if (rows.length) tables[t.name] = { count: rows.length, rows };
   }
   return {
@@ -92,12 +97,25 @@ export async function purgeWorkspace(wsId: number): Promise<{ tables: number; ro
   if (!Number.isInteger(n) || n <= 0) throw new Error("No workspace");
   invalidateWorkspace(n);
   const members = await wsMemberIds(n);
+  // Audit 3: members removed earlier — their rows are this workspace's too. Only ids that are no
+  // longer anyone's member row elsewhere (deleted, or a login detached to workspace 0) are added.
+  const former: number[] = [];
+  try {
+    const { getWorkspaceSetting } = await import("./workspace");
+    const list = JSON.parse(String((await getWorkspaceSetting(n, "formerMembers")) || "[]"));
+    for (const id of Array.isArray(list) ? list : []) {
+      const x = Number(id);
+      if (!Number.isInteger(x) || x <= 0 || members.includes(x)) continue;
+      const still = rowsOf(await db.execute(sql.raw("SELECT `workspaceId` FROM `users` WHERE `id` = " + x + " LIMIT 1")));
+      if (!still.length || Number(still[0].workspaceId) === 0) former.push(x);
+    }
+  } catch { /* none recorded */ }
   let tablesTouched = 0, rowsGone = 0;
   const count = (r: any) => Number(r?.[0]?.affectedRows ?? r?.affectedRows ?? 0);
   // 1. everything keyed to the workspace or its members (users last, below)
   for (const t of await workspaceTables(db)) {
     if (t.by === "users" || t.by === "workspaces") continue;
-    const where = whereFor(t.by, n, members);
+    const where = whereFor(t.by, n, t.by === "userId" ? [...members, ...former] : members);
     if (!where) continue;
     const c = count(await db.execute(sql.raw("DELETE FROM `" + t.name + "` WHERE " + where)));
     if (c) { tablesTouched++; rowsGone += c; }
@@ -124,6 +142,12 @@ export async function purgeDeletedWorkspaces(now = new Date()): Promise<number> 
   let done = 0;
   for (const w of due) {
     if (Number(w.id) === 1) continue; // the original workspace is never purged by a timer
+    // Audit 3: never purge a workspace whose subscription could not be stopped — its billing row is
+    // the only link between Stripe and the workspace (the daily job retries the cancel; purge waits).
+    try {
+      const { cancelSubscriptionNow } = await import("./billing");
+      if (!(await cancelSubscriptionNow(Number(w.id)))) { console.error(`[workspace] not purging ${w.id}: its subscription is still live`); continue; }
+    } catch (e) { console.error(`[workspace] not purging ${w.id}:`, e); continue; }
     try {
       try { const { purgeWorkspaceFiles } = await import("./workspaceFiles"); await purgeWorkspaceFiles(Number(w.id)); } catch (e) { console.error(`[workspace] file purge failed for ${w.id}:`, e); }
       await purgeWorkspace(Number(w.id)); done++;

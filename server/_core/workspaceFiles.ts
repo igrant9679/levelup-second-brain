@@ -278,6 +278,24 @@ export async function fileByPublicId(publicId: string): Promise<any | null> {
   const [row]: any[] = await db.select().from(files).where(eq(files.publicId, publicId)).limit(1);
   return row || null;
 }
+/**
+ * Audit 3: may an OLD, unrecorded link (/api/files/d|s|f/…, /manus-storage/…) — which only the
+ * original workspace's members may open — name this stored object? Not when it is another
+ * workspace's: an object under a "ws<n>/" prefix for n ≠ 1, or one a files row records for
+ * another workspace (every workspace's LevelUp-storage files share one Drive / bucket).
+ */
+export async function legacyRefAllowed(ref: string): Promise<boolean> {
+  const r = String(ref || "");
+  const m = r.match(/(?:^|\/)ws(\d+)\//);
+  if (m && Number(m[1]) !== 1) return false;
+  try {
+    const db = await getDb();
+    if (!db) return true;
+    // tenancy: which workspace a stored object belongs to (ids only)
+    const rows: any[] = await db.select({ w: files.workspaceId }).from(files).where(eq(files.ref, r)).limit(5);
+    return rows.every((x) => Number(x.w) === 1);
+  } catch { return true; }
+}
 export async function openFile(row: { workspaceId: number; store: string; backend: string; ref: string }): Promise<StoredFile> {
   if (row.store === "platform") {
     const { storageOpen } = await import("../storage");
@@ -373,6 +391,13 @@ export async function moveFiles(wsId: number, by?: number | null): Promise<{ sta
   const total = await filesElsewhere(wsId);
   if (!total) return { started: false, total: 0 };
   const state = await readStorage(wsId);
+  // Audit 3: moving INTO LevelUp storage counts against the plan's storage allowance, like an upload
+  // (own S3 / Drive is unlimited by design, so upload there then "move" used to get round the limit).
+  if (state.current === "platform") {
+    // tenancy: one workspace's own files (sizes only)
+    const [r] = await db.select({ n: sql<number>`coalesce(sum(${files.size}), 0)` }).from(files).where(and(eq(files.workspaceId, wsId), sql`${files.store} <> 'platform'`));
+    await (await import("./billing")).assertStorageRoom(wsId, Number(r?.n || 0));
+  }
   await writeMove(wsId, { status: "queued", target: state.current, total, moved: 0, failed: 0, cursor: 0, queuedAt: new Date().toISOString(), by: by ?? null });
   kickFileMoves();
   return { started: true, total };
@@ -437,6 +462,11 @@ async function moveOne(db: any, wsId: number, state: StorageState, row: any, io:
     src = { kind: "stream", body, length: Number(resp.headers.get("content-length") || 0) || undefined };
   }
   if (src.kind !== "stream") throw new Error("the stored copy could not be opened");
+  // Audit 3: each file moved into LevelUp storage must still fit the plan (counted as failed if not)
+  if (state.current === "platform") {
+    try { await (await import("./billing")).assertStorageRoom(wsId, Number(row.size) || 0); }
+    catch (e) { try { (src.body as any).destroy?.(); } catch { /* */ } throw e; }
+  }
   let put: { backend: string; ref: string };
   if (io.putStream) {
     // build -285: straight from the old storage into the new one, a piece at a time

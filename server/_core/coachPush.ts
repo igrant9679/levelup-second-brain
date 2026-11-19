@@ -59,7 +59,14 @@ export async function savePushSubscription(userId: number, sub: { endpoint: stri
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
   // An endpoint belongs to one browser profile; if another account used it
-  // before (shared browser), it moves to whoever subscribed last.
+  // before (shared browser), it moves to whoever subscribed last — but only when the
+  // same browser is asking (its keys match). Audit 3: someone who learned another
+  // person's endpoint could otherwise re-point that device's notifications to themselves.
+  // tenancy: who holds this push address (to refuse a takeover); only ids and keys compared, nothing returned
+  const [had]: any[] = await db.select({ userId: pushSubscriptions.userId, p256dh: pushSubscriptions.p256dh, auth: pushSubscriptions.auth }).from(pushSubscriptions).where(eq(pushSubscriptions.endpoint, sub.endpoint)).limit(1);
+  if (had && Number(had.userId) !== Number(userId) && (String(had.p256dh) !== String(sub.p256dh) || String(had.auth) !== String(sub.auth))) {
+    throw new Error("That push address belongs to another browser");
+  }
   await db.insert(pushSubscriptions).values({ userId, endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth, userAgent: (sub.userAgent || "").slice(0, 255) })
     .onDuplicateKeyUpdate({ set: { userId, p256dh: sub.p256dh, auth: sub.auth, userAgent: (sub.userAgent || "").slice(0, 255), failCount: 0 } });
 }

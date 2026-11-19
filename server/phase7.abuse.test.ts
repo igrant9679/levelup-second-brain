@@ -12,7 +12,9 @@ vi.mock("./db", () => ({
 }));
 vi.mock("./_core/quota", () => ({ spendQuota: vi.fn(async (u: any, b: string) => { state.spent.push([u.id, b]); }), trySpendQuota: vi.fn(async () => true) }));
 vi.mock("./_core/aiProviders", () => ({ callAIProvider: vi.fn(async () => ({ text: '{"tags":["a"]}' })) }));
-vi.mock("./_core/workspaceAI", () => ({ resolveRequestAI: vi.fn(async () => ({ provider: "claude", apiKey: "k" })) }));
+// Audit 3: the allowance is spent INSIDE resolveRequestAI (by the key actually used); here it stands
+// for the platform key, so it spends for the user it is given.
+vi.mock("./_core/workspaceAI", () => ({ resolveRequestAI: vi.fn(async (_i: any, u: any) => { if (u) state.spent.push([u.id, "ai"]); return { provider: "claude", apiKey: "k" }; }) }));
 
 import { isPublicIp, assertPublicUrl, safeFetch } from "./_core/netGuard";
 import { hit, blocked, _resetRateLimits } from "./_core/rateLimit";
@@ -65,7 +67,9 @@ describe("sign-in and reset", () => {
     await expect(c.login({ email: "max@x.com", password: "again" })).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
     // another address from another IP is unaffected
     await expect(caller("198.51.100.7").login({ email: "ada@x.com", password: "x" })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
-  });
+    // Audit 3: the same address from ANOTHER IP is not locked out by someone else's guesses
+    await expect(caller("198.51.100.8").login({ email: "max@x.com", password: "mine" })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  }, 30000);
   it("sends at most 3 reset emails an hour per address, with the same answer", async () => {
     const c = caller("203.0.113.10");
     const answers = [];

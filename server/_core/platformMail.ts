@@ -143,7 +143,9 @@ export function inboundReplyTo(messageId: string | undefined): string | null {
   return `${local}+${m[1]}@${domain}`;
 }
 
-const cleanName = (s: string) => String(s || "LevelUp").replace(/["\r\n<>]/g, "").trim().slice(0, 80) || "LevelUp";
+// Audit 3: a display name is another customer's text — no addresses or links in it (they read as a
+// sender: "support@bank.com via LevelUp"), no quotes or line breaks.
+export const cleanName = (s: string) => String(s || "LevelUp").replace(/https?:\/\/\S*/gi, "").replace(/\S+@\S+/g, "").replace(/["\r\n<>@]/g, "").replace(/\s{2,}/g, " ").trim().slice(0, 80) || "LevelUp";
 
 export async function sendViaPlatform(mail: PlatformMail): Promise<{ ok: boolean; error?: string }> {
   const p = provider();

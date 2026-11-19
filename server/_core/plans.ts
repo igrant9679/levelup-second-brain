@@ -48,6 +48,9 @@ export type BillingConfig = {
   trialDays: number;
   /** The plan whose limits apply during a trial. */
   trialPlan: string;
+  /** Daily AI requests / emails a workspace on a FREE trial may use, whatever the trial plan allows (Audit 3). */
+  trialAi: number;
+  trialEmail: number;
   /** Days a failed payment is tolerated before the workspace is locked. */
   graceDays: number;
   termsUrl: string;
@@ -62,7 +65,7 @@ export const DEFAULT_PLANS: Plan[] = [
   { key: "business", name: "Business", blurb: "Larger organisations: no member limit, higher allowances.", perSeat: true, members: null, ai: 10000, email: 2000, storageMb: 102400, priceMonthly: "", priceYearly: "", public: true, order: 3 },
 ];
 export const DEFAULT_CONFIG: BillingConfig = {
-  plans: DEFAULT_PLANS, signupOpen: false, trialDays: 14, trialPlan: "team", graceDays: 7, termsUrl: "", privacyUrl: "", automaticTax: false,
+  plans: DEFAULT_PLANS, signupOpen: false, trialDays: 14, trialPlan: "team", trialAi: 200, trialEmail: 50, graceDays: 7, termsUrl: "", privacyUrl: "", automaticTax: false,
 };
 
 const KEY = "billingConfig";
@@ -108,6 +111,8 @@ export function normalizeConfig(raw: any): BillingConfig {
     signupOpen: o.signupOpen === true,
     trialDays: num(o.trialDays, DEFAULT_CONFIG.trialDays, 0, 90),
     trialPlan,
+    trialAi: num(o.trialAi, DEFAULT_CONFIG.trialAi, 0, 100_000),
+    trialEmail: num(o.trialEmail, DEFAULT_CONFIG.trialEmail, 0, 100_000),
     graceDays: num(o.graceDays, DEFAULT_CONFIG.graceDays, 0, 60),
     termsUrl: httpUrl(o.termsUrl),
     privacyUrl: httpUrl(o.privacyUrl),
@@ -143,8 +148,11 @@ export async function planByPrice(price: string | null | undefined): Promise<{ p
   return null;
 }
 export function limitsOf(p: Plan): PlanLimits { return { members: p.members, ai: p.ai, email: p.email, storageMb: p.storageMb }; }
-/** Sign-up is open when the operator switched it on (ALLOW_SIGNUP=true forces it, as before). */
+/**
+ * Sign-up is open when the operator switched it on. (Audit 3: ALLOW_SIGNUP no longer forces it —
+ * one variable opened two sign-up paths, one of them unchecked.) Whether it can actually be USED
+ * is `signupReady()` in signup.ts (something to buy + a platform mail service).
+ */
 export async function signupOpen(): Promise<boolean> {
-  if (String(process.env.ALLOW_SIGNUP || "").toLowerCase() === "true") return true;
   return (await billingConfig()).signupOpen;
 }

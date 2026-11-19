@@ -53,6 +53,14 @@ async function startServer() {
   // Everything logged with console.error from here on is also kept in the
   // error log (Settings → Admin → Health & audit).
   installServerErrorCapture();
+  // Audit 3: sessions, reply tokens and sign-in state are signed with JWT_SECRET — never run without
+  // one (an empty secret means anyone can forge a session). A short one is reported, not refused
+  // (refusing would take a running site down on deploy).
+  if (process.env.NODE_ENV === "production") {
+    const js = String(process.env.JWT_SECRET || "");
+    if (!js) { console.error("[startup] JWT_SECRET is not set — refusing to start (sessions could be forged)."); process.exit(1); }
+    if (js.length < 32) console.error("[startup] JWT_SECRET is shorter than 32 characters — set a longer random value on Railway.");
+  }
   const app = express();
   const server = createServer(app);
   // Deploys send SIGTERM: let running cron passes finish (up to 20 s) and
@@ -404,6 +412,9 @@ async function startServer() {
         const b = await import('./billing');
         await b.billingReminders();
         await b.syncAllSeats();
+        // Audit 3: catch up on missed webhooks, and stop subscriptions of closed workspaces whose cancel failed
+        await b.refreshAllSubscriptions();
+        await b.cancelClosedSubscriptions();
         await (await import('./signup')).pruneSignups();
       })).catch(e => console.error('[billing] daily tick failed:', e)); };
       setTimeout(billingTick, 6 * 60 * 1000);

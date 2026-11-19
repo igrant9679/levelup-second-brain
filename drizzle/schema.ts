@@ -175,6 +175,37 @@ export const signups = mysqlTable("signups", {
 }));
 
 /**
+ * One free trial per person, ever (migration 0066, Audit 3). `emailKey` = SHA-256
+ * of the NORMALISED address (lower case, "+tag" dropped, Gmail dots dropped), so
+ * closing a workspace and signing up again, or x+1@ / x+2@, does not start
+ * another trial. Kept when the workspace is purged.
+ */
+export const trialClaims = mysqlTable("trial_claims", {
+  emailKey: varchar("emailKey", { length: 64 }).notNull().primaryKey(),
+  loginId: int("loginId"),
+  workspaceId: int("workspaceId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (t) => ({
+  idxLogin: index("idx_trial_claims_login").on(t.loginId),
+}));
+
+/**
+ * A change of sign-in email waiting for its confirmation link (migration 0066,
+ * Audit 3): the address changes only when the link sent TO the new address is
+ * opened. Token stored as a SHA-256 hash; one hour to live.
+ */
+export const emailChanges = mysqlTable("email_changes", {
+  tokenHash: varchar("tokenHash", { length: 64 }).notNull().primaryKey(),
+  userId: int("userId").notNull(),
+  newEmail: varchar("newEmail", { length: 320 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  usedAt: timestamp("usedAt"),
+}, (t) => ({
+  idxUser: index("idx_email_changes_user").on(t.userId),
+}));
+
+/**
  * Uploaded files (migration 0064): one row per upload — which workspace owns
  * it, who uploaded it, and where the bytes are. The app hands out
  * /api/files/x/<publicId>/<name>; server/_core/fileProxy.ts serves it only to
@@ -699,7 +730,7 @@ export const teamInvites = mysqlTable('team_invites', {
   /** Role to assign on acceptance */
   role: mysqlEnum('role', ['user', 'admin']).default('user').notNull(),
   /** Cryptographically random URL-safe token */
-  token: varchar('token', { length: 64 }).notNull().unique(),
+  token: varchar('token', { length: 80 }).notNull().unique(),
   /** Whether the invite has been accepted */
   accepted: tinyint('accepted').default(0).notNull(),
   /** When the invite was accepted (null if pending) */

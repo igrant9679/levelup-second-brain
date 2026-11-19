@@ -169,7 +169,7 @@ export const workspaceRouter = router({
   }),
 
   /** Check an S3 bucket's settings by writing, reading and deleting a small file. Nothing is saved. */
-  storageTestS3: adminProcedure
+  storageTestS3: ownerProcedure /* Audit 3: owner only — an admin could send every file to storage they control */
     .input(s3Input)
     .mutation(async ({ input }) => {
       const F = await import("../_core/workspaceFiles");
@@ -177,7 +177,7 @@ export const workspaceRouter = router({
     }),
 
   /** Use your own S3 bucket from now on. It is tested first; a bucket that fails the test is not saved. */
-  storageSetS3: adminProcedure
+  storageSetS3: ownerProcedure /* Audit 3: owner only — an admin could send every file to storage they control */
     .input(s3Input)
     .mutation(async ({ ctx, input }) => {
       const w = await wsIdOf(ctx.user as any);
@@ -195,7 +195,7 @@ export const workspaceRouter = router({
     }),
 
   /** Go back to LevelUp's storage, or to a store set up earlier. */
-  storageUse: adminProcedure
+  storageUse: ownerProcedure /* Audit 3: owner only — an admin could send every file to storage they control */
     .input(z.object({ store: z.string().max(40) }))
     .mutation(async ({ ctx, input }) => {
       const w = await wsIdOf(ctx.user as any);
@@ -214,7 +214,7 @@ export const workspaceRouter = router({
     }),
 
   /** Copy the files that are still in an earlier place into the current storage (links don't change). */
-  storageMove: adminProcedure.mutation(async ({ ctx }) => {
+  storageMove: ownerProcedure /* Audit 3: owner only — an admin could send every file to storage they control */.mutation(async ({ ctx }) => {
     const w = await wsIdOf(ctx.user as any);
     if (!w) throw new TRPCError({ code: "BAD_REQUEST", message: "No workspace." });
     const F = await import("../_core/workspaceFiles");
@@ -233,7 +233,7 @@ export const workspaceRouter = router({
   }),
 
   /** Forget an earlier store. Refused while files are still in it. */
-  storageForget: adminProcedure
+  storageForget: ownerProcedure /* Audit 3: owner only — an admin could send every file to storage they control */
     .input(z.object({ store: z.string().max(40) }))
     .mutation(async ({ ctx, input }) => {
       const w = await wsIdOf(ctx.user as any);
@@ -273,7 +273,8 @@ export const workspaceRouter = router({
         owner, ownerInvited: pending[0] || null,
         members: counts.get(Number(r.id)) || 0,
         features: parse(r.features), quotas: parse(r.quotas),
-        storageMode: (() => { try { return String(JSON.parse(String(r.storage || "{}")).mode || "platform"); } catch { return "platform"; } })(),
+        // (Audit 3: storage is {current, stores}; the old read of .mode always said "platform")
+        storageMode: (() => { try { const st = JSON.parse(String(r.storage || "{}")); const cur = String(st.current || "platform"); if (cur === "platform") return "platform"; const one = (Array.isArray(st.stores) ? st.stores : []).find((x: any) => x && x.id === cur); return String(one?.mode || st.mode || "platform"); } catch { return "platform"; } })(),
         usage: await workspaceUsage(Number(r.id)),
         billing: bills.get(Number(r.id)) || null,
         createdAt: r.createdAt, deletedAt: r.deletedAt || null,

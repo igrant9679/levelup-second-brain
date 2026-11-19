@@ -342,10 +342,9 @@ export const helpRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       // Calls on the workspace AI key count against the daily AI quota.
-      if (!input.apiKey) await spendQuota(ctx.user, "ai");
       const { question, conversationHistory } = input;
       // No key from the browser since -214 → the workspace's provider + key.
-      const { provider, apiKey } = await resolveRequestAI(input);
+      const { provider, apiKey } = await resolveRequestAI(input, ctx.user);
 
       // Find the most relevant articles for this question
       const relevantArticles = findRelevantArticles(question, 4);

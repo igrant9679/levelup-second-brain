@@ -138,8 +138,10 @@ describe('teamInvites.resend', () => {
     vi.mocked(db.getAllTeamInvites).mockResolvedValue([pendingInvite] as any);
     vi.mocked(db.resendTeamInvite).mockResolvedValue(updated as any);
     const caller = appRouter.createCaller(makeCtx('admin'));
-    const result = await caller.teamInvites.resend({ id: 1, expiryDays: 7 });
-    expect(result.token).toBe('tok_new_generated');
+    const result: any = await caller.teamInvites.resend({ id: 1, expiryDays: 7 });
+    // Audit 3: the stored token is a hash and never returned; the new link goes to the invitee's mailbox
+    expect(result.token).toBeUndefined();
+    expect(typeof result.emailed).toBe('boolean');
     expect(db.resendTeamInvite).toHaveBeenCalledOnce();
   });
 

@@ -24,9 +24,10 @@
  * WHICH subscription changed, and the current state is then read from Stripe
  * (so events arriving out of order cannot leave a stale state).
  */
+import crypto from "crypto";
 import { and, eq, sql } from "drizzle-orm";
-import { getDb } from "../db";
-import { workspaceBilling, billingEvents, users, teamInvites, files } from "../../drizzle/schema";
+import { getDb, getSystemSetting, setSystemSetting } from "../db";
+import { workspaceBilling, billingEvents, users, teamInvites, files, trialClaims } from "../../drizzle/schema";
 import { billingConfig, planByKey, planByPrice, limitsOf, type Plan, type PlanLimits } from "./plans";
 import { stripeCall, stripeConfigured, stripeHostedUrl, StripeError } from "./stripe";
 import { appOrigin } from "./appOrigin";
@@ -55,7 +56,7 @@ const DAY = 86_400_000;
 const TTL = 30_000;
 const _rows = new Map<number, { at: number; v: BillingRow | null }>();
 export function invalidateBilling(wsId?: number | null) { if (wsId == null) _rows.clear(); else _rows.delete(Number(wsId)); }
-export function _resetBillingForTest() { _rows.clear(); _prices.clear(); }
+export function _resetBillingForTest() { _rows.clear(); _prices.clear(); _portalCfg = null; }
 
 const toDate = (v: any): Date | null => { if (!v) return null; const d = v instanceof Date ? v : new Date(v); return Number.isFinite(d.getTime()) ? d : null; };
 const parseObj = (v: any): Record<string, any> => { try { const o = typeof v === "string" ? JSON.parse(v) : v; return o && typeof o === "object" && !Array.isArray(o) ? o : {}; } catch { return {}; } };
@@ -80,11 +81,14 @@ export async function billingRow(wsId: number | null | undefined, fresh = false)
   let v: BillingRow | null = null;
   try {
     const db: any = await getDb();
-    if (db) {
-      const rows: any[] = await db.select().from(workspaceBilling).where(eq(workspaceBilling.workspaceId, n)).limit(1);
-      v = shape(rows && rows[0], n);
-    }
-  } catch { v = null; }
+    // No database: keep the last known answer rather than treating a billed workspace as unbilled (Audit 3).
+    if (!db) return hit ? hit.v : null;
+    const rows: any[] = await db.select().from(workspaceBilling).where(eq(workspaceBilling.workspaceId, n)).limit(1);
+    v = shape(rows && rows[0], n);
+  } catch {
+    // A failed read is not "no billing row": keep the last known row, and cache nothing.
+    return hit ? hit.v : null;
+  }
   _rows.set(n, { at: Date.now(), v });
   return v;
 }
@@ -100,7 +104,7 @@ async function writeRow(wsId: number, set: Record<string, any>): Promise<void> {
 }
 
 /** What the row means right now. Pure: the tests call it with fixed clocks. */
-export function entitlementOf(row: BillingRow | null, plan: Plan | null, graceDays: number, now = Date.now()): Entitlement {
+export function entitlementOf(row: BillingRow | null, plan: Plan | null, graceDays: number, now = Date.now(), trialCaps?: { ai: number; email: number } | null): Entitlement {
   if (!row) {
     return { billed: false, status: "none", plan: null, planName: null, locked: false, lockReason: null, trialEndsAt: null, trialDaysLeft: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, graceEndsAt: null, interval: null, hasSubscription: false, seats: 0, limits: null };
   }
@@ -118,6 +122,10 @@ export function entitlementOf(row: BillingRow | null, plan: Plan | null, graceDa
     base.trialDaysLeft = end <= now ? 0 : Math.max(1, Math.ceil((end - now - 60_000) / DAY));
     // a trial that continues inside a Stripe subscription is Stripe's to end (it becomes active or past_due)
     if (end <= now && !row.stripeSubscriptionId) { base.status = "trial_ended"; base.locked = true; base.lockReason = "trial_ended"; }
+    // Audit 3: a FREE trial (no card yet) gets small daily AI / email allowances whatever the trial plan allows
+    if (!row.stripeSubscriptionId && base.limits && trialCaps) {
+      base.limits = { ...base.limits, ai: Math.min(base.limits.ai, trialCaps.ai), email: Math.min(base.limits.email, trialCaps.email) };
+    }
   } else if (row.status === "past_due") {
     const since = row.pastDueSince ? row.pastDueSince.getTime() : now;
     const end = since + graceDays * DAY;
@@ -133,7 +141,7 @@ export async function entitlement(wsId: number | null | undefined): Promise<Enti
   const row = await billingRow(wsId);
   if (!row) return entitlementOf(null, null, 0);
   const cfg = await billingConfig();
-  return entitlementOf(row, cfg.plans.find((p) => p.key === row.plan) || null, cfg.graceDays);
+  return entitlementOf(row, cfg.plans.find((p) => p.key === row.plan) || null, cfg.graceDays, Date.now(), { ai: cfg.trialAi, email: cfg.trialEmail });
 }
 /** Is the workspace locked for non-payment? Cheap (cached row); never throws. */
 export async function isBillingLocked(wsId: number | null | undefined): Promise<boolean> {
@@ -211,11 +219,52 @@ export async function sellable(): Promise<boolean> {
   if (!stripeConfigured()) return false;
   return (await billingConfig()).plans.some((p) => p.public && (p.priceMonthly || p.priceYearly));
 }
-/** Start the trial of a NEW self-serve workspace. No-op (unbilled workspace) while nothing can be bought. */
-export async function startTrial(wsId: number, now = Date.now()): Promise<BillingRow | null> {
-  if (!(await sellable())) return null;
+/**
+ * The key one person's free trial is remembered by (Audit 3): the address in lower case,
+ * without a "+tag", and for Gmail without dots — so x+1@, x+2@ and x.y@gmail.com are one person.
+ */
+export function trialEmailKey(email: string | null | undefined): string | null {
+  const e = String(email || "").trim().toLowerCase();
+  const at = e.lastIndexOf("@");
+  if (at <= 0 || at === e.length - 1) return null;
+  let local = e.slice(0, at), domain = e.slice(at + 1);
+  local = local.split("+")[0];
+  if (domain === "googlemail.com") domain = "gmail.com";
+  if (domain === "gmail.com") local = local.replace(/\./g, "");
+  if (!local) return null;
+  return crypto.createHash("sha256").update(`${local}@${domain}`).digest("hex");
+}
+/**
+ * Claim this person's one free trial. True = granted (first time for this address AND login);
+ * false = they had one before. Atomic (INSERT IGNORE on the key), so two requests at once
+ * cannot both win. Never throws: a failure counts as "had one" (no free trial on doubt).
+ */
+export async function claimTrial(email: string | null | undefined, loginId: number | null, wsId: number): Promise<boolean> {
+  try {
+    const key = trialEmailKey(email);
+    const db: any = await getDb();
+    if (!key || !db) return false;
+    if (loginId) {
+      // tenancy: platform — has this login (whatever its address now) had a trial?
+      const [had] = await db.select({ k: trialClaims.emailKey }).from(trialClaims).where(eq(trialClaims.loginId, loginId)).limit(1);
+      if (had) return false;
+    }
+    const res: any = await db.execute(sql`INSERT IGNORE INTO trial_claims (emailKey, loginId, workspaceId) VALUES (${key}, ${loginId}, ${wsId})`);
+    return Number(res?.[0]?.affectedRows ?? res?.affectedRows ?? 0) === 1;
+  } catch (e) { console.error("[billing] trial claim failed:", (e as any)?.message || e); return false; }
+}
+
+/**
+ * Start the billing of a NEW self-serve workspace. `trial: false` (this person already had
+ * their free trial) puts it on the trial plan with the trial already over: locked until a plan
+ * is chosen. Throws when nothing can be bought (Audit 3: it used to leave the workspace with no
+ * billing row — not billed, for ever).
+ */
+export async function startTrial(wsId: number, now = Date.now(), opts: { trial?: boolean } = {}): Promise<BillingRow | null> {
+  if (!(await sellable())) throw new Error("Nothing can be bought on this LevelUp yet, so a new workspace can't be started.");
   const cfg = await billingConfig();
-  await writeRow(wsId, { plan: cfg.trialPlan, status: "trialing", trialEndsAt: new Date(now + cfg.trialDays * DAY), notified: {} });
+  const days = opts.trial === false ? 0 : cfg.trialDays;
+  await writeRow(wsId, { plan: cfg.trialPlan, status: "trialing", trialEndsAt: days > 0 ? new Date(now + days * DAY) : alreadyOver(), notified: days > 0 ? {} : { trialEnded: new Date(now).toISOString() } });
   return billingRow(wsId, true);
 }
 /** The operator's override. `none` removes billing from the workspace altogether. */
@@ -310,6 +359,9 @@ export async function createCheckout(wsId: number, planKey: string, interval: "m
   const price = plan ? (interval === "year" ? plan.priceYearly : plan.priceMonthly) : "";
   if (!plan || !price) throw new Error("That plan is not available.");
   const row0 = await billingRow(wsId, true);
+  // Audit 3: a workspace that is not billed has nothing to pay for — a checkout here used to create
+  // a billing row with an already-ended trial, locking the workspace if the owner then walked away.
+  if (!row0) throw new Error("This workspace is not on a paid plan, so there is nothing to pay for.");
   if (row0?.stripeSubscriptionId && (row0.status === "active" || row0.status === "past_due" || row0.status === "trialing")) {
     throw new Error("This workspace already has a subscription. Use “Manage billing” to change it.");
   }
@@ -331,16 +383,61 @@ export async function createCheckout(wsId: number, planKey: string, interval: "m
   const trialEnd = row?.status === "trialing" && row.trialEndsAt ? row.trialEndsAt.getTime() : 0;
   if (trialEnd - Date.now() > 49 * 3_600_000) params.subscription_data.trial_end = Math.floor(trialEnd / 1000);
   if (cfg.automaticTax) { params.automatic_tax = { enabled: true }; params.customer_update = { address: "auto", name: "auto" }; }
+  // Audit 3: only one Checkout page at a time — an older page still open in another tab could be paid
+  // as well, giving the workspace two subscriptions. Expire it first (an already used / expired page is fine).
+  const prev = row?.notified && typeof row.notified.checkout === "string" ? row.notified.checkout : "";
+  if (prev) { try { await stripeCall("POST", `/v1/checkout/sessions/${encodeURIComponent(prev)}/expire`); } catch { /* used or expired already */ } }
   const s: any = await stripeCall("POST", "/v1/checkout/sessions", params);
   if (!s?.url) throw new Error("Stripe did not return a checkout page");
+  if (s.id) { try { const r = await billingRow(wsId, true); await writeRow(wsId, { notified: { ...(r?.notified || {}), checkout: String(s.id) } }); } catch { /* best effort */ } }
   return String(s.url);
 }
 
-/** Stripe's customer portal (card, invoices, change plan, cancel). */
+/**
+ * The portal settings LevelUp opens Stripe's portal with: card, invoices, billing details and
+ * cancelling — but NOT changing plan or quantity (Audit 3: the portal skipped LevelUp's head-count
+ * check and could pick prices LevelUp does not know; plans change inside LevelUp now). Created once,
+ * remembered; if Stripe refuses, the account's default portal is used.
+ */
+let _portalCfg: { at: number; id: string | null } | null = null;
+async function portalConfiguration(): Promise<string | null> {
+  if (_portalCfg && Date.now() - _portalCfg.at < 6 * 3600_000) return _portalCfg.id;
+  let id: string | null = null;
+  try {
+    const saved = await getSystemSetting("billingPortalConfig");
+    if (saved && /^bpc_[A-Za-z0-9_]+$/.test(String(saved))) id = String(saved);
+    else {
+      const c: any = await stripeCall("POST", "/v1/billing_portal/configurations", {
+        features: {
+          customer_update: { enabled: true, allowed_updates: ["email", "address", "name", "tax_id"] },
+          invoice_history: { enabled: true },
+          payment_method_update: { enabled: true },
+          subscription_cancel: { enabled: true, mode: "at_period_end" },
+          subscription_update: { enabled: false },
+        },
+      }, { idempotencyKey: "lu-portal-config-v1" });
+      if (c?.id) { id = String(c.id); await setSystemSetting("billingPortalConfig", id); }
+    }
+  } catch (e) { console.error("[billing] could not set up the billing portal settings:", (e as any)?.message || e); id = null; }
+  _portalCfg = { at: Date.now(), id };
+  return id;
+}
+
+/** Stripe's customer portal (card, invoices, cancel). */
 export async function createPortal(wsId: number): Promise<string> {
   const row = await billingRow(wsId, true);
   if (!row?.stripeCustomerId) throw new Error("This workspace has no billing account yet. Choose a plan first.");
-  const s: any = await stripeCall("POST", "/v1/billing_portal/sessions", { customer: row.stripeCustomerId, return_url: `${appOrigin()}/?billing=portal` });
+  const configuration = await portalConfiguration();
+  const base = { customer: row.stripeCustomerId, return_url: `${appOrigin()}/?billing=portal` };
+  let s: any;
+  try { s = await stripeCall("POST", "/v1/billing_portal/sessions", { ...base, ...(configuration ? { configuration } : {}) }); }
+  catch (e) {
+    // a remembered configuration from another Stripe account / mode: forget it and use the default portal
+    if (!configuration || !(e instanceof StripeError) || e.status >= 500) throw e;
+    try { await setSystemSetting("billingPortalConfig", ""); } catch { /* best effort */ }
+    _portalCfg = null;
+    s = await stripeCall("POST", "/v1/billing_portal/sessions", base);
+  }
   if (!s?.url) throw new Error("Stripe did not return a billing page");
   return String(s.url);
 }
@@ -366,18 +463,65 @@ async function wsOfSubscription(sub: any, hint?: number | null): Promise<number 
 }
 
 /** Copy a Stripe subscription's current state onto the workspace. */
+const liveStripe = (s: any) => s === "active" || s === "trialing" || s === "past_due" || s === "unpaid";
+const liveRow = (s: any) => s === "active" || s === "past_due" || s === "trialing";
+
+/** Stop a subscription at once (404 = already gone). Throws on any other failure. */
+async function stripeCancelNow(subId: string): Promise<void> {
+  try { await stripeCall("DELETE", `/v1/subscriptions/${encodeURIComponent(subId)}`); }
+  catch (e) { if (!(e instanceof StripeError && e.status === 404)) throw e; }
+}
+
 export async function applySubscription(sub: any, hint?: number | null): Promise<{ workspaceId: number; status: BillingStatus } | null> {
   if (!sub || !sub.id) return null;
+  const st = String(sub.status || "");
   const wsId = await wsOfSubscription(sub, hint);
-  if (!wsId) { console.error("[billing] subscription", sub.id, "belongs to no workspace here"); return null; }
+  if (!wsId) {
+    console.error("[billing] subscription", sub.id, "belongs to no workspace here");
+    // Audit 3: one of OUR subscriptions (it names a workspace) whose workspace is gone must not go on charging.
+    const metaWs = Number(sub?.metadata?.workspaceId);
+    if (liveStripe(st) && Number.isInteger(metaWs) && metaWs > 0 && stripeConfigured()) {
+      const { getWorkspace } = await import("./workspace");
+      if (!(await getWorkspace(metaWs))) {
+        try { await stripeCancelNow(sub.id); console.error("[billing] cancelled subscription", sub.id, "— its workspace", metaWs, "no longer exists"); }
+        catch (e) { console.error("[billing] could not cancel orphaned subscription", sub.id, (e as any)?.message || e); }
+      }
+    }
+    return null;
+  }
   const row = await billingRow(wsId, true);
   // an old subscription's late event must not overwrite the current one
-  if (row?.stripeSubscriptionId && row.stripeSubscriptionId !== sub.id && (row.status === "active" || row.status === "past_due" || row.status === "trialing") && String(sub.status) !== "active" && String(sub.status) !== "trialing") return null;
+  if (row?.stripeSubscriptionId && row.stripeSubscriptionId !== sub.id && liveRow(row.status) && st !== "active" && st !== "trialing") return null;
+  // Audit 3: a SECOND live subscription (two Checkout pages, both paid) — keep the one already on the
+  // workspace while Stripe still has it live, and stop the new one so the customer is not charged twice.
+  if (row?.stripeSubscriptionId && row.stripeSubscriptionId !== sub.id && liveRow(row.status) && liveStripe(st)) {
+    let currentLive = true;
+    try { const cur: any = await stripeCall("GET", `/v1/subscriptions/${encodeURIComponent(row.stripeSubscriptionId)}`); currentLive = liveStripe(String(cur?.status || "")); }
+    catch (e) { if (e instanceof StripeError && e.status === 404) currentLive = false; }
+    if (currentLive) {
+      try {
+        await stripeCancelNow(sub.id);
+        console.error(`[billing] workspace ${wsId} paid for a second subscription (${sub.id}); it was cancelled — refund its first payment in Stripe`);
+      } catch (e) { console.error(`[billing] workspace ${wsId} has a second live subscription ${sub.id} that could not be cancelled:`, (e as any)?.message || e); }
+      return { workspaceId: wsId, status: row.status };
+    }
+  }
+  // Audit 3: "incomplete" = the first payment has not gone through yet. It changes nothing: it becomes
+  // active once paid, or incomplete_expired (→ canceled). It used to start a free grace period.
+  if (st === "incomplete") return row ? { workspaceId: wsId, status: row.status } : null;
   const item = sub.items?.data?.[0] || null;
   const price = item?.price?.id || item?.plan?.id || null;
   const found = await planByPrice(price);
-  const st = String(sub.status || "");
   const status: BillingStatus = st === "trialing" ? "trialing" : st === "active" ? "active" : st === "canceled" || st === "incomplete_expired" || st === "paused" ? "canceled" : "past_due";
+  // Audit 3: a live subscription on a workspace that has been closed is stopped (closing could not reach Stripe).
+  if (status !== "canceled" && stripeConfigured()) {
+    const { getWorkspace } = await import("./workspace");
+    const ws: any = await getWorkspace(wsId);
+    if (ws && (String(ws.status || "active") === "deleted" || ws.deletedAt)) {
+      try { await stripeCancelNow(sub.id); await writeRow(wsId, { status: "canceled", stripeSubscriptionId: sub.id, cancelAtPeriodEnd: 0 }); return { workspaceId: wsId, status: "canceled" }; }
+      catch (e) { console.error(`[billing] closed workspace ${wsId} still has live subscription ${sub.id}:`, (e as any)?.message || e); }
+    }
+  }
   const periodEnd = sub.current_period_end ?? item?.current_period_end ?? null;
   const cust = typeof sub.customer === "string" ? sub.customer : sub.customer?.id;
   const set: Record<string, any> = {
@@ -388,6 +532,12 @@ export async function applySubscription(sub: any, hint?: number | null): Promise
     trialEndsAt: sub.trial_end ? new Date(Number(sub.trial_end) * 1000) : (status === "trialing" ? row?.trialEndsAt ?? null : null),
     pastDueSince: status === "past_due" ? (row?.status === "past_due" && row.pastDueSince ? row.pastDueSince : new Date()) : null,
   };
+  // Audit 3: "unpaid" = Stripe has given up retrying. No fresh grace period: locked at once.
+  if (st === "unpaid") {
+    const cfg = await billingConfig();
+    const already = row?.status === "past_due" && row.pastDueSince ? row.pastDueSince.getTime() : Date.now();
+    set.pastDueSince = new Date(Math.min(already, Date.now() - cfg.graceDays * DAY - 1000));
+  }
   if (found) { set.plan = found.plan.key; set.interval = found.interval; }
   else if (!row) set.plan = String(sub.metadata?.plan || (await billingConfig()).trialPlan);
   if (status === "active" && row?.status !== "active") set.notified = {};
@@ -513,13 +663,20 @@ export async function changePlan(wsId: number, planKey: string, interval: "month
   const pin = Number.isFinite(at) && at <= nowS + 300 && at >= nowS - 3600 ? Math.min(at, nowS) : null;
   const sub: any = await stripeCall("POST", `/v1/subscriptions/${encodeURIComponent(row.stripeSubscriptionId!)}`, {
     items: [{ id: row.stripeItemId, price, quantity }],
-    proration_behavior: "create_prorations",
+    // Audit 3: the difference is invoiced NOW, and the new plan only applies once that invoice is paid
+    // (pending_if_incomplete) — a change used to apply at once and be paid for later, or never.
+    proration_behavior: "always_invoice",
+    payment_behavior: "pending_if_incomplete",
     ...(pin ? { proration_date: pin } : {}),
-    metadata: { workspaceId: String(wsId), plan: plan.key },
-    // a double click inside the same minute is one change
-  }, { idempotencyKey: `lu-plan-${wsId}-${row.stripeSubscriptionId}-${price}-${Math.floor(nowMs / 60_000)}` });
+    // A double click inside the same minute is one change. The key names the plan it changes FROM too:
+    // A→B, B→A, A→B within a minute are three changes (the third used to replay the first's answer).
+  }, { idempotencyKey: `lu-plan-${wsId}-${row.stripeSubscriptionId}-${row.plan}.${row.interval || "month"}-${price}-${Math.floor(nowMs / 60_000)}` });
   if (!sub?.id) throw new Error("Stripe did not confirm the change");
-  await applySubscription(sub, wsId);
+  // Read the subscription back rather than trusting the answer (a replayed answer is an old state).
+  try { await refreshSubscription(sub.id, wsId); } catch { await applySubscription(sub, wsId); }
+  if (sub.pending_update) {
+    throw new Error("The payment for the new plan did not go through, so the plan has not changed yet. Update the card in Manage billing — the change applies once it is paid.");
+  }
   return entitlement(wsId);
 }
 
@@ -555,14 +712,16 @@ export async function previewPlanChange(wsId: number, planKey: string, interval:
     ...(row.stripeCustomerId ? { customer: row.stripeCustomerId } : {}),
     subscription: row.stripeSubscriptionId,
     subscription_items: [{ id: row.stripeItemId, price, quantity }],
-    subscription_proration_behavior: "create_prorations",
+    // the same proration as the change itself (Audit 3: the difference is invoiced at once)
+    subscription_proration_behavior: "always_invoice",
     subscription_proration_date: at,
   });
   const raw: any[] = (Array.isArray(inv?.lines?.data) ? inv.lines.data : []).filter((l: any) => l && typeof l === "object");
   const num = (v: any) => { const n = Number(v); return Number.isFinite(n) ? Math.round(n) : 0; };
   const lines = raw.map((l) => ({ description: String(l.description || "").slice(0, 200), amount: num(l.amount), proration: !!l.proration }));
   const total = num(inv?.total ?? lines.reduce((s, l) => s + l.amount, 0));
-  const chargedNow = row.status === "active" && (row.interval || "month") !== interval;
+  // every change on a paying subscription is invoiced at once now (always_invoice); during a trial nothing is charged
+  const chargedNow = row.status === "active";
   const pr = await priceInfo(price).catch(() => null);
   return {
     plan: plan.key, planName: plan.name, interval,
@@ -614,17 +773,60 @@ export async function syncSeats(wsId: number | null | undefined): Promise<void> 
   } catch (e) { console.error("[billing] seat sync failed for workspace", wsId, (e as any)?.message || e); }
 }
 
-/** A workspace that is being closed stops being charged at once. Never throws. */
-export async function cancelSubscriptionNow(wsId: number): Promise<void> {
+/**
+ * A workspace that is being closed stops being charged at once. Never throws.
+ * Returns false when a live subscription could NOT be stopped (Stripe unreachable,
+ * or Stripe not configured here) — the daily `cancelClosedSubscriptions` retries it,
+ * and the purge waits for it (Audit 3: a failed cancel used to charge for ever).
+ */
+export async function cancelSubscriptionNow(wsId: number): Promise<boolean> {
   try {
     const row = await billingRow(wsId, true);
-    if (!row?.stripeSubscriptionId || row.status === "canceled" || row.status === "comped") return;
-    if (stripeConfigured()) {
-      try { await stripeCall("DELETE", `/v1/subscriptions/${encodeURIComponent(row.stripeSubscriptionId)}`); }
-      catch (e) { if (!(e instanceof StripeError && e.status === 404)) throw e; }
-    }
+    if (!row?.stripeSubscriptionId || row.status === "canceled" || row.status === "comped") return true;
+    if (!stripeConfigured()) { console.error("[billing] workspace", wsId, "has a live subscription but Stripe is not configured here; it was not cancelled"); return false; }
+    await stripeCancelNow(row.stripeSubscriptionId);
     await writeRow(wsId, { status: "canceled", cancelAtPeriodEnd: 0 });
-  } catch (e) { console.error("[billing] could not cancel the subscription of workspace", wsId, (e as any)?.message || e); }
+    return true;
+  } catch (e) { console.error("[billing] could not cancel the subscription of workspace", wsId, "— retried daily:", (e as any)?.message || e); return false; }
+}
+
+/** Daily: closed workspaces whose subscription is still live (the cancel at closing failed) — try again. */
+export async function cancelClosedSubscriptions(): Promise<number> {
+  const db: any = await getDb();
+  if (!db) return 0;
+  // tenancy: platform — billing state only
+  const rows: any[] = await db.select({ w: workspaceBilling.workspaceId, s: workspaceBilling.status }).from(workspaceBilling).where(sql`${workspaceBilling.stripeSubscriptionId} IS NOT NULL`);
+  const { getWorkspace } = await import("./workspace");
+  let n = 0;
+  for (const r of rows) {
+    if (!liveRow(String(r.s))) continue;
+    const ws: any = await getWorkspace(Number(r.w));
+    if (ws && String(ws.status || "active") !== "deleted" && !ws.deletedAt) continue;
+    if (await cancelSubscriptionNow(Number(r.w))) n++;
+  }
+  return n;
+}
+
+/**
+ * Daily: read every live subscription back from Stripe (Audit 3: a missed or misrouted
+ * webhook left a workspace on its last known state for ever — e.g. "active" long after
+ * the subscription had ended, or a Stripe trial that never turned into a lock).
+ */
+export async function refreshAllSubscriptions(): Promise<number> {
+  const db: any = await getDb();
+  if (!db || !stripeConfigured()) return 0;
+  // tenancy: platform — billing state only
+  const rows: any[] = await db.select({ w: workspaceBilling.workspaceId, s: workspaceBilling.status, sub: workspaceBilling.stripeSubscriptionId }).from(workspaceBilling).where(sql`${workspaceBilling.stripeSubscriptionId} IS NOT NULL`);
+  let n = 0;
+  for (const r of rows) {
+    if (!liveRow(String(r.s)) || !r.sub) continue;
+    try { await refreshSubscription(String(r.sub), Number(r.w)); n++; }
+    catch (e) {
+      if (e instanceof StripeError && e.status === 404) { await writeRow(Number(r.w), { status: "canceled", cancelAtPeriodEnd: 0 }); n++; }
+      else console.error("[billing] daily refresh failed for workspace", r.w, (e as any)?.message || e);
+    }
+  }
+  return n;
 }
 
 // ── reminders (daily job) ───────────────────────────────────────────────────

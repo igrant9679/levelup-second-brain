@@ -208,20 +208,34 @@ Everything here is OFF until the operator turns it on (Platform console → Bill
   and unset or adjust `MS_TENANT_ID`.
 - **Still open:** set `BACKUP_KEY` and `SECRETS_KEY` on Railway.
 - **To switch on sign-up and billing (Phase I):**
-  1. A working mail service (above) — sign-up will not accept anyone while the confirmation
-     mail cannot be sent.
+  1. The **platform** mail service (above: Postmark, Resend or `MAIL_PROVIDER=smtp`). Since
+     build -288 (Audit 3) sign-up is not offered at all without it — otherwise sign-up
+     confirmations, password resets and invitations for other companies' workspaces would go
+     out from your own mailbox (which would then hold live sign-in links for every customer).
   2. A Stripe account. Start in **test mode**. Create a Product per plan with a recurring Price
      (monthly, and yearly if wanted); paste each `price_…` id into Platform console → Billing &
      sign-up.
   3. On Railway: `STRIPE_SECRET_KEY` (Stripe → Developers → API keys) and
      `STRIPE_WEBHOOK_SECRET` (Stripe → Developers → Webhooks → add endpoint
      `https://levelupnow.tools/api/stripe/webhook` with the six events listed on that screen).
-  4. In Stripe → Settings → Billing → Customer portal: switch it on, and decide what customers
-     may do there (update card, cancel, switch plan).
+  4. In Stripe → Settings → Billing → Customer portal: switch it on. Since -288 LevelUp opens
+     the portal with its own settings (card, invoices, billing details, cancel at period end —
+     NOT plan or quantity changes, which happen inside LevelUp with its head-count check).
   5. Decide prices, trial length, and write Terms and a Privacy Policy (links go on the sign-up
      form). Tax: Stripe Tax can be ticked on once it is set up in Stripe.
   6. Tick "Anyone can create a workspace". Try the whole path with a Stripe test card before
      putting in live keys.
+
+## Audit 3 (build -288, 2026-11-19)
+
+A security review of everything above before sign-up opens: 49 findings, none critical, no
+confirmed way for one workspace to read another's data. All fixed in -288 (see the repo's
+CLAUDE.md, block "-288") except one owner decision: admins of the operator's workspace manage
+its AI keys (-277), and those keys are also the platform's fallback for customers without a key.
+The main changes for customers: one free trial per person (normalised email + login), small
+daily AI / email allowances during a free trial, locked workspaces get no background work,
+plan upgrades apply once paid, invitation links go only to the invited mailbox, a new sign-in
+email must be confirmed from that address, sign-in throttling per address and IP.
 
 ## Known gaps (follow-ups)
 

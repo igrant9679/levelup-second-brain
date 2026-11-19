@@ -30,6 +30,8 @@ process.env.SECRETS_KEY = process.env.SECRETS_KEY || "billing-test-secrets-key-0
 process.env.OWNER_OPEN_ID = "email:op@platform.test";
 process.env.APP_ORIGIN = "http://localhost:4310";
 delete process.env.ALLOW_SIGNUP;
+// Audit 3: sign-up is offered only with a platform mail service (sendEmail itself is mocked below)
+process.env.MAIL_PROVIDER = "resend"; process.env.RESEND_API_KEY = "test-only"; process.env.MAIL_FROM = "LevelUp <noreply@platform.test>";
 const CI_URL = process.env.DATABASE_URL || "";
 const DB_NAME = "levelup_billing_" + crypto.randomBytes(4).toString("hex");
 
@@ -72,7 +74,7 @@ const tokenIn = (html: string) => (html.match(/[?&]signup=([a-f0-9]{64})/) || []
 
 let OP = "email:op@platform.test";
 let W = 0;                                   // the self-serve workspace
-const NEW = "email:nora@newco.test";
+let NEW = "email:nora@newco.test"; // the real (random) id is read after sign-up (Audit 3)
 
 describe("sign-up and billing, end to end (real MySQL + fake Stripe)", () => {
   beforeAll(async () => {
@@ -192,6 +194,9 @@ describe("sign-up and billing, end to end (real MySQL + fake Stripe)", () => {
     W = done.workspaceId;
     expect(W).toBeGreaterThan(1);
     expect(visitor.setCookies).toHaveLength(1);                       // signed in
+    // Audit 3: a new account's id is random, not "email:<address>"
+    NEW = String((await q("SELECT openId FROM users WHERE email = 'nora@newco.test' AND accountId IS NULL"))[0].openId);
+    expect(NEW).toMatch(/^acct:[a-f0-9]{48}$/);
     const nora = await userOf(NEW);
     expect(nora).toMatchObject({ workspaceId: W, role: "admin", accountId: null, platformRole: null });
     expect((await q("SELECT name, ownerUserId, status FROM workspaces WHERE id = ?", [W]))[0]).toMatchObject({ name: "NewCo", ownerUserId: nora.id, status: "active" });
@@ -216,8 +221,9 @@ describe("sign-up and billing, end to end (real MySQL + fake Stripe)", () => {
 
   it("the plan sets the limits: daily AI and mail, head count", async () => {
     const { workspaceCap } = await import("./_core/quota");
-    expect(await workspaceCap(W, "ai")).toBe(3000);
-    expect(await workspaceCap(W, "email")).toBe(500);
+    // Audit 3: a FREE trial (no card) gets the small trial allowances, whatever the trial plan allows
+    expect(await workspaceCap(W, "ai")).toBe(200);
+    expect(await workspaceCap(W, "email")).toBe(50);
     expect(await workspaceCap(1, "ai")).toBe(5000);                    // not billed: the platform default
     const st = await (await as(NEW)).c.billing.status();
     expect(st).toMatchObject({ status: "trialing", limits: { members: 25 }, usage: { members: 1 }, canBuy: true });
@@ -339,7 +345,7 @@ describe("sign-up and billing, end to end (real MySQL + fake Stripe)", () => {
     expect(Math.abs(p1.prorationDate - Date.now() / 1000)).toBeLessThan(60);
     expect(p1.lines.map((l: any) => l.proration)).toEqual([true, false]);
     const pcall = fake.state.calls.filter((c: any) => c.path === "/v1/invoices/upcoming").pop();
-    expect(pcall.params).toMatchObject({ customer: cust, subscription: sub, subscription_items: [{ id: (await bill(W)).stripeItemId, price: "price_team_y", quantity: "1" }], subscription_proration_behavior: "create_prorations", subscription_proration_date: String(p1.prorationDate) });
+    expect(pcall.params).toMatchObject({ customer: cust, subscription: sub, subscription_items: [{ id: (await bill(W)).stripeItemId, price: "price_team_y", quantity: "1" }], subscription_proration_behavior: "always_invoice", subscription_proration_date: String(p1.prorationDate) });
     expect(fake.state.subscriptions.get(sub).price).toBe("price_team_m");
     expect(await bill(W)).toMatchObject({ plan: "team", interval: "month" });
 
@@ -347,7 +353,8 @@ describe("sign-up and billing, end to end (real MySQL + fake Stripe)", () => {
     const r1 = await nora.billing.changePlan({ plan: "team", interval: "year", prorationDate: p1.prorationDate });
     expect(r1).toMatchObject({ status: "active", plan: "team", interval: "year" });
     const call = fake.state.calls.filter((c: any) => c.method === "POST" && c.path === "/v1/subscriptions/" + sub).pop();
-    expect(call.params).toMatchObject({ items: [{ id: (await bill(W)).stripeItemId, price: "price_team_y", quantity: "1" }], proration_behavior: "create_prorations", proration_date: String(p1.prorationDate), metadata: { workspaceId: String(W), plan: "team" } });
+    // Audit 3: the difference is invoiced now and the new plan applies only once that is paid
+    expect(call.params).toMatchObject({ items: [{ id: (await bill(W)).stripeItemId, price: "price_team_y", quantity: "1" }], proration_behavior: "always_invoice", payment_behavior: "pending_if_incomplete", proration_date: String(p1.prorationDate) });
     expect(fake.state.subscriptions.get(sub).price).toBe("price_team_y");
     fresh();
     expect(await bill(W)).toMatchObject({ status: "active", plan: "team", interval: "year", stripeSubscriptionId: sub, stripeCustomerId: cust });
@@ -362,18 +369,27 @@ describe("sign-up and billing, end to end (real MySQL + fake Stripe)", () => {
     fresh();
     expect(await bill(W)).toMatchObject({ plan: "solo", interval: "month" });
     expect((await nora.billing.status()).limits.members).toBe(1);
-    // same billing period: nothing is charged today, the difference goes on the next invoice
+    // same billing period (Audit 3): the difference is charged TODAY — an upgrade used to apply at
+    // once and be paid at the next renewal (or never)
     const p2 = (await nora.billing.previewPlanChange({ plan: "team", interval: "month" })).preview!;
-    expect(p2).toMatchObject({ chargedNow: false, dueNow: 0, recurring: 1200 });
+    expect(p2).toMatchObject({ chargedNow: true, recurring: 1200 });
     expect(p2.adjustment).toBeGreaterThan(0);                   // team costs more than solo for the rest of the month
     expect(p2.adjustment).toBeLessThanOrEqual(300);
-    expect(p2.total).toBe(1200 + p2.adjustment);
-    expect(Date.parse(p2.date!)).toBeGreaterThan(Date.now() + 25 * 86400_000);
+    expect(p2.total).toBe(p2.adjustment);
+    expect(p2.dueNow).toBe(p2.total);
+    expect(Math.abs(Date.parse(p2.date!) - Date.now())).toBeLessThan(60_000);
+    // a card that fails: the plan does NOT change (pending_if_incomplete), and the owner is told
+    fake.state.cardFails = true;
+    await expect(nora.billing.changePlan({ plan: "team", interval: "month" })).rejects.toThrow(/did not go through/);
+    fake.state.cardFails = false;
+    fresh();
+    expect(await bill(W)).toMatchObject({ plan: "solo", interval: "month" });
+    expect(fake.state.subscriptions.get(sub).price).toBe("price_solo_m");
     // a stale moment (over an hour old) is not sent: Stripe prices it at the time of the change
     const nInv = fake.state.invoices.length;
     await nora.billing.changePlan({ plan: "team", interval: "month", prorationDate: p2.prorationDate - 7200 });
     expect(fake.state.calls.filter((c: any) => c.method === "POST" && c.path === "/v1/subscriptions/" + sub).pop().params.proration_date).toBeUndefined();
-    expect(fake.state.invoices.length).toBe(nInv);              // no invoice today for a same-period change
+    expect(fake.state.invoices.length).toBe(nInv + 1);          // the difference is invoiced at once (Audit 3)
     fresh();
     expect(await bill(W)).toMatchObject({ status: "active", plan: "team", interval: "month", seats: 1 });
     // the audit row is written after the answer (not awaited): give it a moment
@@ -389,9 +405,13 @@ describe("sign-up and billing, end to end (real MySQL + fake Stripe)", () => {
     const sub = (await bill(W)).stripeSubscriptionId;
     // a teammate joins first (so the lock can be seen from a member's side, and for the seat count below)
     mails.length = 0;
-    await (await as(NEW)).c.teamInvites.create({ email: "mia@newco.test", role: "user" });
-    const [inv] = await q("SELECT token FROM team_invites WHERE email = 'mia@newco.test'");
-    await (await as(null)).c.teamInvites.accept({ token: inv.token, name: "Mia Member", password: "another-password-1" });
+    const made: any = await (await as(NEW)).c.teamInvites.create({ email: "mia@newco.test", role: "user" });
+    // Audit 3: a customer's owner gets no link back — it is in the email to the invited address only
+    expect(made.inviteUrl).toBeUndefined();
+    const invMail = mails.find((m) => m.to === "mia@newco.test");
+    const invToken = String((invMail?.html || "").match(/\/invite\/([a-f0-9]{64})/)?.[1] || "");
+    expect(invToken).toMatch(/^[a-f0-9]{64}$/);
+    await (await as(null)).c.teamInvites.accept({ token: invToken, name: "Mia Member", password: "another-password-1" });
     const mia = (await q("SELECT openId FROM users WHERE email = 'mia@newco.test' AND workspaceId = ?", [W]))[0].openId;
     // per-seat plan: Stripe is told there are two people now
     await until(async () => fake.state.subscriptions.get(sub).quantity === 2);
@@ -522,6 +542,55 @@ describe("sign-up and billing, end to end (real MySQL + fake Stripe)", () => {
     expect(mails[1].subject).toMatch(/trial has ended/);
     expect(await billing.billingReminders(Date.now() + 9 * DAY)).toBe(0);
     expect(mails.every((m) => m.to === "nora@newco.test")).toBe(true);
+  });
+
+  it("Audit 3: one free trial per person; locked workspaces get no background work; checkout guards", async () => {
+    // the trial key ignores case, "+tag" and Gmail dots
+    expect(billing.trialEmailKey("Nora+x@NewCo.test")).toBe(billing.trialEmailKey("nora@newco.test"));
+    expect(billing.trialEmailKey("n.o.r.a@gmail.com")).toBe(billing.trialEmailKey("nora+promo@googlemail.com"));
+    expect(billing.trialEmailKey("nora@newco.test")).not.toBe(billing.trialEmailKey("dora@newco.test"));
+    // Nora's second workspace started with NO free trial (she had hers on NewCo)
+    const [side] = await q("SELECT id FROM workspaces WHERE name = ?", ["Nora's side project"]);
+    expect((await q("SELECT COUNT(*) AS n FROM trial_claims WHERE workspaceId = ?", [side.id]))[0].n).toBe(0);
+    // a "new" person at nora+2@… gets a workspace, but it starts locked: choose a plan to use it
+    const anon = (await as(null)).c;
+    mails.length = 0;
+    await anon.billing.signupStart({ name: "Nora Again", workspaceName: "Again Inc", email: "nora+2@newco.test", password: "password-123456" });
+    const again = await (await as(null)).c.billing.signupConfirm({ token: tokenIn(mails[0].html) });
+    fresh();
+    const ent = await billing.entitlement(again.workspaceId);
+    expect(ent).toMatchObject({ status: "trial_ended", locked: true, lockReason: "trial_ended" });
+    expect((await q("SELECT COUNT(*) AS n FROM trial_claims WHERE workspaceId = ?", [again.workspaceId]))[0].n).toBe(0);
+    // locked workspaces are left out of every background job (check-ins, digests, syncs, AI)
+    const wsm = await import("./_core/workspace");
+    wsm.invalidateWorkspace();
+    const active = await wsm.activeMemberIds();
+    const againMember = (await q("SELECT id FROM users WHERE workspaceId = ?", [again.workspaceId]))[0];
+    const noraRow = await userOf(NEW);
+    expect(active!.has(Number(againMember.id))).toBe(false);
+    expect(active!.has(Number(noraRow.id))).toBe(true);
+    expect(await wsm.isActiveMember(Number(againMember.id))).toBe(false);
+    // a workspace that is not billed has nothing to pay for (it used to lock itself on an abandoned checkout)
+    await expect((await as(OP)).c.billing.checkout({ plan: "team", interval: "month" })).rejects.toThrow(/not on a paid plan/);
+    expect(await bill(1)).toBeUndefined();
+    // only one Checkout page at a time: opening a second expires the first, so both can't be paid
+    const againOpenId = (await q("SELECT openId FROM users WHERE id = ?", [againMember.id]))[0].openId;
+    const ac = (await as(againOpenId)).c;
+    await ac.billing.checkout({ plan: "solo", interval: "month" });
+    const s1 = fake.lastSession().id;
+    await ac.billing.checkout({ plan: "solo", interval: "month" });
+    const s2 = fake.lastSession().id;
+    expect(s2).not.toBe(s1);
+    await expect(fake.pay(s1)).rejects.toThrow(/expired/);
+    const paid = await fake.pay(s2);
+    await until(async () => { fresh(); return (await bill(again.workspaceId)).stripeSubscriptionId === paid.id; });
+    fresh();
+    expect((await billing.entitlement(again.workspaceId)).locked).toBe(false);
+    // the portal opens with LevelUp's settings: no plan / quantity changes behind the head-count check
+    await ac.billing.portal();
+    expect(fake.state.lastPortal.configuration).toMatch(/^bpc_/);
+    const cfg = fake.state.portalConfigs.get(fake.state.lastPortal.configuration);
+    expect(cfg.features.subscription_update.enabled).toBe("false");
   });
 
   it("sign-up closes again when the operator says so; an open confirmation link then does nothing", async () => {

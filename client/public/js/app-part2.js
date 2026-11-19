@@ -5121,7 +5121,13 @@ async function doChangeEmail(){
   msgEl.textContent='';
   try{
     const res=await _trpc('emailAuth.updateEmail',{newEmail,currentPassword:password},'mutation');
-    if(res&&res.success){
+    if(res&&res.success&&res.pending){
+      // Audit 3: the address changes once the link sent to it is opened
+      msgEl.style.color='var(--ok)';
+      msgEl.textContent='✉️ Check '+res.newEmail+' — open the link we sent there to finish the change (it works for one hour).';
+      newEmailEl.value='';pwEl.value='';
+      toast('✉️ Confirmation link sent to '+res.newEmail);
+    }else if(res&&res.success){
       D.creds.email=res.newEmail;
       saveAll();
       const disp=document.getElementById('current-email-display');

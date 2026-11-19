@@ -25,6 +25,9 @@ export function cleanEmailHtml(html: string): string {
   s = s.replace(/\s+(href|src|action|formaction|xlink:href|background|poster)\s*=\s*("\s*(javascript|vbscript|data):[^"]*"|'\s*(javascript|vbscript|data):[^']*'|(javascript|vbscript|data):[^\s>]*)/gi, "");
   // links become their text
   s = s.replace(/<a\b[^>]*>/gi, "").replace(/<\/a\s*>/gi, "");
+  // Audit 3: image maps are links too (<img usemap> + <area href>); and no href / usemap anywhere
+  s = s.replace(/<\/?(area|map)\b[^>]*>/gi, "");
+  s = s.replace(/\s+(href|usemap|ping)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "");
   // only https images
   s = s.replace(/<img\b[^>]*>/gi, (tag) => (/\ssrc\s*=\s*["']?https:\/\//i.test(tag) ? tag : ""));
   // CSS that can load things or run expressions

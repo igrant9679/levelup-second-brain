@@ -268,7 +268,11 @@ describe("F12: names and emails another account uses are refused", () => {
     await expect(me.updateEmail({ newEmail: "Q4@Team.Test", currentPassword: "pw" })).rejects.toThrow(/already in use/);
     await expect(me.updateEmail({ newEmail: "ann@team.test", currentPassword: "pw" })).rejects.toThrow(/already in use/);
     vi.mocked(dbMod.updateUserEmail).mockClear();
-    await expect(me.updateEmail({ newEmail: "mallory@team.test", currentPassword: "pw" })).resolves.toMatchObject({ success: true });
-    expect(vi.mocked(dbMod.updateUserEmail)).toHaveBeenCalledWith(3, "mallory@team.test");
+    // Audit 3: a free address is not changed at once — a link goes to it first (here no mail can be
+    // sent, so it is refused as "couldn't send"), and nothing is written until the link is opened.
+    await me.updateEmail({ newEmail: "mallory@team.test", currentPassword: "pw" }).then(
+      (r: any) => expect(r).toMatchObject({ success: true, pending: true }),
+      (e: any) => expect(String(e?.message || e)).toMatch(/couldn't send|Database unavailable/));
+    expect(vi.mocked(dbMod.updateUserEmail)).not.toHaveBeenCalled();
   });
 });
