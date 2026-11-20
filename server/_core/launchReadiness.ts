@@ -179,11 +179,23 @@ export async function launchChecklist(now = Date.now()): Promise<{
   });
 
   const legal = !!(cfg.termsUrl && cfg.privacyUrl);
+  // -290: LevelUp's built-in drafts (/terms, /privacy) count as set, but stay a warning
+  // until the operator has filled in their blanks and had them reviewed.
+  const builtin = (u: string) => { try { const p = new URL(u).pathname.replace(/\/+$/, ""); return p === "/terms" || p === "/privacy"; } catch { return false; } };
+  const usesBuiltin = legal && (builtin(cfg.termsUrl) || builtin(cfg.privacyUrl));
+  const blanks = [!cfg.legalName && "business name", !cfg.legalContact && "contact email", !cfg.legalLaw && "governing law"].filter(Boolean) as string[];
+  const draftOk = !usesBuiltin || (cfg.legalReviewed && !blanks.length);
   push({
     id: "terms", group: "signup", required: false, title: "Terms and Privacy links",
-    status: legal ? "ok" : "warn",
-    detail: legal ? "Both set; sign-up asks people to accept them." : cfg.termsUrl || cfg.privacyUrl ? "Only one of the two is set." : "Neither is set. Sign-up works without them, but customers paying for a service expect both.",
-    fix: legal ? undefined : "Billing & sign-up → Sign-up and trial → the two links.",
+    status: legal && draftOk ? "ok" : "warn",
+    detail: !legal
+      ? (cfg.termsUrl || cfg.privacyUrl ? "Only one of the two is set." : "Neither is set. Sign-up works without them, but customers paying for a service expect both. LevelUp has built-in drafts at /terms and /privacy.")
+      : !usesBuiltin ? "Both set; sign-up asks people to accept them."
+      : draftOk ? "Using LevelUp’s built-in pages, filled in and marked as reviewed."
+      : `Using LevelUp’s built-in drafts${blanks.length ? `; still blank: ${blanks.join(", ")}` : ""}${cfg.legalReviewed ? "" : "; not yet reviewed (they show a “Draft” notice)"}.`,
+    fix: !legal ? "Billing & sign-up → Sign-up and trial → “Use LevelUp’s built-in Terms and Privacy pages” (or paste links to your own), then Save."
+      : draftOk ? undefined
+      : "Billing & sign-up → fill in business name, contact email and governing law; have the drafts reviewed by a lawyer, then tick “have been reviewed”.",
   });
 
   // ── keeping it safe ─────────────────────────────────────────────────────

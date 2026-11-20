@@ -57,6 +57,14 @@ export type BillingConfig = {
   privacyUrl: string;
   /** Let Stripe compute tax at checkout (needs Stripe Tax set up in the Stripe account). */
   automaticTax: boolean;
+  /** -290: the public front page (/welcome, and / for first-time visitors once sign-up is offered). */
+  frontPage: boolean;
+  /** -290: filled into the built-in /terms and /privacy drafts. Blank = a visible placeholder. */
+  legalName: string;
+  legalContact: string;
+  legalLaw: string;
+  /** The operator has had the built-in drafts reviewed; until then they carry a "draft" notice. */
+  legalReviewed: boolean;
 };
 
 export const DEFAULT_PLANS: Plan[] = [
@@ -66,6 +74,7 @@ export const DEFAULT_PLANS: Plan[] = [
 ];
 export const DEFAULT_CONFIG: BillingConfig = {
   plans: DEFAULT_PLANS, signupOpen: false, trialDays: 14, trialPlan: "team", trialAi: 200, trialEmail: 50, graceDays: 7, termsUrl: "", privacyUrl: "", automaticTax: false,
+  frontPage: true, legalName: "", legalContact: "", legalLaw: "", legalReviewed: false,
 };
 
 const KEY = "billingConfig";
@@ -76,6 +85,9 @@ const num = (v: any, d: number, min: number, max: number) => { const n = Number(
 const numOrNull = (v: any, d: number | null, max: number) => (v === null || v === "" || v === undefined ? (v === undefined ? d : null) : num(v, d ?? 0, 0, max));
 const str = (v: any, max: number) => String(v ?? "").trim().slice(0, max);
 const priceId = (v: any) => { const s = str(v, 80); return /^price_[A-Za-z0-9_]+$/.test(s) ? s : ""; };
+/** One line of ordinary text: no control characters, no markup brackets. */
+const plain = (v: any, max: number) => str(v, max * 2).replace(/[\x00-\x1f\x7f]/g, " ").replace(/[<>]/g, "").replace(/\s+/g, " ").trim().slice(0, max);
+const emailAddr = (v: any) => { const s = str(v, 200); return /^[^\s@<>"]+@[^\s@<>"]+\.[a-z]{2,}$/i.test(s) ? s : ""; };
 const httpUrl = (v: any) => { const s = str(v, 300); try { const u = new URL(s); return u.protocol === "https:" || u.protocol === "http:" ? s : ""; } catch { return ""; } };
 
 /** Whatever was stored (or sent by the console) → a complete, valid config. */
@@ -117,6 +129,11 @@ export function normalizeConfig(raw: any): BillingConfig {
     termsUrl: httpUrl(o.termsUrl),
     privacyUrl: httpUrl(o.privacyUrl),
     automaticTax: o.automaticTax === true,
+    frontPage: o.frontPage !== false,
+    legalName: plain(o.legalName, 120),
+    legalContact: emailAddr(o.legalContact),
+    legalLaw: plain(o.legalLaw, 80),
+    legalReviewed: o.legalReviewed === true,
   };
 }
 

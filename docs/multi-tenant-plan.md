@@ -228,8 +228,13 @@ Everything here is OFF until the operator turns it on (Platform console → Bill
   4. In Stripe → Settings → Billing → Customer portal: switch it on. Since -288 LevelUp opens
      the portal with its own settings (card, invoices, billing details, cancel at period end —
      NOT plan or quantity changes, which happen inside LevelUp with its head-count check).
-  5. Decide prices, trial length, and write Terms and a Privacy Policy (links go on the sign-up
-     form). Tax: Stripe Tax can be ticked on once it is set up in Stripe.
+  5. Decide prices and trial length. Terms and Privacy: since -290 LevelUp has built-in DRAFTS at
+     `/terms` and `/privacy` (Billing & sign-up → "Use LevelUp's built-in Terms and Privacy
+     pages"). Fill in the business name, contact email and governing law there, decide how long
+     backups are kept (nightly backups are currently NEVER deleted; the Privacy page shows a
+     placeholder for the period, which needs a text edit in `server/_core/publicPages.ts`), have
+     a lawyer review both, then tick "have been reviewed" (removes the "Draft" notice). Or paste
+     links to your own. Tax: Stripe Tax can be ticked on once it is set up in Stripe.
   6. Tick "Anyone can create a workspace". Try the whole path with a Stripe test card before
      putting in live keys.
 
@@ -250,6 +255,16 @@ The Audit 3 owner decision (O9) closed: the keys customers fall back on are Leve
 separate from the operator workspace's, and only the operator changes them. They were copied
 once from the operator workspace's keys when -289 first looked them up, so nothing changed for
 customers. Plus the launch checklist above.
+
+## Build -290 (2026-11-19)
+
+A public front page (`/welcome`, also `/pricing`): what LevelUp is, the plans with the prices
+read from Stripe, "Start free trial" (`/?start=signup` opens the sign-up form). `/` shows it
+only to a first-time visitor (no session, no `lu_app` cookie, which the app sets on every
+browser that opens it) and only while sign-up is actually offered and "Show the front page"
+is ticked — so nothing changes at `/` until sign-up opens. Draft Terms (`/terms`) and Privacy
+(`/privacy`) written from what LevelUp stores and sends. All three are rendered on the server,
+run no script and load nothing from another site.
 
 ## Known gaps (follow-ups)
 

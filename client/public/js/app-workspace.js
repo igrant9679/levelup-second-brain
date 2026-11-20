@@ -1224,6 +1224,14 @@ function _wsBillAdminHtml(r){
     +'<div class="ws-f" style="max-width:210px"><label for="wsb-grace">Days allowed after a failed payment</label><input class="inp" id="wsb-grace" type="number" min="0" max="60" value="'+_wsEsc(c.graceDays)+'"></div></div>'
     +'<div class="ws-row"><div class="ws-f"><label for="wsb-terms">Link to your Terms (optional)</label><input class="inp" id="wsb-terms" type="url" value="'+_wsEsc(c.termsUrl)+'" placeholder="https://"></div>'
     +'<div class="ws-f"><label for="wsb-privacy">Link to your Privacy Policy (optional)</label><input class="inp" id="wsb-privacy" type="url" value="'+_wsEsc(c.privacyUrl)+'" placeholder="https://"></div></div>'
+    +'<div class="ws-row"><button class="btn btn-s"'+_wsAct('wsBillUseBuiltinLegal')+'>Use LevelUp’s built-in Terms and Privacy pages</button><a class="btn btn-s" href="/terms" target="_blank" rel="noopener">Read Terms</a><a class="btn btn-s" href="/privacy" target="_blank" rel="noopener">Read Privacy</a></div>'
+    +'<p style="font-size:12px;color:var(--t3)">The built-in pages are drafts written from what LevelUp stores and sends. Have them reviewed before relying on them; until you tick the box below they show a “Draft” notice. The details here fill in their blanks.</p>'
+    +'<div class="ws-row"><div class="ws-f"><label for="wsb-lname">Business name (for Terms / Privacy)</label><input class="inp" id="wsb-lname" maxlength="120" value="'+_wsEsc(c.legalName||'')+'" placeholder="Your company’s legal name"></div>'
+    +'<div class="ws-f"><label for="wsb-lcontact">Contact email (shown on those pages)</label><input class="inp" id="wsb-lcontact" type="email" maxlength="200" value="'+_wsEsc(c.legalContact||'')+'" placeholder="support@…"></div>'
+    +'<div class="ws-f"><label for="wsb-llaw">Governing law</label><input class="inp" id="wsb-llaw" maxlength="80" value="'+_wsEsc(c.legalLaw||'')+'" placeholder="e.g. the State of New York, USA"></div></div>'
+    +'<label style="display:flex;gap:8px;align-items:center;font-size:12.5px;margin:6px 0"><input type="checkbox" id="wsb-lrev"'+(c.legalReviewed?' checked':'')+'> The built-in Terms and Privacy have been reviewed (removes the “Draft” notice)</label>'
+    +'<label style="display:flex;gap:8px;align-items:center;font-size:12.5px;margin:6px 0"><input type="checkbox" id="wsb-front"'+(c.frontPage!==false?' checked':'')+'> Show the front page to first-time visitors once sign-up is offered</label>'
+    +'<p style="font-size:12px;color:var(--t3)">The front page explains LevelUp and shows the plans with Stripe’s prices. Anyone who has opened the app on that browser, or is signed in, still goes straight to the app. <a href="/welcome" target="_blank" rel="noopener" style="color:var(--ach)">Preview the front page</a></p>'
     +'<label style="display:flex;gap:8px;align-items:center;font-size:12.5px;margin:6px 0"><input type="checkbox" id="wsb-tax"'+(c.automaticTax?' checked':'')+'> Let Stripe add sales tax / VAT at checkout (needs Stripe Tax set up in Stripe)</label>'
     +'<p>When a trial ends without a plan, or a payment stays unpaid past the days allowed, the workspace is locked: nothing is deleted, and its owner can pay, export or close it. Workspaces you created yourself and your own are never billed unless you say so on their Manage page.</p></div>';
   h+='<div class="ws-card"><h3>Plans</h3><p>The limits each plan allows, and the Stripe prices that sell it. A plan without a price id cannot be bought. The amounts customers see are read from Stripe.</p><div class="ws-scroll"><table class="ws-tbl wsb-tbl"><thead><tr><th>Plan</th><th>People</th><th>AI / day</th><th>Emails / day</th><th>Storage MB</th><th>Stripe price ids</th><th>Options</th></tr></thead><tbody>';
@@ -1242,6 +1250,12 @@ function _wsBillAdminHtml(r){
   h+='</tbody></table></div><div class="ws-row"><button class="btn btn-p"'+_wsAct('wsBillAdminSave')+'>Save</button></div><div id="wsb-msg" class="ws-msg" role="status"></div></div>';
   return h;
 }
+function wsBillUseBuiltinLegal(){
+  var t=document.getElementById('wsb-terms'),p=document.getElementById('wsb-privacy');
+  if(t)t.value=location.origin+'/terms';
+  if(p)p.value=location.origin+'/privacy';
+  toast('Links filled in. Press Save to keep them.','info');
+}
 async function wsBillAdminSave(){
   var msg=document.getElementById('wsb-msg');
   var v=function(id){return ((document.getElementById(id)||{}).value||'').trim();};
@@ -1257,7 +1271,12 @@ async function wsBillAdminSave(){
   if(open&&!cur.signupOpen&&!confirm('Open sign-up? Anyone will be able to create a workspace from the sign-in page.'))return;
   if(msg){msg.textContent='Saving…';msg.style.color='var(--t2)';}
   try{
-    await _trpc('billing.opConfigSet',{config:{plans:plans,signupOpen:open,trialDays:Number(v('wsb-trial')||0),trialPlan:v('wsb-trialplan'),graceDays:Number(v('wsb-grace')||0),termsUrl:v('wsb-terms'),privacyUrl:v('wsb-privacy'),automaticTax:!!(document.getElementById('wsb-tax')||{}).checked}},'mutation');
+    var chk=function(id){return !!(document.getElementById(id)||{}).checked;};
+    // settings this form doesn't show (trial allowances…) are sent back unchanged (-290)
+    var cfg=Object.assign({},cur,{plans:plans,signupOpen:open,trialDays:Number(v('wsb-trial')||0),trialPlan:v('wsb-trialplan'),graceDays:Number(v('wsb-grace')||0),termsUrl:v('wsb-terms'),privacyUrl:v('wsb-privacy'),automaticTax:chk('wsb-tax'),
+      legalName:v('wsb-lname'),legalContact:v('wsb-lcontact'),legalLaw:v('wsb-llaw'),legalReviewed:chk('wsb-lrev'),frontPage:chk('wsb-front')});
+    if(cfg.legalContact&&!/^[^\s@<>"]+@[^\s@<>"]+\.[a-z]{2,}$/i.test(cfg.legalContact)){if(msg){msg.textContent='The contact email doesn’t look like an email address.';msg.style.color='var(--red)';}return;}
+    await _trpc('billing.opConfigSet',{config:cfg},'mutation');
     _wsPub=null;
     await wsOpenBillingAdmin();
     toast('Saved','success');
@@ -1292,6 +1311,9 @@ async function wsConsoleBilling(id){
 }
 // start-up: a confirmation link, and the sign-up form on the sign-in page
 function _wsBillInit(){
+  // -290: this browser has opened the app, so "/" never shows it the public front page
+  // (server/_core/publicPages.ts). Not a secret, not HttpOnly; ~400 days.
+  try{document.cookie='lu_app=1; Max-Age=34560000; Path=/; SameSite=Lax'+(location.protocol==='https:'?'; Secure':'');}catch(_){}
   try{
     var tok='';try{tok=new URLSearchParams(location.search).get('signup')||'';}catch(_){}
     if(/^[a-f0-9]{64}$/.test(tok)){_wsSignupConfirmPage(tok);return;}
@@ -1304,7 +1326,19 @@ function _wsBillInit(){
     tries++;
     if(_wsMe&&_wsMe.id)return;                       // signed in: no sign-in page
     if(!document.getElementById('login-box-register')){if(tries<10)setTimeout(up,400);return;}
-    _wsLoadPub().then(function(){_wsSignupUi();});
+    _wsLoadPub().then(function(){
+      _wsSignupUi();
+      // -290: the front page's "Start free trial" (/?start=signup) and "Sign in" (/?signin) links
+      try{
+        var q=new URLSearchParams(location.search);
+        if(q.has('start')||q.has('signin')){
+          if(q.get('start')==='signup'&&_wsPub&&_wsPub.signupOpen&&typeof showLoginTab==='function')showLoginTab('register');
+          ['start','signin','plan'].forEach(function(k){q.delete(k);});
+          var rest=q.toString();
+          history.replaceState(null,'',location.pathname+(rest?'?'+rest:'')+location.hash);
+        }
+      }catch(_){}
+    });
   };
   setTimeout(up,300);
   // Help Center article

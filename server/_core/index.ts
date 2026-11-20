@@ -364,6 +364,9 @@ async function startServer() {
       },
     })
   );
+  // Front page, Terms and Privacy (-290). Before the app's static files: "/" shows the
+  // front page only to a first-time visitor once sign-up is offered (publicPages.ts).
+  (await import("./publicPages")).registerPublicPages(app);
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);
