@@ -97,8 +97,10 @@ client; cross-workspace reads exist only in `operatorProcedure` tools and never 
   sheets, decks, reports and Money: this workspace only. Name → id resolution is one map per
   workspace. `canOverride` is false outside the actor's workspace.
 - Settings per workspace (`workspace_settings`): AI keys + provider, notification sender,
-  starter layout. AI: the workspace's own key, else the platform's (the operator workspace's
-  keys). Quotas: per member, per workspace (operator can set caps), and a platform ceiling.
+  starter layout. AI: the workspace's own key, else the platform's — since -289 LevelUp's own
+  keys in `system_settings` (`platformAiKey_*`, `platformAiProvider`), changed only by the
+  operator in Platform console → LevelUp's AI keys (before -289 they were the operator
+  workspace's keys, which that workspace's admins could change). Quotas: per member, per workspace (operator can set caps), and a platform ceiling.
 - Operator-only now: backups, error log, scheduled-task log, log retention, storage status,
   `/api/scheduled/*`, the platform Drive reconnect, "check expiring connections".
   Workspace-owner tools stay with each owner: audit log (their workspace's), mail log, sender,
@@ -192,6 +194,11 @@ Everything here is OFF until the operator turns it on (Platform console → Bill
 
 ## Owner actions
 
+- **Launch checklist (-289):** Platform console → "Ready to open sign-up?" lists what is done
+  and what is left (mail, Stripe key / webhook / prices, SECRETS_KEY, BACKUP_KEY, backups,
+  LevelUp's AI keys), with the steps LevelUp cannot see (Railway health check, Google consent
+  screen, Azure account types, a test-mode run) to tick by hand.
+
 - **To switch on platform mail:** choose Postmark or Resend, sign up, verify the sending
   domain (DNS: SPF / DKIM / DMARC), then set `MAIL_PROVIDER`, the API token and `MAIL_FROM` on
   Railway. **Or, without a new service (-287):** a mailbox used only for LevelUp's mail
@@ -236,6 +243,13 @@ The main changes for customers: one free trial per person (normalised email + lo
 daily AI / email allowances during a free trial, locked workspaces get no background work,
 plan upgrades apply once paid, invitation links go only to the invited mailbox, a new sign-in
 email must be confirmed from that address, sign-in throttling per address and IP.
+
+## Build -289 (2026-11-19)
+
+The Audit 3 owner decision (O9) closed: the keys customers fall back on are LevelUp's own,
+separate from the operator workspace's, and only the operator changes them. They were copied
+once from the operator workspace's keys when -289 first looked them up, so nothing changed for
+customers. Plus the launch checklist above.
 
 ## Known gaps (follow-ups)
 

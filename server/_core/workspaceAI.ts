@@ -41,6 +41,83 @@ async function keysFrom(get: (key: string) => Promise<string | undefined>): Prom
   return { provider: "manus" };
 }
 
+/**
+ * PLATFORM AI KEYS (build -289). The keys every workspace without its own falls back on are
+ * LevelUp's own, kept in system_settings (`platformAiProvider`, `platformAiKey_<provider>`,
+ * encrypted at rest like every AI key) and changed ONLY by the platform operator (Platform
+ * console → LevelUp's AI keys). Before -289 they were simply the operator workspace's keys, which
+ * that workspace's admins can change (-277) — so an admin there could cut off or swap the AI of
+ * every customer (Audit 3, O9). The operator workspace's own keys are now just its own.
+ *
+ * Moving over: until the operator has saved platform keys once (`platformAiKeysSet`), the first
+ * lookup copies the operator workspace's keys as they are, so customers' AI carries on through
+ * the deploy. From then on a change in that workspace no longer reaches anyone else.
+ */
+export const PLATFORM_AI_FLAG = "platformAiKeysSet";
+let _platformReady = false;
+
+async function ensurePlatformKeys(): Promise<void> {
+  if (_platformReady) return;
+  if (await getSystemSetting(PLATFORM_AI_FLAG)) { _platformReady = true; return; }
+  const { operatorWorkspaceId } = await import("./mailTrust");
+  const { getWorkspaceSetting } = await import("./workspace");
+  const opWs = await operatorWorkspaceId();
+  if (opWs == null) return;                       // no operator yet — try again on a later lookup
+  const vals: Record<string, string> = {};
+  for (const p of PROVIDERS) {
+    const k = String((await getWorkspaceSetting(opWs, `aiKey_${p}`)) || "").trim();
+    if (k) vals[p] = k;
+  }
+  if (!Object.keys(vals).length) return;           // nothing to copy yet — leave the flag unset
+  const { setSystemSetting } = await import("../db");
+  for (const [p, k] of Object.entries(vals)) await setSystemSetting(`platformAiKey_${p}`, k);
+  const prov = String((await getWorkspaceSetting(opWs, "aiProvider")) || "").trim();
+  if (prov) await setSystemSetting("platformAiProvider", prov);
+  await setSystemSetting(PLATFORM_AI_FLAG, JSON.stringify({ at: new Date().toISOString(), copiedFrom: opWs, providers: Object.keys(vals) }));
+  _platformReady = true;
+  console.log(`[ai] platform AI keys copied once from the operator's workspace #${opWs} (${Object.keys(vals).join(", ")}); from now on only the operator changes them`);
+}
+
+/** LevelUp's own keys (the fallback for workspaces without one). */
+export async function platformKeys(): Promise<{ provider: AIProvider; apiKey?: string }> {
+  await ensurePlatformKeys();
+  return keysFrom(async (x) => getSystemSetting(x === "aiProvider" ? "platformAiProvider" : `platform${x.charAt(0).toUpperCase()}${x.slice(1)}`));
+}
+
+/** For the Platform console: chosen provider + per provider whether a key is saved (masked hint, never the key). */
+export async function platformAIStatus(): Promise<{ provider: AIProvider | ""; keys: Record<string, { configured: boolean; hint: string }>; set: boolean; copiedFrom: number | null; active: { provider: AIProvider; configured: boolean } }> {
+  await ensurePlatformKeys();
+  const keys: Record<string, { configured: boolean; hint: string }> = {};
+  for (const p of PROVIDERS) {
+    const k = String((await getSystemSetting(`platformAiKey_${p}`)) || "").trim();
+    keys[p] = { configured: !!k, hint: maskKey(k) };
+  }
+  let flag: any = null;
+  try { const f = await getSystemSetting(PLATFORM_AI_FLAG); flag = f ? JSON.parse(f) : null; } catch { flag = null; }
+  const a = await platformKeys();
+  return {
+    provider: (String((await getSystemSetting("platformAiProvider")) || "") as AIProvider) || "",
+    keys, set: !!flag, copiedFrom: flag && flag.copiedFrom != null && !flag.savedAt ? Number(flag.copiedFrom) : null,
+    active: { provider: a.provider, configured: !!a.apiKey },
+  };
+}
+
+/** Operator only (the router checks): change LevelUp's own keys. "" clears a key. */
+export async function setPlatformAI(input: { provider?: AIProvider; openai?: string; claude?: string; gemini?: string }): Promise<void> {
+  const { setSystemSetting } = await import("../db");
+  await ensurePlatformKeys();
+  if (input.provider !== undefined) await setSystemSetting("platformAiProvider", input.provider);
+  for (const p of PROVIDERS) {
+    const v = (input as any)[p];
+    if (v !== undefined) await setSystemSetting(`platformAiKey_${p}`, String(v).trim());
+  }
+  let flag: any = {};
+  try { const f = await getSystemSetting(PLATFORM_AI_FLAG); flag = f ? JSON.parse(f) : {}; } catch { flag = {}; }
+  await setSystemSetting(PLATFORM_AI_FLAG, JSON.stringify({ ...flag, savedAt: new Date().toISOString() }));
+  _platformReady = true;
+  invalidateWorkspaceAI();
+}
+
 export async function resolveWorkspaceAI(wsId?: number | null): Promise<ResolvedAI> {
   if (wsId === undefined) {
     const { currentWorkspaceId } = await import("./memberContext");
@@ -58,13 +135,14 @@ export async function resolveWorkspaceAI(wsId?: number | null): Promise<Resolved
     v = { ...k, configured: !!k.apiKey, source: k.apiKey ? "workspace" : "none" };
   } else {
     const { getWorkspaceSetting } = await import("./workspace");
-    const platformWs = await operatorWorkspaceId();
     const own = wsId != null && wsId > 0 ? await keysFrom((x) => getWorkspaceSetting(wsId as number, x)) : { provider: "manus" as AIProvider, apiKey: undefined };
     if (own.apiKey) v = { ...own, configured: true, source: "workspace" };
-    else if (platformWs != null && platformWs !== wsId) {
-      const p = await keysFrom((x) => getWorkspaceSetting(platformWs, x));
+    else {
+      // -289: LevelUp's own keys (operator-only), for every workspace without one — the
+      // operator's workspace included, should it ever clear its own.
+      const p = await platformKeys();
       v = { ...p, configured: !!p.apiKey, source: p.apiKey ? "platform" : "none" };
-    } else v = { provider: "manus", configured: false, source: "none" };
+    }
   }
   _cache.set(key, { at: Date.now(), v });
   return v;
@@ -74,6 +152,9 @@ export async function resolveWorkspaceAI(wsId?: number | null): Promise<Resolved
 export function invalidateWorkspaceAI(): void {
   _cache.clear();
 }
+
+/** For tests only. */
+export function _resetPlatformAIForTests(): void { _platformReady = false; _cache.clear(); }
 
 /**
  * What a browser-initiated AI request (ai.assist / ai.agent / help.askAI /

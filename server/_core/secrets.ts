@@ -91,7 +91,7 @@ export function decryptSecret(v: string): string {
 }
 
 /** system_settings keys whose value is a secret (stored encrypted). */
-export const SECRET_SETTING_KEY = /^aiKey_/;
+export const SECRET_SETTING_KEY = /^(aiKey_|platformAiKey_)/;
 
 /** For tests only. */
 export function _resetSecretsForTests(): void { _keyCache = null; _warnedNoKey = false; _warnedDecrypt = false; }

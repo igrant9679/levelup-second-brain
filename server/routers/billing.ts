@@ -207,6 +207,22 @@ export const billingRouter = router({
       return { config: cfg, signupBlocked: (await signupReady()).reason };
     }),
 
+  /** Launch checklist (-289): what is still to do before sign-up can be opened. Never returns a secret. */
+  opReadiness: operatorProcedure.meta({ crossWorkspace: true }).query(async () => {
+    const { launchChecklist } = await import("../_core/launchReadiness");
+    return launchChecklist();
+  }),
+
+  /** Tick / untick a step the server cannot check (health check path, Google consent, Azure, test run). */
+  opReadinessTick: operatorProcedure.meta({ crossWorkspace: true })
+    .input(z.object({ id: z.string().max(40), done: z.boolean() }))
+    .mutation(async ({ input }) => {
+      const { launchChecklist, setManualTick, MANUAL_ITEMS } = await import("../_core/launchReadiness");
+      if (!Object.prototype.hasOwnProperty.call(MANUAL_ITEMS, input.id)) throw new TRPCError({ code: "BAD_REQUEST", message: "That step is checked by LevelUp itself." });
+      await setManualTick(input.id, input.done);
+      return launchChecklist();
+    }),
+
   opSet: operatorProcedure.meta({ crossWorkspace: true })
     .input(z.object({ workspaceId: z.number().int().positive(), mode: z.enum(["none", "comped", "trial"]), plan: z.string().max(32).optional(), trialDays: z.number().int().min(0).max(365).optional() }))
     .mutation(async ({ ctx, input }) => {

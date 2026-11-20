@@ -217,6 +217,13 @@ async function sweep(actor: Member, victim: { owner: Member; member: Member; ws:
   return { leaks, ran, total: paths.length };
 }
 
+async function auditCount(action: string, want: number): Promise<number> {
+  // procedure-map audit entries are written just after the call returns
+  let n = 0;
+  for (let i = 0; i < 40; i++) { n = (await q("SELECT action FROM audit_log WHERE action = ?", [action])).length; if (n >= want) break; await new Promise((r) => setTimeout(r, 50)); }
+  return n;
+}
+
 describe("two workspaces stay apart (real MySQL)", () => {
   beforeAll(async () => {
     let url = "";
@@ -356,6 +363,43 @@ describe("two workspaces stay apart (real MySQL)", () => {
     await (await callerFor(P.bOwner)).caller.aiSettings.set({ openai: "sk-betasecretkey0000000000BBBB" });
     invalidateWorkspaceAI();
     expect((await resolveWorkspaceAI(1)).apiKey).toMatch(/AAAA$/);
+  });
+
+  it("-289 LevelUp's own AI keys: only the operator; an admin of the operator's workspace no longer reaches anyone else's AI", async () => {
+    const { resolveWorkspaceAI, invalidateWorkspaceAI } = await import("./_core/workspaceAI");
+    const bo = (await callerFor(P.bOwner)).caller;
+    await expect(bo.aiSettings.platformGet()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(bo.aiSettings.platformSet({ openai: "sk-steal" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(bo.aiSettings.platformTest({ provider: "openai" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    // B on the platform key (no key of its own)
+    await bo.aiSettings.set({ openai: "" });
+    invalidateWorkspaceAI();
+    expect(await resolveWorkspaceAI(WS_B)).toMatchObject({ source: "platform", apiKey: expect.stringMatching(/AAAA$/) });
+    // an ADMIN of workspace 1 (not the operator) changes workspace 1's key: B is not affected any more
+    await q("UPDATE users SET role = 'admin' WHERE id = ?", [P.aMember.id]);
+    const aAdmin = (await callerFor(P.aMember)).caller;
+    await aAdmin.aiSettings.set({ openai: "sk-adminchangedkey000000000HIJK" });
+    await expect(aAdmin.aiSettings.platformGet()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    invalidateWorkspaceAI();
+    expect((await resolveWorkspaceAI(1)).apiKey).toMatch(/HIJK$/);
+    expect((await resolveWorkspaceAI(WS_B)).apiKey).toMatch(/AAAA$/);
+    // the operator changes LevelUp's key: it applies to B at once; the answer is masked; it is stored encrypted
+    const ao = (await callerFor(P.aOwner)).caller;
+    const st = await ao.aiSettings.platformSet({ openai: "sk-platformnewkey00000000PPPP", provider: "openai" });
+    expect(st.keys.openai).toMatchObject({ configured: true, hint: "sk-…PPPP" });
+    expect(ser(st)).not.toContain("platformnewkey");
+    expect(ser(await ao.aiSettings.platformGet())).not.toContain("platformnewkey");
+    expect((await resolveWorkspaceAI(WS_B)).apiKey).toMatch(/PPPP$/);
+    expect((await resolveWorkspaceAI(1)).apiKey).toMatch(/HIJK$/);                 // the operator's workspace keeps its own
+    const raw = await q("SELECT value FROM system_settings WHERE `key` = 'platformAiKey_openai'");
+    expect(String(raw[0].value)).not.toContain("platformnewkey");
+    expect(await auditCount("ai.platform_keys_change", 1)).toBeGreaterThanOrEqual(1);
+    // put things back for the tests that follow
+    await aAdmin.aiSettings.set({ openai: "sk-alphasecretkey0000000000AAAA" });
+    await q("UPDATE users SET role = 'user' WHERE id = ?", [P.aMember.id]);
+    await ao.aiSettings.platformSet({ openai: "sk-alphasecretkey0000000000AAAA" });
+    await bo.aiSettings.set({ openai: "sk-betasecretkey0000000000BBBB" });
+    invalidateWorkspaceAI();
   });
 
   it("daily limits are counted per workspace", async () => {

@@ -76,6 +76,13 @@ let OP = "email:op@platform.test";
 let W = 0;                                   // the self-serve workspace
 let NEW = "email:nora@newco.test"; // the real (random) id is read after sign-up (Audit 3)
 
+async function auditCount(action: string, want: number): Promise<number> {
+  // procedure-map audit entries are written just after the call returns
+  let n = 0;
+  for (let i = 0; i < 40; i++) { n = (await q("SELECT action FROM audit_log WHERE action = ?", [action])).length; if (n >= want) break; await new Promise((r) => setTimeout(r, 50)); }
+  return n;
+}
+
 describe("sign-up and billing, end to end (real MySQL + fake Stripe)", () => {
   beforeAll(async () => {
     let url = "";
@@ -149,6 +156,17 @@ describe("sign-up and billing, end to end (real MySQL + fake Stripe)", () => {
     const before = await op.billing.opConfigGet();
     expect(before.stripe).toMatchObject({ configured: true, mode: "test", webhookSecretSet: true });
     expect(before.sellable).toBe(false);
+    // -289 launch checklist: before prices, sign-up is not ready and says what is missing
+    const rd0 = await op.billing.opReadiness();
+    const item0 = (id: string) => rd0.items.find((i: any) => i.id === id);
+    expect(rd0.ready).toBe(false);
+    expect(item0("prices")).toMatchObject({ status: "todo", required: true });
+    expect(item0("stripeKey")).toMatchObject({ status: "ok" });
+    expect(item0("webhookSecret")).toMatchObject({ status: "ok" });
+    expect(item0("mail")).toMatchObject({ status: "ok" });
+    expect(item0("stripeMode")).toMatchObject({ status: "warn" });                   // test mode
+    expect(rd0.signup).toMatchObject({ open: false, offered: false, blocked: "closed" });
+    await expect((await as("email:mem@platform.test")).c.billing.opReadiness()).rejects.toThrow();
     const plans = before.config.plans.map((p: any) => p.key === "team" ? { ...p, priceMonthly: "price_team_m", priceYearly: "price_team_y" } : p.key === "solo" ? { ...p, priceMonthly: "price_solo_m" } : p);
     const saved = await op.billing.opConfigSet({ config: { ...before.config, plans, signupOpen: true } });
     expect(saved.config.signupOpen).toBe(true);
@@ -159,6 +177,24 @@ describe("sign-up and billing, end to end (real MySQL + fake Stripe)", () => {
     expect(team.priceMonthly).toBeUndefined();                       // price ids are not published
     expect(pub.plans.find((p: any) => p.key === "business").buyable).toBe(false);
     expect((await q("SELECT action FROM audit_log WHERE action = 'billing.config_change'")).length).toBe(1);
+    // -289 launch checklist: every required step done, the price ids were found in Stripe, nothing secret in it
+    const rd = await op.billing.opReadiness();
+    expect(rd.ready).toBe(true);
+    expect(rd.required.done).toBe(rd.required.total);
+    expect(rd.items.find((i: any) => i.id === "prices")).toMatchObject({ status: "ok" });
+    expect(rd.signup).toMatchObject({ open: true, offered: true, blocked: null });
+    const flat = JSON.stringify(rd);
+    for (const secret of [fake.secretKey, "whsec_flow_test", String(process.env.MAIL_SMTP_PASS || "nope-not-set")]) expect(flat).not.toContain(secret);
+    // a step LevelUp can't check is ticked by the operator; anything else can't be ticked; members can't tick
+    expect(rd.items.find((i: any) => i.id === "healthcheck")).toMatchObject({ status: "manual", doneAt: null });
+    const t1 = await op.billing.opReadinessTick({ id: "healthcheck", done: true });
+    expect(t1.items.find((i: any) => i.id === "healthcheck").status).toBe("ok");
+    expect(t1.items.find((i: any) => i.id === "healthcheck").doneAt).toBeTruthy();
+    await expect(op.billing.opReadinessTick({ id: "prices", done: true })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect((await as("email:mem@platform.test")).c.billing.opReadinessTick({ id: "healthcheck", done: false })).rejects.toThrow();
+    const t2 = await op.billing.opReadinessTick({ id: "healthcheck", done: false });
+    expect(t2.items.find((i: any) => i.id === "healthcheck")).toMatchObject({ status: "manual", doneAt: null });
+    expect(await auditCount("platform.checklist_tick", 2)).toBe(2);
   });
 
   it("sign-up: nothing exists until the emailed link is opened; then a workspace, its owner and a trial", async () => {

@@ -500,12 +500,15 @@ async function _wsConsoleLoad(){
     var r=await _trpc('workspace.opList',undefined,'query');
     _wsConsoleRows=r.workspaces||[];
     box.innerHTML=_wsConsoleHtml();
+    _wsLaunchSummary();
   }catch(e){box.innerHTML='<p style="color:var(--red);font-size:13px">'+_wsEsc((e&&e.message)||'Could not load')+'</p>';}
 }
 function _wsUse(u){return u?Number(u.used).toLocaleString()+' / '+Number(u.cap).toLocaleString():'';}
 function _wsConsoleHtml(){
   var h='<div class="ws-card"><h3>Workspaces</h3><p>Each customer is a workspace. From here you create them, pause them, set their daily limits and change their owner. You see who is in a workspace and how much it uses — <b>never what is in it</b>: its tasks, notes, files and Money are only visible to its own members.</p></div>';
+  h+='<div class="ws-card" id="ws-launch-card"><h3>Ready to open sign-up?</h3><p id="ws-launch-sum">Checking…</p><div class="ws-row"><button class="btn btn-s"'+_wsAct('wsOpenLaunch')+'>Open the launch checklist</button></div></div>';
   h+='<div class="ws-card"><h3>Billing &amp; sign-up</h3><p>Plans and their Stripe prices, the free trial, and whether anyone can create a workspace from the sign-in page.</p><div class="ws-row"><button class="btn btn-s"'+_wsAct('wsOpenBillingAdmin')+'>Open billing &amp; sign-up</button></div></div>';
+  h+='<div class="ws-card"><h3>LevelUp’s AI keys</h3><p>The keys every workspace without its own AI key uses (within its daily limit). Only you can change them — your own workspace’s keys in Settings → AI Features are separate, so its admins can’t touch anyone else’s AI.</p><div class="ws-row"><button class="btn btn-s"'+_wsAct('wsOpenPlatformAI')+'>Open LevelUp’s AI keys</button></div></div>';
   h+='<div class="ws-card"><h3>Create a workspace</h3><p>You name it and say who will own it. They get an email with a link: someone new sets a password; someone who already has a LevelUp login adds this workspace to it.</p>'
     +'<div class="ws-row"><div class="ws-f"><label for="wsc-name">Workspace name</label><input class="inp" id="wsc-name" maxlength="120" placeholder="Acme Inc."></div>'
     +'<div class="ws-f"><label for="wsc-email">Owner’s email</label><input class="inp" id="wsc-email" type="email" placeholder="owner@acme.com"></div>'
@@ -590,6 +593,114 @@ async function wsConsoleClose(id){
   if(v==null)return;
   try{await _trpc('workspace.opDelete',{workspaceId:id,confirmName:v.trim()},'mutation');toast('Workspace closed — it can be reopened for 30 days','success',6000);await _wsConsoleReload(id);}
   catch(e){toast((e&&e.message)||'Could not close it','error',9000);}
+}
+
+// ─── Launch checklist (build -289) ──────────────────────────────────────────
+// billing.opReadiness: what is still to do before strangers can sign up. Never carries a secret.
+var _wsLaunch=null;
+var _WS_LAUNCH_GROUPS=[['signup','What sign-up needs'],['safety','Keeping it safe'],['signin','Customers connecting Google and Microsoft'],['manual','Check yourself']];
+function _wsLaunchPill(s){
+  var m={ok:['ok','done'],todo:['bad','to do'],warn:['warn','check'],manual:['','tick when done'],info:['','note']}[s]||['',s];
+  return '<span class="ws-pill '+m[0]+'">'+_wsEsc(m[1])+'</span>';
+}
+function _wsLaunchSignupLine(r){
+  var s=r.signup||{};
+  if(s.offered)return '<b style="color:var(--ok)">Sign-up is open</b> — anyone can create a workspace from the sign-in page.';
+  if(s.open){
+    var why=s.blocked==='no_platform_mail'?'the platform mail service is not set up':s.blocked==='nothing_to_buy'?'nothing can be bought yet (Stripe key or prices)':'a step below is not done';
+    return '<b style="color:var(--warn)">Sign-up is switched on but not offered</b>: '+_wsEsc(why)+'.';
+  }
+  return '<b>Sign-up is closed.</b> '+(r.ready?'Everything it needs is done — switch it on in Billing &amp; sign-up when you are ready.':'Finish the steps marked “to do” first.');
+}
+async function _wsLaunchSummary(){
+  var el=document.getElementById('ws-launch-sum');if(!el)return;
+  try{
+    var r=await _trpc('billing.opReadiness',undefined,'query');_wsLaunch=r;
+    var el2=document.getElementById('ws-launch-sum');if(!el2)return;
+    el2.innerHTML=_wsLaunchSignupLine(r)+'<br>Needed for sign-up: <b>'+r.required.done+' of '+r.required.total+'</b> done · recommended: <b>'+r.recommended.done+' of '+r.recommended.total+'</b>.';
+  }catch(e){var el3=document.getElementById('ws-launch-sum');if(el3)el3.textContent='Could not check: '+((e&&e.message)||'error');}
+}
+async function wsOpenLaunch(){
+  wsModal('<div class="ws-h"><h2>Launch checklist</h2><button class="btn btn-s"'+_wsAct('wsOpenConsole')+'>← Platform console</button></div><div id="ws-launch"><p style="font-size:12.5px;color:var(--t2)">Checking…</p></div>',true);
+  try{_wsLaunch=await _trpc('billing.opReadiness',undefined,'query');}
+  catch(e){var b=document.getElementById('ws-launch');if(b)b.innerHTML='<p style="color:var(--red);font-size:13px">'+_wsEsc((e&&e.message)||'Could not check')+'</p>';return;}
+  _wsLaunchPaint();
+}
+function _wsLaunchPaint(){
+  var box=document.getElementById('ws-launch');if(!box||!_wsLaunch)return;
+  var r=_wsLaunch;
+  var h='<div class="ws-card"><p style="font-size:13px">'+_wsLaunchSignupLine(r)+'</p><p>Needed for sign-up: <b>'+r.required.done+' of '+r.required.total+'</b> done · recommended: <b>'+r.recommended.done+' of '+r.recommended.total+'</b>. Checked just now; nothing here shows a secret, only whether it is set.</p>'
+    +'<div class="ws-row"><button class="btn btn-s"'+_wsAct('wsOpenLaunch')+'>Check again</button><button class="btn btn-s"'+_wsAct('wsOpenBillingAdmin')+'>Billing &amp; sign-up</button><button class="btn btn-s"'+_wsAct('wsOpenPlatformAI')+'>LevelUp’s AI keys</button></div></div>';
+  _WS_LAUNCH_GROUPS.forEach(function(g){
+    var its=(r.items||[]).filter(function(i){return i.group===g[0];});if(!its.length)return;
+    h+='<div class="ws-card"><h3>'+_wsEsc(g[1])+'</h3><ul class="ws-launch-list" style="list-style:none;margin:0;padding:0">';
+    its.forEach(function(i){
+      var manual=i.doneAt!==undefined;   // only the steps LevelUp can't check carry doneAt (null = not ticked)
+      h+='<li data-launch-id="'+_wsEsc(i.id)+'" style="padding:10px 0;border-top:1px solid var(--bd1)">'
+        +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+_wsLaunchPill(i.status)+'<b style="color:var(--t1);font-size:13px">'+_wsEsc(i.title)+'</b>'+(i.required?'<span style="font-size:11px;color:var(--t3)">needed for sign-up</span>':'')+'</div>'
+        +'<div style="margin-top:4px">'+_wsEsc(i.detail)+'</div>'
+        +(i.fix&&i.status!=='ok'?'<div style="margin-top:4px;color:var(--t1)"><b>How:</b> '+_wsEsc(i.fix)+'</div>':'')
+        +(manual?'<div class="ws-row" style="margin:6px 0 0"><button class="btn btn-s"'+_wsAct('wsLaunchTick',[i.id,i.status!=='ok'])+'>'+(i.status==='ok'?'Undo':'Mark done')+'</button></div>':'')
+        +'</li>';
+    });
+    h+='</ul></div>';
+  });
+  box.innerHTML=h;
+}
+async function wsLaunchTick(id,done){
+  try{_wsLaunch=await _trpc('billing.opReadinessTick',{id:id,done:!!done},'mutation');_wsLaunchPaint();}
+  catch(e){toast((e&&e.message)||'Could not save','error',8000);}
+}
+
+// ─── LevelUp's own AI keys (build -289, operator only) ──────────────────────
+var _WS_AI_NAMES={openai:'OpenAI',claude:'Anthropic (Claude)',gemini:'Google Gemini'};
+async function wsOpenPlatformAI(){
+  wsModal('<div class="ws-h"><h2>LevelUp’s AI keys</h2><button class="btn btn-s"'+_wsAct('wsOpenConsole')+'>← Platform console</button></div><div id="ws-pai"><p style="font-size:12.5px;color:var(--t2)">Loading…</p></div>',true);
+  await _wsPaiLoad();
+}
+async function _wsPaiLoad(r){
+  var box=document.getElementById('ws-pai');if(!box)return;
+  try{if(!r)r=await _trpc('aiSettings.platformGet',undefined,'query');}
+  catch(e){box.innerHTML='<p style="color:var(--red);font-size:13px">'+_wsEsc((e&&e.message)||'Could not load')+'</p>';return;}
+  var h='<div class="ws-card"><p>Every workspace that has not entered its own AI key in Settings → AI Features uses these, within its daily AI limit (the limit is set per plan, or per workspace on its Manage page). '
+    +'They are kept encrypted and never shown again after saving. <b>Only you</b> can see or change this page: your own workspace’s keys are separate, so an admin there changes only your workspace’s AI.</p>'
+    +(r.copiedFrom!=null?'<p>These were copied once from your workspace’s keys when this version went live, so nothing changed for customers. Changing your workspace’s keys no longer changes these.</p>':'')
+    +'<p>'+(r.active&&r.active.configured?'<span class="ws-pill ok">in use: '+_wsEsc(_WS_AI_NAMES[r.active.provider]||r.active.provider)+'</span>':'<span class="ws-pill warn">no key saved — customers without their own key get no AI answers</span>')+'</p>'
+    +'<div class="ws-row"><div class="ws-f" style="max-width:260px"><label for="pai-prov">Use first</label><select class="inp" id="pai-prov">'
+    +['openai','claude','gemini'].map(function(p){return '<option value="'+p+'"'+((r.provider||'openai')===p?' selected':'')+'>'+_wsEsc(_WS_AI_NAMES[p])+'</option>';}).join('')
+    +'</select></div><button class="btn btn-s"'+_wsAct('wsPaiSave',['provider'])+'>Save</button></div>'
+    +'<p style="font-size:11.5px">If the first choice has no key, the next provider that has one answers.</p></div>';
+  ['openai','claude','gemini'].forEach(function(p){
+    var k=(r.keys||{})[p]||{};
+    h+='<div class="ws-card"><h3>'+_wsEsc(_WS_AI_NAMES[p])+' '+(k.configured?'<span class="ws-pill ok">saved '+_wsEsc(k.hint||'')+'</span>':'<span class="ws-pill">no key</span>')+'</h3>'
+      +'<div class="ws-row"><div class="ws-f"><label for="pai-'+p+'">'+(k.configured?'Replace with a new key':'Key')+'</label><input class="inp" id="pai-'+p+'" type="password" autocomplete="off" spellcheck="false" maxlength="512" placeholder="'+(p==='claude'?'sk-ant-…':p==='gemini'?'AIza…':'sk-…')+'"></div>'
+      +'<button class="btn btn-s"'+_wsAct('wsPaiSave',[p])+'>Save</button>'
+      +(k.configured?'<button class="btn btn-s"'+_wsAct('wsPaiTest',[p])+'>Test</button><button class="btn btn-s" style="color:var(--red)"'+_wsAct('wsPaiClear',[p])+'>Remove</button>':'')
+      +'</div><div id="pai-msg-'+p+'" class="ws-msg" role="status"></div></div>';
+  });
+  box.innerHTML=h;
+}
+async function wsPaiSave(what){
+  var upd={};
+  if(what==='provider')upd.provider=((document.getElementById('pai-prov')||{}).value||'openai');
+  else{
+    var v=((document.getElementById('pai-'+what)||{}).value||'').trim();
+    if(!v){var m=document.getElementById('pai-msg-'+what);if(m){m.textContent='Paste the key first.';m.style.color='var(--red)';}return;}
+    upd[what]=v;
+  }
+  try{var r=await _trpc('aiSettings.platformSet',upd,'mutation');await _wsPaiLoad(r);toast('Saved — it applies to every workspace without its own key at once','success',5000);}
+  catch(e){toast((e&&e.message)||'Could not save','error',8000);}
+}
+async function wsPaiClear(p){
+  if(!confirm('Remove LevelUp’s '+(_WS_AI_NAMES[p]||p)+' key? Workspaces without their own key then use the next provider that has a key, or get no AI answers.'))return;
+  var upd={};upd[p]='';
+  try{var r=await _trpc('aiSettings.platformSet',upd,'mutation');await _wsPaiLoad(r);toast('Removed','success');}
+  catch(e){toast((e&&e.message)||'Could not remove it','error',8000);}
+}
+async function wsPaiTest(p){
+  var m=document.getElementById('pai-msg-'+p);if(m){m.textContent='Asking '+(_WS_AI_NAMES[p]||p)+'…';m.style.color='var(--t2)';}
+  try{var r=await _trpc('aiSettings.platformTest',{provider:p},'mutation');var m2=document.getElementById('pai-msg-'+p);if(m2){m2.textContent=r.ok?'✓ It answered.'+(r.inUse?' This is the key in use.':' (Not the one in use — see “Use first”.)'):'It did not answer.';m2.style.color=r.ok?'var(--ok)':'var(--red)';}}
+  catch(e){var m3=document.getElementById('pai-msg-'+p);if(m3){m3.textContent=(e&&e.message)||'It did not answer';m3.style.color='var(--red)';}}
 }
 
 // ─── Plans, billing and sign-up (build -279) ────────────────────────────────

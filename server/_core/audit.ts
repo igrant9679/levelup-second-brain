@@ -100,6 +100,8 @@ export const AUDITED: Record<string, Spec> = {
   "oauthSync.adminSaveSmtpImapAccount": { action: "mail.save_user_smtp", target: (i) => ({ targetUserId: i?.userId ?? null, targetType: "smtp", detail: { email: i?.email ?? null } }) },
   "oauthSync.adminDeleteSmtpImapAccount": { action: "mail.delete_user_smtp", target: (i) => ({ targetUserId: i?.userId ?? null, targetType: "smtp" }) },
   "aiSettings.set": { action: "ai.keys_change", target: (i) => ({ detail: { provider: i?.provider ?? null, changed: ["openai", "claude", "gemini"].filter((k) => i?.[k] !== undefined) } }) },
+  "aiSettings.platformSet": { action: "ai.platform_keys_change", target: (i) => ({ detail: { provider: i?.provider ?? null, changed: ["openai", "claude", "gemini"].filter((k) => i?.[k] !== undefined), cleared: ["openai", "claude", "gemini"].filter((k) => i?.[k] !== undefined && !String(i[k]).trim()) } }) },
+  "billing.opReadinessTick": { action: "platform.checklist_tick", target: (i) => ({ targetType: "checklist", targetId: i?.id ?? null, detail: { done: !!i?.done } }) },
   "simplefin.setup": { action: "bank.connect" },
   "simplefin.clearConfig": { action: "bank.disconnect" },
 };

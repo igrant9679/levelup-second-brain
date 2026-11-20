@@ -2691,7 +2691,7 @@ function _renderMiniWeekStrip(){
     const k=_ymd(d);
     const isToday=i===0;
     const taskCount=(D.tasks||[]).filter(t=>t.status!=='Done'&&(t.due===k||t.startDate===k)).length;
-    const evtCount=_calEventsOn(d).length;
+    const evtCount=(typeof _calEventsOn==='function'?_calEventsOn(d):[]).length;   // -289: the calendar bundle may not be loaded yet at startup
     const dots=[];
     if(taskCount)dots.push(`<span class="lu-mini-week-dot" title="${taskCount} task${taskCount===1?'':'s'}"></span>`);
     if(evtCount)dots.push(`<span class="lu-mini-week-dot evt" title="${evtCount} event${evtCount===1?'':'s'}"></span>`);

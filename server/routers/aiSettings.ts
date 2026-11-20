@@ -15,8 +15,8 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { protectedProcedure, router } from "../_core/trpc";
-import { invalidateWorkspaceAI, maskKey, resolveWorkspaceAI } from "../_core/workspaceAI";
+import { operatorProcedure, protectedProcedure, router } from "../_core/trpc";
+import { invalidateWorkspaceAI, maskKey, platformAIStatus, platformKeys, resolveWorkspaceAI, setPlatformAI } from "../_core/workspaceAI";
 import { getSettingFor, setSettingFor, wsIdOf } from "../_core/workspace";
 import { isOwnerCtxUser } from "./appData";
 import { isAdminUser } from "../_core/access";
@@ -24,8 +24,9 @@ import { isAdminUser } from "../_core/access";
 /** Owner or an admin the owner granted (-277). Members can only use the keys. */
 export async function canManageAIKeys(user: any): Promise<boolean> {
   if (!user) return false;
-  // (Audit 3 noted that in the operator's workspace these are also the platform's keys. Left as the
-  // owner decided in -277 — admins manage them — and reported as an owner decision.)
+  // These are THIS workspace's keys only. Since -289 the keys other workspaces fall back on are
+  // LevelUp's own (platformGet / platformSet below, operator only) — so admins managing their
+  // workspace's keys (-277) can no longer touch anyone else's AI (Audit 3, O9).
   if (isAdminUser(user)) return true;
   return await isOwnerCtxUser(user);
 }
@@ -107,5 +108,36 @@ export const aiSettingsRouter = router({
       // passing test of THIS key.
       if (providerUsed !== input.provider) throw new Error(`${input.provider} did not answer`);
       return { ok: !!text };
+    }),
+
+  // ── LevelUp's own keys (build -289): the fallback for every workspace without one. Operator only. ──
+  /** Which provider and which keys are saved (masked hints, never a key). */
+  platformGet: operatorProcedure.query(async () => platformAIStatus()),
+
+  /** Change LevelUp's own keys. Empty string clears. Audited. */
+  platformSet: operatorProcedure
+    .input(z.object({
+      provider: z.enum(PROVIDERS).optional(),
+      openai: z.string().max(512).optional(),
+      claude: z.string().max(512).optional(),
+      gemini: z.string().max(512).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      await setPlatformAI(input);   // audited by the procedure map in _core/audit.ts
+      return platformAIStatus();
+    }),
+
+  /** Ask a saved platform key for "OK" — the operator's check that customers' AI works. */
+  platformTest: operatorProcedure
+    .input(z.object({ provider: z.enum(PROVIDERS) }))
+    .mutation(async ({ input }) => {
+      const { getSystemSetting } = await import("../db");
+      const apiKey = String((await getSystemSetting(`platformAiKey_${input.provider}`)) || "").trim();
+      if (!apiKey) throw new TRPCError({ code: "PRECONDITION_FAILED", message: `No ${input.provider} key is saved for LevelUp` });
+      const { callAIProvider } = await import("../_core/aiProviders");
+      const { text, providerUsed } = await callAIProvider({ provider: input.provider, apiKey, systemPrompt: "You are a helpful assistant.", userContent: "Reply with exactly: OK" });
+      if (providerUsed !== input.provider) throw new Error(`${input.provider} did not answer`);
+      const active = await platformKeys();
+      return { ok: !!text, inUse: active.provider === input.provider };
     }),
 });
