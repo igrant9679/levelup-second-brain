@@ -1694,6 +1694,7 @@ function renderArchive(){
 }
 
 function renderMyDay(){
+  setTimeout(()=>{try{_focusPaint();}catch(_){}},0);   // the Do bar shows the one shared timer as it stands (-293)
 // Restore the user's last subnav choice; default to Execute (most-used view).
 const _mdSec=(D.prefs&&D.prefs.myDaySection)||'e';
 $('myday-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('sun',22,'var(--page-accent)')}Today</h1><p style="font-size:12px;color:var(--t2)">${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · ${_topLevelTasks(D.tasks).filter(t=>t.myDay).length} selected</p>${_focusViewTabs('myday')}</div><div style="display:flex;gap:4px"><button class="btn btn-s" onclick="startFreshMyDay()" title="Clear all My Day flags and start fresh for today">🔄 Start Fresh</button><button class="btn btn-s" onclick="D.tasks.forEach(t=>t.myDay=false);save('tasks');renderScreen('myday')">Clear All</button><button class="btn btn-p" onclick="openFA('task')">+ Full Add</button></div></div>
@@ -1715,8 +1716,7 @@ $('myday-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1
     <button class="btn btn-s" onclick="pomoReset()">↺ Reset</button>
     <button class="btn btn-s" onclick="nav('focus')" title="The big timer, with your focus history">Full focus view</button>
     <select class="inp" id="pomo-mode" aria-label="Focus timer mode" onchange="pomoSetMode(this.value)" style="font-size:11px;padding:2px 6px;height:26px">
-      ${[['25','25 min Focus'],['50','50 min Deep Work'],['5','5 min Break'],['15','15 min Long Break']]
-        .map(([v,l])=>`<option value="${v}" ${String(Math.round(_pomoTotal/60))===v?'selected':''}>${l}</option>`).join('')}
+      ${FOCUS_MODES.map(([v,l])=>`<option value="${v}" ${_focusMode()===v?'selected':''}>${esc(l)}</option>`).join('')}
     </select>
   </div>
 </div>
@@ -1965,103 +1965,117 @@ function startInlineEdit(taskId){
   inp.select();
 }
 // toggleSubtask is defined above (unified)
-// ====== POMODORO FOCUS TIMER ======
-let _pomoInterval=null,_pomoSecs=25*60,_pomoTotal=25*60,_pomoRunning=false,_pomoSession=1,_pomoTaskId=null;
-function pomoSetMode(mins){
-  if(_pomoRunning)pomoToggle();
-  _pomoTotal=parseInt(mins)*60;
-  _pomoSecs=_pomoTotal;
-  _pomoUpdateDisplay();
+// ====== THE FOCUS TIMER — one timer, two views (build -293) ======
+// The Planner's "Do" bar and the Focus page used to run two separate
+// countdowns with different rules (one offered a break and never logged time on
+// the task; the other logged time on the task and never offered a break). They
+// are now two views of this ONE timer: start it in either place and the other
+// shows the same clock.
+//   • A finished FOCUS session is recorded once: minutes in D.prefs.focusLog
+//     (today's total) and focusByHour, time on the chosen task (timeSpent), and
+//     the session list on this device (lu_focus_sessions).
+//   • It then queues a break (5 minutes; 15 after every fourth session). Breaks
+//     are never counted as focus time.
+//   • Modes: f5 / f15 / f25 / f50 are focus, b5 / b15 are breaks.
+const FOCUS_MODES=[['f25','25 min focus'],['f50','50 min deep work'],['f15','15 min focus'],['f5','5 min focus'],['b5','5 min break'],['b15','15 min long break']];
+let _focusLen=25*60,_focusSecsLeft=25*60,_focusRunning=false,_focusTimer=null,_focusTaskId=null,_focusBreak=false,_focusSession=1;
+let _focusSessions=(function(){try{const a=JSON.parse(localStorage.getItem('lu_focus_sessions')||'[]');return Array.isArray(a)?a:[];}catch(_){return [];}})();
+function _focusMode(){return (_focusBreak?'b':'f')+Math.round(_focusLen/60);}
+function _focusClock(){const m=Math.floor(_focusSecsLeft/60),s=_focusSecsLeft%60;return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');}
+function _focusTask(){return _focusTaskId==null?null:((D.tasks||[]).find(t=>t.id===_focusTaskId)||null);}
+/** Draws the timer into whichever view is on screen (both read the same state). */
+function _focusPaint(){
+  const set=(id,fn)=>{const e=document.getElementById(id);if(e)fn(e);};
+  const pct=_focusLen?Math.min(100,Math.max(0,(1-_focusSecsLeft/_focusLen)*100)):0;
+  const label=_focusRunning?'⏸ Pause':(_focusSecsLeft<_focusLen?'▶ Resume':'▶ Start');
+  const t=_focusTask();
+  // the Planner's bar
+  set('pomo-timer',e=>{e.textContent=_focusClock();});
+  set('pomo-progress',e=>{e.style.width=pct+'%';});
+  set('pomo-sessions',e=>{e.textContent='Session '+_focusSession+' of 4';});
+  set('pomo-label',e=>{e.textContent=_focusBreak?'Break':'Focus';});
+  set('pomo-btn',e=>{e.textContent=label;});
+  set('pomo-mode',e=>{const m=_focusMode();if(e.value!==m&&[...e.options].some(o=>o.value===m))e.value=m;});
+  set('pomo-task-name',e=>{e.textContent=t?'🎯 '+t.title:'No task selected';});
+  // the Focus page
+  set('focus-clock',e=>{e.textContent=_focusClock();});
+  set('focus-ring',e=>{e.style.strokeDashoffset=553-(553*pct/100);});
+  set('focus-btn',e=>{e.textContent=label;});
+  set('focus-state',e=>{e.textContent=_focusRunning?(_focusBreak?'On a break…':'Focus session running…'):(_focusBreak?'Break ready':'Ready to focus');});
 }
-function _pomoUpdateDisplay(){
-  const m=Math.floor(_pomoSecs/60),s=_pomoSecs%60;
-  const el=document.getElementById('pomo-timer');
-  if(el)el.textContent=(m<10?'0':'')+m+':'+(s<10?'0':'')+s;
-  const prog=document.getElementById('pomo-progress');
-  if(prog)prog.style.width=(((_pomoTotal-_pomoSecs)/_pomoTotal)*100)+'%';
-  const sess=document.getElementById('pomo-sessions');
-  if(sess)sess.textContent='Session '+_pomoSession+' of 4';
+function focusSetMode(mode){
+  const m=/^([fb])(\d+)$/.exec(String(mode||''));if(!m)return;
+  if(_focusRunning)focusToggle();
+  _focusBreak=m[1]==='b';
+  _focusLen=_focusSecsLeft=Math.max(1,parseInt(m[2],10))*60;
+  if(typeof curScreen!=='undefined'&&curScreen==='focus')renderFocus();else _focusPaint();
 }
-function pomoToggle(){
-  const btn=document.getElementById('pomo-btn');
-  if(_pomoRunning){
-    clearInterval(_pomoInterval);
-    _pomoRunning=false;
-    if(btn)btn.textContent='▶ Resume';
-  } else {
-    _pomoRunning=true;
-    if(btn)btn.textContent='⏸ Pause';
-    // -275: the end time is fixed when the timer starts or resumes; each tick
-    // reads the clock (a counter drifted or stalled in a background tab).
-    const _pomoEnd=Date.now()+_pomoSecs*1000;
-    _pomoInterval=setInterval(()=>{
-      _pomoSecs=Math.max(0,Math.round((_pomoEnd-Date.now())/1000));
-      _pomoUpdateDisplay();
-      if(_pomoSecs<=0){
-        clearInterval(_pomoInterval);
-        _pomoRunning=false;
-        const isBreak=_pomoTotal<=15*60&&_pomoTotal>=5*60;
-        if(!isBreak){
-          // Offer to complete the linked task — one session rarely finishes a
-          // task, and it used to be marked Done after the first one.
-          if(_pomoTaskId){
-            const t=D.tasks.find(x=>x.id===_pomoTaskId);
-            if(t&&t.status!=='Done'){const tid=_pomoTaskId;setTimeout(()=>toast({type:'info',title:'Session done on "'+t.title+'"',msg:'Is the task finished?',duration:9000,actions:[{label:'✓ Mark done',primary:true,onClick:()=>toggleTask(tid)}]}),400);}
-          }
-          // Log focus time to D.prefs (today = focusLog[today]; -275)
-          D.prefs=D.prefs||{};
-          // Record in 7-day rolling log
-          const _today=_ymd(new Date());
-          D.prefs.focusLog=D.prefs.focusLog||{};
-          D.prefs.focusLog[_today]=(D.prefs.focusLog[_today]||0)+Math.round(_pomoTotal/60);
-          // Per-hour tracker for the Peak Focus Hour Home widget.
-          D.prefs.focusByHour=D.prefs.focusByHour||{};
-          const _hr=new Date().getHours();
-          D.prefs.focusByHour[_hr]=(D.prefs.focusByHour[_hr]||0)+Math.round(_pomoTotal/60);
-          // Trim to last 30 days
-          const _keys=Object.keys(D.prefs.focusLog).sort();
-          if(_keys.length>30)_keys.slice(0,_keys.length-30).forEach(k=>delete D.prefs.focusLog[k]);
-          save('prefs');
-          _pomoSession=Math.min(_pomoSession+1,4);
-          toast('🍅 Focus session complete! Take a break.');
-          // Auto-switch to 5-min break
-          _pomoTotal=5*60;
-          _pomoSecs=5*60;
-          const sel=document.getElementById('pomo-mode');
-          if(sel)sel.value='5';
-          const lbl=document.getElementById('pomo-label');
-          if(lbl)lbl.textContent='Break';
-        } else {
-          toast('⚡ Break over! Back to focus.');
-          _pomoTotal=25*60;
-          _pomoSecs=25*60;
-          const sel=document.getElementById('pomo-mode');
-          if(sel)sel.value='25';
-          const lbl=document.getElementById('pomo-label');
-          if(lbl)lbl.textContent='Focus';
-        }
-        _pomoUpdateDisplay();
-        if(btn)btn.textContent='▶ Start';
-      }
+function focusToggle(){
+  if(_focusRunning){
+    clearInterval(_focusTimer);_focusTimer=null;_focusRunning=false;
+  }else{
+    if(_focusSecsLeft<=0)_focusSecsLeft=_focusLen;
+    _focusRunning=true;
+    // The end time is fixed when the timer starts or resumes; each tick reads
+    // the clock (a counter drifted or stalled in a background tab) (-275).
+    const end=Date.now()+_focusSecsLeft*1000;
+    _focusTimer=setInterval(()=>{
+      _focusSecsLeft=Math.max(0,Math.round((end-Date.now())/1000));
+      if(_focusSecsLeft<=0)_focusFinish();else _focusPaint();
     },1000);
   }
+  if(typeof curScreen!=='undefined'&&curScreen==='focus')renderFocus();else _focusPaint();
 }
-function pomoReset(){
-  clearInterval(_pomoInterval);
-  _pomoRunning=false;
-  const sel=document.getElementById('pomo-mode');
-  _pomoTotal=(sel?parseInt(sel.value):25)*60;
-  _pomoSecs=_pomoTotal;
-  _pomoUpdateDisplay();
-  const btn=document.getElementById('pomo-btn');
-  if(btn)btn.textContent='▶ Start';
+function focusReset(){
+  clearInterval(_focusTimer);_focusTimer=null;_focusRunning=false;
+  _focusSecsLeft=_focusLen;
+  if(typeof curScreen!=='undefined'&&curScreen==='focus')renderFocus();else _focusPaint();
 }
-function pomoSelectTask(taskId){
-  _pomoTaskId=taskId;
-  const t=D.tasks.find(x=>x.id===taskId);
-  const el=document.getElementById('pomo-task-name');
-  if(el&&t)el.textContent='🎯 '+t.title;
+function focusSelectTask(taskId){
+  _focusTaskId=(taskId===''||taskId==null)?null:taskId;
+  _focusPaint();
 }
+/** The timer reached zero. */
+function _focusFinish(){
+  clearInterval(_focusTimer);_focusTimer=null;_focusRunning=false;
+  if(_focusBreak){
+    toast('⚡ Break over! Back to focus.');
+    _focusBreak=false;_focusLen=_focusSecsLeft=25*60;
+  }else{
+    const mins=Math.max(1,Math.round(_focusLen/60));
+    const day=_ymd(new Date());
+    const task=_focusTask();
+    if(task){task.timeSpent=(task.timeSpent||0)+mins;save('tasks');}
+    _focusSessions.push({id:Date.now(),date:day,time:new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}),mins,taskId:_focusTaskId,taskTitle:task?task.title:'Free focus'});
+    if(_focusSessions.length>600)_focusSessions=_focusSessions.slice(-600);
+    try{localStorage.setItem('lu_focus_sessions',JSON.stringify(_focusSessions));}catch(_){}
+    D.prefs=D.prefs||{};
+    D.prefs.focusLog=D.prefs.focusLog||{};
+    D.prefs.focusLog[day]=(D.prefs.focusLog[day]||0)+mins;
+    // Per-hour totals for the Peak Focus Hour card on Today.
+    D.prefs.focusByHour=D.prefs.focusByHour||{};
+    const hr=new Date().getHours();
+    D.prefs.focusByHour[hr]=(D.prefs.focusByHour[hr]||0)+mins;
+    // Keep a little over a year (reports look back further than a month).
+    const keys=Object.keys(D.prefs.focusLog).sort();
+    if(keys.length>400)keys.slice(0,keys.length-400).forEach(k=>delete D.prefs.focusLog[k]);
+    save('prefs');
+    // One session rarely finishes a task, so it is offered, never assumed.
+    if(task&&task.status!=='Done'){const tid=task.id;setTimeout(()=>toast({type:'info',title:'Session done on "'+task.title+'"',msg:'Is the task finished?',duration:9000,actions:[{label:'✓ Mark done',primary:true,onClick:()=>toggleTask(tid)}]}),400);}
+    const long=_focusSession>=4;
+    _focusSession=long?1:_focusSession+1;
+    toast(long?'🍅 Four sessions done. Take a longer break.':'🍅 Focus session complete! Take a break.');
+    _focusBreak=true;_focusLen=_focusSecsLeft=(long?15:5)*60;
+  }
+  if(typeof curScreen!=='undefined'&&curScreen==='focus')renderFocus();else _focusPaint();
+}
+// The names the Planner's markup and older buttons call.
+function pomoSetMode(v){focusSetMode(/^[fb]/.test(String(v))?v:((String(v)==='5'||String(v)==='15')?'b':'f')+v);}
+function pomoToggle(){focusToggle();}
+function pomoReset(){focusReset();}
+function pomoSelectTask(taskId){focusSelectTask(taskId);}
+function toggleFocusTimer(){focusToggle();}
+function resetFocusTimer(){focusReset();}
 
 function getWeekDates(offsetWeeks=0){
   const now=new Date();
@@ -2419,14 +2433,12 @@ ${tabBarG}
   ${tabBar}
   ${_processTab==='tasks'?tasksHtml:ideasHtml}`;
 }
-// ====== FOCUS / POMODORO ======
-let _focusLen=25*60;
-let _focusTimer=null,_focusSecsLeft=25*60,_focusRunning=false,_focusSessions=JSON.parse(localStorage.getItem('lu_focus_sessions')||'[]'),_focusTaskId=null;
+// ====== FOCUS PAGE ====== (the timer itself is "THE FOCUS TIMER" above; this is its full-page view)
 function renderFocus(){
   const el=$('focus-main');
   if(!el)return;
   const mins=Math.floor(_focusSecsLeft/60),secs=_focusSecsLeft%60;
-  const pct=Math.round((1-_focusSecsLeft/(25*60))*100);
+  const pct=_focusLen?Math.min(100,Math.max(0,Math.round((1-_focusSecsLeft/_focusLen)*100))):0;
   const totalMins=_focusSessions.reduce((s,x)=>s+(x.mins||0),0);
   const todaySessions=_focusSessions.filter(s=>s.date===_todayStr);
   const taskOpts=D.tasks.filter(t=>t.status!=='Done').map(t=>`<option value="${t.id}" ${_focusTaskId===t.id?'selected':''}>${esc(t.title)}</option>`).join('');
@@ -2447,19 +2459,19 @@ function renderFocus(){
       <circle id="focus-ring" cx="100" cy="100" r="88" fill="none" stroke="var(--ac)" stroke-width="12" stroke-dasharray="553" stroke-dashoffset="${553-(553*pct/100)}" style="transition:stroke-dashoffset .5s"/>
     </svg>
     <div style="margin-top:-120px;font-size:48px;font-weight:700;letter-spacing:-2px;line-height:1" id="focus-clock">${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}</div>
-    <div style="margin-top:8px;font-size:12px;color:var(--t3)">${_focusRunning?'Focus session running...':'Ready to focus'}</div>
+    <div id="focus-state" style="margin-top:8px;font-size:12px;color:var(--t3)">${_focusRunning?(_focusBreak?'On a break…':'Focus session running…'):(_focusBreak?'Break ready':'Ready to focus')}</div>
     <div style="margin-top:120px"></div>
   </div>
   <div style="display:flex;gap:8px;justify-content:center;margin-bottom:20px">
-    <button class="btn btn-p" style="padding:10px 24px;font-size:14px" onclick="toggleFocusTimer()">${_focusRunning?'⏸ Pause':'▶ Start'}</button>
-    <button class="btn btn-s" onclick="resetFocusTimer()">↺ Reset</button>
-    <button class="btn btn-s" onclick="_focusSecsLeft=_focusLen=5*60;renderFocus()">5 min</button>
-    <button class="btn btn-s" onclick="_focusSecsLeft=_focusLen=15*60;renderFocus()">15 min</button>
-    <button class="btn btn-s" onclick="_focusSecsLeft=_focusLen=25*60;renderFocus()">25 min</button>
+    <button class="btn btn-p" id="focus-btn" style="padding:10px 24px;font-size:14px" onclick="focusToggle()">${_focusRunning?'⏸ Pause':(_focusSecsLeft<_focusLen?'▶ Resume':'▶ Start')}</button>
+    <button class="btn btn-s" onclick="focusReset()">↺ Reset</button>
+  </div>
+  <div role="group" aria-label="Timer length" style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:-8px 0 20px">
+    ${FOCUS_MODES.map(([k,l])=>`<button class="btn ${_focusMode()===k?'btn-p':'btn-s'}" aria-pressed="${_focusMode()===k}" style="font-size:12px"${_act('focusSetMode',[k])}>${esc(l)}</button>`).join('')}
   </div>
   <div style="margin-bottom:20px">
     <label style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Focusing on task</label>
-    <select class="inp" style="width:100%;margin-top:4px" onchange="_focusTaskId=parseInt(this.value)||null">
+    <select class="inp" aria-label="Task to focus on" style="width:100%;margin-top:4px" onchange="focusSelectTask(this.value===''?null:((D.tasks.find(t=>String(t.id)===this.value)||{}).id))">
       <option value="">— No specific task —</option>
       ${taskOpts}
     </select>
@@ -2490,53 +2502,6 @@ function renderFocus(){
   })()}
   ${todaySessions.length?`<div><div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:8px">Today\'s sessions</div>${todaySessions.map(s=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bd1)"><span style="font-size:16px">🍅</span><div style="flex:1"><div style="font-size:12px;font-weight:500">${s.taskTitle||'Free focus'}</div><div style="font-size:11px;color:var(--t3)">${s.time} &middot; ${s.mins} min</div></div></div>`).join('')}</div>`:''}
   `;
-}
-function toggleFocusTimer(){
-  if(_focusRunning){
-    clearInterval(_focusTimer);
-    _focusRunning=false;
-    renderFocus();
-  } else {
-    _focusRunning=true;
-    if(!_focusLen||_focusSecsLeft>_focusLen)_focusLen=_focusSecsLeft;
-    renderFocus();
-    const _focusEnd=Date.now()+_focusSecsLeft*1000;
-    _focusTimer=setInterval(()=>{
-      _focusSecsLeft=Math.max(0,Math.round((_focusEnd-Date.now())/1000));
-      const mins=Math.floor(_focusSecsLeft/60),secs=_focusSecsLeft%60;
-      const clk=document.getElementById('focus-clock');
-      if(clk)clk.textContent=String(mins).padStart(2,'0')+':'+String(secs).padStart(2,'0');
-      const ring=document.getElementById('focus-ring');
-      const pct=Math.round((1-_focusSecsLeft/(_focusLen||25*60))*100);
-      if(ring)ring.style.strokeDashoffset=553-(553*pct/100);
-      if(_focusSecsLeft<=0){
-        clearInterval(_focusTimer);
-        _focusRunning=false;
-        const task=_focusTaskId?D.tasks.find(t=>t.id===_focusTaskId):null;
-        const _len=Math.max(1,Math.round((_focusLen||25*60)/60));
-        if(task){task.timeSpent=(task.timeSpent||0)+_len;save('tasks');}
-        const sess={id:Date.now(),date:_ymd(new Date()),time:new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}),mins:_len,taskId:_focusTaskId,taskTitle:task?task.title:'Free focus'};
-        _focusSessions.push(sess);
-        localStorage.setItem('lu_focus_sessions',JSON.stringify(_focusSessions));
-        // Update focusLog for heatmap and persist to server via save('prefs')
-        if(!D.prefs.focusLog)D.prefs.focusLog={};
-        D.prefs.focusLog[sess.date]=(D.prefs.focusLog[sess.date]||0)+sess.mins;
-        D.prefs.focusByHour=D.prefs.focusByHour||{};
-        const _hh=new Date().getHours();
-        D.prefs.focusByHour[_hh]=(D.prefs.focusByHour[_hh]||0)+sess.mins;
-        save('prefs');
-        _focusSecsLeft=_focusLen||25*60;
-        toast('🍅 Focus session complete! Great work.');
-        renderFocus();
-      }
-    },1000);
-  }
-}
-function resetFocusTimer(){
-  clearInterval(_focusTimer);
-  _focusRunning=false;
-  _focusSecsLeft=25*60;
-  renderFocus();
 }
 // Returns the ISO week string "YYYY-Www" for a given Date
 function isoWeek(date){

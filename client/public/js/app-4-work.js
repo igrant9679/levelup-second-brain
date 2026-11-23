@@ -481,6 +481,15 @@ function _pipeCSS(){
   st.textContent='@media (max-width:600px){#pipeline-main .pipe-board,#pipeline-main .pipe-forecast,#pipeline-main .pipe-reports{grid-template-columns:1fr!important}#pipeline-main .pipe-col{min-height:0!important}#pipeline-main .pipe-table{overflow-x:auto!important}#pipeline-main .pipe-table table{min-width:640px}}';
   document.head.appendChild(st);
 }
+// -292: first-run messages. "" / the plain filter line once the workspace has any.
+function _luPipeEmpty(){
+  try{if((D.opportunities||[]).length)return '';}catch(_){return '';}
+  return renderEmptyState({icon:'layers',title:'No opportunities yet',hint:'An opportunity is a sale you are working on. Add one, then drag it from stage to stage as it moves forward.',ctaLabel:'+ New opportunity',ctaFn:'_newOpportunity()'});
+}
+function _luProjectsEmpty(){
+  try{if((D.projects||[]).length)return '<p style="font-size:11px;color:var(--t3);padding:16px">No projects match your filters.</p>';}catch(_){}
+  return renderEmptyState({icon:'folder',title:'No projects yet',hint:'A project gathers the tasks, notes and dates for one outcome. Start one, then add tasks to it.',ctaLabel:'+ New project',ctaFn:"openFA('project')"});
+}
 function renderPipeline(){
   const m=document.getElementById('pipeline-main');
   const r=document.getElementById('pipeline-rail');
@@ -534,7 +543,7 @@ function renderPipeline(){
       else if(def.terminal&&_pipelineHideClosed)continue;
       else if(visibleStages[0])byStage[visibleStages[0].key].push(o);
     }
-    body=`<div style="display:flex;gap:6px;margin-bottom:6px;font-size:11px"><label style="display:flex;align-items:center;gap:6px;color:var(--t2);cursor:pointer"><input type="checkbox" ${_pipelineHideClosed?'checked':''} onchange="_pipelineHideClosed=this.checked;renderPipeline()"> Hide Closed Won/Lost</label></div>
+    body=_luPipeEmpty()+`<div style="display:flex;gap:6px;margin-bottom:6px;font-size:11px"><label style="display:flex;align-items:center;gap:6px;color:var(--t2);cursor:pointer"><input type="checkbox" ${_pipelineHideClosed?'checked':''} onchange="_pipelineHideClosed=this.checked;renderPipeline()"> Hide Closed Won/Lost</label></div>
     <div class="pipe-board" style="display:grid;grid-template-columns:repeat(${visibleStages.length},minmax(220px,1fr));gap:10px;align-items:flex-start;overflow-x:auto">
     ${visibleStages.map(s=>{
       const stageOpps=byStage[s.key]||[];
@@ -1692,7 +1701,7 @@ function renderPrograms(){
   m.innerHTML=`<div class="ph-r" style="margin-bottom:14px"><div><h2 style="font-size:17px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('barChart',18,'var(--page-accent)')}Programs</h2><p style="font-size:12px;color:var(--t2)">Portfolio view — group projects under a strategic umbrella. ${programs.length} program${programs.length===1?'':'s'} · ${(D.projects||[]).length} project${(D.projects||[]).length===1?'':'s'} total.</p></div><div style="display:flex;gap:6px"><button class="btn btn-p" onclick="_newProgram()">+ New program</button></div></div>
     ${typeof _renderSharedProgramsSection==='function'?_renderSharedProgramsSection():''}
     ${programs.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">${cards}</div>`:empty}
-    ${(D.projects||[]).length?_renderPortfolioTimeline():''}`;
+    ${(D.projects||[]).length?_luTimelineMoved():''}`;
   if(r){
     const totalProjects=(D.projects||[]).length;
     const assignedProjects=new Set();
@@ -1723,8 +1732,8 @@ function _newProgram(){
 // One row per project that has dated tasks. Bars: native task (project color)
 // + external task linked to the project (source color). Date axis spans the
 // rolling window: max(today-14d, earliest start) … max(today+60d, latest due).
-function _renderPortfolioTimeline(){
-  const projects=(D.projects||[]).filter(p=>!p.archived);
+function _renderPortfolioTimeline(list){
+  const projects=(Array.isArray(list)?list:(D.projects||[])).filter(p=>!p.archived);
   // Build per-project task rows with start/end dates.
   const isExtDone=t=>{const s=(t.status||'').toLowerCase();return _isExtDone(s);};
   const rowsByProj={};
@@ -1809,7 +1818,7 @@ function _renderPortfolioTimeline(){
   })();
   return `<div class="cd" style="padding:11px 13px;margin-top:18px;overflow:hidden">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <div style="font-size:12px;font-weight:600">📅 Portfolio Timeline</div>
+      <div style="font-size:12px;font-weight:600">📅 Projects and their tasks</div>
       <div style="font-size:11px;color:var(--t3)">${projIds.length} project${projIds.length===1?'':'s'} on chart${hiddenN?` · <span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;color:var(--ach)" onclick="_drillIntoDatelessTasks()" title="Filter Tasks to dateless rows so you can add dates in batch">${hiddenN} hidden (no dates)</span>`:''}</div>
     </div>
     <div style="display:flex;gap:10px;font-size:11px;color:var(--t3);margin-bottom:6px;flex-wrap:wrap">
@@ -1930,7 +1939,7 @@ function renderProjects(){
     ${ar?`<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--t2);cursor:pointer"><input type="checkbox" ${_projShowArchived?'checked':''} onchange="setProjFilter('showArchived',this.checked)" style="width:13px;height:13px">Show archive (${ar})</label>`:''}
     ${_projHasFilters()?`<button class="btn btn-s" style="height:28px;font-size:11px;color:var(--warn)" onclick="clearProjFilters()">✕ Clear</button>`:''}
   </div>`;
-  const header=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('folder',22,'var(--page-accent)')}Projects</h1><p style="font-size:12px;color:var(--t2)">${subtitle}</p></div><div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center"><button class="btn ${projView==='list'?'btn-p':'btn-s'}" onclick="setProjView('list')">${_icon('list',13,'currentColor')} List</button><button class="btn ${projView==='kanban'?'btn-p':'btn-s'}" onclick="setProjView('kanban')">${_icon('columns',13,'currentColor')} Kanban</button><button class="btn ${projView==='gantt'?'btn-p':'btn-s'}" onclick="setProjView('gantt')">${_icon('barChart',13,'currentColor')} Gantt</button><button class="btn ${projView==='workload'?'btn-p':'btn-s'}" onclick="setProjView('workload')" title="Tasks grouped by assignee — workload across people">${_icon('users',13,'currentColor')} Workload</button><span style="width:1px;height:20px;background:var(--bd2);margin:0 2px"></span>${headerFilters}${aiMenu}<button class="btn btn-p" onclick="openFA('project')">+ New Project</button></div></div>${filterRow}`;
+  const header=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('folder',22,'var(--page-accent)')}Projects</h1><p style="font-size:12px;color:var(--t2)">${subtitle}</p></div><div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center"><button class="btn ${projView==='list'?'btn-p':'btn-s'}" onclick="setProjView('list')">${_icon('list',13,'currentColor')} List</button><button class="btn ${projView==='kanban'?'btn-p':'btn-s'}" onclick="setProjView('kanban')">${_icon('columns',13,'currentColor')} Kanban</button><button class="btn ${projView==='gantt'?'btn-p':'btn-s'}" onclick="setProjView('gantt')">${_icon('barChart',13,'currentColor')} Timeline</button><button class="btn ${projView==='workload'?'btn-p':'btn-s'}" onclick="setProjView('workload')" title="Tasks grouped by assignee — workload across people">${_icon('users',13,'currentColor')} Workload</button><span style="width:1px;height:20px;background:var(--bd2);margin:0 2px"></span>${headerFilters}${aiMenu}<button class="btn btn-p" onclick="openFA('project')">+ New Project</button></div></div>${filterRow}`;
   if(projView==='list') renderProjectsList(header);
   else if(projView==='kanban') renderProjectsKanban(header);
   else if(projView==='workload'||projView==='team') renderProjectsTeamKanban(header);
@@ -2087,7 +2096,7 @@ function renderProjectsList(header){
   }
   let body;
   if(_projGroupBy==='none'){
-    body=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">${filtered.map(projCard).join('')||'<p style="font-size:11px;color:var(--t3);padding:16px">No projects match your filters.</p>'}</div>`;
+    body=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">${filtered.map(projCard).join('')||_luProjectsEmpty()}</div>`;
   }else{
     const groups={};const order=[];
     const groupKey=p=>{
@@ -2126,9 +2135,9 @@ function _projDrop(e,targetId){
 // details drawer is the Project details button there. People without the
 // workspace in their layout (detail level 3 and below), and archived projects,
 // which the workspace doesn't list, keep the drawer.
-function openProject(pid){
+function openProject(pid,tab){
   const p=(D.projects||[]).find(x=>x.id===pid);
-  if(p&&!p.archived&&typeof openPM==='function'&&luPageOn('pm')){openPM('p:'+pid,'overview');return;}
+  if(p&&!p.archived&&typeof openPM==='function'&&luPageOn('pm')){openPM('p:'+pid,tab||'overview');return;}
   openProjectDetail(pid);
 }
 function openProjectDetail(pid){
@@ -2835,7 +2844,29 @@ function renderProjectsKanban(header){
     </div>`}).join('');
   $('proj-main').innerHTML=header+`<div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:8px">${colHtml}</div>`;
 }
+// ── One timeline for every project (build -293) ────────────────────────────
+// There were two charts of "all projects over time": this page's Gantt (a bar per project) and the
+// Portfolio Timeline under Portfolio > Programs (a row per project with its task bars). They are two
+// settings of this one view now, and the levels link to each other: every dated task (Tasks >
+// Gantt) · all projects (here) · one project's own schedule (click a project).
+function _luProjTlMode(){try{return localStorage.getItem('lu_proj_tl_mode')==='tasks'?'tasks':'bars';}catch(_){return 'bars';}}
+function luProjTlMode(m){try{localStorage.setItem('lu_proj_tl_mode',m==='tasks'?'tasks':'bars');}catch(_){}renderProjects();}
+function luOpenProjTimeline(m){if(m){try{localStorage.setItem('lu_proj_tl_mode',m==='tasks'?'tasks':'bars');}catch(_){}}setProjView('gantt');nav('projects');}
+function luOpenTaskTimeline(){nav('tasks');if(typeof setTaskView==='function')setTaskView('gantt');}
+function _luProjTlBar(mode){
+  const b=(k,l)=>`<button class="btn ${mode===k?'btn-p':'btn-s'}" aria-pressed="${mode===k}" style="height:28px;font-size:11px"${_act('luProjTlMode',[k])}>${l}</button>`;
+  return `<div role="group" aria-label="What the timeline shows" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px"><span style="font-size:11px;color:var(--t3)">Show:</span>${b('bars','Projects')}${b('tasks','Projects and tasks')}<button class="btn btn-s" style="height:28px;font-size:11px"${_act('luOpenTaskTimeline',[])}>Every dated task →</button><span style="font-size:11px;color:var(--t3)">Click a project to open its own schedule.</span></div>`;
+}
+/** What Portfolio > Programs shows where its own copy of the timeline used to be. */
+function _luTimelineMoved(){
+  return `<div class="cd" style="padding:11px 13px;margin-top:18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:200px"><div style="font-size:12px;font-weight:600">📅 Timeline of every project</div><div style="font-size:11px;color:var(--t3)">One timeline now: Projects › Timeline, with or without each project's tasks.</div></div><button class="btn btn-s" style="height:28px;font-size:11px"${_act('luOpenProjTimeline',['tasks'])}>Open the timeline →</button></div>`;
+}
 function renderProjectsGantt(header){
+  const tlMode=_luProjTlMode(),tlBar=_luProjTlBar(tlMode);
+  if(tlMode==='tasks'){
+    $('proj-main').innerHTML=header+tlBar+(_renderPortfolioTimeline(_filteredProjects())||renderEmptyState({icon:'calendar',title:'No dated tasks in these projects',hint:'Give a project’s tasks a start or due date and they appear here, one row per project.'}));
+    return;
+  }
   // P8: zoom level toggle — week / month / quarter
   const zoom=_projGanttZoom||'month';
   const windowDays=zoom==='week'?28:zoom==='quarter'?365:120; // visible range
@@ -2874,7 +2905,7 @@ function renderProjectsGantt(header){
       ?`<span title="${cfN?cfN+' '+_luCF():''}${cfN&&lsiN?' · ':''}${lsiN?lsiN+' '+_luLSI():''} external task${extLinked.length===1?'':'s'} linked" style="display:inline-flex;align-items:center;gap:2px;font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;background:var(--s3);color:var(--t2);margin-left:4px">${cfN?`<span style="color:var(--ach)">${cfN}${_luCfOn()?'CF':' SS'}</span>`:''}${cfN&&lsiN?'·':''}${lsiN?`<span style="color:var(--purp)">${lsiN}${_luCfOn()?'LSI':' NF'}</span>`:''}</span>`
       :'';
     return`<div class="gantt-row" style="display:flex;align-items:center;gap:8px;padding:8px 6px;border-bottom:1px solid var(--bd1);border-radius:7px">
-      <div style="width:170px;flex-shrink:0;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="openProject(${p.id})" title="${esc(p.name)} · ${hp.label}">
+      <div style="width:170px;flex-shrink:0;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="openProject(${p.id},'schedule')" title="${esc(p.name)} · ${hp.label} · opens this project's schedule">
         <span style="width:7px;height:7px;border-radius:2px;background:${p.color};display:inline-block;margin-right:5px"></span>${p.pinned?'<span style="color:var(--warn);margin-right:3px">★</span>':''}${esc(p.name)}${extBadge}
       </div>
       <div style="flex:1;position:relative;height:22px;background:var(--s3);border-radius:6px;overflow:hidden">
@@ -2886,6 +2917,6 @@ function renderProjectsGantt(header){
       </div>
       <div style="width:70px;flex-shrink:0;font-size:11px;color:${due&&p.due<_todayStr?'var(--red)':'var(--t3)'};text-align:right">${p.due||'—'}</div>
     </div>`}).join('');
-  $('proj-main').innerHTML=header+`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font-size:11px;color:var(--t3)">Zoom:</span>${['week','month','quarter'].map(z=>`<button class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;background:${zoom===z?'var(--ac)':'transparent'};color:${zoom===z?'#fff':'var(--t2)'}" onclick="setProjFilter('ganttZoom','${_jsAttr(z)}')">${z[0].toUpperCase()+z.slice(1)}</button>`).join('')}<span style="margin-left:auto;font-size:11px;color:var(--t3)">Yellow line = today · circles = milestones (filled = done)</span></div><div style="padding-top:22px">${rows||'<p style="font-size:11px;color:var(--t3);padding:16px">No projects match your filters.</p>'}</div>`;
+  $('proj-main').innerHTML=header+tlBar+`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font-size:11px;color:var(--t3)">Zoom:</span>${['week','month','quarter'].map(z=>`<button class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;background:${zoom===z?'var(--ac)':'transparent'};color:${zoom===z?'#fff':'var(--t2)'}" onclick="setProjFilter('ganttZoom','${_jsAttr(z)}')">${z[0].toUpperCase()+z.slice(1)}</button>`).join('')}<span style="margin-left:auto;font-size:11px;color:var(--t3)">Yellow line = today · circles = milestones (filled = done)</span></div><div style="padding-top:22px">${rows||_luProjectsEmpty()}</div>`;
 }
 

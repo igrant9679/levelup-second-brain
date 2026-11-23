@@ -1381,16 +1381,20 @@ function _calChip(e,opts){
   const bill=!!(e&&e._finBill);
   // Bills use var() colours like tasks, so they take the color-mix path
   // (the `${e.color}22` concat only works for hex — see note above).
-  const bg=(task||bill)?`color-mix(in srgb,${e.color} 15%,transparent)`:`${e.color}22`;
-  const edge=task?`2px dashed ${e.color}`:`2px solid ${e.color}`;
   const ghost=!!(e&&e._ghost);
-  const done=task&&e._done?';opacity:.55;text-decoration:line-through':ghost?';opacity:.5':'';
+  // -293: a completed task and a "repeats here" chip were faded with opacity, which took their
+  // text below readable contrast on the light theme (3.1:1). They are quieter through a paler
+  // fill and edge and the secondary text colour instead; the text itself stays readable.
+  const faded=(task&&e._done)||ghost;
+  const bg=(task||bill)?`color-mix(in srgb,${e.color} ${faded?7:15}%,transparent)`:`${e.color}22`;
+  const edge=task?`2px dashed ${faded?`color-mix(in srgb,${e.color} 50%,transparent)`:e.color}`:`2px solid ${e.color}`;
+  const done=task&&e._done?';text-decoration:line-through':(ghost&&!task?';opacity:.5':'');
   const series=e&&e._seriesId!=null;
   const tip=bill?'Bill due — click to open Money → Bills':ghost?`Repeats here${e.time?' · '+e.time:''} — click to open the task`:task?`${e._done?'Completed task':'Task'}${e.time?' · '+e.time:''} — click to open`:series?_calRuleText({rrule:e._rrule,dateStr:String(e.id).split('~')[1]||e.dateStr}):'';
   // Draggable (-238): grid events you may move, and your own scheduled tasks.
   const ownTask=task&&!ghost&&(D.tasks||[]).some(x=>String(x.id)===String(e.id));
   const drag=bill||ghost?'':ownTask?` data-drag="caltask" data-drag-id="${esc(String(e.id))}"`:(!task&&typeof _calCanMove==='function'&&_calCanMove(e)&&!e._synced?` data-drag="calev" data-drag-id="${esc(String(e.id))}"`:'');
-  return `<div class="${o.cls||'cal-ev'}${task?' cal-task':''}"${drag}${tip?` title="${esc(tip)}"`:''} style="background:${bg};border-left:${edge};color:var(--t1);cursor:pointer${done}${o.extra||''}" onclick="event.stopPropagation();${_calChipClick(e)}">${ghost||series?'🔁 ':task&&!e._done?'▢ ':''}${esc(e.title)}</div>`;
+  return `<div class="${o.cls||'cal-ev'}${task?' cal-task':''}"${drag}${tip?` title="${esc(tip)}"`:''} style="background:${bg};border-left:${edge};color:var(--${faded&&task?'t2':'t1'});cursor:pointer${done}${o.extra||''}" onclick="event.stopPropagation();${_calChipClick(e)}">${ghost||series?'🔁 ':task&&!e._done?'▢ ':''}${esc(e.title)}</div>`;
 }
 // Show/hide scheduled tasks. Default ON — the user asked for them — so only an
 // explicit false opts out.

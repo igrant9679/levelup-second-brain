@@ -2430,7 +2430,7 @@ function renderHome(){
         const _fl=D.prefs&&D.prefs.focusLog||{};
         const todayKey=_ymd(new Date());
         const todayMins=_fl[todayKey]||0;
-        const todaySessions=D.prefs&&D.prefs.focusSessions?D.prefs.focusSessions.filter(s=>s.date===todayKey).length:0;
+        const todaySessions=(typeof _focusSessions!=='undefined'&&Array.isArray(_focusSessions)?_focusSessions:[]).filter(s=>s.date===todayKey).length;   // -293: the timer's own list (D.prefs.focusSessions was never written, so this always read 0)
         const weekMins=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-i);return _fl[_ymd(d)]||0;}).reduce((a,b)=>a+b,0);
         const activeFocusTask=D.tasks.find(t=>t.id===(_focusTaskId||null));
         return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('clock',15,'currentColor')} Focus</div><span class="cd-a" onclick="nav('focus')">Open Focus</span></div>
@@ -4007,7 +4007,7 @@ function renderTaskList(){
     </select>
     ${_taskListSortBy?`<button class="btn btn-s" style="height:22px;width:24px;padding:0;font-size:11px" onclick="toggleTaskListSortDir()" title="Sort direction">${_taskListSortDir==='asc'?'↑':'↓'}</button>`:''}
   </div>`;
-  if(!filtered.length){list.innerHTML=groupBar+renderEmptyState({icon:'list',title:'Inbox zero — for now ✨',hint:'No tasks match your current filter. Capture the next thing on your plate, or relax the filter to see what else is around.',ctaLabel:'+ Add a task',ctaFn:"openFA('task')"});return;}
+  if(!filtered.length){list.innerHTML=groupBar+(_luTasksEmpty()||renderEmptyState({icon:'list',title:'Inbox zero — for now ✨',hint:'No tasks match your current filter. Capture the next thing on your plate, or relax the filter to see what else is around.',ctaLabel:'+ Add a task',ctaFn:"openFA('task')"}));return;}
   const today=_todayStr;
   const priColors={High:'rgba(239,68,68,0.15)',Medium:'rgba(245,158,11,0.15)',Low:'rgba(34,197,94,0.15)'};
   const priText={High:'var(--red)',Medium:'var(--warn)',Low:'var(--ok)'};
@@ -5344,6 +5344,12 @@ function _clusterPickerApply(ids,clusterId){
 function _clusterOptionsHtml(selectedId){
   return `<option value="">None</option>${(D.clusters||[]).map(c=>`<option value="${c.id}" ${Number(selectedId)===c.id?'selected':''}>${esc((c.icon?c.icon+' ':'')+c.name)}</option>`).join('')}`;
 }
+// -292: the message for a workspace that has no tasks at all ("" once it has any). The filter-specific
+// empty states ("Inbox zero", "No tasks in this view") are for someone whose tasks are merely filtered out.
+function _luTasksEmpty(){
+  try{if((D.tasks||[]).length)return '';}catch(_){return '';}
+  return renderEmptyState({icon:'list',title:'No tasks yet',hint:'A task is one thing to get done. Give it a due date and it shows up on Today and in your calendar.',ctaLabel:'+ Add your first task',ctaFn:"openFA('task')"});
+}
 function renderTaskClusters(){
   const list=document.getElementById('tasks-list');
   if(!list)return;
@@ -5491,7 +5497,9 @@ function renderTaskClusters(){
   // "No cluster" group floats to the TOP — it's the inbox / triage zone
   // for tasks not yet assigned to a cluster, so it should be the first
   // thing the user sees on the page.
-  list.innerHTML=pillBar+orphanCard+extCards+groups.map(clusterCard).join('')+newClusterBtn;
+  // -292: a workspace with no tasks and no clusters gets the first-run message, not a bare "+ New Cluster".
+  const firstRun=(!groups.length&&!orphans.length&&!extCards)?_luTasksEmpty():'';
+  list.innerHTML=pillBar+(firstRun||orphanCard+extCards+groups.map(clusterCard).join(''))+newClusterBtn;
 }
 
 // Build pseudo-cluster cards for each active external source (Smartsheet/Nifty).
@@ -5896,7 +5904,7 @@ function renderTaskRailHTML(){
       const sColors={'Done':'var(--ok)','In Progress':'var(--ach)','Not Started':'var(--t3)','Someday':'var(--warn)'};
       let acc=0;const stops=Object.entries(sCounts).map(([k,v])=>{const start=acc/sTotal*100;acc+=v;const end=acc/sTotal*100;return `${sColors[k]} ${start}% ${end}%`;}).join(',');
       const legend=Object.entries(sCounts).filter(([,v])=>v>0).map(([k,v])=>`<div style="display:flex;align-items:center;gap:5px;font-size:11px"><span style="width:8px;height:8px;border-radius:2px;background:${sColors[k]};flex-shrink:0"></span><span style="color:var(--t2);flex:1">${k}</span><strong>${v}</strong></div>`).join('');
-      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">🍩 Status Breakdown</div>${sTotal>0?`<div style="display:flex;gap:10px;align-items:center"><div style="background:conic-gradient(${stops});width:80px;height:80px;border-radius:50%;flex-shrink:0"></div><div style="flex:1;display:flex;flex-direction:column;gap:3px">${legend}</div></div>`:'<div style="font-size:11px;color:var(--t3)">No tasks yet.</div>'}</div>`;
+      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">🍩 Status Breakdown</div>${Object.values(sCounts).some(v=>v>0)?`<div style="display:flex;gap:10px;align-items:center"><div style="background:conic-gradient(${stops});width:80px;height:80px;border-radius:50%;flex-shrink:0"></div><div style="flex:1;display:flex;flex-direction:column;gap:3px">${legend}</div></div>`:'<div style="font-size:11px;color:var(--t3)">No tasks yet.</div>'}</div>`;
     })(),
     priorityBars:(()=>{
       const active=allTasks.filter(t=>t.status!=='Done'&&t.status!=='Someday');
@@ -6176,6 +6184,10 @@ function _renderDailyCommandCenterCard(){
   const ss=dueByBucket('smartsheet');
   const nf=dueByBucket('nifty');
   const noExternal=(ss.total+nf.total)===0;
+  // -292: the two external columns (and the "connect" hint) are for the workspace that has those tools.
+  // Any other workspace sees them only once such tasks exist; until then the card is just its own tasks.
+  const srcOn=(typeof _luCfOn==='function')?!!_luCfOn():true;
+  const showSs=srcOn||ss.total>0, showNf=srcOn||nf.total>0;
   // Headline metric is "total open items on my plate" (works for sheets without
   // a due column). Subtitle adds today/overdue context when present, else
   // shows total to make it explicit.
@@ -6195,12 +6207,12 @@ function _renderDailyCommandCenterCard(){
       <span style="font-size:12px;font-weight:600">${_icon('target',16,'currentColor')} Today across tools</span>
       <button class="btn btn-s" style="font-size:10px;padding:0 6px;height:20px" onclick="refreshExternalTasksNow()" title="Refresh external tasks">↻</button>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
-      ${cell('PERSONAL','var(--ac)',local)}
-      ${cell(_luCF(),(noExternal?'var(--t3)':'#1f6feb'),ss)}
-      ${cell(_luLSI(),(noExternal?'var(--t3)':'#9333ea'),nf)}
+    <div style="display:grid;grid-template-columns:repeat(${1+(showSs?1:0)+(showNf?1:0)},1fr);gap:6px">
+      ${cell(showSs||showNf?'PERSONAL':'YOUR TASKS','var(--ac)',local)}
+      ${showSs?cell(_luCF(),(noExternal?'var(--t3)':'#1f6feb'),ss):''}
+      ${showNf?cell(_luLSI(),(noExternal?'var(--t3)':'#9333ea'),nf):''}
     </div>
-    ${noExternal?`<div style="font-size:11px;color:var(--t3);margin-top:8px;text-align:center">Connect NiftyPM in Settings → Integrations to pull your external tasks.</div>`:''}
+    ${noExternal&&srcOn?`<div style="font-size:11px;color:var(--t3);margin-top:8px;text-align:center">Connect NiftyPM in Settings → Integrations to pull your external tasks.</div>`:''}
     ${_renderDailyFocusAISection()}
   </div>`;
 }

@@ -1418,7 +1418,7 @@ function applyNotesFilters(){
     :'';
   const _sharedNotesHtml=(typeof _renderSharedNotesSection==='function')?_renderSharedNotesSection():'';
   window._luNotesShown=notes;
-  el.innerHTML=_banner+_sharedNotesHtml+((pinnedHtml+(html||''))||(_sharedNotesHtml?'':renderEmptyState({icon:'search',title:'No matches',hint:'No notes match your current filters. Try a broader search or clear the active filters.',ctaLabel:'Clear filters',ctaFn:'clearNotesFilters()'})));
+  el.innerHTML=_banner+_sharedNotesHtml+((pinnedHtml+(html||''))||(_sharedNotesHtml?'':((D.notes||[]).length?renderEmptyState({icon:'search',title:'No matches',hint:'No notes match your current filters. Try a broader search or clear the active filters.',ctaLabel:'Clear filters',ctaFn:'clearNotesFilters()'}):renderEmptyState({icon:'bookOpen',title:'No notes yet',hint:'Write your first note, or paste one in from Word or the web.',ctaLabel:'+ New note',ctaFn:"openFA('note')"}))));
 
   if(typeof curScreen!=='undefined'&&curScreen==='notes')_noteHighlightOpen(); // follow the search box in the open note
   // Update result count in filter bar

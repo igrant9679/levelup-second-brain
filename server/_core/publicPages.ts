@@ -109,6 +109,16 @@ section.alt .card{background:var(--bg)}
 .card h3{margin:0 0 8px;font-size:18px}
 .card p{margin:0;color:var(--t2);font-size:15px}
 .ico{font-size:24px;line-height:1;margin-bottom:12px}
+.shot{margin:0}
+.shot img{display:block;width:100%;height:auto;border-radius:12px;border:1px solid var(--bd);box-shadow:0 20px 50px rgba(15,23,42,.16);background:var(--s2)}
+.hero-shot{margin:44px auto 0;max-width:1040px}
+.tour{display:grid;gap:56px}
+.tour .row{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,8fr);gap:40px;align-items:center}
+.tour .row:nth-child(even){grid-template-columns:minmax(0,8fr) minmax(0,5fr)}
+.tour .row:nth-child(even) .txt{order:2}
+.tour h3{font-size:22px;line-height:1.25;margin:0 0 8px}
+.tour .txt p{color:var(--t2);margin:0}
+.tour .phone img{max-width:290px;margin:0 auto}
 .plans{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));align-items:stretch}
 .plan{display:flex;flex-direction:column}
 .plan .price{font-size:34px;font-weight:700;margin:6px 0 0;letter-spacing:-.01em}
@@ -133,6 +143,12 @@ footer a{color:var(--t2);display:inline-flex;align-items:center;min-height:44px}
 .updated{color:var(--t3);font-size:14px;margin:0 0 20px}
 .draft{background:var(--s2);border:1px solid var(--bd);border-left:4px solid #b45309;border-radius:10px;padding:12px 16px;margin:20px 0;color:var(--t1);font-size:15px}
 mark.ph{background:var(--mark);color:var(--mark-t);padding:0 3px;border-radius:3px}
+@media (prefers-color-scheme:dark){.shot img{box-shadow:0 20px 50px rgba(0,0,0,.5)}}
+@media (max-width:820px){
+  .tour{gap:40px}
+  .tour .row,.tour .row:nth-child(even){grid-template-columns:1fr;gap:16px}
+  .tour .row:nth-child(even) .txt{order:0}
+}
 @media (max-width:640px){
   nav.links{gap:12px;font-size:14px}
   nav.links .hide-sm{display:none}
@@ -202,6 +218,23 @@ const FEATURES: Array<[string, string, string]> = [
   ["👥", "Made for teams", "Share projects, tasks and notes, give people roles, hand work off and follow up by email. Each workspace is kept separate from every other."],
 ];
 
+/**
+ * A real screenshot of the app, in the visitor's colour scheme (build -291).
+ * The files are made by `scripts/make-front-shots.mjs` from an invented
+ * workspace and live in client/public/front. width/height are the files' own
+ * pixels, so the page doesn't jump while they load.
+ */
+export function shot(name: string, alt: string, w: number, h: number, first = false): string {
+  return `<picture><source srcset="/front/${name}-dark.webp" media="(prefers-color-scheme:dark)"><img src="/front/${name}-light.webp" alt="${esc(alt)}" width="${w}" height="${h}"${first ? ` fetchpriority="high"` : ` loading="lazy"`} decoding="async"></picture>`;
+}
+/** name, heading, text, alt text, phone-shaped? */
+export const TOUR: Array<[string, string, string, string, boolean]> = [
+  ["tasks", "Every task in one list", "Group, filter and sort your tasks the way you think about them. One glance shows what's due today, what's overdue and what you finished this week.", "The Tasks page: a list of tasks with priorities and due days, and a side panel counting tasks done, overdue and in focus.", false],
+  ["notes", "Notes that hold real work", "Headings, tables and checklists, saved as you type. Link a note to other notes or to a meeting, and find any of it with one search.", "The Notes page: a list of notes on the left and an open note called Launch plan with a bulleted list, a table and a checklist.", false],
+  ["calendar", "Your week next to your tasks", "Meetings and focus time sit in one calendar, with the tasks due today beside it. Drag a task onto the week to give it a time.", "The Calendar page: a week of meetings and focus blocks, with today's tasks and upcoming events listed beside it.", false],
+  ["phone", "The same workspace on your phone", "Open LevelUp in your phone's browser, or add it to your home screen like an app. Everything you see on a computer is there.", "LevelUp's Today screen on a phone: a greeting, counts of tasks, meetings and habits, and today's plan.", true],
+];
+
 function planCard(p: PublicPlan, signupOpen: boolean, trialDays: number): string {
   const per = p.perSeat ? " per person" : "";
   let price = `<p class="soon">Price coming soon</p>`;
@@ -243,7 +276,14 @@ export function landingHtml(d: PageData): string {
 <p class="lead">LevelUp is a second brain for you and your team. Plan the day, keep your notes, run your projects and ask an assistant that knows all of it.</p>
 <div class="cta">${startBtn}<a class="btn btn-s" href="#pricing">See plans and pricing</a></div>
 ${trialNote}
+<figure class="shot hero-shot">${shot("today", "LevelUp's Today screen: a greeting, counts of today's tasks, meetings and habits, today's plan, the day's schedule and goals.", 1920, 1200, true)}</figure>
 </div>
+
+<section id="tour" aria-labelledby="t-h"><div class="wrap">
+<h2 id="t-h">See it at work</h2>
+<p class="sub">These are the real screens, with a made-up workspace in them.</p>
+<div class="tour">${TOUR.map(([n, h, t, alt, phone]) => `<div class="row"><div class="txt"><h3>${esc(h)}</h3><p>${esc(t)}</p></div><figure class="shot${phone ? " phone" : ""}">${shot(n, alt, phone ? 780 : 1920, phone ? 1560 : 1200)}</figure></div>`).join("")}</div>
+</div></section>
 
 <section class="alt" id="features" aria-labelledby="f-h"><div class="wrap">
 <h2 id="f-h">Everything you work on, connected</h2>
@@ -393,7 +433,7 @@ export function privacyHtml(d: PageData): string {
 <li>One sign-in cookie keeps you signed in. Scripts on the page can't read it.</li>
 <li>A small cookie, <code>lu_app</code>, remembers that this browser has opened the app, so you go straight to it instead of this front page.</li>
 <li>The app keeps a working copy of your data in your browser's local storage, so it's fast and works through short outages. You can clear it in Settings → Privacy.</li>
-<li>The app loads its typeface from Google Fonts, so Google receives your IP address when the app opens. The front page and these legal pages load nothing from other sites.</li>
+<li>The app, the front page and these legal pages load nothing from other sites when they open. Three file tools are fetched from a public code library (cdnjs or jsDelivr) the first time you use them: reading a PDF, making a zip export, and reading or writing an Excel file. That library then receives your IP address.</li>
 </ul>
 
 <h2>4. How we use it</h2>

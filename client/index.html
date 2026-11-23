@@ -23,11 +23,13 @@
 <link rel="apple-touch-icon" sizes="192x192" href="/favicon-192.png?v=20260729">
 <link rel="apple-touch-icon" sizes="512x512" href="/favicon-512.png?v=20260729">
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 /* Plus Jakarta Sans — self-hosted so the brand face can't be lost to a CDN
    outage (the same single-point-of-failure that killed the old logo URL).
    One variable file covers 300-800. font-display:swap so text is never
-   invisible; Inter stays in the stack as the fallback. */
+   invisible. Build -291: the fallback is the device's own UI font — Inter used
+   to be @imported from Google Fonts here, a render-blocking request to another
+   site on every cold start for a face that only ever drew glyphs the brand
+   file lacks. Nothing in the page loads from another site at start-up now. */
 @font-face{font-family:'Plus Jakarta Sans';font-style:normal;font-weight:300 800;font-display:swap;
   src:url('/fonts/plus-jakarta-sans-latin.woff2') format('woff2')}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -278,7 +280,7 @@ body:not(.compact-mode) .drawer .field label{font-size:12px}
 .login-pin input:focus{border-color:var(--ac)}
 .login-err{color:var(--red);font-size:11px;text-align:center;min-height:16px;margin-bottom:8px}
 html,body{height:100%;overflow:hidden}
-body{font-family:'Plus Jakarta Sans','Inter',sans-serif;background:var(--bg);color:var(--t1);font-size:14px;line-height:1.5}
+body{font-family:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:var(--bg);color:var(--t1);font-size:14px;line-height:1.5}
 ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:var(--s4);border-radius:3px}
 /* Use dvh (dynamic viewport height) so iOS Safari's collapsing address bar
    doesn't cut off the bottom of the app shell. Falls back to 100vh on older
@@ -2264,10 +2266,84 @@ body.aurora.light-mode .scr.on > .bg::before{
 <div id="login-overlay">
   <!-- Session-restore loading state: shown while auth.me check is in flight -->
   <div id="login-session-check" style="display:flex;flex-direction:column;align-items:center;gap:12px">
+    <!-- No remembered sign-in on this browser: logo + spinner, then the sign-in form. -->
+    <div id="lu-boot-plain" style="display:flex;flex-direction:column;align-items:center;gap:12px">
     <img src="/levelup-logo.webp" alt="LevelUp" style="width:48px;height:48px;object-fit:contain">
     <svg style="animation:spin 1s linear infinite;color:var(--ach)" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
     <div style="font-size:12px;color:var(--t3)">Restoring session…</div>
+    </div>
+    <!-- Build -291: a browser that was signed in last time sees the app's outline
+         (top bar, sidebar, content rows) while the scripts load and the session is
+         checked, instead of a spinner on an empty page. Shown by the script below.
+         Its CSS lives here, not in the main <style> (see the index.html CSS trap in
+         CLAUDE.md), the same way the splash screen carries its own. -->
+    <div id="lu-boot-skel" aria-hidden="true" style="display:none;position:absolute;inset:0;background:var(--bg);overflow:hidden;flex-direction:column">
+      <style>
+        #lu-boot-skel .bk{background:var(--s3);border-radius:8px;flex-shrink:0;animation:luBootPulse 1.5s ease-in-out infinite}
+        #lu-boot-skel .bk-card{background:var(--s1);border:1px solid var(--bd1);border-radius:14px}
+        @keyframes luBootPulse{0%,100%{opacity:1}50%{opacity:.45}}
+        @media (max-width:900px){#lu-boot-skel .bk-side,#lu-boot-skel .bk-wide{display:none!important}#lu-boot-skel .bk-main{padding:18px 16px!important}#lu-boot-skel .bk-cards{grid-template-columns:1fr 1fr!important}}
+        @media (prefers-reduced-motion:reduce){#lu-boot-skel .bk{animation:none}}
+      </style>
+      <div style="height:var(--top,56px);flex-shrink:0;display:flex;align-items:center;gap:12px;padding:0 16px;background:var(--s1);border-bottom:1px solid var(--bd1)">
+        <img src="/levelup-logo.webp" alt="" style="width:32px;height:32px;object-fit:contain">
+        <div class="bk" style="width:86px;height:14px"></div>
+        <div class="bk bk-wide" style="width:320px;height:32px;margin-left:36px;border-radius:10px"></div>
+        <div style="flex:1"></div>
+        <div class="bk" style="width:70px;height:30px"></div>
+        <div class="bk" style="width:30px;height:30px;border-radius:50%"></div>
+      </div>
+      <div style="flex:1;display:flex;min-height:0">
+        <div class="bk-side" style="width:var(--side,220px);flex-shrink:0;background:var(--s1);border-right:1px solid var(--bd1);padding:18px 14px;display:flex;flex-direction:column;gap:14px">
+          <div class="bk" style="width:52px;height:9px"></div>
+          <div class="bk" style="width:130px;height:14px"></div>
+          <div class="bk" style="width:52px;height:9px;margin-top:10px"></div>
+          <div class="bk" style="width:110px;height:14px"></div>
+          <div class="bk" style="width:144px;height:14px"></div>
+          <div class="bk" style="width:96px;height:14px"></div>
+          <div class="bk" style="width:52px;height:9px;margin-top:10px"></div>
+          <div class="bk" style="width:120px;height:14px"></div>
+          <div class="bk" style="width:100px;height:14px"></div>
+          <div class="bk" style="width:136px;height:14px"></div>
+        </div>
+        <div class="bk-main" style="flex:1;min-width:0;padding:28px 32px;display:flex;flex-direction:column;gap:16px">
+          <div class="bk" style="width:min(260px,70%);height:26px"></div>
+          <div class="bk" style="width:min(380px,90%);height:12px"></div>
+          <div class="bk-cards" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:8px">
+            <div class="bk-card" style="height:92px;padding:16px"><div class="bk" style="width:60%;height:10px"></div><div class="bk" style="width:40%;height:22px;margin-top:14px"></div></div>
+            <div class="bk-card" style="height:92px;padding:16px"><div class="bk" style="width:50%;height:10px"></div><div class="bk" style="width:34%;height:22px;margin-top:14px"></div></div>
+            <div class="bk-card bk-wide" style="height:92px;padding:16px"><div class="bk" style="width:64%;height:10px"></div><div class="bk" style="width:44%;height:22px;margin-top:14px"></div></div>
+            <div class="bk-card bk-wide" style="height:92px;padding:16px"><div class="bk" style="width:48%;height:10px"></div><div class="bk" style="width:38%;height:22px;margin-top:14px"></div></div>
+          </div>
+          <div class="bk-card" style="padding:18px;display:flex;flex-direction:column;gap:16px;margin-top:6px">
+            <div class="bk" style="width:140px;height:14px"></div>
+            <div class="bk" style="width:92%;height:14px"></div>
+            <div class="bk" style="width:78%;height:14px"></div>
+            <div class="bk" style="width:86%;height:14px"></div>
+            <div class="bk" style="width:64%;height:14px"></div>
+            <div class="bk" style="width:81%;height:14px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="lu-boot-status" role="status" style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap"></div>
   </div>
+  <script>
+  /* Runs before any app script. Picks the outline for a browser that was signed in
+     last time, and applies a stored light theme at once so the outline (and the
+     sign-in page) don't flash dark first. Links that open their own page here
+     (password reset, sign-up confirmation, invitations…) keep the plain state. */
+  (function(){try{
+    var p=JSON.parse(localStorage.getItem('lu_prefs')||'null');
+    if(p&&p.darkMode===false){document.body.classList.add('light-mode');document.documentElement.style.colorScheme='light';}
+    var s=JSON.parse(localStorage.getItem('lu_session')||'null');
+    if(s&&s.memberId&&(!s.expires||s.expires>Date.now())&&!/[?&](reset_token|token|invite\w*|signup|confirmEmail|start|signin)\b/i.test(location.search)){
+      document.getElementById('lu-boot-plain').style.display='none';
+      document.getElementById('lu-boot-skel').style.display='flex';
+      document.getElementById('lu-boot-status').textContent='Loading your workspace…';
+    }
+  }catch(e){}})();
+  </script>
   <div id="login-form-wrapper" style="display:none;width:100%;max-width:380px">
   <div style="text-align:center;margin-bottom:24px">
     <img src="/levelup-logo.webp" alt="LevelUp" style="width:56px;height:56px;object-fit:contain">
@@ -3086,13 +3162,13 @@ body.sh-resizing{user-select:none!important}
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-11-19-290';
+  var APP_BUILD='2026-11-23-293';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   // vendor/purify.min.js (DOMPurify 3.3.0, self-hosted) loads first: every
   // bundle renders note/mail/assistant HTML through luSanitizeHtml().
   // Order = scripts/lib/bundles.mjs (pnpm check:bundles fails if they differ).
   // app-1 … app-7 were app-part1.js until build -234.
-  ['/js/vendor/purify.min.js','/js/app-1-core.js','/js/app-2-home-tasks.js','/js/app-3-notes.js','/js/app-4-work.js','/js/app-5-life.js','/js/app-6-review.js','/js/app-7-team-help.js','/js/app-part2.js','/js/app-agent.js','/js/app-coach.js','/js/app-pm.js','/js/app-workspace.js'].forEach(function(src){
+  ['/js/vendor/purify.min.js','/js/app-1-core.js','/js/app-2-home-tasks.js','/js/app-3-notes.js','/js/app-4-work.js','/js/app-5-life.js','/js/app-6-review.js','/js/app-7-team-help.js','/js/app-part2.js','/js/app-agent.js','/js/app-coach.js','/js/app-pm.js','/js/app-workspace.js','/js/app-shell.js'].forEach(function(src){
     var s=document.createElement('script');
     s.src=src+'?v='+APP_BUILD;
     s.defer=true;s.async=false; // preserve execution order (the list above)

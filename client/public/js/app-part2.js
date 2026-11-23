@@ -3457,9 +3457,8 @@ function exportNotePDF(id){
   const printHtml=`<!DOCTYPE html><html><head><meta charset="utf-8">
 <title>${esc(n.title||'Note')}</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'Inter',sans-serif;font-size:13px;line-height:1.7;color:#1a202c;padding:40px 48px;max-width:800px;margin:0 auto}
+  body{font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px;line-height:1.7;color:#1a202c;padding:40px 48px;max-width:800px;margin:0 auto}
   h1{font-size:26px;font-weight:700;margin:20px 0 6px;color:#1a202c}
   h2{font-size:18px;font-weight:600;margin:18px 0 5px;color:#2d3748}
   h3{font-size:15px;font-weight:600;margin:14px 0 4px;color:#4a5568}
@@ -4900,20 +4899,11 @@ function doLoginSuccess(member){
   // (clearInterval also clears a timeout).
   if(window._tokenBannerTimer)clearInterval(window._tokenBannerTimer);
   window._tokenBannerTimer=setTimeout(()=>checkTokenExpiryBanner(),1500);
-  // Seed example tasks ONCE only — guarded by a localStorage flag so deleted tasks stay deleted
-  const _seedKey='lu_examples_seeded_v1';
-  if(!localStorage.getItem(_seedKey)){
-    const exampleIds=[201,202,203];
-    exampleIds.forEach(eid=>{
-      if(!D.tasks.find(t=>t.id===eid)){
-        const defaults=[{id:201,title:'Design Q3 Sprint Planning Workshop',priority:'High',due:'2026-05-10',startDate:'2026-05-08',endDate:'2026-05-10',startTime:'10:00',endTime:'12:00',estimatedMins:120,context:'Deep Work',project:'LevelUp Platform',projectId:1,status:'Not Started',myDay:true,energy:'high',tags:['planning','leadership','sprint'],notes:'Prepare agenda, invite all team leads, set up Miro board for async pre-work. Goal: align on Q3 OKRs and define sprint 8 scope with clear acceptance criteria for each story.',recurring:'None',subtasks:[{id:1,title:'Draft workshop agenda',done:false},{id:2,title:'Send calendar invites',done:false},{id:3,title:'Set up Miro collaboration board',done:false},{id:4,title:'Prepare OKR alignment slides',done:false}],linkedGoalId:1,assignedTo:'Idris Grant',createdBy:'Idris Grant'},{id:202,title:'Competitive Analysis — Top 5 Productivity Apps',priority:'Medium',due:'2026-05-15',startDate:'2026-05-12',endDate:'2026-05-15',startTime:'09:00',endTime:'11:00',estimatedMins:180,context:'Research',project:'Second Brain Research',projectId:3,status:'Not Started',myDay:false,energy:'medium',tags:['research','strategy','competitive'],notes:'Analyze Notion, Obsidian, Roam, Logseq, and Mem.ai. Focus on: pricing, AI features, target persona, onboarding flow, and key differentiators. Produce a 1-page comparison matrix.',recurring:'None',subtasks:[{id:1,title:'Create comparison matrix template',done:false},{id:2,title:'Research Notion and Obsidian',done:false},{id:3,title:'Research Roam, Logseq, Mem.ai',done:false},{id:4,title:'Write executive summary',done:false}],linkedGoalId:null,assignedTo:'Marcus Webb',createdBy:'Marcus Webb'},{id:203,title:'Prepare Monthly Stakeholder Report',priority:'High',due:'2026-04-30',startDate:'2026-04-28',endDate:'2026-04-30',startTime:'14:00',endTime:'16:00',estimatedMins:90,context:'Admin',project:'Fundraising',projectId:2,status:'In Progress',myDay:true,energy:'medium',tags:['reporting','investors','monthly'],notes:'Include: MRR growth, user acquisition metrics, key product milestones, burn rate, and 30-day outlook. Use the standard investor update template. Send by April 30 EOD.',recurring:'Monthly',subtasks:[{id:1,title:'Pull metrics from dashboard',done:true},{id:2,title:'Write narrative summary',done:false},{id:3,title:'Format with template',done:false},{id:4,title:'Review with Priya before sending',done:false}],linkedGoalId:2,assignedTo:'Idris Grant',createdBy:'Idris Grant'}];
-        const ex=defaults.find(x=>x.id===eid);
-        if(ex)D.tasks.push(ex);
-      }
-    });
-    save('tasks');
-    localStorage.setItem(_seedKey,'1');
-  }
+  // -292: the one-time example seeder is gone. It pushed three sample tasks (carrying a real
+  // person's name) into whichever account signed in on a browser that had not seen LevelUp before.
+  // New accounts start empty on purpose (-279). The flag is still written: the cache wipe and the
+  // first-time-user branch read it.
+  try{localStorage.setItem('lu_examples_seeded_v1','1');}catch(_){}
   // One-time migration: reassign every existing habit's createdBy to the
   // current user, so single-user installs see all seeded habits under
   // 'My Habits'. Guarded by a localStorage flag — runs once per device.

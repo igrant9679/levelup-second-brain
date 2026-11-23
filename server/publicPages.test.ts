@@ -7,7 +7,9 @@ import { describe, expect, it, beforeAll, afterAll, beforeEach } from "vitest";
 import express from "express";
 import type { AddressInfo } from "net";
 import { normalizeConfig } from "./_core/plans";
-import { landingHtml, termsHtml, privacyHtml, money, registerPublicPages, type PageData, type PublicPlan } from "./_core/publicPages";
+import fs from "fs";
+import path from "path";
+import { landingHtml, termsHtml, privacyHtml, money, registerPublicPages, shot, TOUR, type PageData, type PublicPlan } from "./_core/publicPages";
 
 const plan = (o: Partial<PublicPlan>): PublicPlan => ({
   key: "solo", name: "Solo", blurb: "", perSeat: false, members: 1, ai: 300, email: 100, storageMb: 2048,
@@ -39,6 +41,26 @@ describe("prices", () => {
 });
 
 describe("front page", () => {
+  it("shows real screenshots that exist, sized, described, and in both colour schemes (-291)", () => {
+    const html = landingHtml(data());
+    const imgs = Array.from(html.matchAll(/<img[^>]*src="(\/front\/[a-z]+-light\.webp)"[^>]*>/g));
+    const darks = Array.from(html.matchAll(/<source srcset="(\/front\/[a-z]+-dark\.webp)" media="\(prefers-color-scheme:dark\)">/g));
+    expect(imgs.length).toBe(1 + TOUR.length);          // the hero + one per tour row
+    expect(darks.length).toBe(imgs.length);
+    for (const m of [...imgs, ...darks]) {
+      const file = path.join(__dirname, "../client/public", m[1]);
+      expect(fs.existsSync(file), m[1]).toBe(true);
+      expect(fs.statSync(file).size).toBeLessThan(400 * 1024);   // a public page: keep them light
+    }
+    for (const m of imgs) {
+      expect(m[0]).toMatch(/ alt="[^"]{30,}"/);         // described for screen readers
+      expect(m[0]).toMatch(/ width="\d+" height="\d+"/); // no layout jump while they load
+    }
+    // Only the first one loads eagerly.
+    expect(imgs.filter((m) => /loading="lazy"/.test(m[0])).length).toBe(imgs.length - 1);
+    expect(imgs[0][0]).toContain('fetchpriority="high"');
+    expect(shot("x", '"><b>', 1, 1)).not.toContain("<b>");
+  });
   it("shows the plans with Stripe's prices, the yearly saving, and trial links", () => {
     const html = landingHtml(data());
     scriptFree(html);
