@@ -2330,12 +2330,18 @@ body.aurora.light-mode .scr.on > .bg::before{
   </div>
   <script>
   /* Runs before any app script. Picks the outline for a browser that was signed in
-     last time, and applies a stored light theme at once so the outline (and the
+     last time, and applies the light theme at once (a stored choice, or the device's on a first visit) so the outline (and the
      sign-in page) don't flash dark first. Links that open their own page here
      (password reset, sign-up confirmation, invitations…) keep the plain state. */
+  /* The browser may offer "install this app" before the bundles have loaded: keep
+     the event for app-shell.js (luInstall), and hold back Chrome's own bar. */
+  try{window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();window._luInstallEvt=e;});}catch(e){}
   (function(){try{
     var p=JSON.parse(localStorage.getItem('lu_prefs')||'null');
-    if(p&&p.darkMode===false){document.body.classList.add('light-mode');document.documentElement.style.colorScheme='light';}
+    /* Nothing stored yet (a browser that has never opened LevelUp): follow the
+       device's light or dark setting — the same rule as _luFirstPrefs(). */
+    var lite=p?p.darkMode===false:!!(window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches);
+    if(lite){document.body.classList.add('light-mode');document.documentElement.style.colorScheme='light';}
     var s=JSON.parse(localStorage.getItem('lu_session')||'null');
     if(s&&s.memberId&&(!s.expires||s.expires>Date.now())&&!/[?&](reset_token|token|invite\w*|signup|confirmEmail|start|signin)\b/i.test(location.search)){
       document.getElementById('lu-boot-plain').style.display='none';
@@ -3162,7 +3168,7 @@ body.sh-resizing{user-select:none!important}
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-11-23-293';
+  var APP_BUILD='2026-11-23-294';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   // vendor/purify.min.js (DOMPurify 3.3.0, self-hosted) loads first: every
   // bundle renders note/mail/assistant HTML through luSanitizeHtml().

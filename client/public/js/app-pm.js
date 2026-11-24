@@ -502,7 +502,7 @@ function pmRender(){
   _pmMemoClear(); // tasks, Atlas or settings may have changed since the last render
   _pmCSS();
   if(!PM.loaded){
-    main.innerHTML='<div class="pm-empty"><b>Loading your projects…</b></div>';
+    main.innerHTML='<div class="pm-empty"><b><span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span></b></div>';
     pmLoad().then(function(){if(PM.loaded)pmRender();else main.innerHTML='<div class="pm-empty"><b>Could not load project data</b>'+_pmE(PM.error||'')+'<br><br><button class="btn btn-s" onclick="pmLoad(true).then(pmRender)">Try again</button></div>';});
     return;
   }

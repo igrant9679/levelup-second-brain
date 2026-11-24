@@ -66,7 +66,7 @@ function shellCtx(opts: { prefs?: any; off?: string[]; atlas?: string | null; da
       body: { getAttribute: (k: string) => (k === "data-ws-atlas" ? (opts.atlas ?? null) : null), classList: { contains: () => false } },
       getElementById: () => null, querySelectorAll: () => [],
     },
-    _luShellWired: true,          // the wiring (DOM listeners, wrappers) is not what is tested here
+    _luShellWired: true, _luShell2Wired: true,   // the wiring (DOM listeners, wrappers) is not what is tested here
   };
   ctx.window = ctx;
   vm.createContext(ctx);
@@ -191,11 +191,13 @@ describe("the page (-291, -292)", () => {
     expect(indexHtml).toContain('id="lu-boot-plain"');
     const script = indexHtml.slice(indexHtml.indexOf("Runs before any app script"), indexHtml.indexOf('<div id="login-form-wrapper"'));
     const body = script.slice(script.indexOf("(function(){"), script.lastIndexOf("</script>"));
-    const boot = (store: Record<string, string>, search = "") => {
+    const boot = (store: Record<string, string>, search = "", deviceLight = false) => {
       const els: any = { "lu-boot-plain": { style: { display: "flex" } }, "lu-boot-skel": { style: { display: "none" } }, "lu-boot-status": { textContent: "" } };
       const cls: string[] = [];
       vm.runInNewContext(body, {
         JSON, Date, localStorage: { getItem: (k: string) => (k in store ? store[k] : null) }, location: { search },
+        // -294: the script also asks the device for its light / dark setting when nothing is stored
+        window: { matchMedia: (q: string) => ({ matches: deviceLight && q === "(prefers-color-scheme: light)" }), addEventListener: () => {} },
         document: { getElementById: (id: string) => els[id], body: { classList: { add: (c: string) => cls.push(c) } }, documentElement: { style: {} } },
       });
       return { skel: els["lu-boot-skel"].style.display, plain: els["lu-boot-plain"].style.display, cls };
@@ -209,6 +211,11 @@ describe("the page (-291, -292)", () => {
     expect(boot({ lu_session: "{broken" }).skel).toBe("none");                                                     // never throws
     expect(boot({ lu_prefs: JSON.stringify({ darkMode: false }) }).cls).toEqual(["light-mode"]);                   // no dark flash for light theme
     expect(boot({ lu_prefs: JSON.stringify({ darkMode: true }) }).cls).toEqual([]);
+    // -294: nothing stored → the device decides; a stored choice still wins
+    expect(boot({}, "", true).cls).toEqual(["light-mode"]);
+    expect(boot({}, "", false).cls).toEqual([]);
+    expect(boot({ lu_prefs: JSON.stringify({ darkMode: true }) }, "", true).cls).toEqual([]);
+    expect(boot({ lu_session: session }, "", true)).toMatchObject({ skel: "flex", cls: ["light-mode"] });
   });
   it("loads app-shell.js last", () => {
     const loader = indexHtml.slice(indexHtml.indexOf("['/js/vendor/purify.min.js'"));

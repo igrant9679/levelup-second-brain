@@ -138,7 +138,7 @@ function renderTeam(){
         <div class="field" style="margin:0"><label style="font-size:11px">Role</label><select class="inp" id="inv-role" style="height:32px"><option value="user">Member</option><option value="admin">Admin</option></select></div>
         <button class="btn btn-p" style="height:32px;font-size:12px;white-space:nowrap" onclick="sendInvite()">✉️ Send Invite</button>
       </div>
-      <div id="invite-list-wrap"><div style="font-size:11px;color:var(--t3)">Loading invites...</div></div>
+      <div id="invite-list-wrap"><div style="font-size:11px;color:var(--t3)"><span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span></div></div>
     </div>
   </div>
   <div id="activity-feed-section" class="admin-only" style="margin-top:24px">
@@ -153,7 +153,7 @@ function renderTeam(){
         </div>
       </div>
       <div id="activity-feed-content">
-        <div style="font-size:11px;color:var(--t3);padding:12px 0;text-align:center">Loading activity feed...</div>
+        <div style="font-size:11px;color:var(--t3);padding:12px 0;text-align:center"><span class="lu-skel rows" role="status" aria-label="Loading"><i></i><i></i><i></i><i></i></span></div>
       </div>
     </div>
     </div>`;
@@ -277,7 +277,7 @@ function renderActivityFeed(items) {
 async function loadActivityFeed() {
   const el = document.getElementById('activity-feed-content');
   if (!el) return;
-  el.innerHTML = '<div style="font-size:11px;color:var(--t3);padding:12px 0;text-align:center">Loading...</div>';
+  el.innerHTML = '<div style="font-size:11px;color:var(--t3);padding:12px 0;text-align:center"><span class="lu-skel rows" role="status" aria-label="Loading"><i></i><i></i><i></i><i></i></span></div>';
   try {
     const result = await _trpc('activityFeed.getTeamFeed', { limit: 100 }, 'query');
     _activityFeedData = result.feed || [];

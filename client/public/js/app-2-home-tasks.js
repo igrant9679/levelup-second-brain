@@ -1286,6 +1286,8 @@ function snoozeTask(id){
   const tomorrow=new Date();
   tomorrow.setDate(tomorrow.getDate()+1);
   const ds=_ymd(tomorrow);
+  // -294: what Undo puts back (the three fields a snooze changes).
+  const was={myDay:t.myDay,snoozeUntil:t.snoozeUntil,due:t.due};
   t.myDay=false;
   t.snoozeUntil=ds;
   t.due=t.due&&t.due!=='Carry Over'?t.due:ds;
@@ -1295,7 +1297,13 @@ function snoozeTask(id){
   // so snoozing from Tasks or Process left the row on screen).
   if(typeof curScreen!=='undefined'&&typeof renderScreen==='function')renderScreen(curScreen);
   else renderCurrentTaskView();
-  toast(`💭 Snoozed until tomorrow (${tomorrow.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})})`);
+  toast({type:'info',icon:'💭',title:`Snoozed until tomorrow (${tomorrow.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})})`,msg:t.title||'',duration:6000,
+    actions:[{label:'Undo',onClick:()=>{
+      const cur=D.tasks.find(x=>x.id===id);if(!cur)return;
+      ['myDay','snoozeUntil','due'].forEach(k=>{if(was[k]===undefined)delete cur[k];else cur[k]=was[k];});
+      save('tasks');invalidateSearchIndex();
+      if(typeof curScreen!=='undefined'&&typeof renderScreen==='function')renderScreen(curScreen);
+    }}]});
 }
 function moveSomeday(id){
   const t=D.tasks.find(x=>x.id===id);
@@ -6066,7 +6074,7 @@ function _extBulkStatusMenu(event){
   const pop=document.createElement('div');
   pop.setAttribute('data-ext-bulk-status-pop','1');
   pop.style.cssText=`position:fixed;left:${Math.min(rect.left,window.innerWidth-260)}px;top:${rect.bottom+4}px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:6px;z-index:9999;box-shadow:0 6px 20px rgba(0,0,0,.3);min-width:240px`;
-  pop.innerHTML='<div style="font-size:11px;color:var(--t3);padding:2px 6px 6px">Loading…</div>';
+  pop.innerHTML='<div style="font-size:11px;color:var(--t3);padding:2px 6px 6px"><span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span></div>';
   document.body.appendChild(pop);
   setTimeout(()=>document.addEventListener('click',()=>pop.remove(),{once:true}),0);
   (async()=>{
@@ -6297,7 +6305,7 @@ async function _externalSetStatus(source,externalId,event){
   const pop=document.createElement('div');
   pop.setAttribute('data-ext-status-pop','1');
   pop.style.cssText=`position:fixed;left:${Math.min(rect.left,window.innerWidth-220)}px;top:${rect.bottom+4}px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:6px;z-index:9999;box-shadow:0 6px 20px rgba(0,0,0,.3);min-width:200px`;
-  pop.innerHTML='<div style="font-size:11px;color:var(--t3);padding:2px 6px 6px">Loading statuses…</div>';
+  pop.innerHTML='<div style="font-size:11px;color:var(--t3);padding:2px 6px 6px"><span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span></div>';
   document.body.appendChild(pop);
   setTimeout(()=>document.addEventListener('click',()=>pop.remove(),{once:true}),0);
   // Find which watch this task belongs to so we can fetch its allowed statuses.

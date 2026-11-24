@@ -256,7 +256,7 @@ async function wsOpenSettings(tab){
   try{if(typeof closePopMenu==='function')closePopMenu('sb-user-menu');}catch(_){}
   _wsTab=tab||_wsTab||'general';
   if(!_wsMe){try{_wsMe=await _trpc('auth.me',{},'query');}catch(_){}}
-  _wsRenderSettings('<p style="font-size:12.5px;color:var(--t2)">Loading…</p>');
+  _wsRenderSettings('<p style="font-size:12.5px;color:var(--t2)"><span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span></p>');
   var cur=null;try{cur=await _trpc('workspace.current',undefined,'query');}catch(_){}
   window._wsCur=cur;
   if(_wsTab==='storage'&&_wsCanAdmin()){try{_wsStore=await _trpc('workspace.storageGet',undefined,'query');}catch(e){_wsStore={error:(e&&e.message)||'Could not load'};}}
@@ -491,7 +491,7 @@ async function wsCloseWorkspace(){
 var _wsConsoleRows=[];
 async function wsOpenConsole(){
   try{if(typeof closePopMenu==='function')closePopMenu('sb-user-menu');}catch(_){}
-  wsModal('<div class="ws-h"><h2>Platform console</h2><button class="btn btn-s"'+_wsAct('wsCloseModal')+'>Close</button></div><div id="ws-console"><p style="font-size:12.5px;color:var(--t2)">Loading…</p></div>',true);
+  wsModal('<div class="ws-h"><h2>Platform console</h2><button class="btn btn-s"'+_wsAct('wsCloseModal')+'>Close</button></div><div id="ws-console"><p style="font-size:12.5px;color:var(--t2)"><span class="lu-skel rows" role="status" aria-label="Loading"><i></i><i></i><i></i><i></i></span></p></div>',true);
   await _wsConsoleLoad();
 }
 async function _wsConsoleLoad(){
@@ -655,7 +655,7 @@ async function wsLaunchTick(id,done){
 // ─── LevelUp's own AI keys (build -289, operator only) ──────────────────────
 var _WS_AI_NAMES={openai:'OpenAI',claude:'Anthropic (Claude)',gemini:'Google Gemini'};
 async function wsOpenPlatformAI(){
-  wsModal('<div class="ws-h"><h2>LevelUp’s AI keys</h2><button class="btn btn-s"'+_wsAct('wsOpenConsole')+'>← Platform console</button></div><div id="ws-pai"><p style="font-size:12.5px;color:var(--t2)">Loading…</p></div>',true);
+  wsModal('<div class="ws-h"><h2>LevelUp’s AI keys</h2><button class="btn btn-s"'+_wsAct('wsOpenConsole')+'>← Platform console</button></div><div id="ws-pai"><p style="font-size:12.5px;color:var(--t2)"><span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span></p></div>',true);
   await _wsPaiLoad();
 }
 async function _wsPaiLoad(r){
@@ -837,7 +837,7 @@ function _wsBillingHtml(st){
       +'<p>You see the exact amount before anything changes. Stripe credits the unused part of what you have already paid and charges the difference to the card on file'+(st.status==='trialing'?' (nothing is charged before your free trial ends)':'')+'. To cancel or change the card, use <b>Manage billing</b>.</p></div>';
   }
   if(st.isOwner&&st.billed&&st.status!=='comped'){
-    h+='<div class="ws-card"><h3>Invoices</h3><div id="ws-invoices" role="status"><p>Loading…</p></div></div>';
+    h+='<div class="ws-card"><h3>Invoices</h3><div id="ws-invoices" role="status"><p><span class="lu-skel rows" role="status" aria-label="Loading"><i></i><i></i><i></i><i></i></span></p></div></div>';
   }
   if(st.isOwner&&!st.hasSubscription&&st.status!=='comped'&&st.canBuy){
     h+='<div class="ws-card"><h3>Choose a plan</h3>'+_wsPlanCards(st.plans,true)
@@ -1001,7 +1001,7 @@ async function _wsShowLocked(me){
   var d=document.createElement('div');d.id='ws-inactive';
   d.innerHTML='<div class="ws-dlg" style="max-width:'+(owner?'760px':'460px')+';max-height:calc(100vh - 32px);overflow:auto"><h2 style="font-size:18px;margin:0 0 8px">'+_wsEsc(why)+'</h2>'
     +'<p style="font-size:13px;color:var(--t2);line-height:1.55;margin:0 0 12px">'+(owner?'Nothing has been deleted. Everything is exactly as you left it and opens again as soon as a plan is in place. You can also download your data or close the workspace.':'Nothing has been deleted. It opens again as soon as the workspace’s owner sorts out the plan — please ask them.')+'</p>'
-    +'<div id="ws-lock-body">'+(owner?'<p style="font-size:12.5px;color:var(--t2)">Loading plans…</p>':'')+'</div><div id="ws-lock-msg" class="ws-msg" role="status"></div>'
+    +'<div id="ws-lock-body">'+(owner?'<p style="font-size:12.5px;color:var(--t2)"><span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span></p>':'')+'</div><div id="ws-lock-msg" class="ws-msg" role="status"></div>'
     +(others.length?'<p style="font-size:12.5px;font-weight:650;margin:12px 0 6px">Your other workspaces</p>'+others.map(function(w){return '<button class="ws-mi" style="border:1px solid var(--bd1);margin-bottom:6px"'+_wsAct('wsSwitch',[w.id])+'><span style="flex:1">'+_wsEsc(w.name)+'<small>'+_wsEsc(w.role)+'</small></span>Open →</button>';}).join(''):'')
     +'<div class="ws-row" style="margin-top:10px">'+(owner?'<button class="btn btn-s"'+_wsAct('wsLockedExport')+'>Download my data</button><button class="btn btn-s" style="color:var(--red)"'+_wsAct('wsLockedClose')+'>Close workspace…</button>':'')+'<button class="btn btn-s"'+_wsAct('wsSignOutInactive')+'>Sign out</button></div><div id="ws-export-msg" class="ws-msg" role="status"></div></div>';
   document.body.appendChild(d);
@@ -1201,7 +1201,7 @@ async function wsSignupConfirm(){
 // ── operator: plans, prices and the sign-up switch ──
 async function wsOpenBillingAdmin(){
   _wsBillCSS();
-  wsModal('<div class="ws-h"><h2>Billing &amp; sign-up</h2><button class="btn btn-s"'+_wsAct('wsOpenConsole')+'>← Platform console</button></div><div id="ws-billadmin"><p style="font-size:12.5px;color:var(--t2)">Loading…</p></div>',true);
+  wsModal('<div class="ws-h"><h2>Billing &amp; sign-up</h2><button class="btn btn-s"'+_wsAct('wsOpenConsole')+'>← Platform console</button></div><div id="ws-billadmin"><p style="font-size:12.5px;color:var(--t2)"><span class="lu-skel rows" role="status" aria-label="Loading"><i></i><i></i><i></i><i></i></span></p></div>',true);
   var box=document.getElementById('ws-billadmin');
   try{_wsBillCfg=await _trpc('billing.opConfigGet',undefined,'query');}
   catch(e){if(box)box.innerHTML='<p style="color:var(--red);font-size:13px">'+_wsEsc((e&&e.message)||'Could not load')+'</p>';return;}

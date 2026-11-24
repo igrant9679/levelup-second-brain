@@ -3253,7 +3253,7 @@ function renderIdeaDetail(idea){
           <div style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">🔗 Related Bookmarks</div>
           <button class="btn btn-s" style="font-size:11px;padding:2px 6px" onclick="showLinkBookmarkPanel('idea',${idea.id})">+ Link</button>
         </div>
-        <div id="related-bk-idea-${idea.id}" style="font-size:11px;color:var(--t3)">Loading...</div>
+        <div id="related-bk-idea-${idea.id}" style="font-size:11px;color:var(--t3)"><span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span></div>
       </div>
     </div>`;
   }

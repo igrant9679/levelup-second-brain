@@ -1037,6 +1037,12 @@ document.addEventListener('keydown',e=>{
 });
 window.addEventListener('focus',()=>_luRefreshToday());
 setInterval(_luRefreshToday,60000);
+// -294: the first-time default theme follows the device (prefers-color-scheme).
+// Only used while nothing is stored: once lu_prefs exists - a theme picked here,
+// or the account's own settings loaded at sign-in - that choice is what shows.
+// index.html's start-up script applies the same rule before any bundle loads.
+function _luDeviceLight(){try{return !!(window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches);}catch(_){return false;}}
+function _luFirstPrefs(){return JSON.stringify({darkMode:!_luDeviceLight(),compact:false,accent:'#3B82F6'});}
 var D = {
   tasks: JSON.parse(localStorage.getItem('lu_tasks') || 'null') || [
     {id:101,title:'Finalize Q2 product roadmap presentation',status:'In Progress',priority:'High',due:'2026-05-02',energy:'High',est:90,tags:['strategy','product'],projectId:1,assignee:'Idris Grant',context:'@computer',notes:'Include market analysis, competitor landscape, and 3-quarter forecast. Coordinate with Priya on design assets.',subtasks:[{id:1,title:'Gather market data',done:true},{id:2,title:'Draft slide deck',done:true},{id:3,title:'Review with leadership',done:false},{id:4,title:'Incorporate feedback',done:false}],myDay:true,starred:true,createdAt:'2026-04-20'},
@@ -1145,7 +1151,9 @@ var D = {
   // CommunityForce + LSI Media for the COO/CEO use case; user can add more.
   programs: JSON.parse(localStorage.getItem('lu_programs') || 'null') || [],
   creds: JSON.parse(localStorage.getItem('lu_creds') || '{}'),
-  prefs: JSON.parse(localStorage.getItem('lu_prefs') || '{"darkMode":true,"compact":false,"accent":"#3B82F6"}'),
+  // -294: a browser that has never opened LevelUp starts in the device's own
+  // light or dark setting (see _luFirstPrefs). A stored choice always wins.
+  prefs: JSON.parse(localStorage.getItem('lu_prefs') || _luFirstPrefs()),
   // External tasks pulled from Smartsheet / NiftyPM by the server cron. Read-only
   // mirror; the source tool is authoritative. Populated by loadExternalTasks()
   // on app boot + after manual refresh. Each row carries `_source` and `_url`
@@ -1245,7 +1253,7 @@ async function openPushToNiftyModal(taskId){
   if(!tasks.length){toast('Select at least one task first');return;}
   _niftyPush.ids=tasks.map(t=>t.id);
   const mc=document.getElementById('modal-content');if(!mc)return;
-  mc.innerHTML=`<div style="padding:16px;max-width:520px"><h3 style="font-size:15px;font-weight:700;margin-bottom:8px">↗ Push to Nifty</h3><div style="font-size:12px;color:var(--t3)">Loading your Nifty projects…</div></div>`;
+  mc.innerHTML=`<div style="padding:16px;max-width:520px"><h3 style="font-size:15px;font-weight:700;margin-bottom:8px">↗ Push to Nifty</h3><div style="font-size:12px;color:var(--t3)"><span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span></div></div>`;
   document.getElementById('modal-capture').classList.add('show');document.body.style.overflow='hidden';
   let projects=[],watches=[];
   try{
@@ -4709,7 +4717,7 @@ function renderDrawer(type,item){
         <span style="font-size:11px;font-weight:600;color:var(--t2)">🔗 Related Bookmarks</span>
         <button type="button" class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px" onclick="showLinkBookmarkPanel('note',${_tidLit(item.id)})">+ Link</button>
       </div>
-      <div id="related-bk-note-${item.id}" style="font-size:11px;color:var(--t3)">Loading...</div>
+      <div id="related-bk-note-${item.id}" style="font-size:11px;color:var(--t3)"><span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span></div>
     </div>
     <div class="dr-actions">
     <button class="btn btn-p" onclick="saveItem('note',${_tidLit(item.id)})">Save Changes</button>
@@ -4756,7 +4764,7 @@ function renderDrawer(type,item){
         <span>Custom Fields</span>
         <button type="button" class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px" onclick="_openCustomFieldEditor(${_tidLit(item.id)})">+ Add field</button>
       </label>
-      <div id="proj-custom-fields-list" style="margin-top:4px;padding:8px;background:var(--s2);border:1px solid var(--bd1);border-radius:6px;font-size:11px;color:var(--t3)">Loading…</div>
+      <div id="proj-custom-fields-list" style="margin-top:4px;padding:8px;background:var(--s2);border:1px solid var(--bd1);border-radius:6px;font-size:11px;color:var(--t3)"><span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span></div>
     </div>
     <div class="dr-actions">
     <button class="btn btn-p" onclick="saveItem('project',${_tidLit(item.id)})">Save</button>

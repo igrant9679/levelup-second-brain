@@ -2570,7 +2570,7 @@ async function openNotesTrash(){
   const m=document.getElementById('modal-content');
   m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">🗑 Trash</h2>
   <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Notes deleted in the last 30 days. Restoring brings back the note with its tags, folder and links.</div>
-  <div id="nt-list" style="max-height:380px;overflow-y:auto"><div style="font-size:12px;color:var(--t3);padding:10px">Loading…</div></div>
+  <div id="nt-list" style="max-height:380px;overflow-y:auto"><div style="font-size:12px;color:var(--t3);padding:10px"><span class="lu-skel rows" role="status" aria-label="Loading"><i></i><i></i><i></i><i></i></span></div></div>
   <button class="btn btn-s" onclick="closeModal()" style="margin-top:8px;font-size:11px">Close</button>`;
   document.getElementById('modal-capture').classList.add('show');
   let rows=null;try{rows=await _trpc('noteVersions.trash',undefined,'query');}catch(_){}
@@ -2734,7 +2734,7 @@ async function openNoteHistory(id){
   const m=document.getElementById('modal-content');
   m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">🕐 History: ${esc(n.title||'Untitled')}</h2>
   <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Kept on the server, the same on every device: the note as it was before each editing session, and before anything replaced its text.</div>
-  <div id="nh-list" style="max-height:380px;overflow-y:auto"><div style="font-size:12px;color:var(--t3);padding:10px">Loading…</div></div>
+  <div id="nh-list" style="max-height:380px;overflow-y:auto"><div style="font-size:12px;color:var(--t3);padding:10px"><span class="lu-skel rows" role="status" aria-label="Loading"><i></i><i></i><i></i><i></i></span></div></div>
   <button class="btn btn-s" onclick="closeModal()" style="margin-top:8px;font-size:11px">Close</button>`;
   document.getElementById('modal-capture').classList.add('show');
   let rows=null,err='';
@@ -2786,7 +2786,7 @@ function _noteVerTab(which){
 async function previewNoteVersion(noteId,versionId){
   const n=D.notes.find(x=>x.id==noteId);if(!n)return;
   const m=document.getElementById('modal-content');
-  m.innerHTML=`<div style="font-size:12px;color:var(--t3);padding:14px">Loading…</div>`;
+  m.innerHTML=`<div style="font-size:12px;color:var(--t3);padding:14px"><span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span></div>`;
   let v=null;try{v=await _trpc('noteVersions.get',{id:Number(versionId)},'query');}catch(_){}
   if(!v){m.innerHTML=`<div style="font-size:12px;color:var(--t3);padding:14px">That version couldn’t be loaded.</div><button class="btn btn-s"${_act('openNoteHistory',[noteId])}>← Back</button>`;return;}
   _noteVerOpen=v;

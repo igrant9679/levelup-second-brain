@@ -400,14 +400,14 @@ function renderSettingsHTML(){
   <div id="daily-digest-panel" style="margin-bottom:16px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
     <div style="font-size:12px;font-weight:600;margin-bottom:4px">☀ Daily Morning Digest Email</div>
     <p style="font-size:11px;color:var(--t3);margin-bottom:8px">A single email each morning summarizing today's plate across your LevelUp tasks, NiftyPM tasks and calendar. Sent only when there's something to surface.</p>
-    <div id="daily-digest-body" style="font-size:11px;color:var(--t2)">Loading…</div>
+    <div id="daily-digest-body" style="font-size:11px;color:var(--t2)"><span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span></div>
   </div>
 
   <!-- Weekly Review (server-side) -->
   <div id="weekly-review-panel" style="margin-bottom:16px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
     <div style="font-size:12px;font-weight:600;margin-bottom:4px">📊 Weekly Review Email</div>
     <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Late-week recap email: what shipped this past week, what's overdue / carrying over, what's coming next week — across ${_luCF()} + ${_luLSI()} + Personal. Includes an AI-generated reflection (if an AI key is configured).</p>
-    <div id="weekly-review-body" style="font-size:11px;color:var(--t2)">Loading…</div>
+    <div id="weekly-review-body" style="font-size:11px;color:var(--t2)"><span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span></div>
   </div>
 
   <!-- Email Notifications -->
@@ -615,7 +615,7 @@ function renderSettingsHTML(){
     <!-- Email Delivery Log -->
     <div style="margin-top:10px">
       <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:6px">📋 Recent Delivery Log</div>
-      <div id="email-delivery-log" style="font-size:11px;color:var(--t3)">Loading…</div>
+      <div id="email-delivery-log" style="font-size:11px;color:var(--t3)"><span class="lu-skel rows" role="status" aria-label="Loading"><i></i><i></i><i></i><i></i></span></div>
     </div>
   </div>
   <!-- Data Migration Health (owner/admin only) — Step 3 readiness for retiring
@@ -669,7 +669,7 @@ function renderSettingsHTML(){
   <div id="atlas-panel" style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
     <div style="font-size:12px;font-weight:600;margin-bottom:4px">🗺 Atlas — CFResourcePlanner mirror</div>
     <p style="font-size:11px;color:var(--t3);margin-bottom:8px">One-way sync from Atlas. Replaces the legacy CF Smartsheet pulls — Atlas is now the source of truth for CF org chart, projects, opportunities, proposals, recruiting, resource planning, capacity, proforma, reports, COE plan, and project tasks. Set <code style="background:var(--s3);padding:1px 4px;border-radius:3px;font-size:11px">ATLAS_SYNC_URL</code> + <code style="background:var(--s3);padding:1px 4px;border-radius:3px;font-size:11px">ATLAS_SYNC_TOKEN</code> as Railway env vars on this LevelUp deployment.</p>
-    <div id="atlas-panel-body" style="font-size:11px;color:var(--t2)">Loading…</div>
+    <div id="atlas-panel-body" style="font-size:11px;color:var(--t2)"><span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span></div>
     <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
       <button class="btn btn-p" style="height:28px;font-size:11px" onclick="_atlasPullNow()">↻ Pull from Atlas</button>
       <button class="btn btn-s" style="height:28px;font-size:11px" onclick="_hydrateAtlasPanel()">Reload status</button>
@@ -681,7 +681,7 @@ function renderSettingsHTML(){
   <div id="automations-panel" style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
     <div style="font-size:12px;font-weight:600;margin-bottom:4px">⚙ Automation Rules</div>
     <p style="font-size:11px;color:var(--t3);margin-bottom:8px">When a task matches a trigger, run an action automatically. Runs every 15 min on the server. Works on native + external (Smartsheet/Nifty) tasks.</p>
-    <div id="automations-body" style="font-size:11px;color:var(--t2)">Loading…</div>
+    <div id="automations-body" style="font-size:11px;color:var(--t2)"><span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span></div>
     <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
       <button class="btn btn-p" style="height:28px;font-size:11px" onclick="_openAutomationEditor()">+ New rule</button>
       <button class="btn btn-s" style="height:28px;font-size:11px" onclick="_automationsRunNow()">▶ Run all now</button>
@@ -942,7 +942,7 @@ function renderSettingsHTML(){
       <div style="width:28px;height:28px;border-radius:6px;background:#0078d4;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0">M</div>
       <div style="flex:1;min-width:0">
         <div style="font-size:11px;font-weight:500">Microsoft 365</div>
-        <div id="sync-panel-ms-status" style="font-size:11px;color:var(--t3)">Loading…</div>
+        <div id="sync-panel-ms-status" style="font-size:11px;color:var(--t3)"><span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span></div>
       </div>
       <div style="display:flex;gap:4px">
         <button class="btn" style="font-size:11px;padding:3px 8px" onclick="syncOAuthCalendar('microsoft')">📅 Cal</button>
@@ -955,7 +955,7 @@ function renderSettingsHTML(){
   <button class="btn btn-p" style="width:100%;font-size:12px;margin-bottom:12px" onclick="syncAllProviders()">🔄 Sync All Now</button>
   <!-- Sync log -->
   <div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--t2)">Recent Sync Activity</div>
-  <div id="sync-panel-log" style="font-size:11px;color:var(--t3);background:var(--bg2,rgba(0,0,0,0.04));border-radius:6px;padding:8px;max-height:160px;overflow-y:auto">Loading…</div>
+  <div id="sync-panel-log" style="font-size:11px;color:var(--t3);background:var(--bg2,rgba(0,0,0,0.04));border-radius:6px;padding:8px;max-height:160px;overflow-y:auto"><span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span></div>
   </div>
   <!-- Backup --><div id="sp-10" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Backup & Export</h3>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Export All Data</div><div style="font-size:11px;color:var(--t3)">JSON + Markdown + CSV</div></div><button class="btn btn-p" style="font-size:11px" onclick="exportData()">Export ZIP</button></div>
@@ -984,7 +984,7 @@ function renderSettingsHTML(){
       </div>
     </div>
     <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Errors: everything that went wrong on the server (failed requests, background jobs) and in signed-in browsers over the last 7 days, grouped so a repeating problem is one row. Audit log: who changed other people's data, members, invites, mail, AI keys, bank link and backups.</p>
-    <div id="ops-body" style="font-size:11px;color:var(--t3)">Loading…</div>
+    <div id="ops-body" style="font-size:11px;color:var(--t3)"><span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span></div>
   </div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Import Data</div><div style="font-size:11px;color:var(--t3)">Restore from JSON backup</div></div><button class="btn btn-s" style="font-size:11px" onclick="document.getElementById('import-input').click()">Import JSON</button></div>
   <div style="background:var(--acs);border-left:3px solid var(--ac);border-radius:0 6px 6px 0;padding:8px 12px;margin-top:4px;font-size:11px;color:var(--t2)">⚠ Importing will <strong>replace</strong> all current data. Export a backup first if needed.</div></div>
@@ -1067,23 +1067,23 @@ function renderSettingsHTML(){
         <button class="btn btn-s" style="height:26px;font-size:11px" onclick="loadScheduledTaskLog()">↻ Refresh</button>
       </div>
       <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Last 20 runs of the daily OAuth token expiry check job.</p>
-      <div id="admin-task-log" style="font-size:11px;color:var(--t3)">Loading…</div>
+      <div id="admin-task-log" style="font-size:11px;color:var(--t3)"><span class="lu-skel rows" role="status" aria-label="Loading"><i></i><i></i><i></i><i></i></span></div>
     </div>
   </div>
   <!-- AI Coach (rendered by app-coach.js _coachRenderSettings) --><div id="sp-15" class="sp" style="display:none">
   <h3 style="font-size:14px;font-weight:600;margin-bottom:4px">🧭 AI Coach</h3>
   <p style="font-size:12px;color:var(--t2);margin-bottom:12px">Your personal and professional coach: what it knows about you, how much it does on its own, and when it checks in.</p>
-  <div id="coach-settings-body"><div style="font-size:12px;color:var(--t3)">Loading…</div></div>
+  <div id="coach-settings-body"><div style="font-size:12px;color:var(--t3)"><span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span></div></div>
   </div>
   <!-- Bank Connections (SimpleFIN Bridge) --><div id="sp-14" class="sp" style="display:none">
     <h2 style="font-size:16px;font-weight:700;margin-bottom:4px">🏦 Bank Connections</h2>
     <p style="font-size:12px;color:var(--t2);margin-bottom:14px">Connect your banks and cards through <b>SimpleFIN Bridge</b> so the Money page can pull balances and transactions automatically. Your bank credentials and any MFA live entirely at the bridge — LevelUp only ever holds a read-only access key, stored server-side and never shown again.</p>
-    <div id="simplefin-panel-body" style="font-size:12px;color:var(--t3)">Loading…</div>
+    <div id="simplefin-panel-body" style="font-size:12px;color:var(--t3)"><span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span></div>
   </div>
   <!-- Workspace --><div id="sp-13" class="sp" style="display:none">
     <h3 style="font-size:14px;font-weight:600;margin-bottom:4px">Workspace layout</h3>
     <p style="font-size:11px;color:var(--t2);margin-bottom:12px">Choose what you see. Nothing is deleted — anything you switch off is one click from coming back, and your choices follow you to any device you sign in on.</p>
-    <div id="ws-panel-body" style="font-size:11px;color:var(--t3)">Loading…</div>
+    <div id="ws-panel-body" style="font-size:11px;color:var(--t3)"><span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span></div>
   </div>
   </div></div>`;
 }
@@ -1271,7 +1271,7 @@ function showSetTab(el,id){
 async function _hydrateDailyDigestPanel(){
   const body=document.getElementById('daily-digest-body');
   if(!body)return;
-  body.innerHTML='Loading…';
+  body.innerHTML='<span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span>';
   try{
     const p=await _trpc('dailyDigest.getPrefs',undefined,'query');
     body.innerHTML=_renderDailyDigestPanelHTML(p);
@@ -1375,7 +1375,7 @@ async function _digestSendNow(){
 async function _hydrateWeeklyReviewPanel(){
   const body=document.getElementById('weekly-review-body');
   if(!body)return;
-  body.innerHTML='Loading…';
+  body.innerHTML='<span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span>';
   try{
     const p=await _trpc('weeklyReview.getPrefs',undefined,'query');
     body.innerHTML=_renderWeeklyReviewPanelHTML(p);
@@ -1463,7 +1463,7 @@ window._automationRules = [];
 async function _hydrateAutomationsPanel(){
   const body=document.getElementById('automations-body');
   if(!body)return;
-  body.innerHTML='Loading…';
+  body.innerHTML='<span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span>';
   try{
     const rules=await _trpc('automations.list',undefined,'query');
     window._automationRules=rules||[];
@@ -1623,7 +1623,7 @@ async function _saveAutomation(id){
 async function _hydrateExternalSourcesPanel(){
   const body=document.getElementById('ext-sources-body');
   if(!body)return;
-  body.innerHTML='Loading…';
+  body.innerHTML='<span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span>';
   try{
     const status=await _trpc('externalSources.status',undefined,'query');
     const ssWatches=status.smartsheet.connected?await _trpc('externalSources.listSmartsheetWatches',undefined,'query'):[];
@@ -1640,7 +1640,7 @@ async function _hydrateExternalSourcesPanel(){
 async function _hydrateTombstoneArchive(){
   const body=document.getElementById('ext-archive-body');
   if(!body)return;
-  body.innerHTML='Loading…';
+  body.innerHTML='<span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span>';
   try{
     const all=await _trpc('externalSources.listExternalTasks',{includeRemoved:true},'query');
     const dead=(Array.isArray(all)?all:[]).filter(r=>r.override&&r.override.tombstoned);
@@ -6515,7 +6515,7 @@ function showLinkBookmarkPanel(entityType, entityId){
       <div style="font-size:12px;font-weight:600;margin-bottom:10px">🔗 Link a Bookmark</div>
       <input class="inp" id="bk-link-search" placeholder="Search your bookmarks…" oninput="filterLinkBookmarkList(this.value)" style="margin-bottom:8px">
       <div id="bk-link-list" style="max-height:260px;overflow-y:auto">
-        <div style="color:var(--t3);font-size:11px;text-align:center;padding:20px 0">Loading bookmarks…</div>
+        <div style="color:var(--t3);font-size:11px;text-align:center;padding:20px 0"><span class="lu-skel rows" role="status" aria-label="Loading"><i></i><i></i><i></i><i></i></span></div>
       </div>
     </div>
   `;
@@ -6641,7 +6641,7 @@ function paintBookmarks(){
   // Bookmark cards
   let cards='';
   if(_bkLoading){
-    cards='<div style="text-align:center;padding:40px;color:var(--t3)">Loading bookmarks...</div>';
+    cards='<div style="text-align:center;padding:40px;color:var(--t3)"><span class="lu-skel rows" role="status" aria-label="Loading"><i></i><i></i><i></i><i></i></span></div>';
   }else if(_bkData.length===0){
     cards=renderEmptyState({
       icon:'🔖',
@@ -7967,7 +7967,7 @@ async function loadOnenoteNotebooks(){
   document.getElementById('on-sections-wrap').style.display='none';
   document.getElementById('on-pages-wrap').style.display='none';
   nbWrap.style.display='';
-  nbWrap.innerHTML='<div style="font-size:11px;color:var(--t3);padding:8px 0">Loading notebooks…</div>';
+  nbWrap.innerHTML='<div style="font-size:11px;color:var(--t3);padding:8px 0"><span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span></div>';
   try{
     const notebooks=await _trpc('onenote.listNotebooks',{account:_onAccount},'query');
     if(!notebooks||notebooks.length===0){
@@ -7995,7 +7995,7 @@ async function selectOnenoteNotebook(id,name){
   const secWrap=document.getElementById('on-sections-wrap');
   const secList=document.getElementById('on-sections-list');
   secWrap.style.display='';
-  secList.innerHTML='<div style="font-size:11px;color:var(--t3)">Loading sections…</div>';
+  secList.innerHTML='<div style="font-size:11px;color:var(--t3)"><span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span></div>';
   try{
     const sections=await _trpc('onenote.listSections',{notebookId:id,account:_onAccount},'query');
     if(!sections||sections.length===0){
@@ -8026,7 +8026,7 @@ async function selectOnenoteSection(id,name){
   const pagesWrap=document.getElementById('on-pages-wrap');
   const pagesList=document.getElementById('on-pages-list');
   pagesWrap.style.display='';
-  pagesList.innerHTML='<div style="font-size:11px;color:var(--t3)">Loading pages…</div>';
+  pagesList.innerHTML='<div style="font-size:11px;color:var(--t3)"><span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span></div>';
   try{
     const pages=await _trpc('onenote.listPages',{sectionId:id,account:_onAccount},'query');
     if(!pages||pages.length===0){
@@ -9428,7 +9428,7 @@ async function loadAdminDeliveryLog(page=1){
   const el=document.getElementById('admin-delivery-log');
   const pgEl=document.getElementById('admin-log-pagination');
   if(!el)return;
-  el.innerHTML='<span style="color:var(--t3);font-style:italic">Loading...</span>';
+  el.innerHTML='<span style="color:var(--t3);font-style:italic"><span class="lu-skel one" role="status" aria-label="Loading"><i></i></span></span>';
   const status=(document.getElementById('admin-log-status'))?.value||undefined;
   const fromVal=(document.getElementById('admin-log-from'))?.value;
   const toVal=(document.getElementById('admin-log-to'))?.value;
@@ -10003,7 +10003,7 @@ async function _opsShow(view,more){
   _opsView=view;
   ['errors','audit'].forEach(v=>{const b=document.getElementById('btn-ops-'+v);if(b){b.setAttribute('aria-pressed',String(v===view));b.style.fontWeight=v===view?'700':'';}});
   const body=document.getElementById('ops-body');if(!body)return;
-  if(!more)body.textContent='Loading…';
+  if(!more)body.innerHTML='<span class="lu-skel rows" role="status" aria-label="Loading"><i></i><i></i><i></i><i></i></span>';
   try{
     if(view==='errors'){
       const rows=await _trpc('ops.errors',{sinceHours:24*7},'query')||[];

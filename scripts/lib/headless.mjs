@@ -161,5 +161,10 @@ export async function openBrowser() {
   }
   await send('Page.enable');
   await send('Runtime.enable');
+  // Since -294 a browser with nothing stored starts in the DEVICE's theme, and
+  // headless Chrome reports a light one. The guards were written against the
+  // dark default, so say the device is dark; a check that wants the light
+  // default calls Emulation.setEmulatedMedia itself.
+  try { await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] }); } catch {}
   return { send, evaluate, loadApp, close };
 }
