@@ -22,6 +22,7 @@ export const BUNDLES = [
   'app-pm.js',
   'app-workspace.js',
   'app-shell.js',
+  'app-fleet.js',
 ];
 /** Loaded before the bundles. */
 export const VENDOR = ['vendor/purify.min.js'];

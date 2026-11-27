@@ -320,7 +320,7 @@ describe("toasts are announced (-294)", () => {
 describe("the -294 code can't stop the app starting", () => {
   it("still loads last and only wraps what earlier bundles made", () => {
     const names = Array.from(indexHtml.matchAll(/'\/js\/(app-[a-z0-9-]+\.js)'/g)).map((m) => m[1]);
-    expect(names[names.length - 1]).toBe("app-shell.js");
+    expect(names.slice(-2)).toEqual(["app-shell.js", "app-fleet.js"]); // -295: only the Fleet loads after it
     const wiring = shell.slice(shell.indexOf("/* ── wiring (-294)"));
     for (const fn of ["_luSwipeInit", "_luSetWatch", "_luInstallInit", "_luShell2CSS", "_luLiveInit"]) expect(wiring).toContain("try{" + fn + "();}catch");
   });

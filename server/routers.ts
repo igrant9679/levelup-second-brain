@@ -40,6 +40,7 @@ import { pmRouter } from "./routers/pm";
 import { demoAdminRouter } from "./routers/demoAdmin";
 import { workspaceRouter } from "./routers/workspace";
 import { billingRouter } from "./routers/billing";
+import { fleetRouter } from "./routers/fleet";
 
 export const appRouter = router({
   // if you need to use socket.io, read and register route in server/_core/index.ts,
@@ -158,6 +159,7 @@ export const appRouter = router({
   simplefin: simplefinRouter,
   workspace: workspaceRouter,
   billing: billingRouter,
+  fleet: fleetRouter,
 });
 
 export type AppRouter = typeof appRouter;

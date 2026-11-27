@@ -303,6 +303,7 @@ async function startServer() {
   });
 
   registerBookmarkletRoutes(app, sdk);
+  (await import("./fleetApi")).registerFleetRoutes(app); // Mission Control (build -295)
   (await import("./recipientConfirm")).registerRecipientConfirmRoutes(app);
 
   // ---- Public bookmark share endpoint: GET /api/share/:token ----

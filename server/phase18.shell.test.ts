@@ -217,10 +217,10 @@ describe("the page (-291, -292)", () => {
     expect(boot({ lu_prefs: JSON.stringify({ darkMode: true }) }, "", true).cls).toEqual([]);
     expect(boot({ lu_session: session }, "", true)).toMatchObject({ skel: "flex", cls: ["light-mode"] });
   });
-  it("loads app-shell.js last", () => {
+  it("loads app-shell.js after every earlier bundle (only the Fleet's app-fleet.js, -295, comes after it)", () => {
     const loader = indexHtml.slice(indexHtml.indexOf("['/js/vendor/purify.min.js'"));
     const list = loader.slice(0, loader.indexOf("]"));
-    expect(list.trim().endsWith("'/js/app-shell.js'")).toBe(true);
+    expect(list.trim().endsWith("'/js/app-shell.js','/js/app-fleet.js'")).toBe(true);
   });
 });
 
