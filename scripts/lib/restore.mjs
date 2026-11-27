@@ -25,7 +25,7 @@ const SKIP = new Set(["__drizzle_migrations"]);
 // Rows a fresh `drizzle-kit migrate` leaves behind: table -> the WHERE that
 // matches ONLY those rows. Anything else in the table means "not empty".
 const SEEDED = { workspaces: "id = 1 AND ownerUserId IS NULL AND createdBy IS NULL" };
-const WS_SETTING_KEYS = ["aiProvider", "aiKey_openai", "aiKey_claude", "aiKey_gemini", "notificationSender", "teamStarterPreset"];
+const WS_SETTING_KEYS = ["aiProvider", "aiKey_openai", "aiKey_claude", "aiKey_gemini", "aiKey_openrouter", "aiModel_openrouter", "notificationSender", "teamStarterPreset"];
 
 const rowsOf = (r) => (Array.isArray(r) && Array.isArray(r[0]) ? r[0] : Array.isArray(r) ? r : []);
 

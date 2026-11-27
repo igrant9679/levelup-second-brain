@@ -729,21 +729,22 @@ function renderSettingsHTML(){
     <div style="margin-bottom:12px">
       <label style="font-size:11px;font-weight:600;color:var(--t2);display:block;margin-bottom:4px">Active Provider</label>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
-        ${['openai','claude','gemini'].map(p=>{
-          const labels={openai:'OpenAI',claude:'Anthropic Claude',gemini:'Google Gemini'};
+        ${_AI_PROVIDERS.map(p=>{
+          const labels={openai:'OpenAI',claude:'Anthropic Claude',gemini:'Google Gemini',openrouter:'OpenRouter'};
           const active=_sharedAI.provider||'openai';
           const canEdit=!!_sharedAI.canEdit;
-          return `<button class="btn ${active===p?'btn-p':'btn-s'}" style="font-size:11px;height:26px${canEdit?'':';opacity:.6;pointer-events:none'}" ${canEdit?`onclick="setAIProvider('${_jsAttr(p)}')"`:''}>${{openai:'🟢',claude:'🟠',gemini:'🔵'}[p]} ${labels[p]}</button>`;
+          return `<button class="btn ${active===p?'btn-p':'btn-s'}" style="font-size:11px;height:26px${canEdit?'':';opacity:.6;pointer-events:none'}" ${canEdit?`onclick="setAIProvider('${_jsAttr(p)}')"`:''}>${{openai:'🟢',claude:'🟠',gemini:'🔵',openrouter:'🟣'}[p]} ${labels[p]}</button>`;
         }).join('')}
       </div>
       <div style="font-size:11px;color:var(--t3);margin-top:6px">
-        ${(()=>{const p=_sharedAI.provider||'openai';const hasKey=!!(_sharedAI.keys[p]&&_sharedAI.keys[p].configured);return hasKey?'<span style="color:var(--ok)">✓ Ready to use</span>':'<span style="color:var(--warn)">⚠ Add an API key below to use this provider</span>';})()}
+        ${_aiReadyLine()}
       </div>
     </div>
     ${[
       {p:'openai',bg:'#10a37f',letter:'O',name:'OpenAI (GPT-4o, GPT-4o-mini)',ph:'sk-...',url:'https://platform.openai.com/api-keys',host:'platform.openai.com/api-keys'},
       {p:'claude',bg:'#d97706',letter:'A',name:'Anthropic Claude (claude-3-5-sonnet)',ph:'sk-ant-...',url:'https://console.anthropic.com/settings/keys',host:'console.anthropic.com'},
       {p:'gemini',bg:'#4285f4',letter:'G',name:'Google Gemini (gemini-1.5-pro)',ph:'AIza...',url:'https://aistudio.google.com/app/apikey',host:'aistudio.google.com'},
+      {p:'openrouter',bg:'#6467f2',letter:'R',name:'OpenRouter (one key for Claude, GPT, Gemini, Llama and more)',ph:'sk-or-...',url:'https://openrouter.ai/settings/keys',host:'openrouter.ai/settings/keys'},
     ].map((c,i,all)=>{
       const st=_sharedAI.keys[c.p]||{configured:false,hint:''};
       const canEdit=!!_sharedAI.canEdit;
@@ -763,6 +764,7 @@ function renderSettingsHTML(){
       </div>
       <div id="ai-${c.p}-status" style="font-size:11px;margin-top:4px;display:none"></div>
       <div style="font-size:11px;color:var(--t3);margin-top:4px">Get your key at <a href="${c.url}" target="_blank" style="color:var(--ach)">${c.host}</a></div>
+      ${c.p==='openrouter'?_aiOrModelHtml():''}
     </div>`;
     }).join('')}
   </div>
@@ -8453,7 +8455,11 @@ function _rteTimeAgo(ts){
 // the server (workspaceAI.ts resolveRequestAI) — callers send no apiKey.
 // `known` = we have a server answer or a cached copy; until then AI calls are
 // allowed through and the server decides.
-let _sharedAI={keys:{openai:{configured:false,hint:''},claude:{configured:false,hint:''},gemini:{configured:false,hint:''}},provider:'openai',canEdit:false,loaded:false,known:false};
+// OpenRouter (2026-11-27) is the fourth provider: one key, many models. `openrouter` =
+// {model: the workspace's pick ('' = LevelUp's default), sharedKey: LevelUp has a shared
+// OpenRouter key, inUse: the model answering now, onSharedKey}. Never a key.
+const _AI_PROVIDERS=['openai','claude','gemini','openrouter'];
+let _sharedAI={keys:{openai:{configured:false,hint:''},claude:{configured:false,hint:''},gemini:{configured:false,hint:''},openrouter:{configured:false,hint:''}},provider:'openai',canEdit:false,loaded:false,known:false,openrouter:{model:'',sharedKey:false,inUse:null,onSharedKey:false}};
 function _aiKeyStatus(v){
   // Accepts the new {configured,hint} shape or a pre-214 cached raw string —
   // a raw string is reduced to "configured" and never kept.
@@ -8462,15 +8468,66 @@ function _aiKeyStatus(v){
 }
 function _aiNormKeys(keys){
   const k=keys||{};
-  return {openai:_aiKeyStatus(k.openai),claude:_aiKeyStatus(k.claude),gemini:_aiKeyStatus(k.gemini)};
+  return {openai:_aiKeyStatus(k.openai),claude:_aiKeyStatus(k.claude),gemini:_aiKeyStatus(k.gemini),openrouter:_aiKeyStatus(k.openrouter)};
+}
+function _aiNormOr(o){
+  o=o||{};
+  return {model:String(o.model||''),sharedKey:!!o.sharedKey,inUse:o.inUse?String(o.inUse):null,onSharedKey:!!o.onSharedKey};
 }
 function _aiMaskKey(key){
   const k=String(key||'').trim();if(!k)return '';
-  const head=k.startsWith('sk-ant-')?'sk-ant-':k.startsWith('sk-')?'sk-':k.startsWith('AIza')?'AIza':'';
+  const head=k.startsWith('sk-ant-')?'sk-ant-':k.startsWith('sk-or-')?'sk-or-':k.startsWith('sk-')?'sk-':k.startsWith('AIza')?'AIza':'';
   return k.length<12?head+'…':head+'…'+k.slice(-4);
 }
 function _aiCacheSave(){
-  try{localStorage.setItem('lu_sharedAI',JSON.stringify({keys:_sharedAI.keys,provider:_sharedAI.provider,canEdit:_sharedAI.canEdit}));}catch(_){}
+  try{localStorage.setItem('lu_sharedAI',JSON.stringify({keys:_sharedAI.keys,provider:_sharedAI.provider,canEdit:_sharedAI.canEdit,openrouter:_sharedAI.openrouter}));}catch(_){}
+}
+// The line under "Active Provider": ready, ready on LevelUp's shared OpenRouter key, or a key is needed.
+function _aiReadyLine(){
+  const p=_sharedAI.provider||'openai';
+  const hasKey=!!(_sharedAI.keys[p]&&_sharedAI.keys[p].configured);
+  if(hasKey)return '<span style="color:var(--ok)">✓ Ready to use</span>';
+  if(p==='openrouter'&&_sharedAI.openrouter&&_sharedAI.openrouter.sharedKey)return '<span style="color:var(--ok)">✓ Ready — on LevelUp’s shared OpenRouter key (counts toward the daily AI limit). Add your own key below to use it instead.</span>';
+  return '<span style="color:var(--warn)">⚠ Add an API key below to use this provider</span>';
+}
+// OpenRouter model picker: filled from OpenRouter's own list (the server asks
+// https://openrouter.ai/api/v1/models and caches it). Price per million tokens in / out.
+let _aiOrModels=null;
+function _aiOrPrice(v){return v==null?'varies':'$'+(v<0.1?v.toFixed(3):v.toFixed(2));}
+function _aiOrModelHtml(){
+  const canEdit=!!_sharedAI.canEdit;
+  const or=_sharedAI.openrouter||{};
+  setTimeout(_aiOrModelsFill,0);
+  return `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd1)">
+    <label for="ai-or-model" style="font-size:11px;font-weight:600;color:var(--t2);display:block;margin-bottom:4px">OpenRouter model</label>
+    <select id="ai-or-model" class="inp" style="width:100%;font-size:11px" ${canEdit?'':'disabled'} onchange="setAIModel(this.value)"><option value="">Loading OpenRouter’s models…</option></select>
+    <div id="ai-or-model-note" style="font-size:11px;color:var(--t3);margin-top:4px">Prices are per million tokens (in / out). Features that need a structured answer (the assistant’s actions, tags, follow-ups, summaries) only use a model that supports one — with any other model they use LevelUp’s default.${or.onSharedKey?' You are on LevelUp’s shared key, so LevelUp’s model choice may apply instead of yours.':''}</div>
+  </div>`;
+}
+async function _aiOrModelsFill(){
+  const sel=document.getElementById('ai-or-model');if(!sel)return;
+  try{if(!_aiOrModels)_aiOrModels=await _trpc('aiSettings.openRouterModels',undefined,'query');}
+  catch(e){sel.innerHTML='<option value="">Couldn’t load OpenRouter’s models — LevelUp’s default is used</option>';return;}
+  const r=_aiOrModels||{models:[]};
+  const cur=(_sharedAI.openrouter&&_sharedAI.openrouter.model)||'';
+  const def=(r.models||[]).find(m=>m.id===r.defaultModel);
+  let h='<option value="">LevelUp’s default — '+esc(def?def.name:(r.defaultModel||'newest Claude Sonnet'))+'</option>';
+  let seen=false;
+  for(const m of (r.models||[])){
+    if(m.id===cur)seen=true;
+    h+='<option value="'+esc(m.id)+'"'+(m.id===cur?' selected':'')+'>'+esc(m.name)+' — '+_aiOrPrice(m.promptPerM)+' / '+_aiOrPrice(m.completionPerM)+(m.structured?'':' · no structured answers')+'</option>';
+  }
+  if(cur&&!seen)h+='<option value="'+esc(cur)+'" selected>'+esc(cur)+' (no longer offered — the default is used)</option>';
+  sel.innerHTML=h;
+}
+async function setAIModel(id){
+  id=String(id||'').trim();
+  try{
+    await _trpc('aiSettings.set',{openrouterModel:id},'mutation');
+    _sharedAI.openrouter=Object.assign({},_sharedAI.openrouter,{model:id});
+    _aiCacheSave();
+    toast(id?'OpenRouter model: '+id:'OpenRouter model: LevelUp’s default');
+  }catch(e){toast('Failed: '+(e.message||e));}
 }
 async function loadSharedAISettings(){
   // Read the localStorage cache first so the Settings panel and the "AI key
@@ -8479,14 +8536,14 @@ async function loadSharedAISettings(){
   try{
     const cached=JSON.parse(localStorage.getItem('lu_sharedAI')||'null');
     if(cached&&cached.keys){
-      _sharedAI={keys:_aiNormKeys(cached.keys),provider:cached.provider||'openai',canEdit:!!cached.canEdit,loaded:false,known:true};
+      _sharedAI={keys:_aiNormKeys(cached.keys),provider:cached.provider||'openai',canEdit:!!cached.canEdit,loaded:false,known:true,openrouter:_aiNormOr(cached.openrouter)};
       _aiCacheSave();
     }
   }catch(_){}
   try{
     const res=await _trpc('aiSettings.get',undefined,'query');
     if(res){
-      _sharedAI={keys:_aiNormKeys(res.keys),provider:res.provider||'openai',canEdit:!!res.canEdit,loaded:true,known:true};
+      _sharedAI={keys:_aiNormKeys(res.keys),provider:res.provider||'openai',canEdit:!!res.canEdit,loaded:true,known:true,openrouter:_aiNormOr(res.openrouter)};
       _aiCacheSave();
     }
   }catch(e){console.warn('[aiSettings] load failed',e?.message||e);_sharedAI.loaded=true;}
@@ -8538,7 +8595,9 @@ function _getAIConfig(){
   const keys=_sharedAI.keys||{};
   const explicit=_sharedAI.provider||'openai';
   if(keys[explicit]&&keys[explicit].configured)return {provider:explicit,configured:true};
-  for(const p of ['openai','claude','gemini']){
+  // OpenRouter chosen with no key of its own: LevelUp's shared OpenRouter key answers.
+  if(explicit==='openrouter'&&_sharedAI.openrouter&&_sharedAI.openrouter.sharedKey)return {provider:explicit,configured:true};
+  for(const p of _AI_PROVIDERS){
     if(keys[p]&&keys[p].configured)return {provider:p,configured:true};
   }
   return {provider:explicit,configured:!_sharedAI.known};
@@ -8551,14 +8610,23 @@ async function setAIKey(provider,key){
   if(!key&&!had){toast('Paste a key first');return;}
   if(!key&&!confirm('Clear the saved '+provider+' API key? This affects every team member.'))return;
   try{
-    await _trpc('aiSettings.set',{[provider]:key||''},'mutation');
+    const res=await _trpc('aiSettings.set',{[provider]:key||''},'mutation');
     _sharedAI.keys[provider]=key?{configured:true,hint:_aiMaskKey(key)}:{configured:false,hint:''};
     _aiCacheSave();
     renderScreen('settings');
+    // OpenRouter keys are checked with OpenRouter before they are saved (a refused key never gets here).
+    if(key&&provider==='openrouter'&&res&&res.openrouter){toast(_aiOrCheckText(res.openrouter));return;}
     toast(key?'✅ '+provider+' key saved for the whole team':provider+' key cleared');
   }catch(e){
     toast('Failed to save: '+(e.message||e));
   }
+}
+// "Valid — $12.34 credit left on this key" from the server's check of an OpenRouter key.
+function _aiOrCheckText(c){
+  if(!c)return '✅ OpenRouter key saved';
+  if(!c.checked)return '✅ OpenRouter key saved — OpenRouter could not be reached to check it ('+String(c.error||'').slice(0,120)+')';
+  const left=c.limitRemaining!=null?' — $'+Number(c.limitRemaining).toFixed(2)+' credit left on this key':' — no credit limit is set on this key';
+  return '✅ OpenRouter key is valid'+left;
 }
 async function setAIProvider(p){
   try{

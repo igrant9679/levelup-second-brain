@@ -204,6 +204,12 @@ guide, or `Ctrl/⌘ K`) walks role → detail level → pages → connections.
 - **Integrations**: Microsoft 365 / Google (calendar, mail, contacts), Smartsheet
   and NiftyPM (two-way task sync), OneNote (meeting notes), SimpleFIN (banking),
   Google Drive (file storage).
+- **AI providers** (Settings → AI Features): OpenAI, Anthropic Claude, Google Gemini or
+  **OpenRouter** (one key, many models; pick the model on the OpenRouter card, prices per
+  million tokens shown, default = the newest Claude Sonnet). With OpenRouter chosen the
+  workspace's own OpenRouter key is used, else LevelUp's shared one (counts toward the daily
+  AI limit). A new OpenRouter key is checked on save ("valid" + credit left). 401 = wrong or
+  revoked key, 402 = out of credit.
 
 ---
 
@@ -243,6 +249,14 @@ steps. Server: `ai.agent` (real multi-turn `messages[]`, 16k system cap) via
 `ai.agent`, the panel degrades to the answer-only `ai.assist` path. Guard:
 `pnpm check:ai-agent` runs every tool against a fake workspace and exercises
 the approve / skip / continue / fallback paths.
+
+**Providers** (server): `server/_core/aiProviders.ts` dispatches `openai`, `claude`,
+`gemini`, `openrouter` (and the dormant built-in `manus` fallback); keys and the order
+they are tried in live in `server/_core/workspaceAI.ts` (`resolveWorkspaceAI`). OpenRouter
+specifics — model list + cache, default model, the structured-answer model filter,
+retries on 429 / 5xx, OpenRouter's own error messages, key check — are all in
+`server/_core/openRouter.ts`. Tests: `server/openrouter.test.ts`,
+`server/openrouter.settings.test.ts`.
 
 ## Part 6 — For developing the app
 

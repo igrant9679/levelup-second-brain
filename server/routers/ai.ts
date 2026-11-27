@@ -5,7 +5,8 @@ import { resolveRequestAI } from "../_core/workspaceAI";
 import { spendQuota } from "../_core/quota";
 
 // ─── Provider types ────────────────────────────────────────────────────────────
-type AIProvider = "manus" | "openai" | "claude" | "gemini";
+type AIProvider = "manus" | "openai" | "claude" | "gemini" | "openrouter";
+const PROVIDER_IDS = ["manus", "openai", "claude", "gemini", "openrouter"] as const;
 
 interface ProviderConfig {
   provider: AIProvider;
@@ -140,7 +141,7 @@ export const aiRouter = router({
         systemPrompt: z.string().max(4000),
         userContent: z.string().max(8000),
         provider: z
-          .enum(["manus", "openai", "claude", "gemini"])
+          .enum(PROVIDER_IDS)
           .optional()
           .default("manus"),
         apiKey: z.string().max(512).optional(),
@@ -149,12 +150,16 @@ export const aiRouter = router({
     .mutation(async ({ ctx, input }) => {
       // Calls on the workspace AI key count against the daily AI quota.
       const { systemPrompt, userContent } = input;
-      const { provider, apiKey } = await resolveRequestAI(input, ctx.user);
+      const { provider, apiKey, model } = await resolveRequestAI(input, ctx.user);
 
       let result: string;
 
       try {
-        if (provider === "openai" && apiKey) {
+        if (provider === "openrouter" && apiKey) {
+          // OpenRouter: the shared dispatch (model choice, retries, OpenRouter's own errors).
+          const { openRouterChat } = await import("../_core/openRouter");
+          result = (await openRouterChat({ apiKey, model, system: systemPrompt, messages: [{ role: "user", content: userContent }], maxTokens: 1024 })).text || "No response generated.";
+        } else if (provider === "openai" && apiKey) {
           result = await callOpenAI(systemPrompt, userContent, apiKey);
         } else if (provider === "claude" && apiKey) {
           result = await callClaude(systemPrompt, userContent, apiKey);
@@ -200,7 +205,7 @@ export const aiRouter = router({
           .min(1)
           .max(30),
         provider: z
-          .enum(["manus", "openai", "claude", "gemini"])
+          .enum(PROVIDER_IDS)
           .optional()
           .default("manus"),
         apiKey: z.string().max(512).optional(),
@@ -217,11 +222,12 @@ export const aiRouter = router({
         throw new Error(`agent payload too large (${total} chars; max 60000)`);
       }
       const { callAIProviderChat } = await import("../_core/aiProviders");
-      const { provider, apiKey } = await resolveRequestAI(input, ctx.user);
+      const { provider, apiKey, model } = await resolveRequestAI(input, ctx.user);
       try {
         const { text, providerUsed } = await callAIProviderChat({
           provider,
           apiKey,
+          model,
           system: input.system,
           messages: input.messages,
           jsonMode: input.jsonMode,

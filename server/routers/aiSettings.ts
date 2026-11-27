@@ -10,16 +10,22 @@
  * the admin role IS a gate again. Every change lands in the audit log.
  *
  * system_settings keys used:
- *   aiKey_openai, aiKey_claude, aiKey_gemini   — provider API keys (encrypted at rest since audit F25; get/setSystemSetting handle it)
+ *   aiKey_openai, aiKey_claude, aiKey_gemini, aiKey_openrouter — provider API keys (encrypted at rest since audit F25; get/setSystemSetting handle it)
  *   aiProvider                                  — active provider id
+ *   aiModel_openrouter                          — the OpenRouter model picked in Settings (not a secret)
+ *
+ * OpenRouter (2026-11-27): a key is checked with OpenRouter's key-info endpoint
+ * (GET /api/v1/key) before it is saved — a key OpenRouter refuses is not saved,
+ * and a good one comes back as "valid" with the credit left on it.
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { operatorProcedure, protectedProcedure, router } from "../_core/trpc";
-import { invalidateWorkspaceAI, maskKey, platformAIStatus, platformKeys, resolveWorkspaceAI, setPlatformAI } from "../_core/workspaceAI";
+import { invalidateWorkspaceAI, maskKey, OR_MODEL_KEY, platformAIStatus, platformKeys, platformOpenRouterKey, resolveWorkspaceAI, setPlatformAI } from "../_core/workspaceAI";
 import { getSettingFor, setSettingFor, wsIdOf } from "../_core/workspace";
 import { isOwnerCtxUser } from "./appData";
 import { isAdminUser } from "../_core/access";
+import { checkOpenRouterKey, isModelId, listOpenRouterModels, modelInfo, OpenRouterError, pickDefaultModel, textModels } from "../_core/openRouter";
 
 /** Owner or an admin the owner granted (-277). Members can only use the keys. */
 export async function canManageAIKeys(user: any): Promise<boolean> {
@@ -31,8 +37,32 @@ export async function canManageAIKeys(user: any): Promise<boolean> {
   return await isOwnerCtxUser(user);
 }
 
-const PROVIDERS = ["openai", "claude", "gemini"] as const;
+const PROVIDERS = ["openai", "claude", "gemini", "openrouter"] as const;
 type Provider = typeof PROVIDERS[number];
+
+const keyField = z.string().max(512).optional();
+/** An OpenRouter model id ("vendor/model"), or "" to go back to the default. */
+const modelField = z.string().max(200).optional().refine((v) => v === undefined || v.trim() === "" || isModelId(v.trim()), { message: "That is not an OpenRouter model id" });
+
+export type OpenRouterKeyStatus = { checked: true; valid: true; limit: number | null; limitRemaining: number | null; usage: number | null } | { checked: false; error: string };
+
+/**
+ * Ask OpenRouter about a key before it is saved. A key it refuses (401 / 403)
+ * throws — with OpenRouter's own message — and is not saved. When OpenRouter
+ * cannot be reached the key is saved and the answer says it was not checked.
+ * Only the credit figures come back, never the key or its label.
+ */
+export async function checkOpenRouterKeyForSave(key: string): Promise<OpenRouterKeyStatus> {
+  try {
+    const c = await checkOpenRouterKey(key);
+    return { checked: true, valid: true, limit: c.limit, limitRemaining: c.limitRemaining, usage: c.usage };
+  } catch (e) {
+    if (e instanceof OpenRouterError && (e.status === 401 || e.status === 403)) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: `${e.message.replace(/\.$/, "")}. The key was not saved.` });
+    }
+    return { checked: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
 
 export const aiSettingsRouter = router({
   /**
@@ -43,46 +73,63 @@ export const aiSettingsRouter = router({
   get: protectedProcedure.query(async ({ ctx }) => {
     // THIS workspace's own keys (-278). When it has none, AI still works on
     // LevelUp's keys (`usingPlatform`), within the workspace's daily limit.
-    const [openai, claude, gemini, provider] = await Promise.all([
+    const [openai, claude, gemini, openrouter, provider, orModel] = await Promise.all([
       getSettingFor(ctx.user as any, "aiKey_openai"),
       getSettingFor(ctx.user as any, "aiKey_claude"),
       getSettingFor(ctx.user as any, "aiKey_gemini"),
+      getSettingFor(ctx.user as any, "aiKey_openrouter"),
       getSettingFor(ctx.user as any, "aiProvider"),
+      getSettingFor(ctx.user as any, OR_MODEL_KEY),
     ]);
     const status = (k: string | undefined) => ({ configured: !!String(k || "").trim(), hint: maskKey(k) });
     const w = await wsIdOf(ctx.user as any);
     const resolved = await resolveWorkspaceAI(w);
     return {
       provider: (provider as Provider) || (resolved.source === "platform" ? (resolved.provider as Provider) : "openai"),
-      keys: { openai: status(openai), claude: status(claude), gemini: status(gemini) },
+      keys: { openai: status(openai), claude: status(claude), gemini: status(gemini), openrouter: status(openrouter) },
       canEdit: await canManageAIKeys(ctx.user as any),
       /** AI is answering on LevelUp's keys because this workspace entered none of its own. */
       usingPlatform: resolved.source === "platform",
       aiAvailable: resolved.configured,
+      openrouter: {
+        /** This workspace's model pick ("" = LevelUp's default). */
+        model: String(orModel || "").trim(),
+        /** LevelUp has a shared OpenRouter key, so choosing OpenRouter works without a key of your own. */
+        sharedKey: !!(await platformOpenRouterKey()),
+        /** The model the workspace's OpenRouter calls use right now (null when OpenRouter isn't what answers). */
+        inUse: resolved.provider === "openrouter" ? (resolved.model || null) : null,
+        onSharedKey: resolved.provider === "openrouter" && resolved.source === "platform",
+      },
     };
   }),
 
   /**
    * Update one or more shared AI settings. Owner and admins. Empty
-   * string clears.
+   * string clears. A new OpenRouter key is checked with OpenRouter first.
    */
   set: protectedProcedure
     .input(z.object({
       provider: z.enum(PROVIDERS).optional(),
-      openai: z.string().max(512).optional(),
-      claude: z.string().max(512).optional(),
-      gemini: z.string().max(512).optional(),
+      openai: keyField,
+      claude: keyField,
+      gemini: keyField,
+      openrouter: keyField,
+      openrouterModel: modelField,
     }))
     .mutation(async ({ ctx, input }) => {
       if (!(await canManageAIKeys(ctx.user as any))) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Only the workspace owner or an admin can change the AI keys" });
       }
+      const orKey = input.openrouter !== undefined ? input.openrouter.trim() : undefined;
+      const check = orKey ? await checkOpenRouterKeyForSave(orKey) : undefined; // throws before anything is saved
       if (input.provider !== undefined) await setSettingFor(ctx.user as any, "aiProvider", input.provider);
       if (input.openai !== undefined) await setSettingFor(ctx.user as any, "aiKey_openai", input.openai.trim());
       if (input.claude !== undefined) await setSettingFor(ctx.user as any, "aiKey_claude", input.claude.trim());
       if (input.gemini !== undefined) await setSettingFor(ctx.user as any, "aiKey_gemini", input.gemini.trim());
+      if (orKey !== undefined) await setSettingFor(ctx.user as any, "aiKey_openrouter", orKey);
+      if (input.openrouterModel !== undefined) await setSettingFor(ctx.user as any, OR_MODEL_KEY, input.openrouterModel.trim());
       invalidateWorkspaceAI();
-      return { success: true };
+      return { success: true, ...(check ? { openrouter: check } : {}) };
     }),
 
   /**
@@ -98,33 +145,55 @@ export const aiSettingsRouter = router({
       // Audit 3: a failing key falls back to the built-in model, so a test counts like any AI request
       await (await import("../_core/quota")).spendQuota(ctx.user as any, "ai");
       const { callAIProvider } = await import("../_core/aiProviders");
-      const { text, providerUsed } = await callAIProvider({
+      const model = input.provider === "openrouter" ? String((await getSettingFor(ctx.user as any, OR_MODEL_KEY)) || "").trim() || undefined : undefined;
+      const { text, providerUsed, model: answered } = await callAIProvider({
         provider: input.provider,
         apiKey,
+        model,
         systemPrompt: "You are a helpful assistant.",
         userContent: "Reply with exactly: OK",
       });
       // callAIProvider falls back to Manus on a provider error; that is not a
       // passing test of THIS key.
       if (providerUsed !== input.provider) throw new Error(`${input.provider} did not answer`);
-      return { ok: !!text };
+      return { ok: !!text, ...(answered ? { model: answered } : {}) };
+    }),
+
+  /**
+   * OpenRouter's models for the picker (GET https://openrouter.ai/api/v1/models,
+   * no key, cached for 6 hours on the server): id, name, context, price per
+   * million tokens in / out, and whether the model can give structured (JSON)
+   * answers. `structuredOnly` returns only those. `defaultModel` = the newest
+   * Claude Sonnet that supports tools.
+   */
+  openRouterModels: protectedProcedure
+    .input(z.object({ structuredOnly: z.boolean().optional() }).optional())
+    .query(async ({ input }) => {
+      const list = textModels(await listOpenRouterModels());
+      const models = list.map(modelInfo).filter((m) => !input?.structuredOnly || m.structured).sort((a, b) => a.name.localeCompare(b.name));
+      return { available: list.length > 0, defaultModel: pickDefaultModel(list), models };
     }),
 
   // ── LevelUp's own keys (build -289): the fallback for every workspace without one. Operator only. ──
   /** Which provider and which keys are saved (masked hints, never a key). */
   platformGet: operatorProcedure.query(async () => platformAIStatus()),
 
-  /** Change LevelUp's own keys. Empty string clears. Audited. */
+  /** Change LevelUp's own keys. Empty string clears. Audited. A new OpenRouter key is checked first. */
   platformSet: operatorProcedure
     .input(z.object({
       provider: z.enum(PROVIDERS).optional(),
-      openai: z.string().max(512).optional(),
-      claude: z.string().max(512).optional(),
-      gemini: z.string().max(512).optional(),
+      openai: keyField,
+      claude: keyField,
+      gemini: keyField,
+      openrouter: keyField,
+      openrouterModel: modelField,
+      openrouterAnyModel: z.boolean().optional(),
     }))
     .mutation(async ({ input }) => {
+      const orKey = input.openrouter !== undefined ? input.openrouter.trim() : "";
+      const check = orKey ? await checkOpenRouterKeyForSave(orKey) : undefined;
       await setPlatformAI(input);   // audited by the procedure map in _core/audit.ts
-      return platformAIStatus();
+      return { ...(await platformAIStatus()), ...(check ? { check } : {}) };
     }),
 
   /** Ask a saved platform key for "OK" — the operator's check that customers' AI works. */
@@ -135,9 +204,10 @@ export const aiSettingsRouter = router({
       const apiKey = String((await getSystemSetting(`platformAiKey_${input.provider}`)) || "").trim();
       if (!apiKey) throw new TRPCError({ code: "PRECONDITION_FAILED", message: `No ${input.provider} key is saved for LevelUp` });
       const { callAIProvider } = await import("../_core/aiProviders");
-      const { text, providerUsed } = await callAIProvider({ provider: input.provider, apiKey, systemPrompt: "You are a helpful assistant.", userContent: "Reply with exactly: OK" });
+      const model = input.provider === "openrouter" ? String((await getSystemSetting("platformAiModel_openrouter")) || "").trim() || undefined : undefined;
+      const { text, providerUsed, model: answered } = await callAIProvider({ provider: input.provider, apiKey, model, systemPrompt: "You are a helpful assistant.", userContent: "Reply with exactly: OK" });
       if (providerUsed !== input.provider) throw new Error(`${input.provider} did not answer`);
       const active = await platformKeys();
-      return { ok: !!text, inUse: active.provider === input.provider };
+      return { ok: !!text, inUse: active.provider === input.provider, ...(answered ? { model: answered } : {}) };
     }),
 });

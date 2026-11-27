@@ -13,7 +13,7 @@ between workspaces.
 |---|---|
 | Membership | One login can belong to **several workspaces**, with a switcher (like Slack). |
 | New customers | **The platform operator creates** a workspace and invites its owner. Self-serve sign-up and billing come later (Phase I). |
-| AI keys | **Platform keys by default**, with per-workspace daily caps; a workspace's owner or admins may enter their own key instead. |
+| AI keys | **Platform keys by default**, with per-workspace daily caps; a workspace's owner or admins may enter their own key instead. Providers: OpenAI, Anthropic, Google Gemini and (2026-11-27) **OpenRouter** — a workspace that chooses OpenRouter uses its own OpenRouter key first, else LevelUp's shared OpenRouter key. |
 | Operator access | The operator **manages workspaces but does not read their data**: create, suspend, change owner, see member counts and usage. |
 | File storage | **Platform Google Drive by default** (the current one). In Settings a workspace's owner or admin can switch to **their own S3 bucket** or **their own Google Drive**, with step-by-step instructions. |
 | Email | **A platform transactional service** (Postmark or Resend — or, since -287, a dedicated SMTP mailbox), branded per workspace ("Acme via LevelUp"), plus one platform reply inbox routed by token. |
@@ -101,6 +101,18 @@ client; cross-workspace reads exist only in `operatorProcedure` tools and never 
   keys in `system_settings` (`platformAiKey_*`, `platformAiProvider`), changed only by the
   operator in Platform console → LevelUp's AI keys (before -289 they were the operator
   workspace's keys, which that workspace's admins could change). Quotas: per member, per workspace (operator can set caps), and a platform ceiling.
+  **OpenRouter (2026-11-27, `_core/openRouter.ts`):** provider id `openrouter`. Order: a
+  workspace that chose OpenRouter → its own `aiKey_openrouter` → LevelUp's shared
+  `platformAiKey_openrouter` (encrypted like every AI key; counted against the daily AI limit)
+  → its other own keys → LevelUp's keys. The shared OpenRouter key becomes the default for
+  workspaces without a key ONLY when the operator sets "Use first" (`platformAiProvider`) to
+  OpenRouter. Models: `aiModel_openrouter` (workspace) / `platformAiModel_openrouter` (shared
+  key; `platformAiOpenRouterAnyModel` = "1" lets a workspace's own pick apply there); none →
+  the newest `anthropic/claude-sonnet…` that lists `tools`, read from OpenRouter's model list
+  (`GET /api/v1/models`, no key, cached 6 h). A JSON answer only runs on a model whose
+  `supported_parameters` include `response_format` / `structured_outputs` / `tools`; any
+  other pick is swapped for the default on those calls. Keys are checked with
+  `GET /api/v1/key` before they are saved.
 - Operator-only now: backups, error log, scheduled-task log, log retention, storage status,
   `/api/scheduled/*`, the platform Drive reconnect, "check expiring connections".
   Workspace-owner tools stay with each owner: audit log (their workspace's), mail log, sender,
@@ -214,6 +226,14 @@ Everything here is OFF until the operator turns it on (Platform console → Bill
 - **Before other companies connect Microsoft:** make the Azure app registration multi-tenant
   and unset or adjust `MS_TENANT_ID`.
 - **Still open:** set `BACKUP_KEY` and `SECRETS_KEY` on Railway.
+- **OpenRouter (2026-11-27), when you want it:** create a key at openrouter.ai/settings/keys
+  (set a credit limit on it there if you want a ceiling) and paste it in Platform console →
+  LevelUp's AI keys → OpenRouter (checked with OpenRouter on save; shows the credit left).
+  From then on every workspace that picks OpenRouter in its own Settings → AI Features and
+  has no OpenRouter key of its own runs on it, within its daily AI limit. Choose the model for
+  that key on the same card. To make OpenRouter the default for **every** workspace without a
+  key, set "Use first" to OpenRouter and Save; set it back to switch back. Nothing is needed
+  on Railway.
 - **To switch on sign-up and billing (Phase I):**
   1. The **platform** mail service (above: Postmark, Resend or `MAIL_PROVIDER=smtp`). Since
      build -288 (Audit 3) sign-up is not offered at all without it — otherwise sign-up

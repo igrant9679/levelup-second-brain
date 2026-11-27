@@ -713,7 +713,7 @@ var _LU_SET_WORDS={
   'sp-4':'accounts outlook microsoft google gmail calendar mail connect sender email delivery log',
   'sp-5':'integrations nifty niftypm atlas automations rules',
   'sp-14':'bank banks connections simplefin transactions money',
-  'sp-6':'ai features key keys provider model',
+  'sp-6':'ai features key keys provider model openrouter',
   'sp-15':'ai coach check-ins check in coaching',
   'sp-7':'teams team members roles permissions invite',
   'sp-8':'word doc docx import onenote',
