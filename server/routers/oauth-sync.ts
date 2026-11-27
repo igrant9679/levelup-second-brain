@@ -2080,7 +2080,7 @@ export const oauthSyncRouter = router({
     .input(z.object({
       subject: z.string().max(500),
       body: z.string().max(20000),
-      provider: z.enum(['manus', 'openai', 'claude', 'gemini']).optional().default('manus'),
+      provider: z.enum(['manus', 'openai', 'claude', 'gemini', 'openrouter']).optional().default('manus'),
       apiKey: z.string().max(512).optional(),
     }))
     .mutation(async ({ ctx, input }) => {

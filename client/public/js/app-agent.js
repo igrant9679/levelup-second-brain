@@ -1647,7 +1647,7 @@ function _aiSettingsTarget(section){
   var alias={profile:'sp-0',account:'sp-0',me:'sp-0',general:'sp-1',preferences:'sp-1',appearance:'sp-2',theme:'sp-2',themes:'sp-2',look:'sp-2',
     workspace:'sp-13',layout:'sp-13',pages:'sp-13',notifications:'sp-3',email:'sp-3',emails:'sp-3',digest:'sp-3',accounts:'sp-4',mail:'sp-4',outlook:'sp-4',calendar:'sp-4',
     integrations:'sp-5',nifty:'sp-5',atlas:'sp-5',automations:'sp-5',bank:'sp-14',banks:'sp-14','bank connections':'sp-14',simplefin:'sp-14',
-    ai:'sp-6','ai features':'sp-6','ai keys':'sp-6',keys:'sp-6',coach:'sp-15','ai coach':'sp-15',teams:'sp-7',team:'sp-7',import:'sp-8','word doc import':'sp-8',word:'sp-8',onenote:'sp-8',
+    ai:'sp-6','ai features':'sp-6','ai keys':'sp-6',keys:'sp-6',openrouter:'sp-6','ai model':'sp-6',coach:'sp-15','ai coach':'sp-15',teams:'sp-7',team:'sp-7',import:'sp-8','word doc import':'sp-8',word:'sp-8',onenote:'sp-8',
     sync:'sp-9',backup:'sp-10',backups:'sp-10',export:'sp-10',privacy:'sp-11',admin:'sp-12',
     plan:'ws:billing',billing:'ws:billing',invoices:'ws:billing',subscription:'ws:billing',storage:'ws:storage',files:'ws:storage','file storage':'ws:storage',
     'close workspace':'ws:data','workspace export':'ws:data','workspace settings':'ws:general'};

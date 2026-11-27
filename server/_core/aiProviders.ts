@@ -2,10 +2,22 @@
 // other server-side feature that wants to honor the user's chosen provider + key.
 //
 // Falls back to the built-in Manus LLM when no provider key is supplied.
+//
+// OpenRouter (2026-11-27) is one more provider beside these: OpenAI's request
+// shape at openrouter.ai, one key for many models. It lives in ./openRouter.ts
+// (model list, model choice, retries, OpenRouter's own error messages).
 
 import { invokeLLM } from "./llm";
+import { openRouterChat, type OpenRouterUsage } from "./openRouter";
 
-export type AIProvider = "manus" | "openai" | "claude" | "gemini";
+export type AIProvider = "manus" | "openai" | "claude" | "gemini" | "openrouter";
+
+/** The providers a workspace (or LevelUp) can hold a key for. */
+export const KEYED_PROVIDERS = ["openai", "claude", "gemini", "openrouter"] as const;
+export type KeyedProvider = typeof KEYED_PROVIDERS[number];
+export function isKeyedProvider(p: unknown): p is KeyedProvider {
+  return typeof p === "string" && (KEYED_PROVIDERS as readonly string[]).includes(p);
+}
 
 export interface CallProviderOptions {
   provider: AIProvider;
@@ -15,6 +27,8 @@ export interface CallProviderOptions {
   /** When set, ask the model to return strict JSON. */
   jsonMode?: boolean;
   maxTokens?: number;
+  /** OpenRouter only: the model chosen in Settings (none → OpenRouter's default for LevelUp). */
+  model?: string;
 }
 
 async function callOpenAI(opts: CallProviderOptions): Promise<string> {
@@ -98,6 +112,17 @@ async function callGemini(opts: CallProviderOptions): Promise<string> {
   return data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 }
 
+async function callOpenRouter(opts: CallProviderOptions): Promise<{ text: string; usage: OpenRouterUsage | null; model: string }> {
+  return openRouterChat({
+    apiKey: opts.apiKey ?? "",
+    model: opts.model,
+    system: opts.systemPrompt,
+    messages: [{ role: "user", content: opts.userContent }],
+    jsonMode: opts.jsonMode,
+    maxTokens: opts.maxTokens ?? 1024,
+  });
+}
+
 async function callManus(opts: CallProviderOptions): Promise<string> {
   const response = await invokeLLM({
     messages: [
@@ -132,6 +157,8 @@ export interface CallProviderChatOptions {
   /** Ask the model for a single JSON object. */
   jsonMode?: boolean;
   maxTokens?: number;
+  /** OpenRouter only: the model chosen in Settings. */
+  model?: string;
 }
 
 /**
@@ -218,6 +245,17 @@ async function chatGemini(o: CallProviderChatOptions): Promise<string> {
   return data.candidates?.[0]?.content?.parts?.map((p) => p.text).join("") ?? "";
 }
 
+async function chatOpenRouter(o: CallProviderChatOptions): Promise<{ text: string; usage: OpenRouterUsage | null; model: string }> {
+  return openRouterChat({
+    apiKey: o.apiKey ?? "",
+    model: o.model,
+    system: o.system,
+    messages: normalizeTurns(o.messages),
+    jsonMode: o.jsonMode,
+    maxTokens: o.maxTokens ?? 2000,
+  });
+}
+
 async function chatManus(o: CallProviderChatOptions): Promise<string> {
   const response = await invokeLLM({
     messages: [{ role: "system", content: o.system }, ...normalizeTurns(o.messages)],
@@ -232,11 +270,17 @@ async function chatManus(o: CallProviderChatOptions): Promise<string> {
 export async function callAIProviderChat(o: CallProviderChatOptions): Promise<{
   text: string;
   providerUsed: AIProvider;
+  /** OpenRouter: the model that answered and the tokens / cost it reported. */
+  model?: string;
+  usage?: OpenRouterUsage | null;
 }> {
-  const wantCustom =
-    (o.provider === "openai" || o.provider === "claude" || o.provider === "gemini") && !!o.apiKey;
+  const wantCustom = isKeyedProvider(o.provider) && !!o.apiKey;
   try {
     if (wantCustom) {
+      if (o.provider === "openrouter") {
+        const r = await chatOpenRouter(o);
+        return { text: r.text, providerUsed: "openrouter", model: r.model, usage: r.usage };
+      }
       let text = "";
       if (o.provider === "openai") text = await chatOpenAI(o);
       else if (o.provider === "claude") text = await chatClaude(o);
@@ -263,15 +307,18 @@ export async function callAIProviderChat(o: CallProviderChatOptions): Promise<{
 export async function callAIProvider(opts: CallProviderOptions): Promise<{
   text: string;
   providerUsed: AIProvider;
+  /** OpenRouter: the model that answered and the tokens / cost it reported. */
+  model?: string;
+  usage?: OpenRouterUsage | null;
 }> {
-  const wantCustom =
-    (opts.provider === "openai" ||
-      opts.provider === "claude" ||
-      opts.provider === "gemini") &&
-    !!opts.apiKey;
+  const wantCustom = isKeyedProvider(opts.provider) && !!opts.apiKey;
 
   try {
     if (wantCustom) {
+      if (opts.provider === "openrouter") {
+        const r = await callOpenRouter(opts);
+        return { text: r.text, providerUsed: "openrouter", model: r.model, usage: r.usage };
+      }
       let text = "";
       if (opts.provider === "openai") text = await callOpenAI(opts);
       else if (opts.provider === "claude") text = await callClaude(opts);

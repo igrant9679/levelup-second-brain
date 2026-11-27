@@ -334,7 +334,7 @@ export const bookmarksRouter = router({
       url: z.string().url().max(2048),
       title: z.string().max(500).optional(),
       description: z.string().max(4000).optional(),
-      provider: z.enum(['manus', 'openai', 'claude', 'gemini']).optional().default('manus'),
+      provider: z.enum(['manus', 'openai', 'claude', 'gemini', 'openrouter']).optional().default('manus'),
       apiKey: z.string().max(512).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -381,7 +381,7 @@ export const bookmarksRouter = router({
       url: z.string().url().max(2048),
       title: z.string().max(500).optional(),
       description: z.string().max(4000).optional(),
-      provider: z.enum(['manus', 'openai', 'claude', 'gemini']).optional().default('manus'),
+      provider: z.enum(['manus', 'openai', 'claude', 'gemini', 'openrouter']).optional().default('manus'),
       apiKey: z.string().max(512).optional(),
     }))
     .mutation(async ({ ctx, input }) => {

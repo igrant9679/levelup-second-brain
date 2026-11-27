@@ -336,7 +336,7 @@ export const helpRouter = router({
           )
           .optional()
           .default([]),
-        provider: z.enum(["manus", "openai", "claude", "gemini"]).optional().default("manus"),
+        provider: z.enum(["manus", "openai", "claude", "gemini", "openrouter"]).optional().default("manus"),
         apiKey: z.string().max(512).optional(),
       })
     )
@@ -344,7 +344,7 @@ export const helpRouter = router({
       // Calls on the workspace AI key count against the daily AI quota.
       const { question, conversationHistory } = input;
       // No key from the browser since -214 → the workspace's provider + key.
-      const { provider, apiKey } = await resolveRequestAI(input, ctx.user);
+      const { provider, apiKey, model } = await resolveRequestAI(input, ctx.user);
 
       // Find the most relevant articles for this question
       const relevantArticles = findRelevantArticles(question, 4);
@@ -395,6 +395,7 @@ Instructions:
       const { text } = await callAIProvider({
         provider,
         apiKey,
+        model,
         systemPrompt,
         userContent,
         maxTokens: 1024,

@@ -411,7 +411,7 @@ export async function hasFeature(user: WsUserLike | null | undefined, name: stri
 // ── per-workspace settings ───────────────────────────────────────────────────
 const SECRET_KEY = /^aiKey_/;
 /** Settings that belong to a workspace. Everything else stays in system_settings. */
-export const WORKSPACE_SETTING_KEYS = new Set(["aiProvider", "aiKey_openai", "aiKey_claude", "aiKey_gemini", "notificationSender", "teamStarterPreset"]);
+export const WORKSPACE_SETTING_KEYS = new Set(["aiProvider", "aiKey_openai", "aiKey_claude", "aiKey_gemini", "aiKey_openrouter", "aiModel_openrouter", "notificationSender", "teamStarterPreset"]);
 
 export async function getWorkspaceSetting(wsId: number | null | undefined, key: string): Promise<string | undefined> {
   const n = Number(wsId);

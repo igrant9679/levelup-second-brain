@@ -653,7 +653,8 @@ async function wsLaunchTick(id,done){
 }
 
 // ─── LevelUp's own AI keys (build -289, operator only) ──────────────────────
-var _WS_AI_NAMES={openai:'OpenAI',claude:'Anthropic (Claude)',gemini:'Google Gemini'};
+var _WS_AI_NAMES={openai:'OpenAI',claude:'Anthropic (Claude)',gemini:'Google Gemini',openrouter:'OpenRouter'};
+var _WS_AI_PROVIDERS=['openai','claude','gemini','openrouter'];
 async function wsOpenPlatformAI(){
   wsModal('<div class="ws-h"><h2>LevelUp’s AI keys</h2><button class="btn btn-s"'+_wsAct('wsOpenConsole')+'>← Platform console</button></div><div id="ws-pai"><p style="font-size:12.5px;color:var(--t2)"><span class="lu-skel" role="status" aria-label="Loading"><i></i><i></i><i></i></span></p></div>',true);
   await _wsPaiLoad();
@@ -667,28 +668,62 @@ async function _wsPaiLoad(r){
     +(r.copiedFrom!=null?'<p>These were copied once from your workspace’s keys when this version went live, so nothing changed for customers. Changing your workspace’s keys no longer changes these.</p>':'')
     +'<p>'+(r.active&&r.active.configured?'<span class="ws-pill ok">in use: '+_wsEsc(_WS_AI_NAMES[r.active.provider]||r.active.provider)+'</span>':'<span class="ws-pill warn">no key saved — customers without their own key get no AI answers</span>')+'</p>'
     +'<div class="ws-row"><div class="ws-f" style="max-width:260px"><label for="pai-prov">Use first</label><select class="inp" id="pai-prov">'
-    +['openai','claude','gemini'].map(function(p){return '<option value="'+p+'"'+((r.provider||'openai')===p?' selected':'')+'>'+_wsEsc(_WS_AI_NAMES[p])+'</option>';}).join('')
+    +_WS_AI_PROVIDERS.map(function(p){return '<option value="'+p+'"'+((r.provider||'openai')===p?' selected':'')+'>'+_wsEsc(_WS_AI_NAMES[p])+'</option>';}).join('')
     +'</select></div><button class="btn btn-s"'+_wsAct('wsPaiSave',['provider'])+'>Save</button></div>'
-    +'<p style="font-size:11.5px">If the first choice has no key, the next provider that has one answers.</p></div>';
-  ['openai','claude','gemini'].forEach(function(p){
+    +'<p style="font-size:11.5px">If the first choice has no key, the next provider that has one answers. LevelUp’s <b>OpenRouter</b> key is the exception: it answers for workspaces that chose OpenRouter in their own Settings → AI Features (and have no OpenRouter key of their own), and it becomes the default for everyone else only when you choose OpenRouter here.</p></div>';
+  _WS_AI_PROVIDERS.forEach(function(p){
     var k=(r.keys||{})[p]||{};
     h+='<div class="ws-card"><h3>'+_wsEsc(_WS_AI_NAMES[p])+' '+(k.configured?'<span class="ws-pill ok">saved '+_wsEsc(k.hint||'')+'</span>':'<span class="ws-pill">no key</span>')+'</h3>'
-      +'<div class="ws-row"><div class="ws-f"><label for="pai-'+p+'">'+(k.configured?'Replace with a new key':'Key')+'</label><input class="inp" id="pai-'+p+'" type="password" autocomplete="off" spellcheck="false" maxlength="512" placeholder="'+(p==='claude'?'sk-ant-…':p==='gemini'?'AIza…':'sk-…')+'"></div>'
+      +(p==='openrouter'?'<p style="font-size:11.5px">One key for Claude, GPT, Gemini, Llama and more — you pay OpenRouter for what customers use on it (it counts toward their daily AI limit). Get a key at openrouter.ai/settings/keys; it is checked with OpenRouter when you save it.</p>':'')
+      +'<div class="ws-row"><div class="ws-f"><label for="pai-'+p+'">'+(k.configured?'Replace with a new key':'Key')+'</label><input class="inp" id="pai-'+p+'" type="password" autocomplete="off" spellcheck="false" maxlength="512" placeholder="'+(p==='claude'?'sk-ant-…':p==='gemini'?'AIza…':p==='openrouter'?'sk-or-…':'sk-…')+'"></div>'
       +'<button class="btn btn-s"'+_wsAct('wsPaiSave',[p])+'>Save</button>'
       +(k.configured?'<button class="btn btn-s"'+_wsAct('wsPaiTest',[p])+'>Test</button><button class="btn btn-s" style="color:var(--red)"'+_wsAct('wsPaiClear',[p])+'>Remove</button>':'')
-      +'</div><div id="pai-msg-'+p+'" class="ws-msg" role="status"></div></div>';
+      +'</div><div id="pai-msg-'+p+'" class="ws-msg" role="status"></div>'
+      +(p==='openrouter'?_wsPaiOrModelHtml(r.openrouter||{}):'')
+      +'</div>';
   });
   box.innerHTML=h;
+  if(document.getElementById('pai-or-model'))_wsPaiOrModelsFill((r.openrouter||{}).model||'');
+}
+// The model used on LevelUp's OpenRouter key: OpenRouter's own list (server-cached), price per million tokens.
+function _wsPaiOrModelHtml(o){
+  return '<div class="ws-row" style="margin-top:8px"><div class="ws-f"><label for="pai-or-model">Model on LevelUp’s OpenRouter key</label><select class="inp" id="pai-or-model"><option value="">Loading OpenRouter’s models…</option></select></div></div>'
+    +'<label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;margin:6px 0"><input type="checkbox" id="pai-or-any"'+(o.anyModel?' checked':'')+'> <span>Let workspaces that chose OpenRouter use their own model pick on this key (otherwise they get the model above — you pay for whichever model runs)</span></label>'
+    +'<div class="ws-row"><button class="btn btn-s"'+_wsAct('wsPaiSave',['openrouterModel'])+'>Save model settings</button></div>'
+    +'<p style="font-size:11.5px">Features that need a structured answer only use a model that supports one; with any other model they use the default (the newest Claude Sonnet that supports tools).</p>';
+}
+async function _wsPaiOrModelsFill(cur){
+  var sel=document.getElementById('pai-or-model');if(!sel)return;
+  var r=null;
+  try{r=await _trpc('aiSettings.openRouterModels',undefined,'query');}
+  catch(e){sel.innerHTML='<option value="">Couldn’t load OpenRouter’s models — the default is used</option>';return;}
+  var price=function(v){return v==null?'varies':'$'+(v<0.1?Number(v).toFixed(3):Number(v).toFixed(2));};
+  var def=(r.models||[]).filter(function(m){return m.id===r.defaultModel;})[0];
+  var h='<option value="">Default — '+_wsEsc(def?def.name:(r.defaultModel||'newest Claude Sonnet'))+'</option>',seen=false;
+  (r.models||[]).forEach(function(m){
+    if(m.id===cur)seen=true;
+    h+='<option value="'+_wsEsc(m.id)+'"'+(m.id===cur?' selected':'')+'>'+_wsEsc(m.name)+' — '+price(m.promptPerM)+' / '+price(m.completionPerM)+' per M tokens'+(m.structured?'':' · no structured answers')+'</option>';
+  });
+  if(cur&&!seen)h+='<option value="'+_wsEsc(cur)+'" selected>'+_wsEsc(cur)+' (no longer offered — the default is used)</option>';
+  sel.innerHTML=h;
 }
 async function wsPaiSave(what){
   var upd={};
   if(what==='provider')upd.provider=((document.getElementById('pai-prov')||{}).value||'openai');
+  else if(what==='openrouterModel'){
+    upd.openrouterModel=((document.getElementById('pai-or-model')||{}).value||'');
+    upd.openrouterAnyModel=!!((document.getElementById('pai-or-any')||{}).checked);
+  }
   else{
     var v=((document.getElementById('pai-'+what)||{}).value||'').trim();
     if(!v){var m=document.getElementById('pai-msg-'+what);if(m){m.textContent='Paste the key first.';m.style.color='var(--red)';}return;}
     upd[what]=v;
   }
-  try{var r=await _trpc('aiSettings.platformSet',upd,'mutation');await _wsPaiLoad(r);toast('Saved — it applies to every workspace without its own key at once','success',5000);}
+  try{
+    var r=await _trpc('aiSettings.platformSet',upd,'mutation');await _wsPaiLoad(r);
+    if(what==='openrouter'&&r&&r.check&&typeof _aiOrCheckText==='function'){toast(_aiOrCheckText(r.check),'success',8000);return;}
+    toast(what==='openrouter'?'Saved — workspaces that chose OpenRouter use it at once':'Saved — it applies to every workspace without its own key at once','success',5000);
+  }
   catch(e){toast((e&&e.message)||'Could not save','error',8000);}
 }
 async function wsPaiClear(p){
@@ -699,7 +734,7 @@ async function wsPaiClear(p){
 }
 async function wsPaiTest(p){
   var m=document.getElementById('pai-msg-'+p);if(m){m.textContent='Asking '+(_WS_AI_NAMES[p]||p)+'…';m.style.color='var(--t2)';}
-  try{var r=await _trpc('aiSettings.platformTest',{provider:p},'mutation');var m2=document.getElementById('pai-msg-'+p);if(m2){m2.textContent=r.ok?'✓ It answered.'+(r.inUse?' This is the key in use.':' (Not the one in use — see “Use first”.)'):'It did not answer.';m2.style.color=r.ok?'var(--ok)':'var(--red)';}}
+  try{var r=await _trpc('aiSettings.platformTest',{provider:p},'mutation');var m2=document.getElementById('pai-msg-'+p);if(m2){m2.textContent=r.ok?'✓ It answered'+(r.model?' ('+r.model+')':'')+'.'+(r.inUse?' This is the key in use.':p==='openrouter'?' It answers for workspaces that chose OpenRouter; it is not the default — see “Use first”.':' (Not the one in use — see “Use first”.)'):'It did not answer.';m2.style.color=r.ok?'var(--ok)':'var(--red)';}}
   catch(e){var m3=document.getElementById('pai-msg-'+p);if(m3){m3.textContent=(e&&e.message)||'It did not answer';m3.style.color='var(--red)';}}
 }
 

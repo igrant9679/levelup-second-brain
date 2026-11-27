@@ -130,6 +130,7 @@ const EXPECT = [
   ['keyboard shortcuts and quick add syntax', ['Power moves', 'Keyboard Shortcuts']],
   ['how do I get the most out of the AI', ['from the AI']],
   ['I just signed up, where do I start', ['first two weeks']],
+  ['how do I use OpenRouter and pick a model', ['AI Provider Keys']],
 ];
 let hits = 0;
 for (const [q, want] of EXPECT) {

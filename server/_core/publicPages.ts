@@ -443,7 +443,7 @@ export function privacyHtml(d: PageData): string {
 <p>We use these service providers. Each gets only what it needs for its job:</p>
 <ul>
 <li><b>Hosting:</b> Railway runs our servers and database. Uploaded files are kept in LevelUp's cloud file storage, or in your own S3 bucket or Google Drive if your workspace connects one.</li>
-<li><b>AI providers</b> (OpenAI, Anthropic or Google, depending on the workspace's settings): only when you use an AI feature, and only the text that request needs, such as your question and the notes or tasks it's about.</li>
+<li><b>AI providers</b> (OpenAI, Anthropic, Google, or OpenRouter — which passes the request on to the maker of the model chosen — depending on the workspace's settings): only when you use an AI feature, and only the text that request needs, such as your question and the notes or tasks it's about.</li>
 <li><b>Stripe</b> for payments.</li>
 <li><b>Email delivery:</b> the mail service that sends LevelUp's emails, or your own mailbox if you connect one.</li>
 <li><b>Services you connect</b> yourself, such as Microsoft, Google and SimpleFIN.</li>
