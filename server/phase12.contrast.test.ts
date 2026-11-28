@@ -23,7 +23,7 @@ vm.runInContext(
     between("const ELECTRIC_DARK={", "// Page-accent map") +
     between("const THEME_PRESETS=[", "// Determine if any scheduled") .split("function _getEffectiveTheme")[0] +
     between("function _luRgb(c){", "function applyTheme(opts){") +
-    ";var __={THEME_DEFAULTS_DARK,THEME_DEFAULTS_LIGHT,DAYBREAK_LIGHT,ELECTRIC_DARK,THEME_PRESETS,_luReadableTheme,_luFillSafe,_luTextSafe,_luRgb,_luContrast,_luThemeGrounds,_luThemeIsDark,_luAccentText,_luTextOnDark,_luHeroStop};" +
+    ";var __={THEME_DEFAULTS_DARK,THEME_DEFAULTS_LIGHT,DAYBREAK_LIGHT,ELECTRIC_DARK,STUDIO_DARK,STUDIO_LIGHT,THEME_PRESETS,_luReadableTheme,_luFillSafe,_luTextSafe,_luRgb,_luContrast,_luThemeGrounds,_luThemeIsDark,_luAccentText,_luTextOnDark,_luHeroStop};" +
     "function _getEffectiveTheme(){return __.THEME_DEFAULTS_DARK;}",
   ctx,
 );
@@ -49,6 +49,14 @@ describe("every theme is readable", () => {
     assertReadable("light", L.THEME_DEFAULTS_LIGHT);
     assertReadable("daybreak", { ...L.THEME_DEFAULTS_LIGHT, ...L.DAYBREAK_LIGHT });
     assertReadable("electric", { ...L.THEME_DEFAULTS_DARK, ...L.ELECTRIC_DARK });
+  });
+  it("the Studio look (-296), as written: no nudging needed on either mode", () => {
+    for (const [name, t] of [["studio dark", { ...L.THEME_DEFAULTS_DARK, ...L.STUDIO_DARK }], ["studio light", { ...L.THEME_DEFAULTS_LIGHT, ...L.STUDIO_LIGHT }]] as const) {
+      assertReadable(name, t);
+      const g = L._luThemeGrounds(t);
+      for (const k of ["t1", "t2", "t3", "red", "warn", "ok", "purp", "ach"]) for (const s of g) expect(L._luContrast(L._luRgb((t as any)[k]), s), `${name} raw ${k}`).toBeGreaterThanOrEqual(4.5);
+      expect(L._luContrast(WHITE, L._luRgb((t as any).ac)), `${name} white on ac`).toBeGreaterThanOrEqual(4.5);
+    }
   });
   it("every bundled preset, on either mode's defaults", () => {
     expect(L.THEME_PRESETS.length).toBeGreaterThan(10);

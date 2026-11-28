@@ -1600,21 +1600,25 @@ function applyPrefs(){
   // drives the whole look (see the AURORA GLASS block in index.html), so it
   // can be switched off from Settings → Appearance without a deploy.
   // Default ON; only an explicit false opts out.
-  document.body.classList.toggle('aurora',D.prefs.auroraGlass!==false);
+  // Studio (-296, opt-in) replaces the four looks below while it is on.
+  const _studio=D.prefs.studioLook===true;
+  document.body.classList.toggle('studio',_studio);
+  _luApplyStudioCSS();
+  document.body.classList.toggle('aurora',!_studio&&D.prefs.auroraGlass!==false);
   // Daybreak Pop — the light-mode counterpart: porcelain ground, ink text, and
   // accent-tinted card shadows. The CSS is scoped to body.light-mode.daybreak,
   // so this class is inert in dark mode. Default ON; only an explicit false opts out.
-  document.body.classList.toggle('daybreak',D.prefs.daybreakPop!==false);
+  document.body.classList.toggle('daybreak',!_studio&&D.prefs.daybreakPop!==false);
   _luApplyDaybreakCSS();
   // Chromatic Bento — Home dashboard widgets as deep-tinted colour tiles.
   // Works in both light and dark. Default ON; only an explicit false opts out.
-  document.body.classList.toggle('bento',D.prefs.chromaticBento!==false);
+  document.body.classList.toggle('bento',!_studio&&D.prefs.chromaticBento!==false);
   _luApplyBentoCSS();
   // Electric Ink — near-black ground, voltage accents in glows/borders/numerals.
   // Dark mode only (the CSS is scoped to body:not(.light-mode).electric) and
   // DEFAULT OFF, unlike the other three: it is an opt-in direction, so it takes
   // an explicit true.
-  document.body.classList.toggle('electric',D.prefs.electricInk===true);
+  document.body.classList.toggle('electric',!_studio&&D.prefs.electricInk===true);
   _luApplyElectricCSS();
   // Repaint the topbar dark/light switch for whatever the mode now is. Hooked
   // here so it is correct however the mode changed — topbar, Settings, or a
@@ -1877,6 +1881,84 @@ const ELECTRIC_DARK={
   ok:'#A3E635',warn:'#FFC53D',purp:'#FF4ECD',              // lime / amber / magenta
   brd:'rgba(255,255,255,.12)',
 };
+// Studio look (build -296) -- the same clean frame as Mission Control's "Studio":
+// one violet accent, Space Grotesk, flat white (or near-black) panels, a quiet
+// menu, plain page titles. OPT-IN (D.prefs.studioLook===true), both modes.
+// While it is on, Aurora / Daybreak / Bento / Electric Ink are not applied
+// (applyPrefs), so this sheet only has to restyle the stock look.
+// Ground/text TOKENS are STUDIO_DARK / STUDIO_LIGHT (applyTheme writes tokens
+// inline, so they cannot live here).
+function _luApplyStudioCSS(){
+  try{
+    let tag=document.getElementById('lu-studio-css');
+    if(!(D.prefs&&D.prefs.studioLook===true)){if(tag)tag.remove();return;}
+    if(!tag){tag=document.createElement('style');tag.id='lu-studio-css';document.head.appendChild(tag);}
+    const S='body.studio';
+    tag.textContent=[
+      // The face is fetched only when this sheet exists (self-hosted, OFL).
+      "@font-face{font-family:'Space Grotesk';font-style:normal;font-weight:300 700;font-display:swap;src:url('/fonts/space-grotesk-latin.woff2') format('woff2')}",
+      `${S}{font-family:'Space Grotesk','Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;--page-accent:var(--ac)!important;--pa-t:var(--ach)!important;--pa-f:var(--ac)!important;--tile-accent:var(--ac)!important}`,
+      `${S} button,${S} input,${S} select,${S} textarea{font-family:inherit}`,
+      // Top bar: part of the page, a hairline under it.
+      `${S} .topbar{background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--bd1);box-shadow:none}`,
+      // Menu: on the ground colour, quiet rows, the current page a soft pill.
+      `${S} .sb{background:var(--bg);border-right:1px solid var(--bd1)}`,
+      `${S} .si{font-size:13px;font-weight:500;border-radius:8px;padding:6px 10px;color:var(--t2);gap:10px}`,
+      `${S} .si:hover{background:var(--s3);color:var(--t1)}`,
+      `${S} .si svg{stroke:var(--t3)!important}`,
+      `${S} .si.on{background:var(--s3);color:var(--t1);font-weight:600;box-shadow:inset 0 0 0 1px var(--bd1)}`,
+      `${S} .si.on::before{display:none}`,
+      `${S} .si.on svg{stroke:var(--ach)!important}`,
+      `${S} .sl{text-transform:none;letter-spacing:.02em;font-size:11px;font-weight:600;color:var(--t3)}`,
+      // Panels: flat, hairline, a little rounder. No lift on hover.
+      `${S} .cd{background:var(--s2);border:1px solid var(--bd1);border-radius:14px;box-shadow:0 1px 2px rgba(20,16,40,.04)}`,
+      `${S} .scr.on .bg.wr .mn .cd{border-left:1px solid var(--bd1)}`,
+      `${S} .cd:hover{transform:none;box-shadow:0 1px 2px rgba(20,16,40,.04);border-color:var(--bd2)}`,
+      `${S} .cd-t{font-size:13px;font-weight:600;color:var(--t1);letter-spacing:0}`,
+      `${S} .btn{border-radius:9px}`,
+      `${S} .inp{border-radius:9px}`,
+      `${S} .rr{background:var(--bg);border-left:1px solid var(--bd1)}`,
+      // Home banner -> a plain title with stat tiles. renderHome inline-styles
+      // all of it, so !important is needed (scoped to the banner only).
+      `${S} .home-hero{background:none!important;animation:none!important;border:0!important;box-shadow:none!important;border-radius:0!important;padding:6px 0 4px!important;overflow:visible!important}`,
+      `${S} .home-hero>div[style*="position:absolute"],${S} .home-hero .home-hero-noise{display:none!important}`,
+      `${S} .home-hero h1{color:var(--t1)!important;text-shadow:none!important;font-weight:700!important;letter-spacing:-.02em!important}`,
+      `${S} .home-hero h1 span{background:none!important;-webkit-background-clip:border-box!important;background-clip:border-box!important;color:var(--ach)!important;animation:none!important}`,
+      `${S} .home-hero p{color:var(--t2)!important;text-shadow:none!important}`,
+      `${S} .home-hero h1+p,${S} .home-hero p{font-size:13px!important}`,
+      `${S} .home-hero>div>div>div:first-child:not(.home-hero-tile){background:none!important;border:0!important;padding:0!important;color:var(--t3)!important;backdrop-filter:none!important;letter-spacing:.04em!important}`,
+      `${S} .home-hero .btn{background:var(--s2)!important;border:1px solid var(--bd2)!important;color:var(--t1)!important;backdrop-filter:none!important}`,
+      `${S} .home-hero-tile{background:var(--s2)!important;border:1px solid var(--bd1)!important;box-shadow:0 1px 2px rgba(20,16,40,.04)!important;backdrop-filter:none!important;border-radius:12px!important;padding:10px 12px!important}`,
+      `${S} .home-hero-tile:hover{filter:none;transform:none;border-color:var(--bd3)!important}`,
+      `${S} .home-hero-tile>div:first-child{background:var(--acs)!important;box-shadow:none!important;border:0!important}`,
+      `${S} .home-hero-tile>div:last-child>div:first-child{color:var(--t1)!important;text-shadow:none!important}`,
+      `${S} .home-hero-tile>div:last-child>div:last-child{color:var(--t3)!important}`,
+      // Plain page titles: no tinted strip behind the header; one accent on buttons.
+      `${S}{--ac-strong:var(--ac)}`,
+      `${S} .scr.on .mn>.ph-r:first-child::before,${S} .scr.on .mn>.pg-h:first-child::before,${S} .scr.on .mn>div:first-child>.ph-r:first-child::before,${S} .scr.on .mn>div:first-child>.pg-h:first-child::before,${S} .scr.on#s-notes>.bg>.ph-r::before{display:none}`,
+      // Sub-navigation strips read as one segmented control.
+      `${S} .subnav{background:var(--s2);border:1px solid var(--bd1);border-radius:10px;box-shadow:none}`,
+    ].join('\n');
+  }catch(e){if(window.__DEV__)console.warn('[studio] css inject failed',e);}
+}
+// Studio's ground/text tokens. Same precedence as Electric Ink: above the
+// defaults, UNDER anything the user stored. Unlike Electric Ink it does set the
+// accent (one violet accent is the look); a stored theme accent still wins.
+const STUDIO_DARK={
+  bg:'#0B0A10',s1:'#100F17',s2:'#15131D',s3:'#1C1A26',s4:'#252233',
+  bd1:'rgba(200,190,255,.09)',bd2:'rgba(200,190,255,.14)',bd3:'rgba(200,190,255,.24)',
+  t1:'#EEECF5',t2:'#A9A5BA',t3:'#948FAA',t4:'#4D4960',
+  ac:'#7C3AED',ach:'#B79CFF',acs:'rgba(124,58,237,.20)',
+  brd:'rgba(200,190,255,.14)',
+};
+const STUDIO_LIGHT={
+  bg:'#F8F7FC',s1:'#FFFFFF',s2:'#FFFFFF',s3:'#F1EFF8',s4:'#E6E3F0',
+  bd1:'rgba(24,20,45,.08)',bd2:'rgba(24,20,45,.13)',bd3:'rgba(24,20,45,.22)',
+  t1:'#17151F',t2:'#4D4A5C',t3:'#625F72',t4:'#C9C6D6',
+  ac:'#6D28D9',ach:'#6D28D9',acs:'rgba(109,40,217,.10)',
+  red:'#B91C1C',warn:'#A34A08',ok:'#147235',purp:'#7E22CE',
+  brd:'rgba(24,20,45,.13)',
+};
 // Page-accent map (the hue used for each route's banner + cards).
 // Editable in the UI so users can rebrand the per-page palette too.
 const PAGE_ACCENT_DEFAULTS={
@@ -2045,6 +2127,8 @@ function _getEffectiveTheme(){
   // dark defaults, UNDER anything the user explicitly stored, so it restyles the
   // ground without overriding a chosen theme.
   if(dark&&D.prefs.electricInk===true)defaults=Object.assign({},defaults,ELECTRIC_DARK);
+  // Studio (-296) replaces those grounds while it is on; a stored theme still wins.
+  if(D.prefs.studioLook===true)defaults=Object.assign({},dark?THEME_DEFAULTS_DARK:THEME_DEFAULTS_LIGHT,dark?STUDIO_DARK:STUDIO_LIGHT);
   let theme=Object.assign({},defaults,D.prefs.theme||{});
   // Scheduled override
   const sched=_getActiveSchedule();
@@ -2568,6 +2652,16 @@ function toggleElectricInk(el){
   toast(D.prefs.electricInk
     ?(lit?'⚡ Electric Ink on — switch to dark mode to see it':'⚡ Electric Ink on')
     :'Electric Ink off');
+}
+// Studio look on/off (-296). Works in light and dark.
+function toggleStudioLook(el){
+  el.classList.toggle('on');
+  D.prefs.studioLook=el.classList.contains('on');
+  save('prefs');
+  applyPrefs();
+  if(typeof applyTheme==='function')applyTheme();
+  try{if(typeof renderHome==='function'&&typeof curScreen!=='undefined'&&curScreen==='home')renderHome();}catch(_){}
+  toast(D.prefs.studioLook?'Studio look on':'Studio look off');
 }
 // Chromatic Bento on/off. Home-scoped, so the toast says where to look.
 function toggleChromaticBento(el){

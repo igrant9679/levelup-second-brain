@@ -1,5 +1,5 @@
 /* =============================================================================
-   app-fleet.js — the Fleet: hand work to Mission Control (build -295)
+   app-fleet.js — the Fleet: hand work to Mission Control (build -295; the panel redrawn in -296)
    -----------------------------------------------------------------------------
    The owner of the operator's workspace hands tasks and projects to Mission
    Control, their own fleet of AI machines. Mission Control proposes who does it
@@ -17,7 +17,7 @@
    CSS is injected (#lu-fleet-css); handlers use _act().
 ============================================================================= */
 
-var LUF={allowed:null,status:null,items:[],outbox:null,area:'all',showDone:false,open:false,key:null,loading:false,lastList:0,lastStatus:0,sendBack:null,err:null};
+var LUF={allowed:null,status:null,items:[],outbox:null,area:'all',showDone:false,tab:null,kind:'all',q:'',closed:{},more:{},open:false,key:null,loading:false,lastList:0,lastStatus:0,sendBack:null,err:null};
 var LUF_CLIENTS=['LSI Media','CommunityForce','MeYouSocial'];
 var LUF_STATE={requested:['Waiting for a plan','#64748b'],proposed:['Needs your approval','#d97706'],approved:['Approved','#2563eb'],running:['Running','#7c3aed'],review:['Ready for review','#0891b2'],done:['Done','#16a34a'],failed:["Didn't finish",'#dc2626'],cancelled:['Cancelled','#64748b']};
 
@@ -108,6 +108,7 @@ function luFleetOpen(){
     ov=document.createElement('div');ov.id='luf-ov';
     ov.addEventListener('mousedown',function(e){if(e.target===ov)luFleetClose();});
     ov.addEventListener('keydown',function(e){if(e.key==='Escape'){e.stopPropagation();luFleetClose();}});
+    ov.addEventListener('input',function(e){if(e.target&&e.target.id==='luf-q')_lufSearch(e.target.value);});
     document.body.appendChild(ov);
   }
   LUF.open=true;ov.hidden=false;
@@ -115,43 +116,114 @@ function luFleetOpen(){
   setTimeout(function(){var f=document.querySelector('#luf-dlg .luf-x');if(f)f.focus();},30);
   luFleetRefresh(true);
 }
-function luFleetClose(){LUF.open=false;LUF.key=null;var ov=document.getElementById('luf-ov');if(ov){ov.hidden=true;ov.innerHTML='';}}
+function luFleetClose(){LUF.open=false;LUF.key=null;LUF.tab=null;LUF.q='';var ov=document.getElementById('luf-ov');if(ov){ov.hidden=true;ov.innerHTML='';}}
 function luFleetArea(a){LUF.area=a;_lufPanelPaint();}
 function luFleetToggleDone(){LUF.showDone=!LUF.showDone;_lufPanelPaint();}
 
+function luFleetTab(t){LUF.tab=t;_lufPanelPaint();var b=document.querySelector('#luf-dlg .luf-body');if(b)b.scrollTop=0;}
+function luFleetKind(k){LUF.kind=k;_lufPanelPaint();}
+function luFleetGroup(name){LUF.closed[name]=!LUF.closed[name];_lufObPaint();}
+function luFleetMore(name){LUF.more[name]=!LUF.more[name];_lufObPaint();}
+function _lufSearch(v){LUF.q=String(v||'').slice(0,80);_lufObPaint();}
+/* A "waiting on you" line from Mission Control reads "what — to do — why — how". */
+function _lufObParts(x){
+  var p=String(x.title||'').split(/\s+—\s+/),o={title:p[0]||'',state:'',why:'',how:''},i=1;
+  if(p[i]&&/^(to do|optional|waiting|blocked|in progress)$/i.test(p[i])){o.state=p[i].toLowerCase();i++;}
+  var rest=p.slice(i);
+  if(rest.length>=2){o.how=rest.pop();o.why=rest.join(' — ');}else if(rest.length===1)o.why=rest[0];
+  return o;
+}
+function _lufObList(){
+  var q=(LUF.q||'').toLowerCase().trim();
+  return ((LUF.outbox&&LUF.outbox.items)||[]).filter(function(x){
+    if(LUF.area!=='all'&&(x.area||'No area')!==LUF.area)return false;
+    if(LUF.kind!=='all'&&x.kind!==LUF.kind)return false;
+    if(q&&(String(x.title||'')+' '+String(x.project||'')+' '+String(x.detail||'')).toLowerCase().indexOf(q)<0)return false;
+    return true;
+  });
+}
+var LUF_KIND={yours:['Yours','#d97706'],review:['Review','#0891b2'],waiting:['Waiting','#64748b']};
+function _lufObHtml(){
+  var ob=_lufObList(),all=((LUF.outbox&&LUF.outbox.items)||[]);
+  if(!all.length)return '<div class="luf-empty"><b>Nothing is waiting on you.</b><span>When Mission Control needs a decision, a sign-in or a review, it shows up here.</span></div>';
+  if(!ob.length)return '<div class="luf-empty"><b>No matches.</b><span>Try another word, or clear the filters.</span></div>';
+  var groups={},order=[];
+  ob.forEach(function(x){var g=x.project||'Other';if(!groups[g]){groups[g]=[];order.push(g);}groups[g].push(x);});
+  order.sort(function(a,b){return groups[b].length-groups[a].length||a.localeCompare(b);});
+  return order.map(function(g){
+    var rows=groups[g],closed=!!LUF.closed[g],more=!!LUF.more[g]||!!LUF.q,shown=more?rows:rows.slice(0,5);
+    var short=g.indexOf('/')>=0?g.slice(g.lastIndexOf('/')+1):g,area=rows[0].area;
+    var h='<section class="luf-grp"><button class="luf-grph" aria-expanded="'+(!closed)+'"'+_lufA('luFleetGroup',[g])+'><span class="luf-chev" aria-hidden="true">'+(closed?'▸':'▾')+'</span><b>'+_lufE(short)+'</b>'+(area?'<span class="luf-tag">'+_lufE(area)+'</span>':'')+'<span class="luf-cnt">'+rows.length+'</span></button>';
+    if(closed)return h+'</section>';
+    h+='<ul class="luf-ob">'+shown.map(function(x){
+      var p=_lufObParts(x),k=LUF_KIND[x.kind]||LUF_KIND.yours;
+      return '<li class="luf-it"><span class="luf-dot" style="--c:'+k[1]+'" title="'+k[0]+'"></span><div class="luf-itb"><div class="luf-itt"><b>'+_lufE(p.title)+'</b>'+
+        (x.kind!=='yours'?'<span class="luf-pill" style="--c:'+k[1]+'">'+k[0]+'</span>':'')+
+        (p.state?'<span class="luf-state'+(p.state==='optional'?' opt':'')+'">'+_lufE(p.state)+'</span>':'')+
+        (x.due?'<span class="luf-state">due '+_lufE(x.due)+'</span>':'')+'</div>'+
+        (p.how?'<div class="luf-next"><span>Next</span>'+_lufE(p.how)+'</div>':'')+
+        (p.why?'<div class="luf-why">'+_lufE(p.why)+'</div>':'')+
+        (x.detail?'<div class="luf-src">'+_lufE(x.detail)+'</div>':'')+'</div></li>';
+    }).join('')+'</ul>';
+    if(rows.length>5&&!LUF.q)h+='<button class="luf-link luf-morebtn"'+_lufA('luFleetMore',[g])+'>'+(more?'Show fewer':'Show all '+rows.length)+'</button>';
+    return h+'</section>';
+  }).join('');
+}
+function _lufObPaint(){var w=document.getElementById('luf-ob-wrap');if(w)w.innerHTML=_lufObHtml();else _lufPanelPaint();}
+
 function _lufPanelPaint(){
   var ov=document.getElementById('luf-ov');if(!ov||ov.hidden)return;
-  var st=LUF.status||{};
+  var st=LUF.status||{},c=_lufCounts();
   var keep=ov.querySelector('#luf-sendback-text');var keepVal=keep?keep.value:'';
-  var html='<div id="luf-dlg" role="dialog" aria-modal="true" aria-labelledby="luf-h"><div class="luf-head"><h2 id="luf-h">🤖 Fleet</h2>'+
-    '<span class="luf-conn">'+(st.connected?(st.seenAt?'Mission Control last checked in '+_lufE(_lufAgo(st.seenAt))+(st.seenMachine?' from '+_lufE(st.seenMachine):''):'Connected — Mission Control hasn’t checked in yet'):'Not connected')+'</span>'+
-    '<button class="btn btn-s"'+_lufA('luFleetNew',[])+'>+ Hand something off</button><button class="luf-x" aria-label="Close"'+_lufA('luFleetClose',[])+'>×</button></div><div class="luf-body">';
+  var hadSearch=document.activeElement&&document.activeElement.id==='luf-q';
+  var obAll=((LUF.outbox&&LUF.outbox.items)||[]);
+  var active=LUF.items.filter(function(r){return r.status!=='done'&&r.status!=='cancelled';});
+  var fin=LUF.items.filter(function(r){return r.status==='done'||r.status==='cancelled';});
+  if(!LUF.tab)LUF.tab=(active.length||!obAll.length)?'handoffs':'yours';
+  var fresh=st.connected&&st.seenAt&&(Date.now()-Date.parse(st.seenAt)<15*60e3);
+  var html='<div id="luf-dlg" role="dialog" aria-modal="true" aria-labelledby="luf-h"><div class="luf-head">'+
+    '<span class="luf-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="7" width="16" height="12" rx="3"/><path d="M12 3v4M9 12h.01M15 12h.01M9 16h6"/></svg></span>'+
+    '<div class="luf-ht"><h2 id="luf-h">Fleet</h2><span class="luf-conn"><i class="luf-live'+(fresh?' on':'')+'" aria-hidden="true"></i>'+(st.connected?(st.seenAt?'Mission Control checked in '+_lufE(_lufAgo(st.seenAt))+(st.seenMachine?' from '+_lufE(st.seenMachine):''):'Connected. Mission Control hasn’t checked in yet'):'Not connected')+'</span></div>'+
+    '<button class="btn btn-p"'+_lufA('luFleetNew',[])+'>+ Hand something off</button><button class="luf-x" aria-label="Close"'+_lufA('luFleetClose',[])+'>×</button></div><div class="luf-body">';
   if(LUF.err)html+='<div class="luf-note luf-warn">Couldn’t load: '+_lufE(LUF.err)+'</div>';
   if(LUF.key)html+=_lufKeyHtml();
   else if(!st.connected)html+=_lufConnectHtml();
+  // the numbers, each a way in
+  var stat=function(n,label,tab,hot){return '<button class="luf-stat'+(hot&&n?' hot':'')+'"'+_lufA('luFleetTab',[tab])+'><span class="luf-n">'+n+'</span><span class="luf-sl">'+label+'</span></button>';};
+  html+='<div class="luf-stats">'+stat(c.approve,'Need your approval','handoffs',true)+stat(c.running+c.waiting,'In progress','handoffs',false)+stat(c.review+c.failed,'Ready for review','handoffs',true)+stat(obAll.length,'Waiting on you','yours',false)+'</div>';
+  var tab=function(id,label,n){return '<button role="tab" aria-selected="'+(LUF.tab===id)+'" class="'+(LUF.tab===id?'on':'')+'"'+_lufA('luFleetTab',[id])+'>'+label+(n?' <span>'+n+'</span>':'')+'</button>';};
+  html+='<div class="luf-tabs" role="tablist" aria-label="Fleet">'+tab('handoffs','Hand-offs',active.length)+tab('yours','Waiting on you',obAll.length)+tab('done','Finished',fin.length)+'</div>';
   // area filter
   var areas={};LUF.items.forEach(function(r){var a=r.data&&r.data.area;areas[_lufAreaName(a)]=a||{type:'client',name:'No area'};});
-  ((LUF.outbox&&LUF.outbox.items)||[]).forEach(function(x){if(x.area&&!areas[x.area])areas[x.area]={type:/^personal/i.test(x.area)?'personal':'client',name:x.area};});
+  obAll.forEach(function(x){if(x.area&&!areas[x.area])areas[x.area]={type:/^personal/i.test(x.area)?'personal':'client',name:x.area};});
   var names=Object.keys(areas).sort(function(a,b){var pa=areas[a].type==='personal',pb=areas[b].type==='personal';return pa===pb?a.localeCompare(b):(pa?1:-1);});
-  if(names.length>1)html+='<div class="luf-chips" role="group" aria-label="Area">'+['all'].concat(names).map(function(n){return '<button class="pm-chip'+(LUF.area===n?' on':'')+'" aria-pressed="'+(LUF.area===n)+'"'+_lufA('luFleetArea',[n])+'>'+(n==='all'?'All':_lufE(n))+'</button>';}).join('')+'</div>';
+  var areaChips=names.length>1?'<div class="luf-chips" role="group" aria-label="Area">'+['all'].concat(names).map(function(n){return '<button class="luf-chip'+(LUF.area===n?' on':'')+'" aria-pressed="'+(LUF.area===n)+'"'+_lufA('luFleetArea',[n])+'>'+(n==='all'?'All areas':_lufE(n))+'</button>';}).join('')+'</div>':'';
   var inArea=function(r){return LUF.area==='all'||_lufAreaName(r.data&&r.data.area)===LUF.area;};
-  var list=LUF.items.filter(inArea);
-  var sec=function(title,rows,empty){return rows.length?'<h3 class="luf-sec">'+title+' <span>'+rows.length+'</span></h3>'+rows.map(_lufCard).join(''):(empty?'<h3 class="luf-sec">'+title+'</h3><div class="luf-note">'+empty+'</div>':'');};
-  html+=sec('Needs your approval',list.filter(function(r){return r.status==='proposed';}));
-  html+=sec('Ready for your review',list.filter(function(r){return r.status==='review';}));
-  html+=sec('Didn’t finish',list.filter(function(r){return r.status==='failed';}));
-  html+=sec('In progress',list.filter(function(r){return ['requested','approved','running'].indexOf(r.status)>=0;}),LUF.items.length?'':'Nothing handed off yet. Open a task, choose <b>Hand off</b>, then <b>Send to the Fleet</b> — or use “+ Hand something off” above.');
-  var ob=((LUF.outbox&&LUF.outbox.items)||[]).filter(function(x){return LUF.area==='all'||(x.area||'No area')===LUF.area;});
-  if(ob.length){
-    html+='<h3 class="luf-sec">Mission Control: waiting on you <span>'+ob.length+'</span></h3><div class="luf-note" style="margin-top:-4px">From your repositories and the fleet’s work, as of '+_lufE(_lufAgo(LUF.outbox.at))+'. Do these in Mission Control (Work) or where they live.</div>';
-    html+='<ul class="luf-ob">'+ob.slice(0,80).map(function(x){return '<li><span class="luf-pill" style="--c:'+(x.kind==='review'?'#0891b2':x.kind==='waiting'?'#64748b':'#d97706')+'">'+(x.kind==='review'?'Review':x.kind==='waiting'?'Waiting':'Yours')+'</span> <b>'+_lufE(x.title)+'</b>'+(x.project?' <span class="luf-m">· '+_lufE(x.project)+'</span>':'')+(x.area?' <span class="luf-m">· '+_lufE(x.area)+'</span>':'')+(x.due?' <span class="luf-m">· due '+_lufE(x.due)+'</span>':'')+(x.detail?'<div class="luf-m">'+_lufE(x.detail)+'</div>':'')+'</li>';}).join('')+'</ul>';
+  var sec=function(title,rows){return rows.length?'<h3 class="luf-sec">'+title+' <span>'+rows.length+'</span></h3>'+rows.map(_lufCard).join(''):'';};
+  if(LUF.tab==='handoffs'){
+    var list=active.filter(inArea);
+    html+=areaChips;
+    if(!list.length)html+='<div class="luf-empty"><b>'+(active.length?'Nothing in this area.':'Nothing handed off right now.')+'</b><span>Hand a task or a project to your fleet of AI machines. Nothing runs until you approve the plan.</span>'+
+      '<ol class="luf-steps"><li><i>1</i><span>Open a task, choose <b>Hand off</b>, then <b>Send to the Fleet</b></span></li><li><i>2</i><span>Mission Control proposes who does it and where</span></li><li><i>3</i><span>You approve, then review the result here</span></li></ol></div>';
+    html+=sec('Needs your approval',list.filter(function(r){return r.status==='proposed';}));
+    html+=sec('Ready for your review',list.filter(function(r){return r.status==='review';}));
+    html+=sec('Didn’t finish',list.filter(function(r){return r.status==='failed';}));
+    html+=sec('In progress',list.filter(function(r){return ['requested','approved','running'].indexOf(r.status)>=0;}));
+  }else if(LUF.tab==='yours'){
+    var kinds={all:obAll.length,yours:0,review:0,waiting:0};obAll.forEach(function(x){kinds[x.kind]=(kinds[x.kind]||0)+1;});
+    html+='<div class="luf-tools"><input id="luf-q" class="inp" type="search" placeholder="Search what’s waiting on you" aria-label="Search what’s waiting on you" value="'+_lufE(LUF.q||'')+'">'+
+      '<div class="luf-chips" role="group" aria-label="Kind">'+[['all','All'],['yours','Yours'],['review','To review'],['waiting','Waiting']].filter(function(k){return k[0]==='all'||kinds[k[0]];}).map(function(k){return '<button class="luf-chip'+(LUF.kind===k[0]?' on':'')+'" aria-pressed="'+(LUF.kind===k[0])+'"'+_lufA('luFleetKind',[k[0]])+'>'+k[1]+' <span>'+kinds[k[0]]+'</span></button>';}).join('')+'</div></div>'+areaChips+
+      (obAll.length?'<div class="luf-note">From your repositories and the fleet’s work, as of '+_lufE(_lufAgo(LUF.outbox.at))+'. Do these in Mission Control (Work) or where they live.</div>':'')+
+      '<div id="luf-ob-wrap">'+_lufObHtml()+'</div>';
+  }else{
+    var done=fin.filter(inArea);
+    html+=areaChips+(done.length?done.map(_lufCard).join(''):'<div class="luf-empty"><b>Nothing finished yet.</b><span>Accepted and cancelled hand-offs from the last 30 days appear here.</span></div>');
   }
-  var fin=list.filter(function(r){return r.status==='done'||r.status==='cancelled';});
-  if(fin.length)html+='<h3 class="luf-sec"><button class="luf-link" aria-expanded="'+LUF.showDone+'"'+_lufA('luFleetToggleDone',[])+'>'+(LUF.showDone?'▾':'▸')+' Finished (last 30 days)</button> <span>'+fin.length+'</span></h3>'+(LUF.showDone?fin.map(_lufCard).join(''):'');
   if(st.connected)html+='<div class="luf-foot"><button class="luf-link"'+_lufA('luFleetConnect',[])+'>Make a new key</button> · <button class="luf-link"'+_lufA('luFleetDisconnect',[])+'>Disconnect Mission Control</button></div>';
   html+='</div></div>';
   ov.innerHTML=html;
   var ta=ov.querySelector('#luf-sendback-text');if(ta){ta.value=keepVal;ta.focus();}
+  else if(hadSearch){var q=ov.querySelector('#luf-q');if(q){q.focus();try{q.setSelectionRange(q.value.length,q.value.length);}catch(_){}}}
 }
 
 function _lufCard(r){
@@ -360,14 +432,42 @@ function _lufCSS(){
 '.luf-today{display:flex;align-items:center;gap:12px;padding:12px 14px;margin:0 0 14px;border:1px solid var(--bd2);border-radius:12px;background:var(--s1)}',
 '.luf-today .luf-ico{font-size:22px}.luf-today .luf-t{flex:1;display:flex;flex-direction:column;gap:2px;font-size:13px;color:var(--t2)}.luf-today .luf-t b{color:var(--t1)}',
 '#luf-ov,#luf-req-ov{position:fixed;inset:0;z-index:var(--z-modal,1000);background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:16px}',
-'#luf-dlg,#luf-req{background:var(--s1);color:var(--t1);border:1px solid var(--bd2);border-radius:14px;width:min(780px,100%);max-height:calc(100dvh - 32px);display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.45)}',
-'#luf-req{width:min(560px,100%)}',
+'#luf-dlg,#luf-req{background:var(--s1);color:var(--t1);border:1px solid var(--bd2);border-radius:14px;width:min(960px,100%);height:min(860px,calc(100dvh - 32px));max-height:calc(100dvh - 32px);display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.45)}',
+'#luf-req{width:min(560px,100%);height:auto}',
 '.luf-head{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--bd1,var(--bd2));flex-wrap:wrap}',
-'.luf-head h2{font-size:16px;font-weight:700;margin:0}.luf-conn{flex:1;font-size:12px;color:var(--t2);min-width:160px}',
+'.luf-head h2{font-size:17px;font-weight:700;margin:0;letter-spacing:-.01em}.luf-conn{font-size:12px;color:var(--t2);display:flex;align-items:center;gap:6px}',
+'.luf-ht{flex:1;min-width:160px;display:flex;flex-direction:column;gap:1px}',
+'.luf-mark{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:var(--acs);color:var(--ach)}.luf-mark svg{width:20px;height:20px}',
+'.luf-live{width:7px;height:7px;border-radius:50%;background:var(--t3);flex-shrink:0}.luf-live.on{background:var(--ok);box-shadow:0 0 0 3px color-mix(in oklab,var(--ok) 22%,transparent)}',
+'.luf-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:4px 0 14px}',
+'.luf-stat{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:12px 14px;border-radius:12px;border:1px solid var(--bd2);background:var(--s2);color:var(--t1);cursor:pointer;text-align:left;font:inherit}',
+'.luf-stat:hover,.luf-stat:focus-visible{border-color:var(--bd3)}.luf-stat.hot{border-color:color-mix(in oklab,var(--ac) 55%,var(--bd2));background:color-mix(in oklab,var(--ac) 9%,var(--s2))}',
+'.luf-n{font-size:26px;font-weight:700;line-height:1.1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}.luf-stat.hot .luf-n{color:var(--ach)}.luf-sl{font-size:12px;color:var(--t2)}',
+'.luf-tabs{display:inline-flex;padding:3px;border:1px solid var(--bd2);border-radius:11px;background:var(--s2);margin:0 0 10px;max-width:100%;overflow-x:auto}',
+'.luf-tabs button{height:30px;padding:0 12px;border:0;border-radius:8px;background:none;color:var(--t2);font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}',
+'.luf-tabs button span{font-size:11px;font-weight:700;margin-left:4px;padding:1px 6px;border-radius:9px;background:var(--s3);color:var(--t2)}',
+'.luf-tabs button.on{background:var(--s3);color:var(--t1);font-weight:600;box-shadow:inset 0 0 0 1px var(--bd2)}.luf-tabs button.on span{background:var(--ac);color:#fff}',
+'.luf-chip{height:28px;padding:0 10px;border-radius:999px;border:1px solid var(--bd2);background:none;color:var(--t2);font:inherit;font-size:12px;cursor:pointer}.luf-chip span{color:var(--t3);margin-left:2px}',
+'.luf-chip.on{background:var(--acs);border-color:color-mix(in oklab,var(--ac) 50%,var(--bd2));color:var(--t1);font-weight:600}',
+'.luf-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 6px}.luf-tools .inp{flex:1;min-width:200px;height:34px;font-size:13px}',
+'.luf-grp{border:1px solid var(--bd2);border-radius:12px;background:var(--s2);margin:0 0 10px;overflow:hidden}',
+'.luf-grph{display:flex;align-items:center;gap:8px;width:100%;padding:10px 12px;border:0;background:none;color:var(--t1);font:inherit;font-size:13.5px;cursor:pointer;text-align:left}.luf-grph:hover{background:var(--s3)}',
+'.luf-chev{color:var(--t3);width:12px}.luf-cnt{margin-left:auto;font-size:11px;font-weight:700;padding:1px 7px;border-radius:9px;background:var(--s3);color:var(--t2)}',
+'.luf-tag{font-size:11px;font-weight:600;padding:1px 7px;border-radius:6px;background:var(--acs);color:var(--t1)}',
+'.luf-it{display:flex;gap:10px;padding:10px 12px;border-top:1px solid var(--bd1,var(--bd2))}.luf-itb{flex:1;min-width:0}',
+'.luf-dot{width:8px;height:8px;border-radius:50%;background:var(--c);margin-top:6px;flex-shrink:0}',
+'.luf-itt{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;font-size:13.5px}.luf-itt b{font-weight:600}',
+'.luf-state{font-size:11px;font-weight:600;padding:1px 7px;border-radius:6px;background:color-mix(in oklab,var(--warn) 16%,transparent);color:var(--warn)}.luf-state.opt{background:var(--s3);color:var(--t2)}',
+'.luf-next{font-size:12.5px;color:var(--t1);margin-top:4px;display:flex;gap:8px;align-items:baseline}.luf-next span{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ach);flex-shrink:0}',
+'.luf-why{font-size:12.5px;color:var(--t2);margin-top:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.luf-it:hover .luf-why,.luf-it:focus-within .luf-why{-webkit-line-clamp:unset}',
+'.luf-src{font-size:11.5px;color:var(--t3);margin-top:3px}.luf-morebtn{display:block;margin:0;padding:8px 12px 10px 30px;font-size:12.5px;border-top:1px solid var(--bd1,var(--bd2));width:100%;text-align:left;text-decoration:none}',
+'.luf-empty{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;padding:34px 16px;border:1px dashed var(--bd2);border-radius:14px;color:var(--t2);font-size:13px;margin:6px 0 10px}.luf-empty b{color:var(--t1);font-size:15px}',
+'.luf-steps{list-style:none;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0 0;padding:0;width:100%;text-align:left}.luf-steps li{padding:10px 12px;border-radius:10px;background:var(--s2);border:1px solid var(--bd1,var(--bd2));font-size:12.5px;display:flex;gap:8px}',
+'.luf-steps i{font-style:normal;font-weight:700;width:20px;height:20px;border-radius:50%;background:var(--acs);color:var(--ach);display:grid;place-items:center;font-size:11px;flex-shrink:0}',
 '.luf-x{background:none;border:0;color:var(--t2);font-size:22px;line-height:1;cursor:pointer;width:36px;height:36px;border-radius:8px}.luf-x:hover,.luf-x:focus-visible{background:var(--s3);color:var(--t1)}',
 '.luf-body{overflow:auto;padding:12px 16px 16px}',
 '.luf-sec{font-size:13px;font-weight:700;margin:16px 0 8px;display:flex;align-items:center;gap:6px}.luf-sec>span{color:var(--t2);font-weight:600}',
-'.luf-card{border:1px solid var(--bd2);border-radius:10px;padding:10px 12px;margin:0 0 8px;background:var(--s2)}',
+'.luf-card{border:1px solid var(--bd2);border-radius:12px;padding:10px 12px;margin:0 0 8px;background:var(--s2)}',
 '.luf-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.luf-title{flex:1;min-width:180px;font-size:13.5px}',
 '.luf-pill{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;color:var(--c);background:color-mix(in oklab,var(--c) 14%,transparent);border:1px solid color-mix(in oklab,var(--c) 40%,transparent)}',
 'body:not(.light-mode) .luf-pill{color:color-mix(in oklab,var(--c) 55%,#fff)}',
@@ -378,7 +478,7 @@ function _lufCSS(){
 '.luf-acts{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:10px;align-items:center}.luf-acts .luf-cancel{margin-right:auto}',
 '.luf-note{font-size:12.5px;color:var(--t2);padding:8px 0}.luf-warn{color:var(--red)}',
 '.luf-chips{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 2px}',
-'.luf-ob{list-style:none;margin:0;padding:0}.luf-ob li{padding:7px 0;border-bottom:1px solid var(--bd1,var(--bd2));font-size:13px}',
+'.luf-ob{list-style:none;margin:0;padding:0}',
 '.luf-link{background:none;border:0;padding:0;font:inherit;color:var(--ach);cursor:pointer;text-decoration:underline}',
 '.luf-foot{margin-top:18px;font-size:12px;color:var(--t2)}',
 '.luf-connect{border:1px solid var(--bd2);border-radius:10px;padding:12px;margin:4px 0 8px;background:var(--s2)}.luf-connect p{font-size:12.5px;color:var(--t2);margin:6px 0 10px}',
@@ -387,7 +487,7 @@ function _lufCSS(){
 '.luf-f{display:flex;flex-direction:column;gap:4px;margin:0 0 12px}.luf-f .inp{width:100%}.luf-lab{font-size:12px;font-weight:600;color:var(--t2)}',
 '.luf-seg{display:flex;gap:14px;flex-wrap:wrap;font-size:13px}.luf-seg label{display:flex;gap:6px;align-items:center}',
 '.luf-handoff{display:flex;gap:10px;align-items:center;padding:10px 12px;margin:0 0 12px;border-radius:10px;border:1px dashed var(--bd2);font-size:12.5px;color:var(--t2)}.luf-handoff span{flex:1}',
-'@media (max-width:600px){#luf-ov,#luf-req-ov{padding:0;align-items:stretch}#luf-dlg,#luf-req{border-radius:0;max-height:100dvh;height:100dvh}}'
+'@media (max-width:600px){#luf-ov,#luf-req-ov{padding:0;align-items:stretch}#luf-dlg,#luf-req{border-radius:0;max-height:100dvh;height:100dvh}.luf-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.luf-steps{grid-template-columns:1fr}}'
   ].join('\n');
   document.head.appendChild(st);
 }
